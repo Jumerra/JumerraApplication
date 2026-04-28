@@ -9,6 +9,148 @@ export interface HealthStatus {
   status: string;
 }
 
+export type AuthUserRole = (typeof AuthUserRole)[keyof typeof AuthUserRole];
+
+export const AuthUserRole = {
+  candidate: "candidate",
+  employer: "employer",
+  institution: "institution",
+  admin: "admin",
+} as const;
+
+export type AuthUserStatus =
+  (typeof AuthUserStatus)[keyof typeof AuthUserStatus];
+
+export const AuthUserStatus = {
+  pending: "pending",
+  active: "active",
+  rejected: "rejected",
+  invited: "invited",
+} as const;
+
+export interface AuthUser {
+  id: number;
+  email: string;
+  fullName: string;
+  role: AuthUserRole;
+  status: AuthUserStatus;
+  candidateId: number | null;
+  employerId: number | null;
+  institutionId: number | null;
+}
+
+export interface AuthSession {
+  user: AuthUser | null;
+}
+
+export type RegisterRequestRole =
+  (typeof RegisterRequestRole)[keyof typeof RegisterRequestRole];
+
+export const RegisterRequestRole = {
+  candidate: "candidate",
+  employer: "employer",
+  institution: "institution",
+} as const;
+
+export type RegisterRequestSubmittedData = { [key: string]: unknown };
+
+export interface RegisterRequest {
+  email: string;
+  password: string;
+  fullName: string;
+  role: RegisterRequestRole;
+  submittedData?: RegisterRequestSubmittedData;
+}
+
+export interface RegisterResponse {
+  message: string;
+  userId: number;
+}
+
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface SetupPasswordRequest {
+  token: string;
+  password: string;
+}
+
+export interface SetupTokenInfo {
+  email: string;
+  fullName: string;
+  role: string;
+}
+
+export type RegistrationSubmittedData = { [key: string]: unknown };
+
+export interface Registration {
+  registrationId: number;
+  userId: number;
+  email: string;
+  fullName: string;
+  role: string;
+  userStatus: string;
+  registrationCreatedAt: string;
+  reviewedAt?: string | null;
+  decisionNote?: string | null;
+  candidateId?: number | null;
+  employerId?: number | null;
+  institutionId?: number | null;
+  submittedData: RegistrationSubmittedData;
+}
+
+export type OnboardRequestRole =
+  (typeof OnboardRequestRole)[keyof typeof OnboardRequestRole];
+
+export const OnboardRequestRole = {
+  employer: "employer",
+  institution: "institution",
+} as const;
+
+export type OnboardRequestEntity = { [key: string]: unknown };
+
+export interface OnboardRequest {
+  role: OnboardRequestRole;
+  email: string;
+  fullName: string;
+  entity: OnboardRequestEntity;
+}
+
+export type OnboardResponseUser = {
+  id: number;
+  email: string;
+  fullName: string;
+  role: string;
+};
+
+export interface OnboardResponse {
+  user: OnboardResponseUser;
+  setupUrl: string;
+  token: string;
+  expiresAt: string;
+}
+
+export interface OnboardedUser {
+  id: number;
+  email: string;
+  fullName: string;
+  role: string;
+  status: string;
+  createdAt: string;
+  employerId?: number | null;
+  institutionId?: number | null;
+}
+
+export interface RegistrationDecisionBody {
+  note?: string;
+}
+
+export interface OkResponse {
+  ok: boolean;
+}
+
 export interface Skill {
   id: number;
   name: string;
@@ -599,3 +741,29 @@ export const ListApplicationsStatus = {
   rejected: "rejected",
   withdrawn: "withdrawn",
 } as const;
+
+export type LogoutUser200 = {
+  ok: boolean;
+};
+
+export type ListRegistrationsParams = {
+  status?: ListRegistrationsStatus;
+};
+
+export type ListRegistrationsStatus =
+  (typeof ListRegistrationsStatus)[keyof typeof ListRegistrationsStatus];
+
+export const ListRegistrationsStatus = {
+  pending: "pending",
+  active: "active",
+  rejected: "rejected",
+  all: "all",
+} as const;
+
+export type ListRegistrations200 = {
+  registrations: Registration[];
+};
+
+export type ListOnboardedUsers200 = {
+  users: OnboardedUser[];
+};

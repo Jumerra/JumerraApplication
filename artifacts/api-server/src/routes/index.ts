@@ -7,10 +7,14 @@ import jobsRouter from "./jobs";
 import applicationsRouter from "./applications";
 import skillsRouter from "./skills";
 import dashboardRouter from "./dashboard";
+import authRouter from "./auth";
+import adminRouter from "./admin";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
+router.use(authRouter);
+router.use(adminRouter);
 router.use(candidatesRouter);
 router.use(employersRouter);
 router.use(institutionsRouter);

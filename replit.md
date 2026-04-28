@@ -9,7 +9,21 @@ A smart talent ecosystem connecting candidates (interns/grads/early-career) with
 - **API server** (`artifacts/api-server`): Express 5 + Drizzle ORM, structured logging (pino), domain-split routes under `src/routes/`, business logic (matching algorithm) in `src/lib/matching.ts`.
 - **DB** (`lib/db`): Drizzle schema split per domain under `src/schema/`. Seed at `src/seed.ts` (run with `pnpm dlx tsx src/seed.ts`).
 - **API client** (`lib/api-client-react`): Orval-generated React Query hooks consumed by the frontend.
-- **Web app** (`artifacts/talent-platform`): React + Vite + wouter + shadcn/ui + Recharts + framer-motion + sonner. Role context (`src/lib/auth.tsx`) provides `View as` switching across Candidate / Employer / Institution / Admin (persisted in localStorage). All three default IDs are 1 and seed data guarantees those entities exist.
+- **Web app** (`artifacts/talent-platform`): React + Vite + wouter + shadcn/ui + Recharts + framer-motion + sonner. Real cookie-session auth (see "Auth" below) with a fallback `View as` demo dropdown when no session is active. Auth context lives in `src/lib/auth.tsx`: it consumes `/api/auth/me` and exposes both `sessionUser` (real) and `demoRole` (localStorage-persisted). When a session is present `role`/`userId` come from the session; otherwise they fall back to the demo role.
+
+## Auth
+
+- **Schema** (`lib/db/src/schema/auth.ts`):
+  - `users(id, email UNIQUE, password_hash NULLABLE, full_name, role, status, candidate_id, employer_id, institution_id, created_at, approved_at)` — `status` is `pending` | `active` | `rejected` | `invited`. `password_hash` is null for admin-onboarded users until they set a password.
+  - `pending_registrations(id, user_id, submitted_data jsonb, reviewed_by, reviewed_at, decision_note, created_at)` — public signups land here.
+  - `password_setup_tokens(id, user_id, token UNIQUE, expires_at, used_at, created_at)` — one-time setup links for invitees and admin onboarding.
+  - `session(sid, sess, expire)` — connect-pg-simple table (manually created in schema; we set `createTableIfMissing: false`).
+- **API** (`artifacts/api-server`): `express-session` + `connect-pg-simple` reading `SESSION_SECRET`, cookie name `talentlink.sid`. `src/lib/auth.ts` does bcrypt hashing and token generation. `src/middleware/require-auth.ts` exports `requireAuth` and `requireAdmin`. Routes:
+  - Public: `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`, `GET /api/auth/setup-token/:token`, `POST /api/auth/setup-password`.
+  - Admin only: `GET /api/admin/registrations`, `POST /api/admin/registrations/:id/approve`, `POST /api/admin/registrations/:id/reject`, `POST /api/admin/onboard`, `GET /api/admin/onboarded-users`.
+- **Web pages**: `/signup` (3 role tabs), `/login`, `/setup-password?token=...`, `/dashboard/admin/registrations`, `/dashboard/admin/onboard`. The header swaps "Sign in / Sign up" for a user-name dropdown (with admin shortcuts + Log out) once logged in.
+- **Email is NOT integrated** — admin onboarding shows the generated setup link in the success card with a Copy button (and logs it server-side). Swap in a real mailer later by hooking the `setupUrl` returned from `POST /api/admin/onboard`.
+- **Seeded admin**: `admin@talentlink.com` / `admin123`.
 - **Mobile app** (`artifacts/talent-mobile`, preview path `/mobile/`): Expo + Expo Router + React Native, **candidate-only experience** (browse jobs, view detail w/ match score, apply, track applications, view profile). Hardcoded `CURRENT_CANDIDATE_ID = 1` in `constants/auth.ts` (no auth on mobile). Tabs: Discover / Search / Applications / Profile. Stack screens: `job/[id]/index` (detail), `job/[id]/apply` (modal). Reuses the same `@workspace/api-client-react` hooks as the web app and the same backend. Design tokens in `constants/colors.ts` mirror the web emerald palette (light + dark via `useColors()`). Inter fonts loaded via `@expo-google-fonts/inter`. Feather icons only (no emojis).
 
 ## Domain model

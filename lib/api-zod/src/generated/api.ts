@@ -904,3 +904,153 @@ export const GetSalaryInsightsResponseItem = zod.object({
 export const GetSalaryInsightsResponse = zod.array(
   GetSalaryInsightsResponseItem,
 );
+
+export const RegisterUserBody = zod.object({
+  email: zod.string(),
+  password: zod.string(),
+  fullName: zod.string(),
+  role: zod.enum(["candidate", "employer", "institution"]),
+  submittedData: zod.record(zod.string(), zod.unknown()).optional(),
+});
+
+export const LoginUserBody = zod.object({
+  email: zod.string(),
+  password: zod.string(),
+});
+
+export const LoginUserResponse = zod.object({
+  user: zod.union([
+    zod.object({
+      id: zod.number(),
+      email: zod.string(),
+      fullName: zod.string(),
+      role: zod.enum(["candidate", "employer", "institution", "admin"]),
+      status: zod.enum(["pending", "active", "rejected", "invited"]),
+      candidateId: zod.number().nullable(),
+      employerId: zod.number().nullable(),
+      institutionId: zod.number().nullable(),
+    }),
+    zod.null(),
+  ]),
+});
+
+export const LogoutUserResponse = zod.object({
+  ok: zod.boolean(),
+});
+
+export const GetCurrentUserResponse = zod.object({
+  user: zod.union([
+    zod.object({
+      id: zod.number(),
+      email: zod.string(),
+      fullName: zod.string(),
+      role: zod.enum(["candidate", "employer", "institution", "admin"]),
+      status: zod.enum(["pending", "active", "rejected", "invited"]),
+      candidateId: zod.number().nullable(),
+      employerId: zod.number().nullable(),
+      institutionId: zod.number().nullable(),
+    }),
+    zod.null(),
+  ]),
+});
+
+export const SetupPasswordBody = zod.object({
+  token: zod.string(),
+  password: zod.string(),
+});
+
+export const SetupPasswordResponse = zod.object({
+  user: zod.union([
+    zod.object({
+      id: zod.number(),
+      email: zod.string(),
+      fullName: zod.string(),
+      role: zod.enum(["candidate", "employer", "institution", "admin"]),
+      status: zod.enum(["pending", "active", "rejected", "invited"]),
+      candidateId: zod.number().nullable(),
+      employerId: zod.number().nullable(),
+      institutionId: zod.number().nullable(),
+    }),
+    zod.null(),
+  ]),
+});
+
+export const GetSetupTokenInfoParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+export const GetSetupTokenInfoResponse = zod.object({
+  email: zod.string(),
+  fullName: zod.string(),
+  role: zod.string(),
+});
+
+export const ListRegistrationsQueryParams = zod.object({
+  status: zod.enum(["pending", "active", "rejected", "all"]).optional(),
+});
+
+export const ListRegistrationsResponse = zod.object({
+  registrations: zod.array(
+    zod.object({
+      registrationId: zod.number(),
+      userId: zod.number(),
+      email: zod.string(),
+      fullName: zod.string(),
+      role: zod.string(),
+      userStatus: zod.string(),
+      registrationCreatedAt: zod.coerce.date(),
+      reviewedAt: zod.coerce.date().nullish(),
+      decisionNote: zod.string().nullish(),
+      candidateId: zod.number().nullish(),
+      employerId: zod.number().nullish(),
+      institutionId: zod.number().nullish(),
+      submittedData: zod.record(zod.string(), zod.unknown()),
+    }),
+  ),
+});
+
+export const ApproveRegistrationParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ApproveRegistrationBody = zod.object({
+  note: zod.string().optional(),
+});
+
+export const ApproveRegistrationResponse = zod.object({
+  ok: zod.boolean(),
+});
+
+export const RejectRegistrationParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const RejectRegistrationBody = zod.object({
+  note: zod.string().optional(),
+});
+
+export const RejectRegistrationResponse = zod.object({
+  ok: zod.boolean(),
+});
+
+export const OnboardEntityBody = zod.object({
+  role: zod.enum(["employer", "institution"]),
+  email: zod.string(),
+  fullName: zod.string(),
+  entity: zod.record(zod.string(), zod.unknown()),
+});
+
+export const ListOnboardedUsersResponse = zod.object({
+  users: zod.array(
+    zod.object({
+      id: zod.number(),
+      email: zod.string(),
+      fullName: zod.string(),
+      role: zod.string(),
+      status: zod.string(),
+      createdAt: zod.coerce.date(),
+      employerId: zod.number().nullish(),
+      institutionId: zod.number().nullish(),
+    }),
+  ),
+});

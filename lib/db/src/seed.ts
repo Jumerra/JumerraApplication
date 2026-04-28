@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import bcrypt from "bcryptjs";
 import {
   db,
   pool,
@@ -13,6 +14,9 @@ import {
   jobsTable,
   applicationsTable,
   skillsTable,
+  usersTable,
+  pendingRegistrationsTable,
+  passwordSetupTokensTable,
 } from "./index";
 
 async function clear() {
@@ -27,7 +31,10 @@ async function clear() {
     candidates,
     employers,
     institutions,
-    skills
+    skills,
+    password_setup_tokens,
+    pending_registrations,
+    users
     RESTART IDENTITY CASCADE`);
 }
 
@@ -806,6 +813,20 @@ async function main() {
       updatedAt: ts,
     });
   }
+
+  console.log("Seeding default admin user…");
+  const adminPasswordHash = await bcrypt.hash("admin123", 10);
+  await db.insert(usersTable).values({
+    email: "admin@talentlink.com",
+    passwordHash: adminPasswordHash,
+    role: "admin",
+    status: "active",
+    fullName: "Platform Admin",
+    approvedAt: new Date(),
+  });
+  console.log(
+    "  → admin@talentlink.com / admin123 (CHANGE THIS IN PRODUCTION)",
+  );
 
   console.log("Done seeding.");
 }

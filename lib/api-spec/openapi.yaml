@@ -24,6 +24,10 @@ tags:
     description: Skill catalog
   - name: dashboard
     description: Aggregated insights
+  - name: auth
+    description: Authentication and registration
+  - name: admin
+    description: Admin-only operations
 paths:
   /healthz:
     get:
@@ -488,6 +492,207 @@ paths:
                 type: array
                 items: { $ref: "#/components/schemas/SalaryInsight" }
 
+  /auth/register:
+    post:
+      operationId: registerUser
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RegisterRequest" }
+      responses:
+        "201":
+          description: Registration accepted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RegisterResponse" }
+        "400": { description: Invalid input }
+        "409": { description: Email already in use }
+
+  /auth/login:
+    post:
+      operationId: loginUser
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthSession" }
+        "401": { description: Invalid credentials }
+        "403": { description: Account not active }
+
+  /auth/logout:
+    post:
+      operationId: logoutUser
+      tags: [auth]
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                required: [ok]
+
+  /auth/me:
+    get:
+      operationId: getCurrentUser
+      tags: [auth]
+      responses:
+        "200":
+          description: Current session user (or null)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthSession" }
+
+  /auth/setup-password:
+    post:
+      operationId: setupPassword
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SetupPasswordRequest" }
+      responses:
+        "200":
+          description: Password set, user activated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthSession" }
+        "400": { description: Invalid token or password }
+
+  /auth/setup-token/{token}:
+    get:
+      operationId: getSetupTokenInfo
+      tags: [auth]
+      parameters:
+        - in: path
+          name: token
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Token info
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SetupTokenInfo" }
+        "404": { description: Invalid or expired token }
+
+  /admin/registrations:
+    get:
+      operationId: listRegistrations
+      tags: [admin]
+      parameters:
+        - in: query
+          name: status
+          required: false
+          schema:
+            type: string
+            enum: [pending, active, rejected, all]
+      responses:
+        "200":
+          description: Registration list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  registrations:
+                    type: array
+                    items: { $ref: "#/components/schemas/Registration" }
+                required: [registrations]
+        "403": { description: Admin only }
+
+  /admin/registrations/{id}/approve:
+    post:
+      operationId: approveRegistration
+      tags: [admin]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RegistrationDecisionBody" }
+      responses:
+        "200":
+          description: Approved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
+        "403": { description: Admin only }
+
+  /admin/registrations/{id}/reject:
+    post:
+      operationId: rejectRegistration
+      tags: [admin]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RegistrationDecisionBody" }
+      responses:
+        "200":
+          description: Rejected
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
+        "403": { description: Admin only }
+
+  /admin/onboard:
+    post:
+      operationId: onboardEntity
+      tags: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/OnboardRequest" }
+      responses:
+        "201":
+          description: Onboarded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OnboardResponse" }
+        "403": { description: Admin only }
+        "409": { description: Email already in use }
+
+  /admin/onboarded:
+    get:
+      operationId: listOnboardedUsers
+      tags: [admin]
+      responses:
+        "200":
+          description: Invited users awaiting password setup
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  users:
+                    type: array
+                    items: { $ref: "#/components/schemas/OnboardedUser" }
+                required: [users]
+        "403": { description: Admin only }
+
 components:
   schemas:
     HealthStatus:
@@ -495,6 +700,148 @@ components:
       properties:
         status: { type: string }
       required: [status]
+
+    AuthUser:
+      type: object
+      properties:
+        id: { type: integer }
+        email: { type: string }
+        fullName: { type: string }
+        role:
+          type: string
+          enum: [candidate, employer, institution, admin]
+        status:
+          type: string
+          enum: [pending, active, rejected, invited]
+        candidateId: { type: integer, nullable: true }
+        employerId: { type: integer, nullable: true }
+        institutionId: { type: integer, nullable: true }
+      required: [id, email, fullName, role, status, candidateId, employerId, institutionId]
+
+    AuthSession:
+      type: object
+      properties:
+        user:
+          oneOf:
+            - { $ref: "#/components/schemas/AuthUser" }
+            - { type: "null" }
+      required: [user]
+
+    RegisterRequest:
+      type: object
+      properties:
+        email: { type: string }
+        password: { type: string }
+        fullName: { type: string }
+        role:
+          type: string
+          enum: [candidate, employer, institution]
+        submittedData:
+          type: object
+          additionalProperties: true
+      required: [email, password, fullName, role]
+
+    RegisterResponse:
+      type: object
+      properties:
+        message: { type: string }
+        userId: { type: integer }
+      required: [message, userId]
+
+    LoginRequest:
+      type: object
+      properties:
+        email: { type: string }
+        password: { type: string }
+      required: [email, password]
+
+    SetupPasswordRequest:
+      type: object
+      properties:
+        token: { type: string }
+        password: { type: string }
+      required: [token, password]
+
+    SetupTokenInfo:
+      type: object
+      properties:
+        email: { type: string }
+        fullName: { type: string }
+        role: { type: string }
+      required: [email, fullName, role]
+
+    Registration:
+      type: object
+      properties:
+        registrationId: { type: integer }
+        userId: { type: integer }
+        email: { type: string }
+        fullName: { type: string }
+        role: { type: string }
+        userStatus: { type: string }
+        registrationCreatedAt: { type: string, format: date-time }
+        reviewedAt: { type: string, format: date-time, nullable: true }
+        decisionNote: { type: string, nullable: true }
+        candidateId: { type: integer, nullable: true }
+        employerId: { type: integer, nullable: true }
+        institutionId: { type: integer, nullable: true }
+        submittedData:
+          type: object
+          additionalProperties: true
+      required: [registrationId, userId, email, fullName, role, userStatus, registrationCreatedAt, submittedData]
+
+    OnboardRequest:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [employer, institution]
+        email: { type: string }
+        fullName: { type: string }
+        entity:
+          type: object
+          additionalProperties: true
+      required: [role, email, fullName, entity]
+
+    OnboardResponse:
+      type: object
+      properties:
+        user:
+          type: object
+          properties:
+            id: { type: integer }
+            email: { type: string }
+            fullName: { type: string }
+            role: { type: string }
+          required: [id, email, fullName, role]
+        setupUrl: { type: string }
+        token: { type: string }
+        expiresAt: { type: string, format: date-time }
+      required: [user, setupUrl, token, expiresAt]
+
+    OnboardedUser:
+      type: object
+      properties:
+        id: { type: integer }
+        email: { type: string }
+        fullName: { type: string }
+        role: { type: string }
+        status: { type: string }
+        createdAt: { type: string, format: date-time }
+        employerId: { type: integer, nullable: true }
+        institutionId: { type: integer, nullable: true }
+      required: [id, email, fullName, role, status, createdAt]
+
+    RegistrationDecisionBody:
+      type: object
+      properties:
+        note: { type: string }
+
+    OkResponse:
+      type: object
+      properties:
+        ok: { type: boolean }
+      required: [ok]
 
     Skill:
       type: object

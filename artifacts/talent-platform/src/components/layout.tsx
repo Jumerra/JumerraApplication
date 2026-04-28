@@ -1,34 +1,73 @@
 import { useAuth } from "@/lib/auth";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
-import { Compass, Building2, GraduationCap, LayoutDashboard, Search, UserCircle2, Sun, Moon } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Compass,
+  Building2,
+  GraduationCap,
+  LayoutDashboard,
+  Search,
+  UserCircle2,
+  Sun,
+  Moon,
+  LogOut,
+  ShieldAlert,
+  UserPlus,
+  LogIn,
+} from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
+import {
+  useLogoutUser,
+  getGetCurrentUserQueryKey,
+} from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 
 export function Layout({ children }: { children: React.ReactNode }) {
-  const { role, setRole } = useAuth();
-  const [location] = useLocation();
+  const { role, sessionUser, demoRole, setDemoRole } = useAuth();
+  const [location, navigate] = useLocation();
   const { theme, setTheme } = useTheme();
+  const logout = useLogoutUser();
+  const queryClient = useQueryClient();
 
   const navLinks = [
     { href: "/jobs", label: "Find Jobs", icon: Search },
     { href: "/employers", label: "Employers", icon: Building2 },
     { href: "/institutions", label: "Institutions", icon: GraduationCap },
-    ...(role === "employer" || role === "admin" ? [{ href: "/candidates", label: "Talent", icon: UserCircle2 }] : []),
+    ...(role === "employer" || role === "admin"
+      ? [{ href: "/candidates", label: "Talent", icon: UserCircle2 }]
+      : []),
   ];
+
+  async function handleLogout() {
+    await logout.mutateAsync();
+    await queryClient.invalidateQueries({ queryKey: getGetCurrentUserQueryKey() });
+    navigate("/");
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-background font-sans">
       <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-sm">
         <div className="container flex h-16 items-center justify-between">
           <div className="flex items-center gap-6">
-            <Link href="/" className="flex items-center gap-2 font-bold text-xl tracking-tight text-primary">
+            <Link
+              href="/"
+              className="flex items-center gap-2 font-bold text-xl tracking-tight text-primary"
+            >
               <Compass className="h-6 w-6" />
               TalentLink
             </Link>
@@ -38,7 +77,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   key={link.href}
                   href={link.href}
                   className={`text-sm font-medium transition-colors hover:text-primary ${
-                    location.startsWith(link.href) ? "text-primary" : "text-muted-foreground"
+                    location.startsWith(link.href)
+                      ? "text-primary"
+                      : "text-muted-foreground"
                   }`}
                 >
                   {link.label}
@@ -47,22 +88,31 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </nav>
           </div>
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider hidden sm:inline-block">View as</span>
-              <Select value={role || "none"} onValueChange={(val: any) => setRole(val === "none" ? null : val)}>
-                <SelectTrigger className="w-[140px] h-9">
-                  <SelectValue placeholder="Select Role" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Public</SelectItem>
-                  <SelectItem value="candidate">Candidate</SelectItem>
-                  <SelectItem value="employer">Employer</SelectItem>
-                  <SelectItem value="institution">Institution</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
+            {!sessionUser && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider hidden sm:inline-block">
+                  View as
+                </span>
+                <Select
+                  value={demoRole || "none"}
+                  onValueChange={(val: string) =>
+                    setDemoRole(val === "none" ? null : (val as typeof demoRole))
+                  }
+                >
+                  <SelectTrigger className="w-[140px] h-9">
+                    <SelectValue placeholder="Select Role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Public</SelectItem>
+                    <SelectItem value="candidate">Candidate</SelectItem>
+                    <SelectItem value="employer">Employer</SelectItem>
+                    <SelectItem value="institution">Institution</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             <Button
               variant="ghost"
               size="icon"
@@ -75,7 +125,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </Button>
 
             {role && (
-              <Button asChild variant="default" size="sm" className="gap-2 hidden sm:flex">
+              <Button
+                asChild
+                variant="default"
+                size="sm"
+                className="gap-2 hidden sm:flex"
+              >
                 <Link href={`/dashboard/${role}`}>
                   <LayoutDashboard className="h-4 w-4" />
                   Dashboard
@@ -83,19 +138,83 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </Button>
             )}
             {role === "employer" && (
-              <Button asChild variant="outline" size="sm" className="hidden lg:flex">
+              <Button
+                asChild
+                variant="outline"
+                size="sm"
+                className="hidden lg:flex"
+              >
                 <Link href="/post-job">Post a Job</Link>
               </Button>
+            )}
+
+            {sessionUser ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="gap-2 max-w-[200px]">
+                    <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold">
+                      {sessionUser.fullName.charAt(0).toUpperCase()}
+                    </div>
+                    <span className="truncate hidden sm:inline">
+                      {sessionUser.fullName}
+                    </span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel className="font-normal">
+                    <p className="font-semibold text-sm">{sessionUser.fullName}</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {sessionUser.email}
+                    </p>
+                    <p className="text-xs text-muted-foreground capitalize mt-1">
+                      Role: {sessionUser.role}
+                    </p>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {sessionUser.role === "admin" && (
+                    <>
+                      <DropdownMenuItem asChild>
+                        <Link href="/dashboard/admin/registrations" className="gap-2 cursor-pointer">
+                          <ShieldAlert className="w-4 h-4" /> Review applications
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link href="/dashboard/admin/onboard" className="gap-2 cursor-pointer">
+                          <UserPlus className="w-4 h-4" /> Onboard partner
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                    </>
+                  )}
+                  <DropdownMenuItem onClick={handleLogout} className="gap-2 cursor-pointer">
+                    <LogOut className="w-4 h-4" /> Log out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Button asChild variant="ghost" size="sm" className="hidden sm:flex">
+                  <Link href="/login">
+                    <LogIn className="w-4 h-4 mr-1" /> Sign in
+                  </Link>
+                </Button>
+                <Button asChild size="sm">
+                  <Link href="/signup">
+                    <UserPlus className="w-4 h-4 mr-1" /> Sign up
+                  </Link>
+                </Button>
+              </div>
             )}
           </div>
         </div>
       </header>
-      <main className="flex-1 flex flex-col relative z-0">
-        {children}
-      </main>
+      <main className="flex-1 flex flex-col relative z-0">{children}</main>
       <footer className="border-t bg-muted/20 py-10 mt-auto">
         <div className="container text-center text-sm text-muted-foreground">
-          <p>&copy; {new Date().getFullYear()} TalentLink. Where ambition meets opportunity.</p>
+          <p>
+            &copy; {new Date().getFullYear()} TalentLink. Where ambition meets
+            opportunity.
+          </p>
         </div>
       </footer>
     </div>

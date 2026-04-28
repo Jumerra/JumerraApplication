@@ -22,6 +22,11 @@ import CandidateDashboard from "@/pages/dashboard/candidate";
 import EmployerDashboard from "@/pages/dashboard/employer";
 import InstitutionDashboard from "@/pages/dashboard/institution";
 import AdminDashboard from "@/pages/dashboard/admin";
+import AdminRegistrationsPage from "@/pages/dashboard/admin/registrations";
+import AdminOnboardPage from "@/pages/dashboard/admin/onboard";
+import LoginPage from "@/pages/auth/login";
+import SignupPage from "@/pages/auth/signup";
+import SetupPasswordPage from "@/pages/auth/setup-password";
 
 const queryClient = new QueryClient();
 
@@ -49,6 +54,12 @@ function Router() {
         <Route path="/dashboard/employer" component={EmployerDashboard} />
         <Route path="/dashboard/institution" component={InstitutionDashboard} />
         <Route path="/dashboard/admin" component={AdminDashboard} />
+        <Route path="/dashboard/admin/registrations" component={AdminRegistrationsPage} />
+        <Route path="/dashboard/admin/onboard" component={AdminOnboardPage} />
+
+        <Route path="/login" component={LoginPage} />
+        <Route path="/signup" component={SignupPage} />
+        <Route path="/setup-password" component={SetupPasswordPage} />
         
         <Route component={NotFound} />
       </Switch>

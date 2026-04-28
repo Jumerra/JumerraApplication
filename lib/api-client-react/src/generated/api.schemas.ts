@@ -65,7 +65,6 @@ export interface RegisterRequest {
 
 export interface RegisterResponse {
   message: string;
-  userId: number;
 }
 
 export interface LoginRequest {

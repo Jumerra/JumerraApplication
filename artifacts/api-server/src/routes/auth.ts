@@ -48,7 +48,13 @@ router.post("/auth/register", async (req, res) => {
     const normalizedEmail = email.toLowerCase().trim();
     const existing = await findUserByEmail(normalizedEmail);
     if (existing) {
-      res.status(409).json({ error: "An account with that email already exists" });
+      // Return the same response as a successful registration to avoid
+      // leaking whether this email address is already in the system.
+      req.log.info({ email: normalizedEmail }, "register: duplicate email silenced");
+      res.status(201).json({
+        message:
+          "Registration received. An administrator will review your application shortly.",
+      });
       return;
     }
     const passwordHash = await hashPassword(password);
@@ -69,7 +75,6 @@ router.post("/auth/register", async (req, res) => {
     res.status(201).json({
       message:
         "Registration received. An administrator will review your application shortly.",
-      userId: user.id,
     });
   } catch (err) {
     req.log.error({ err }, "register failed");

@@ -508,7 +508,6 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/RegisterResponse" }
         "400": { description: Invalid input }
-        "409": { description: Email already in use }
 
   /auth/login:
     post:
@@ -865,8 +864,7 @@ components:
       type: object
       properties:
         message: { type: string }
-        userId: { type: integer }
-      required: [message, userId]
+      required: [message]
 
     LoginRequest:
       type: object

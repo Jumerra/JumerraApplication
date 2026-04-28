@@ -229,6 +229,55 @@ export interface HiresAnalyticsResponse {
   points: HiresAnalyticsPoint[];
 }
 
+export type AdminAccountRole =
+  (typeof AdminAccountRole)[keyof typeof AdminAccountRole];
+
+export const AdminAccountRole = {
+  candidate: "candidate",
+  employer: "employer",
+  institution: "institution",
+  admin: "admin",
+} as const;
+
+export type AdminAccountStatus =
+  (typeof AdminAccountStatus)[keyof typeof AdminAccountStatus];
+
+export const AdminAccountStatus = {
+  pending: "pending",
+  active: "active",
+  rejected: "rejected",
+  invited: "invited",
+  disabled: "disabled",
+} as const;
+
+export interface AdminAccount {
+  userId: number;
+  email: string;
+  fullName: string;
+  role: AdminAccountRole;
+  status: AdminAccountStatus;
+  candidateId: number | null;
+  employerId: number | null;
+  institutionId: number | null;
+  createdAt: string;
+}
+
+export interface AdminAccountsResponse {
+  accounts: AdminAccount[];
+}
+
+export type AdminUserStatusUpdateStatus =
+  (typeof AdminUserStatusUpdateStatus)[keyof typeof AdminUserStatusUpdateStatus];
+
+export const AdminUserStatusUpdateStatus = {
+  active: "active",
+  disabled: "disabled",
+} as const;
+
+export interface AdminUserStatusUpdate {
+  status: AdminUserStatusUpdateStatus;
+}
+
 export interface InstitutionAnalyticsRow {
   institutionId: number;
   institutionName: string;
@@ -981,6 +1030,29 @@ export const AdminListApplicationsStatus = {
   rejected: "rejected",
   withdrawn: "withdrawn",
 } as const;
+
+export type AdminListAccountsParams = {
+  role?: AdminListAccountsRole;
+};
+
+export type AdminListAccountsRole =
+  (typeof AdminListAccountsRole)[keyof typeof AdminListAccountsRole];
+
+export const AdminListAccountsRole = {
+  candidate: "candidate",
+  employer: "employer",
+  institution: "institution",
+} as const;
+
+export type AdminSetUserStatus200 = {
+  account: AdminAccount;
+};
+
+export type AdminResetUserPassword200 = {
+  setupUrl?: string | null;
+  expiresAt: string;
+  emailSent: boolean;
+};
 
 export type AdminGetHiresAnalyticsParams = {
   bucket?: AdminGetHiresAnalyticsBucket;

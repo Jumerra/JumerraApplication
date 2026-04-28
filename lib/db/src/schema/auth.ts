@@ -19,6 +19,8 @@ import {
  *   - active   : approved and (for password-based logins) password set
  *   - rejected : admin denied the registration
  *   - invited  : admin onboarded; awaiting password setup via token
+ *   - disabled : admin deactivated the account; login is blocked, but the
+ *                row + linked profile are preserved so it can be reactivated
  */
 export const usersTable = pgTable(
   "users",

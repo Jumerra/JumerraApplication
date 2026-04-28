@@ -1,7 +1,21 @@
+import crypto from "node:crypto";
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { eq, desc, sql, and, gte, lte, or, ilike } from "drizzle-orm";
 import {
+  eq,
+  desc,
+  sql,
+  and,
+  gte,
+  lte,
+  or,
+  ilike,
+  inArray,
+  isNull,
+} from "drizzle-orm";
+import {
+  passwordSetupTokensTable,
+  sessionsTable,
   usersTable,
   pendingRegistrationsTable,
   candidatesTable,
@@ -633,6 +647,214 @@ router.delete("/admin/applications/:id", async (req, res) => {
   }
   await db.delete(applicationsTable).where(eq(applicationsTable.id, id));
   res.json({ ok: true });
+});
+
+/**
+ * GET /api/admin/accounts
+ * Lists candidate / employer / institution user accounts with their
+ * activation status. Used by the manage pages to surface
+ * activate/deactivate + reset-password actions per row.
+ */
+router.get("/admin/accounts", async (req, res) => {
+  const role = typeof req.query.role === "string" ? req.query.role : undefined;
+  const allowedRoles = ["candidate", "employer", "institution"] as const;
+  type AllowedRole = (typeof allowedRoles)[number];
+  const conditions = role && (allowedRoles as readonly string[]).includes(role)
+    ? eq(usersTable.role, role as AllowedRole)
+    : inArray(usersTable.role, allowedRoles as unknown as string[]);
+
+  const rows = await db
+    .select({
+      userId: usersTable.id,
+      email: usersTable.email,
+      fullName: usersTable.fullName,
+      role: usersTable.role,
+      status: usersTable.status,
+      candidateId: usersTable.candidateId,
+      employerId: usersTable.employerId,
+      institutionId: usersTable.institutionId,
+      createdAt: usersTable.createdAt,
+    })
+    .from(usersTable)
+    .where(conditions)
+    .orderBy(desc(usersTable.createdAt));
+
+  res.json({
+    accounts: rows.map((r) => ({
+      ...r,
+      createdAt: r.createdAt.toISOString(),
+    })),
+  });
+});
+
+/**
+ * PATCH /api/admin/users/:id/status
+ * Activate or deactivate a user. Disabled users cannot log in but their
+ * profile and history are preserved. Admins cannot disable themselves
+ * (would lock everyone out if they're the last admin); they also cannot
+ * change another admin's status from this endpoint to keep the admin
+ * pool managed via the dedicated admin-team flow.
+ */
+router.patch("/admin/users/:id/status", async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const next = req.body?.status;
+  if (next !== "active" && next !== "disabled") {
+    res
+      .status(400)
+      .json({ error: "status must be 'active' or 'disabled'" });
+    return;
+  }
+  const me = req.currentUser!;
+  if (id === me.id) {
+    res.status(400).json({ error: "You cannot change your own status" });
+    return;
+  }
+
+  const [user] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.id, id));
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  if (user.role === "admin") {
+    res.status(400).json({
+      error: "Admin accounts cannot be activated/disabled here",
+    });
+    return;
+  }
+  // pending/rejected/invited are sign-up lifecycle states. We refuse to
+  // overwrite them via this endpoint to avoid bypassing the registration
+  // review (admin should approve via the registrations flow first).
+  if (next === "active" && user.status !== "disabled" && user.status !== "active") {
+    res.status(400).json({
+      error: `Cannot activate a user in '${user.status}' state. Use the registrations flow first.`,
+    });
+    return;
+  }
+
+  const [updated] = await db
+    .update(usersTable)
+    .set({ status: next })
+    .where(eq(usersTable.id, id))
+    .returning({
+      userId: usersTable.id,
+      email: usersTable.email,
+      fullName: usersTable.fullName,
+      role: usersTable.role,
+      status: usersTable.status,
+      candidateId: usersTable.candidateId,
+      employerId: usersTable.employerId,
+      institutionId: usersTable.institutionId,
+      createdAt: usersTable.createdAt,
+    });
+  res.json({
+    account: { ...updated, createdAt: updated.createdAt.toISOString() },
+  });
+});
+
+/**
+ * POST /api/admin/users/:id/reset-password
+ * Issues a fresh setup token, clears the user's password hash, and (when
+ * they were active) flips them to 'invited' so login is blocked until
+ * they complete the new setup flow. Email delivery is attempted; when
+ * not configured, the setupUrl is returned in the response so the admin
+ * can hand it to the user out of band.
+ */
+router.post("/admin/users/:id/reset-password", async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  if (req.currentUser!.id === id) {
+    res.status(400).json({
+      error:
+        "You cannot reset your own password from here. Use the standard password reset flow.",
+    });
+    return;
+  }
+
+  const [user] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.id, id));
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  if (user.role === "admin") {
+    res.status(403).json({
+      error: "Admin accounts cannot be reset from this surface.",
+    });
+    return;
+  }
+  if (user.status === "pending" || user.status === "rejected") {
+    res.status(400).json({
+      error: `Cannot reset password for a user in '${user.status}' state.`,
+    });
+    return;
+  }
+
+  // Atomic: invalidate any prior unused setup tokens, lock the account by
+  // wiping the password and flipping it to 'invited', and insert the fresh
+  // token in a single transaction. If anything fails the whole thing rolls
+  // back so we never leave the account in an unrecoverable state.
+  const SETUP_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+  const token = crypto.randomBytes(32).toString("hex");
+  const expiresAt = new Date(Date.now() + SETUP_TOKEN_TTL_MS);
+  const now = new Date();
+  await db.transaction(async (tx) => {
+    await tx
+      .update(passwordSetupTokensTable)
+      .set({ usedAt: now })
+      .where(
+        and(
+          eq(passwordSetupTokensTable.userId, id),
+          isNull(passwordSetupTokensTable.usedAt),
+        ),
+      );
+    await tx
+      .update(usersTable)
+      .set({ passwordHash: null, status: "invited" })
+      .where(eq(usersTable.id, id));
+    await tx.insert(passwordSetupTokensTable).values({
+      userId: id,
+      token,
+      expiresAt,
+    });
+  });
+  const setupUrl = `/setup-password?token=${token}`;
+
+  // Hard-revoke any active sessions belonging to this user so the previous
+  // credentials/cookie cannot continue making authenticated requests after
+  // the password has been wiped. connect-pg-simple stores the session JSON
+  // under sessionsTable.sess; userId lives in `sess->>'userId'`.
+  await db
+    .delete(sessionsTable)
+    .where(sql`(${sessionsTable.sess}->>'userId')::int = ${id}`);
+
+  const emailResult = await sendAuthLinkEmail({
+    to: user.email,
+    fullName: user.fullName,
+    linkPath: setupUrl,
+    kind: "reset",
+    origin: originFromReq(req),
+    logger: req.log,
+  });
+
+  // Same security posture as /admin/onboard: only leak the link to the
+  // admin when no real email provider delivered it.
+  res.json({
+    setupUrl: emailResult.sent ? null : setupUrl,
+    expiresAt: expiresAt.toISOString(),
+    emailSent: emailResult.sent,
+  });
 });
 
 /**

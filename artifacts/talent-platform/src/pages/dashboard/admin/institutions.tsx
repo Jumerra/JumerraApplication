@@ -22,6 +22,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
+import { AdminAccountActions } from "@/components/admin-account-actions";
 import {
   Search,
   Trash2,
@@ -128,7 +129,12 @@ export default function AdminInstitutionsPage() {
                       {i.location}
                     </span>
                   </div>
-                  <div className="flex items-center gap-1 shrink-0">
+                  <div className="flex items-center gap-2 shrink-0">
+                    <AdminAccountActions
+                      entityKind="institution"
+                      entityId={i.id}
+                      entityLabel="Institution"
+                    />
                     <Button asChild variant="ghost" size="sm">
                       <Link href={`/institutions/${i.id}`}>
                         <ExternalLink className="w-4 h-4" />

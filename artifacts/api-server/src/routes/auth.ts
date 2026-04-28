@@ -114,6 +114,12 @@ router.post("/auth/login", async (req, res) => {
       res.status(403).json({ error: "Please complete your password setup first" });
       return;
     }
+    if (user.status === "disabled") {
+      res
+        .status(403)
+        .json({ error: "Your account has been deactivated. Please contact an administrator." });
+      return;
+    }
     req.session.userId = user.id;
     res.json({ user: toPublicUser(user) });
   } catch (err) {

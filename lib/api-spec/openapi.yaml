@@ -910,6 +910,83 @@ paths:
         "403": { description: Admin only }
         "404": { description: Application not found }
 
+  /admin/accounts:
+    get:
+      operationId: adminListAccounts
+      tags: [admin]
+      summary: List candidate / employer / institution user accounts (admin only)
+      parameters:
+        - in: query
+          name: role
+          required: false
+          schema:
+            type: string
+            enum: [candidate, employer, institution]
+      responses:
+        "200":
+          description: Account list
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminAccountsResponse" }
+        "403": { description: Admin only }
+
+  /admin/users/{id}/status:
+    patch:
+      operationId: adminSetUserStatus
+      tags: [admin]
+      summary: Activate or deactivate a user (admin only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AdminUserStatusUpdate" }
+      responses:
+        "200":
+          description: Updated account
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [account]
+                properties:
+                  account: { $ref: "#/components/schemas/AdminAccount" }
+        "400": { description: Invalid input or trying to disable yourself }
+        "403": { description: Admin only }
+        "404": { description: User not found }
+
+  /admin/users/{id}/reset-password:
+    post:
+      operationId: adminResetUserPassword
+      tags: [admin]
+      summary: Reset a user's password by issuing a fresh setup link (admin only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Reset triggered. setupUrl is null when email delivery succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [emailSent, expiresAt]
+                properties:
+                  setupUrl:
+                    type: string
+                    nullable: true
+                  expiresAt: { type: string, format: date-time }
+                  emailSent: { type: boolean }
+        "400": { description: User cannot have its password reset (e.g. pending/rejected) }
+        "403": { description: Admin only }
+        "404": { description: User not found }
+
   /admin/analytics/institutions:
     get:
       operationId: adminGetInstitutionAnalytics
@@ -1259,6 +1336,49 @@ components:
           type: array
           items: { $ref: "#/components/schemas/HiresAnalyticsPoint" }
       required: [bucket, from, to, total, points]
+
+    AdminAccount:
+      type: object
+      properties:
+        userId: { type: integer }
+        email: { type: string }
+        fullName: { type: string }
+        role:
+          type: string
+          enum: [candidate, employer, institution, admin]
+        status:
+          type: string
+          enum: [pending, active, rejected, invited, disabled]
+        candidateId: { type: integer, nullable: true }
+        employerId: { type: integer, nullable: true }
+        institutionId: { type: integer, nullable: true }
+        createdAt: { type: string, format: date-time }
+      required:
+        - userId
+        - email
+        - fullName
+        - role
+        - status
+        - candidateId
+        - employerId
+        - institutionId
+        - createdAt
+
+    AdminAccountsResponse:
+      type: object
+      properties:
+        accounts:
+          type: array
+          items: { $ref: "#/components/schemas/AdminAccount" }
+      required: [accounts]
+
+    AdminUserStatusUpdate:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [active, disabled]
 
     InstitutionAnalyticsRow:
       type: object

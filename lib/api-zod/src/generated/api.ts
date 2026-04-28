@@ -1276,6 +1276,73 @@ export const AdminDeleteApplicationResponse = zod.object({
 });
 
 /**
+ * @summary List candidate / employer / institution user accounts (admin only)
+ */
+export const AdminListAccountsQueryParams = zod.object({
+  role: zod.enum(["candidate", "employer", "institution"]).optional(),
+});
+
+export const AdminListAccountsResponse = zod.object({
+  accounts: zod.array(
+    zod.object({
+      userId: zod.number(),
+      email: zod.string(),
+      fullName: zod.string(),
+      role: zod.enum(["candidate", "employer", "institution", "admin"]),
+      status: zod.enum([
+        "pending",
+        "active",
+        "rejected",
+        "invited",
+        "disabled",
+      ]),
+      candidateId: zod.number().nullable(),
+      employerId: zod.number().nullable(),
+      institutionId: zod.number().nullable(),
+      createdAt: zod.coerce.date(),
+    }),
+  ),
+});
+
+/**
+ * @summary Activate or deactivate a user (admin only)
+ */
+export const AdminSetUserStatusParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AdminSetUserStatusBody = zod.object({
+  status: zod.enum(["active", "disabled"]),
+});
+
+export const AdminSetUserStatusResponse = zod.object({
+  account: zod.object({
+    userId: zod.number(),
+    email: zod.string(),
+    fullName: zod.string(),
+    role: zod.enum(["candidate", "employer", "institution", "admin"]),
+    status: zod.enum(["pending", "active", "rejected", "invited", "disabled"]),
+    candidateId: zod.number().nullable(),
+    employerId: zod.number().nullable(),
+    institutionId: zod.number().nullable(),
+    createdAt: zod.coerce.date(),
+  }),
+});
+
+/**
+ * @summary Reset a user's password by issuing a fresh setup link (admin only)
+ */
+export const AdminResetUserPasswordParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AdminResetUserPasswordResponse = zod.object({
+  setupUrl: zod.string().nullish(),
+  expiresAt: zod.coerce.date(),
+  emailSent: zod.boolean(),
+});
+
+/**
  * @summary Per-institution candidate counts (admin only)
  */
 export const AdminGetInstitutionAnalyticsResponse = zod.object({

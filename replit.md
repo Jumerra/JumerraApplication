@@ -1,127 +1,45 @@
 # TalentLink
 
-A smart talent ecosystem connecting candidates (interns/grads/early-career) with employers via AI-style matching. Educational institutions track their students' real-time placement.
+## Overview
 
-## Architecture
+TalentLink is an AI-powered talent ecosystem designed to connect early-career candidates (interns, graduates) with employers through intelligent matching. It also enables educational institutions to track the placement of their students in real-time. The project aims to streamline recruitment for entry-level positions and provide valuable insights into talent pipelines and hiring trends.
 
-- **Monorepo**: pnpm workspaces.
-- **API spec contract**: `lib/api-spec/openapi.yaml` is the source of truth for all endpoints, request/response shapes, and Zod validators (re-generated via `pnpm --filter @workspace/api-spec run codegen`).
-- **API server** (`artifacts/api-server`): Express 5 + Drizzle ORM, structured logging (pino), domain-split routes under `src/routes/`, business logic (matching algorithm) in `src/lib/matching.ts`.
-- **DB** (`lib/db`): Drizzle schema split per domain under `src/schema/`. Seed at `src/seed.ts` (run with `pnpm dlx tsx src/seed.ts`).
-- **API client** (`lib/api-client-react`): Orval-generated React Query hooks consumed by the frontend.
-- **Web app** (`artifacts/talent-platform`): React + Vite + wouter + shadcn/ui + Recharts + framer-motion + sonner. Real cookie-session auth (see "Auth" below) with a fallback `View as` demo dropdown when no session is active. Auth context lives in `src/lib/auth.tsx`: it consumes `/api/auth/me` and exposes both `sessionUser` (real) and `demoRole` (localStorage-persisted). When a session is present `role`/`userId` come from the session; otherwise they fall back to the demo role.
+## User Preferences
 
-## Auth
+I prefer concise and direct communication. When making changes, prioritize iterative development and ask for confirmation before implementing major architectural shifts or significant feature alterations. Ensure all code adheres to modern TypeScript practices and is well-documented.
 
-- **Schema** (`lib/db/src/schema/auth.ts`):
-  - `users(id, email UNIQUE, password_hash NULLABLE, full_name, role, status, candidate_id, employer_id, institution_id, created_at, approved_at)` — `status` is `pending` | `active` | `rejected` | `invited`. `password_hash` is null for admin-onboarded users until they set a password.
-  - `pending_registrations(id, user_id, submitted_data jsonb, reviewed_by, reviewed_at, decision_note, created_at)` — public signups land here.
-  - `password_setup_tokens(id, user_id, token UNIQUE, expires_at, used_at, created_at)` — one-time setup links for invitees and admin onboarding.
-  - `session(sid, sess, expire)` — connect-pg-simple table (manually created in schema; we set `createTableIfMissing: false`).
-- **API** (`artifacts/api-server`): `express-session` + `connect-pg-simple` reading `SESSION_SECRET`, cookie name `talentlink.sid`. `src/lib/auth.ts` does bcrypt hashing and token generation. `src/middleware/require-auth.ts` exports `requireAuth` and `requireAdmin`. Routes:
-  - Public: `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`, `GET /api/auth/setup-token/:token`, `POST /api/auth/setup-password`, `POST /api/auth/forgot-password`.
-  - Authenticated: `POST /api/auth/change-password` (requires session, verifies current password before updating).
-  - Admin only: `GET /api/admin/registrations`, `POST /api/admin/registrations/:id/approve`, `POST /api/admin/registrations/:id/reject`, `POST /api/admin/onboard`, `GET /api/admin/onboarded-users`.
-- **Web pages**: `/signup` (3 role tabs), `/login` (with show/hide password toggle and "Forgot password?" link), `/setup-password?token=...`, `/forgot-password`, `/account/password` (change-password, reachable from the user dropdown), `/dashboard/admin/registrations`, `/dashboard/admin/onboard`. All password fields use `components/ui/password-input.tsx` (eye/eye-off lucide toggle).
-- **Forgot-password flow**: `POST /api/auth/forgot-password` always responds `{ ok: true }` to avoid email enumeration. If the email matches an active or invited user, it issues a fresh password-setup token (reusing the `password_setup_tokens` table and the `/setup-password` page) and calls `sendAuthLinkEmail`. The reset link reuses the existing `POST /api/auth/setup-password` endpoint to consume the token.
-- **Email layer** (`artifacts/api-server/src/lib/email.ts`): `sendAuthLinkEmail({ to, fullName, linkPath, kind: "setup" | "reset", origin, logger })` is the single entry point.
-  - Today it returns `{ sent: false, reason: "email-not-configured" }`. For `kind: "setup"` (admin onboarding) it logs the full URL so admins can copy it; for `kind: "reset"` it intentionally logs only a short token fingerprint (never the full URL) to avoid plaintext reset links in logs.
-  - The admin onboarding success card reads `emailSent` and only shows the copyable link when `emailSent === false`, so once the email layer starts returning `{ sent: true }` the link disappears from the UI automatically.
-  - **Email provider not connected.** A Resend integration was offered and dismissed by the user. To wire real delivery later, either revisit the Resend integration, pick another provider (SendGrid, Gmail, Outlook, AgentMail are all available as integrations), or take a direct provider API key as a secret. Implementation point is the single `TODO` in `lib/email.ts` — replace the `return { sent: false, ... }` with a real send and return `{ sent: true, provider }`.
-- **Seeded admin**: `admin@talentlink.com` / `admin123`. Other test users: `techcorp@talentlink.com` / `employer123` (employer owner of #7), `stanford@talentlink.com` / `institution123` (institution owner of #4), `alex@example.com` / `candidate123`.
+## System Architecture
 
-## Roles & staff invites
+TalentLink is built as a monorepo using pnpm workspaces. The system's API specification is defined in `lib/api-spec/openapi.yaml`, serving as the single source of truth for all API contracts and generating Zod validators.
 
-- `users.org_role` (nullable text) layers on top of `users.role` for in-org permissions:
-  - `admin` → `super_admin` | `support`
-  - `employer` → `owner` | `recruiter` | `viewer`
-  - `institution` → `owner` | `coordinator` | `viewer`
-  - `candidate` → null
-- Backfill: existing admins → `super_admin`; first user attached to each employer/institution → `owner`. Admin onboarding now sets `org_role: 'owner'` for new employer/institution users.
-- Middleware (`require-auth.ts`):
-  - `requireOrgOwner` — owner of the same org (or any platform admin).
-  - `requireOrgMember` — any user belonging to the same org (admins always pass).
-- Endpoints (`routes/staff.ts`):
-  - `GET /api/staff` — admin sees all org members; employer/institution owner sees only their org.
-  - `POST /api/staff/invite` — owner-only. Creates a `password_setup_tokens` row, calls the stubbed email layer, and returns `setupUrl` only when `emailSent === false` (no email provider configured). Once a real provider is wired up the URL is `null` so the inviter cannot read someone else's token. The raw `token` is never returned. Same pattern applies to `POST /api/admin/onboard`.
-  - `DELETE /api/staff/:id` — owner-only. Cannot remove yourself or the last owner of an org.
-- Web: `/dashboard/<role>/staff` (single page reused by admin/employer/institution). Owners see invite form + remove buttons; non-owners see a read-only roster. Layout dropdown adds **Team** for employer/institution and **Admin team** for admin.
+The core components include:
+- **API Server**: An Express 5 application with Drizzle ORM, structured logging (pino), and domain-split routes. Business logic, including the matching algorithm, is encapsulated.
+- **Database**: PostgreSQL database managed by Drizzle ORM, with a schema split by domain.
+- **API Client**: React Query hooks generated by Orval from the OpenAPI spec for frontend consumption.
+- **Web App (`artifacts/talent-platform`)**: A React application built with Vite, utilizing wouter for routing, shadcn/ui for components, Recharts for data visualization, framer-motion for animations, and sonner for toasts. It features a real cookie-session authentication system with a "View as" demo fallback.
+- **Mobile App (`artifacts/talent-mobile`)**: An Expo and React Native application providing a candidate-only experience (job browsing, application tracking, profile viewing). It reuses the same API client and backend as the web app.
 
-## Admin console (sidebar layout)
+**Key Architectural Decisions:**
+- **Authentication**: `express-session` with `connect-pg-simple` manages sessions. User roles (`candidate`, `employer`, `institution`, `admin`) are central, with layered `org_role` for in-organization permissions (e.g., `owner`, `recruiter`, `super_admin`). Secure password handling uses bcrypt.
+- **Admin Console**: A dedicated dashboard (`/dashboard/admin/*`) provides comprehensive management capabilities, including user management, application oversight, and detailed analytics (hires, partner performance). Admin pages are protected by server-side middleware and client-side access control. Per-user actions on the candidates/employers/institutions admin pages allow toggling account status (`active`/`disabled` — disabled users cannot log in) and issuing a fresh password-reset link via a shared `AdminAccountActions` component (uses `GET /admin/accounts`, `PATCH /admin/users/:id/status`, `POST /admin/users/:id/reset-password`). Reset is atomic (token issuance + account lock in one transaction), revokes all existing sessions for the target user, and refuses self-action and admin-target action.
+- **Website Builder**: A `site_content` key-value store allows administrators to edit home-page copy and image URLs, with public API access and admin-only bulk upsert functionality.
+- **Matching Algorithm**: Calculates a score based on skill coverage (65%), experience scaling (15%), and talent score (20%), clamped between 15-99.
+- **UI/UX**: Emphasizes a clean, modern aesthetic using shadcn/ui, a consistent emerald/teal color palette with a dark mode variant, and lucide icons. No emojis are used.
+- **Data Model**: Core entities include `institutions`, `employers`, `candidates`, `jobs`, and `applications`, with detailed sub-models for education, experience, and certifications. `candidate_institutions` handles many-to-many relationships, supporting multiple affiliations.
 
-- All `/dashboard/admin/*` pages are wrapped in `AdminLayout` (`artifacts/talent-platform/src/components/admin-layout.tsx`), which renders a shadcn `Sidebar` (collapsible="icon") with four groups:
-  - **Overview**: Dashboard
-  - **Manage**: Candidates, Employers, Institutions, Applications
-  - **Insights**: Hires analytics, Partner analytics (per-institution candidate roll-up + per-employer hires roll-up, both with downloadable CSVs)
-  - **Operations**: Registrations, Onboard partner, Site content, Admin team
-- **Applications** (`/dashboard/admin/applications`): cross-platform application list. Filters: status (applied/screening/interview/offer/hired/rejected/withdrawn/all), free-text search across candidate name, employer name, and job title (debounced 250ms). Per-row status select reuses the existing `useUpdateApplicationStatus` mutation; per-row delete uses `useAdminDeleteApplication`.
-- **Hires analytics** (`/dashboard/admin/hires`): time-bucketed hires (day/week/month/year) using `useAdminGetHiresAnalytics`. Renders an area chart + summary cards (total, peak, average, recent vs earlier % change) + a tabular period breakdown. Date range pickers default to a sensible window per bucket (30 days / 12 weeks / 12 months / 5 years) and reset when the bucket changes. **Download CSV** triggers `GET /api/admin/hires/export.csv?bucket&from&to` (text/csv with `Content-Disposition: attachment; filename="talentlink-hires-<bucket>-<from>-to-<to>.csv"`).
-- **Partner analytics** (`/dashboard/admin/partner-analytics`): two-tab page comparing partners on the platform.
-  - **Institutions tab**: per-institution roll-up showing affiliated candidates, applications, and hires. `GET /api/admin/analytics/institutions` returns `{ totalCandidates, totalHires, rows: [{ institutionId, institutionName, location, candidateCount, applicationCount, hiredCount }] }`. Counts via `LEFT JOIN candidate_institutions LEFT JOIN applications` with `COUNT(DISTINCT)` aggregates so empty institutions still appear (count 0). Horizontal Recharts BarChart of top N (toggle Top 10/20/50).
-  - **Employers tab**: per-employer roll-up of jobs posted, applications received, hires made, and unique candidates hired. `GET /api/admin/analytics/employers` returns `{ totalEmployers, totalHires, rows: [{ employerId, employerName, industry, jobsCount, applicationsCount, hiresCount, uniqueCandidatesHired }] }`. Sorted by hires desc.
-  - **CSV exports** (admin-only, not in OpenAPI because they return text/csv): `GET /api/admin/analytics/institutions.csv` and `GET /api/admin/analytics/employers.csv`, both with `Content-Disposition: attachment; filename="talentlink-{institutions|employers}-<YYYY-MM-DD>.csv"`. Cells are CSV-escaped AND prefixed with `'` when starting with `=`/`+`/`-`/`@`/tab to defuse spreadsheet formula injection.
-- The layout centralizes the admin guard — non-admins see an "Admin access required" card instead of any admin content (UI-side; the API also enforces admin-only middleware on every action).
-- Sidebar collapsed/expanded state is persisted via the `sidebar_state` cookie (read at mount, written by SidebarProvider on toggle).
-- Header dropdown collapses all admin items into a single "Admin console" link that opens `/dashboard/admin`.
-- New admin management pages with delete + (employer) verify-toggle actions:
-  - `/dashboard/admin/candidates` → `useAdminDeleteCandidate`
-  - `/dashboard/admin/employers` → `useAdminDeleteEmployer`, `useAdminSetEmployerVerified`
-  - `/dashboard/admin/institutions` → `useAdminDeleteInstitution`
-- Server delete endpoints (`artifacts/api-server/src/routes/admin.ts`) run cascading cleanup in a transaction:
-  - candidate → applications, candidate_institutions, null users.candidateId
-  - employer → applications for their jobs, jobs, null users.employerId AND clear orgRole
-  - institution → candidate_institutions, null candidates.institutionId, null users.institutionId AND clear orgRole
-  - All return 404 on missing IDs (existence checked before mutation).
+## External Dependencies
 
-## Light website builder
-
-- `site_content(key TEXT PK, type TEXT, value TEXT, updated_at, updated_by → users.id)` — bulk key/value store for editable home-page copy and image URLs.
-- `GET /api/site-content` — public; returns `{ items: [{ key, type, value }] }`.
-- `PUT /api/site-content` — admin-only bulk upsert. Validates `type ∈ {text, image}`, key ≤200, value ≤5000.
-- Web: `/dashboard/admin/site-content` groups all 21 keys into Hero / How it works / Audience cards with sticky save bar and image previews. `home.tsx` consumes `useGetSiteContent` with hard-coded fallbacks for every key, and runs every image URL through a `safeImage` allow-list (http(s)/data:image/relative paths only) to block `javascript:` URIs.
-- **Mobile app** (`artifacts/talent-mobile`, preview path `/mobile/`): Expo + Expo Router + React Native, **candidate-only experience** (browse jobs, view detail w/ match score, apply, track applications, view profile). No mobile auth flow yet — candidate-specific screens (profile, applications, recommendations) show error states until proper session auth is wired up. Tabs: Discover / Search / Applications / Profile. Stack screens: `job/[id]/index` (detail), `job/[id]/apply` (modal). Reuses the same `@workspace/api-client-react` hooks as the web app and the same backend. Design tokens in `constants/colors.ts` mirror the web emerald palette (light + dark via `useColors()`). Inter fonts loaded via `@expo-google-fonts/inter`. Feather icons only (no emojis).
-
-## Domain model
-
-- `institutions` — universities, colleges, bootcamps that track placement of their students.
-- `employers` — companies that post jobs and hire candidates.
-- `candidates` — students/grads with skills, talent score, optional institution. Detail tables: `education_entries`, `experience_entries`, `certifications`, `badges`.
-- `candidate_institutions` — many-to-many junction between candidates and institutions. Each row has `isPrimary` (true exactly once per candidate, mirroring `candidates.institutionId`). Lets a candidate belong to several institutions (e.g. university grad + bootcamp) and lets each institution see them on its dashboard. Helpers in `artifacts/api-server/src/lib/candidate-institutions.ts`: `getInstitutionLinksByCandidate`, `getCandidateIdsForInstitution`, `setCandidateInstitutionLinks`. The `Candidate` API response includes an `institutions` array (primary first); the `InstitutionStudent` row includes `isPrimaryAffiliation` so dashboards can label affiliated-vs-primary students.
-- `jobs` — postings owned by an employer with skills, type, salary, etc.
-- `applications` — many-to-many between candidates and jobs with status pipeline (applied → screening → interview → offer → hired / rejected / withdrawn) and a precomputed match score.
-- `skills` — a small catalog used for filter UIs.
-
-## Key endpoints
-
-Full CRUD on candidates / employers / institutions / jobs / applications, plus AI-style matching (`/jobs/:id/matches`, `/candidates/:id/recommendations`) and dashboard aggregations (`/dashboard/platform`, `/dashboard/employer/:id`, `/dashboard/institution/:id`, `/dashboard/candidate/:id`, `/dashboard/activity`, `/dashboard/salary-insights`).
-
-## Match score
-
-`artifacts/api-server/src/lib/matching.ts`:
-- 65% skill coverage (overlap between job and candidate skills)
-- 15% experience scaling (capped at 10 years)
-- 20% talent score
-- Clamped to 15–99.
-
-## Build constraints
-
-- No emojis — lucide icons only.
-- No auth, payments, mobile, or video in this build.
-- Real data on first load via the seed.
-- Color palette in `src/index.css` is emerald/teal primary on warm neutral, with a dark variant.
-
-## Common commands
-
-```bash
-# Regenerate API client + zod from the spec
-pnpm --filter @workspace/api-spec run codegen
-
-# Push schema to the database
-pnpm --filter @workspace/db run push
-
-# Re-seed the database from scratch
-pnpm dlx tsx lib/db/src/seed.ts
-
-# Typecheck the API server
-pnpm --filter @workspace/api-server run typecheck
-```
+- **PostgreSQL**: Primary database for all application data.
+- **Express.js**: Web application framework for the API server.
+- **React**: Frontend library for both web and mobile applications.
+- **Vite**: Build tool for the web application.
+- **Expo/React Native**: Framework for the mobile application.
+- **Drizzle ORM**: TypeScript ORM for database interaction.
+- **shadcn/ui**: Reusable UI components for the web app.
+- **Recharts**: Charting library for data visualization in the admin console.
+- **framer-motion**: Animation library for the web app.
+- **pino**: Structured logging library.
+- **connect-pg-simple**: PostgreSQL session store for `express-session`.
+- **bcrypt**: Password hashing library.
+- **Orval**: API client generator from OpenAPI specifications.
+- **Resend (currently stubbed)**: Intended email delivery service for authentication links and notifications.

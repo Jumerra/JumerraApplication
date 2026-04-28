@@ -23,6 +23,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
+import { AdminAccountActions } from "@/components/admin-account-actions";
 import {
   Search,
   Trash2,
@@ -171,6 +172,11 @@ export default function AdminEmployersPage() {
                         {e.verified ? "Unverify" : "Verify"}
                       </span>
                     </Button>
+                    <AdminAccountActions
+                      entityKind="employer"
+                      entityId={e.id}
+                      entityLabel="Employer"
+                    />
                     <Button asChild variant="ghost" size="sm">
                       <Link href={`/employers/${e.id}`}>
                         <ExternalLink className="w-4 h-4" />

@@ -22,6 +22,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
+import { AdminAccountActions } from "@/components/admin-account-actions";
 import { Search, Trash2, ExternalLink, Users, Star } from "lucide-react";
 
 export default function AdminCandidatesPage() {
@@ -120,6 +121,11 @@ export default function AdminCandidatesPage() {
                     ))}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
+                    <AdminAccountActions
+                      entityKind="candidate"
+                      entityId={c.id}
+                      entityLabel="Candidate"
+                    />
                     <Button asChild variant="ghost" size="sm">
                       <Link href={`/candidates/${c.id}`}>
                         <ExternalLink className="w-4 h-4" />

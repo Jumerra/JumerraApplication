@@ -53,6 +53,11 @@ export const candidateInstitutionsTable = pgTable(
     joinedAt: timestamp("joined_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    // Verification: institutions explicitly approve a candidate as a real
+    // student of theirs. Until verifiedAt is set, the candidate appears as
+    // "Unverified" and is excluded from the institution's tracking metrics.
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    verifiedBy: integer("verified_by"),
   },
   (t) => ({
     candidateInstitutionUnique: uniqueIndex("candidate_institution_unique").on(

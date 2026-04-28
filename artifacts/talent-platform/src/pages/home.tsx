@@ -33,13 +33,14 @@ export default function Home() {
     return (key: string, fallback: string) => map.get(key) ?? fallback;
   }, [site]);
 
-  // Sanitize image URLs from the CMS — only allow http(s), data:, or relative paths
-  // (block javascript:/vbscript:/etc to prevent XSS via image src).
+  // Sanitize image URLs from the CMS — only allow http(s) or relative paths.
+  // Blocks javascript:/vbscript:/etc and rejects data: URIs entirely
+  // (data:image/svg+xml can carry inline scripts, so the whole scheme is denied).
   const safeImage = (raw: string, fallback: string): string => {
     const v = raw.trim();
     if (!v) return fallback;
     if (v.startsWith("/") || v.startsWith("./") || v.startsWith("../")) return v;
-    if (/^https?:\/\//i.test(v) || /^data:image\//i.test(v)) return v;
+    if (/^https?:\/\//i.test(v)) return v;
     return fallback;
   };
   const heroImage = safeImage(content("home.hero.image", "/hero.png"), "/hero.png");

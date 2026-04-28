@@ -9,7 +9,9 @@ import type { OnboardResponseUser } from "./onboardResponseUser";
 
 export interface OnboardResponse {
   user: OnboardResponseUser;
-  setupUrl: string;
-  token: string;
+  /** One-time password setup URL. Only returned when emailSent is false (no email provider configured); otherwise null so the link cannot leak via the admin UI. */
+  setupUrl?: string | null;
   expiresAt: Date;
+  /** True if the setup link was delivered by the email provider; false if email is not configured. */
+  emailSent: boolean;
 }

@@ -1,22 +1,59 @@
 import {
   useGetInstitutionDashboard,
   useListInstitutionStudents,
+  useVerifyInstitutionStudent,
+  useUnverifyInstitutionStudent,
+  getListInstitutionStudentsQueryKey,
+  getGetInstitutionDashboardQueryKey,
 } from "@workspace/api-client-react";
 import { useAuth } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Users, GraduationCap, Building2, Banknote, Briefcase, Link2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Users, GraduationCap, Building2, Banknote, Briefcase, Link2, ShieldCheck, ShieldAlert, Loader2 } from "lucide-react";
 import { Link } from "wouter";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from "recharts";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 export default function InstitutionDashboard() {
-  const { userId } = useAuth();
+  const { userId, sessionUser } = useAuth();
   const id = userId || 1;
   const { data: dashboard, isLoading } = useGetInstitutionDashboard(id);
   const { data: students = [], isLoading: studentsLoading } =
     useListInstitutionStudents(id);
+  const queryClient = useQueryClient();
+
+  // Only institution owners/coordinators (and platform admins) can change
+  // verification. Viewers see the badges but no buttons.
+  const canManage =
+    sessionUser?.role === "admin" ||
+    (sessionUser?.role === "institution" &&
+      sessionUser.institutionId === id &&
+      (sessionUser.orgRole === "owner" || sessionUser.orgRole === "coordinator"));
+
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: getListInstitutionStudentsQueryKey(id) });
+    queryClient.invalidateQueries({ queryKey: getGetInstitutionDashboardQueryKey(id) });
+  };
+  const verifyMut = useVerifyInstitutionStudent({
+    mutation: {
+      onSuccess: () => { toast.success("Student verified"); invalidate(); },
+      onError: () => toast.error("Could not verify student"),
+    },
+  });
+  const unverifyMut = useUnverifyInstitutionStudent({
+    mutation: {
+      onSuccess: () => { toast.success("Student unverified"); invalidate(); },
+      onError: () => toast.error("Could not unverify student"),
+    },
+  });
+  const pendingId =
+    verifyMut.isPending || unverifyMut.isPending
+      ? Number((verifyMut.variables ?? unverifyMut.variables)?.candidateId)
+      : null;
 
   if (isLoading) {
     return <div className="container py-12 px-4"><div className="animate-pulse h-[800px] bg-muted rounded-2xl" /></div>;
@@ -25,6 +62,7 @@ export default function InstitutionDashboard() {
   if (!dashboard) return null;
 
   const affiliatedCount = students.filter((s) => !s.isPrimaryAffiliation).length;
+  const pendingCount = students.filter((s) => !s.isVerified).length;
 
   const COLORS = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
 

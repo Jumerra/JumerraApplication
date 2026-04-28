@@ -221,9 +221,12 @@ router.get("/dashboard/institution/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  // Pull every candidate linked to this institution (primary OR additional
-  // affiliation) so the dashboard reflects all students they're tracking.
-  const studentIds = await getCandidateIdsForInstitution(institution.id);
+  // Tracking metrics use VERIFIED students only — the dashboard reflects
+  // candidates the institution has explicitly approved as real students.
+  // Unverified pending students are visible on the roster but excluded here.
+  const studentIds = await getCandidateIdsForInstitution(institution.id, {
+    verifiedOnly: true,
+  });
   const students = studentIds.length === 0
     ? []
     : await db

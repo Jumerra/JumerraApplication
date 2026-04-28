@@ -136,9 +136,11 @@ export type OnboardResponseUser = {
 
 export interface OnboardResponse {
   user: OnboardResponseUser;
-  setupUrl: string;
-  token: string;
+  /** One-time password setup URL. Only returned when emailSent is false (no email provider configured); otherwise null so the link cannot leak via the admin UI. */
+  setupUrl?: string | null;
   expiresAt: string;
+  /** True if the setup link was delivered by the email provider; false if email is not configured. */
+  emailSent: boolean;
 }
 
 export interface OnboardedUser {
@@ -158,6 +160,11 @@ export interface RegistrationDecisionBody {
 
 export interface OkResponse {
   ok: boolean;
+}
+
+export interface VerifyStudentResponse {
+  ok: boolean;
+  verifiedAt: string;
 }
 
 export interface Skill {
@@ -182,6 +189,9 @@ export interface CandidateInstitutionLink {
   type: string;
   logoUrl: string;
   isPrimary: boolean;
+  /** True if this institution has explicitly verified the candidate as a real student. */
+  isVerified: boolean;
+  verifiedAt?: string | null;
 }
 
 export interface Candidate {
@@ -436,6 +446,11 @@ export interface InstitutionStudent {
   applicationsCount: number;
   /** True if this institution is the student's primary affiliation; false if it's a secondary (e.g. transfer or bootcamp) link. */
   isPrimaryAffiliation: boolean;
+  /** True if this institution has explicitly verified the candidate as a real student. Unverified students are excluded from tracking metrics. */
+  isVerified: boolean;
+  verifiedAt?: string | null;
+  /** Name of the institution staff member who verified this student. */
+  verifiedByName?: string | null;
 }
 
 export type CreateInstitutionType =
@@ -779,9 +794,10 @@ export interface InviteStaffRequest {
 
 export interface InviteStaffResponse {
   member: StaffMember;
-  setupUrl: string;
-  token: string;
+  /** One-time password setup URL. Only returned when emailSent is false (no email provider configured); otherwise null so the inviter cannot read someone else's token. */
+  setupUrl?: string | null;
   expiresAt: string;
+  /** True if the setup link was delivered by the email provider; false if email is not configured. */
   emailSent: boolean;
 }
 

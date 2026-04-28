@@ -69,6 +69,7 @@ import type {
   UpdateApplication,
   UpdateCandidate,
   UpdateSiteContentRequest,
+  VerifyStudentResponse,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -1052,6 +1053,188 @@ export function useListInstitutionStudents<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Mark a candidate as a verified student of this institution.
+ */
+export const getVerifyInstitutionStudentUrl = (
+  id: number,
+  candidateId: number,
+) => {
+  return `/api/institutions/${id}/students/${candidateId}/verify`;
+};
+
+export const verifyInstitutionStudent = async (
+  id: number,
+  candidateId: number,
+  options?: RequestInit,
+): Promise<VerifyStudentResponse> => {
+  return customFetch<VerifyStudentResponse>(
+    getVerifyInstitutionStudentUrl(id, candidateId),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
+};
+
+export const getVerifyInstitutionStudentMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof verifyInstitutionStudent>>,
+    TError,
+    { id: number; candidateId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof verifyInstitutionStudent>>,
+  TError,
+  { id: number; candidateId: number },
+  TContext
+> => {
+  const mutationKey = ["verifyInstitutionStudent"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof verifyInstitutionStudent>>,
+    { id: number; candidateId: number }
+  > = (props) => {
+    const { id, candidateId } = props ?? {};
+
+    return verifyInstitutionStudent(id, candidateId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type VerifyInstitutionStudentMutationResult = NonNullable<
+  Awaited<ReturnType<typeof verifyInstitutionStudent>>
+>;
+
+export type VerifyInstitutionStudentMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Mark a candidate as a verified student of this institution.
+ */
+export const useVerifyInstitutionStudent = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof verifyInstitutionStudent>>,
+    TError,
+    { id: number; candidateId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof verifyInstitutionStudent>>,
+  TError,
+  { id: number; candidateId: number },
+  TContext
+> => {
+  return useMutation(getVerifyInstitutionStudentMutationOptions(options));
+};
+
+/**
+ * @summary Revoke verification for a previously verified student.
+ */
+export const getUnverifyInstitutionStudentUrl = (
+  id: number,
+  candidateId: number,
+) => {
+  return `/api/institutions/${id}/students/${candidateId}/unverify`;
+};
+
+export const unverifyInstitutionStudent = async (
+  id: number,
+  candidateId: number,
+  options?: RequestInit,
+): Promise<OkResponse> => {
+  return customFetch<OkResponse>(
+    getUnverifyInstitutionStudentUrl(id, candidateId),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
+};
+
+export const getUnverifyInstitutionStudentMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof unverifyInstitutionStudent>>,
+    TError,
+    { id: number; candidateId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof unverifyInstitutionStudent>>,
+  TError,
+  { id: number; candidateId: number },
+  TContext
+> => {
+  const mutationKey = ["unverifyInstitutionStudent"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof unverifyInstitutionStudent>>,
+    { id: number; candidateId: number }
+  > = (props) => {
+    const { id, candidateId } = props ?? {};
+
+    return unverifyInstitutionStudent(id, candidateId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UnverifyInstitutionStudentMutationResult = NonNullable<
+  Awaited<ReturnType<typeof unverifyInstitutionStudent>>
+>;
+
+export type UnverifyInstitutionStudentMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Revoke verification for a previously verified student.
+ */
+export const useUnverifyInstitutionStudent = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof unverifyInstitutionStudent>>,
+    TError,
+    { id: number; candidateId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof unverifyInstitutionStudent>>,
+  TError,
+  { id: number; candidateId: number },
+  TContext
+> => {
+  return useMutation(getUnverifyInstitutionStudentMutationOptions(options));
+};
 
 export const getListJobsUrl = (params?: ListJobsParams) => {
   const normalizedParams = new URLSearchParams();

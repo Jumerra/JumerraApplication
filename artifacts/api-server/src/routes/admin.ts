@@ -323,6 +323,10 @@ router.post("/admin/onboard", async (req, res) => {
       logger: req.log,
     });
 
+    // SECURITY: only expose the setup URL to the inviter when email
+    // delivery is NOT configured (the no-email fallback workflow).
+    // Once a real provider is wired up the link is delivered to the
+    // invitee directly and must not leak via the API response.
     res.status(201).json({
       user: {
         id: user.id,
@@ -330,8 +334,7 @@ router.post("/admin/onboard", async (req, res) => {
         fullName: user.fullName,
         role: user.role,
       },
-      setupUrl,
-      token,
+      setupUrl: emailResult.sent ? null : setupUrl,
       expiresAt: expiresAt.toISOString(),
       emailSent: emailResult.sent,
     });

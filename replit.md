@@ -43,7 +43,7 @@ A smart talent ecosystem connecting candidates (interns/grads/early-career) with
   - `requireOrgMember` — any user belonging to the same org (admins always pass).
 - Endpoints (`routes/staff.ts`):
   - `GET /api/staff` — admin sees all org members; employer/institution owner sees only their org.
-  - `POST /api/staff/invite` — owner-only. Creates a `password_setup_tokens` row, calls the stubbed email layer, and ALWAYS returns the `setupUrl` so the inviter can copy it.
+  - `POST /api/staff/invite` — owner-only. Creates a `password_setup_tokens` row, calls the stubbed email layer, and returns `setupUrl` only when `emailSent === false` (no email provider configured). Once a real provider is wired up the URL is `null` so the inviter cannot read someone else's token. The raw `token` is never returned. Same pattern applies to `POST /api/admin/onboard`.
   - `DELETE /api/staff/:id` — owner-only. Cannot remove yourself or the last owner of an org.
 - Web: `/dashboard/<role>/staff` (single page reused by admin/employer/institution). Owners see invite form + remove buttons; non-owners see a read-only roster. Layout dropdown adds **Team** for employer/institution and **Admin team** for admin.
 

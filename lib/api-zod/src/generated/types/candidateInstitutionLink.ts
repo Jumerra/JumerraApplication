@@ -13,4 +13,7 @@ export interface CandidateInstitutionLink {
   type: string;
   logoUrl: string;
   isPrimary: boolean;
+  /** True if this institution has explicitly verified the candidate as a real student. */
+  isVerified: boolean;
+  verifiedAt?: Date | null;
 }

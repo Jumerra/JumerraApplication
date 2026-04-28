@@ -1,4 +1,4 @@
-import { eq, inArray, sql } from "drizzle-orm";
+import { eq, inArray, sql, and, isNotNull } from "drizzle-orm";
 
 import {
   candidateInstitutionsTable,
@@ -12,6 +12,8 @@ export type InstitutionLink = {
   type: string;
   logoUrl: string;
   isPrimary: boolean;
+  isVerified: boolean;
+  verifiedAt: string | null;
 };
 
 /**
@@ -31,6 +33,7 @@ export async function getInstitutionLinksByCandidate(
     .select({
       candidateId: candidateInstitutionsTable.candidateId,
       isPrimary: candidateInstitutionsTable.isPrimary,
+      verifiedAt: candidateInstitutionsTable.verifiedAt,
       institution: institutionsTable,
     })
     .from(candidateInstitutionsTable)
@@ -48,6 +51,8 @@ export async function getInstitutionLinksByCandidate(
       type: row.institution.type,
       logoUrl: row.institution.logoUrl,
       isPrimary: row.isPrimary,
+      isVerified: row.verifiedAt != null,
+      verifiedAt: row.verifiedAt ? row.verifiedAt.toISOString() : null,
     });
     map.set(row.candidateId, list);
   }
@@ -65,14 +70,26 @@ export async function getInstitutionLinksByCandidate(
 /**
  * Find every candidate id linked to a given institution (whether
  * that institution is the primary affiliation or a secondary one).
+ *
+ * Pass `verifiedOnly: true` to restrict the result to candidates the
+ * institution has explicitly verified — used for tracking metrics where
+ * unverified students should not count.
  */
 export async function getCandidateIdsForInstitution(
   institutionId: number,
+  opts: { verifiedOnly?: boolean } = {},
 ): Promise<number[]> {
+  const where = opts.verifiedOnly
+    ? and(
+        eq(candidateInstitutionsTable.institutionId, institutionId),
+        isNotNull(candidateInstitutionsTable.verifiedAt),
+      )
+    : eq(candidateInstitutionsTable.institutionId, institutionId);
+
   const rows = await db
     .select({ candidateId: candidateInstitutionsTable.candidateId })
     .from(candidateInstitutionsTable)
-    .where(eq(candidateInstitutionsTable.institutionId, institutionId));
+    .where(where);
 
   // De-dupe defensively in case a candidate ever ends up with duplicate links.
   return Array.from(new Set(rows.map((r) => r.candidateId)));

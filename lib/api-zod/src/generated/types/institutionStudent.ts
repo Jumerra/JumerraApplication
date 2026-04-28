@@ -19,4 +19,9 @@ export interface InstitutionStudent {
   applicationsCount: number;
   /** True if this institution is the student's primary affiliation; false if it's a secondary (e.g. transfer or bootcamp) link. */
   isPrimaryAffiliation: boolean;
+  /** True if this institution has explicitly verified the candidate as a real student. Unverified students are excluded from tracking metrics. */
+  isVerified: boolean;
+  verifiedAt?: Date | null;
+  /** Name of the institution staff member who verified this student. */
+  verifiedByName?: string | null;
 }

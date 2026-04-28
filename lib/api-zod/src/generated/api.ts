@@ -50,6 +50,12 @@ export const ListCandidatesResponseItem = zod.object({
         type: zod.string(),
         logoUrl: zod.string(),
         isPrimary: zod.boolean(),
+        isVerified: zod
+          .boolean()
+          .describe(
+            "True if this institution has explicitly verified the candidate as a real student.",
+          ),
+        verifiedAt: zod.coerce.date().nullish(),
       }),
     )
     .describe(
@@ -107,6 +113,12 @@ export const GetCandidateResponse = zod
           type: zod.string(),
           logoUrl: zod.string(),
           isPrimary: zod.boolean(),
+          isVerified: zod
+            .boolean()
+            .describe(
+              "True if this institution has explicitly verified the candidate as a real student.",
+            ),
+          verifiedAt: zod.coerce.date().nullish(),
         }),
       )
       .describe(
@@ -205,6 +217,12 @@ export const UpdateCandidateResponse = zod.object({
         type: zod.string(),
         logoUrl: zod.string(),
         isPrimary: zod.boolean(),
+        isVerified: zod
+          .boolean()
+          .describe(
+            "True if this institution has explicitly verified the candidate as a real student.",
+          ),
+        verifiedAt: zod.coerce.date().nullish(),
       }),
     )
     .describe(
@@ -396,10 +414,47 @@ export const ListInstitutionStudentsResponseItem = zod.object({
     .describe(
       "True if this institution is the student's primary affiliation; false if it's a secondary (e.g. transfer or bootcamp) link.",
     ),
+  isVerified: zod
+    .boolean()
+    .describe(
+      "True if this institution has explicitly verified the candidate as a real student. Unverified students are excluded from tracking metrics.",
+    ),
+  verifiedAt: zod.coerce.date().nullish(),
+  verifiedByName: zod
+    .string()
+    .nullish()
+    .describe(
+      "Name of the institution staff member who verified this student.",
+    ),
 });
 export const ListInstitutionStudentsResponse = zod.array(
   ListInstitutionStudentsResponseItem,
 );
+
+/**
+ * @summary Mark a candidate as a verified student of this institution.
+ */
+export const VerifyInstitutionStudentParams = zod.object({
+  id: zod.coerce.number(),
+  candidateId: zod.coerce.number(),
+});
+
+export const VerifyInstitutionStudentResponse = zod.object({
+  ok: zod.boolean(),
+  verifiedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Revoke verification for a previously verified student.
+ */
+export const UnverifyInstitutionStudentParams = zod.object({
+  id: zod.coerce.number(),
+  candidateId: zod.coerce.number(),
+});
+
+export const UnverifyInstitutionStudentResponse = zod.object({
+  ok: zod.boolean(),
+});
 
 export const ListJobsQueryParams = zod.object({
   search: zod.coerce.string().optional(),
@@ -797,6 +852,18 @@ export const GetInstitutionDashboardResponse = zod.object({
         .boolean()
         .describe(
           "True if this institution is the student's primary affiliation; false if it's a secondary (e.g. transfer or bootcamp) link.",
+        ),
+      isVerified: zod
+        .boolean()
+        .describe(
+          "True if this institution has explicitly verified the candidate as a real student. Unverified students are excluded from tracking metrics.",
+        ),
+      verifiedAt: zod.coerce.date().nullish(),
+      verifiedByName: zod
+        .string()
+        .nullish()
+        .describe(
+          "Name of the institution staff member who verified this student.",
         ),
     }),
   ),

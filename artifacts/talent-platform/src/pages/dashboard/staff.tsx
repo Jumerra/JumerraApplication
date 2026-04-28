@@ -245,23 +245,28 @@ export default function StaffPage() {
               )}
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="flex gap-2">
-              <Input
-                readOnly
-                value={`${window.location.origin}${result.setupUrl}`}
-                className="font-mono text-xs bg-white"
-              />
-              <Button
-                variant="outline"
-                onClick={() => copyLink(result.setupUrl)}
-                className="shrink-0"
-              >
-                <Copy className="w-4 h-4 mr-1" />
-                {copied ? "Copied" : "Copy"}
-              </Button>
-            </div>
-          </CardContent>
+          {/* SECURITY: only render the copyable setup link when the API
+              returned one (it omits the URL once email delivery is wired
+              up so the inviter can no longer read someone else's token). */}
+          {result.setupUrl && (
+            <CardContent>
+              <div className="flex gap-2">
+                <Input
+                  readOnly
+                  value={`${window.location.origin}${result.setupUrl}`}
+                  className="font-mono text-xs bg-white"
+                />
+                <Button
+                  variant="outline"
+                  onClick={() => copyLink(result.setupUrl!)}
+                  className="shrink-0"
+                >
+                  <Copy className="w-4 h-4 mr-1" />
+                  {copied ? "Copied" : "Copy"}
+                </Button>
+              </div>
+            </CardContent>
+          )}
         </Card>
       )}
 

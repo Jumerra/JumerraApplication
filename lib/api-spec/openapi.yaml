@@ -225,6 +225,46 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/InstitutionStudent" }
+  /institutions/{id}/students/{candidateId}/verify:
+    post:
+      operationId: verifyInstitutionStudent
+      tags: [institutions]
+      summary: Mark a candidate as a verified student of this institution.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+        - in: path
+          name: candidateId
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Verified
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VerifyStudentResponse" }
+  /institutions/{id}/students/{candidateId}/unverify:
+    post:
+      operationId: unverifyInstitutionStudent
+      tags: [institutions]
+      summary: Revoke verification for a previously verified student.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+        - in: path
+          name: candidateId
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Unverified
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
 
   /jobs:
     get:
@@ -945,10 +985,15 @@ components:
             fullName: { type: string }
             role: { type: string }
           required: [id, email, fullName, role]
-        setupUrl: { type: string }
-        token: { type: string }
+        setupUrl:
+          type: string
+          nullable: true
+          description: One-time password setup URL. Only returned when emailSent is false (no email provider configured); otherwise null so the link cannot leak via the admin UI.
         expiresAt: { type: string, format: date-time }
-      required: [user, setupUrl, token, expiresAt]
+        emailSent:
+          type: boolean
+          description: True if the setup link was delivered by the email provider; false if email is not configured.
+      required: [user, expiresAt, emailSent]
 
     OnboardedUser:
       type: object
@@ -973,6 +1018,13 @@ components:
       properties:
         ok: { type: boolean }
       required: [ok]
+
+    VerifyStudentResponse:
+      type: object
+      properties:
+        ok: { type: boolean }
+        verifiedAt: { type: string, format: date-time }
+      required: [ok, verifiedAt]
 
     Skill:
       type: object
@@ -1037,7 +1089,14 @@ components:
         type: { type: string }
         logoUrl: { type: string }
         isPrimary: { type: boolean }
-      required: [id, name, type, logoUrl, isPrimary]
+        isVerified:
+          type: boolean
+          description: True if this institution has explicitly verified the candidate as a real student.
+        verifiedAt:
+          type: string
+          format: date-time
+          nullable: true
+      required: [id, name, type, logoUrl, isPrimary, isVerified]
 
     CandidateDetail:
       allOf:
@@ -1273,6 +1332,17 @@ components:
         isPrimaryAffiliation:
           type: boolean
           description: True if this institution is the student's primary affiliation; false if it's a secondary (e.g. transfer or bootcamp) link.
+        isVerified:
+          type: boolean
+          description: True if this institution has explicitly verified the candidate as a real student. Unverified students are excluded from tracking metrics.
+        verifiedAt:
+          type: string
+          format: date-time
+          nullable: true
+        verifiedByName:
+          type: string
+          nullable: true
+          description: Name of the institution staff member who verified this student.
       required:
         - candidateId
         - fullName
@@ -1283,6 +1353,7 @@ components:
         - status
         - applicationsCount
         - isPrimaryAffiliation
+        - isVerified
 
     CreateInstitution:
       type: object
@@ -1755,8 +1826,12 @@ components:
       type: object
       properties:
         member: { $ref: "#/components/schemas/StaffMember" }
-        setupUrl: { type: string }
-        token: { type: string }
+        setupUrl:
+          type: string
+          nullable: true
+          description: One-time password setup URL. Only returned when emailSent is false (no email provider configured); otherwise null so the inviter cannot read someone else's token.
         expiresAt: { type: string, format: date-time }
-        emailSent: { type: boolean }
-      required: [member, setupUrl, token, expiresAt, emailSent]
+        emailSent:
+          type: boolean
+          description: True if the setup link was delivered by the email provider; false if email is not configured.
+      required: [member, expiresAt, emailSent]

@@ -15,12 +15,17 @@ import {
   ListInstitutionStudentsParams,
 } from "@workspace/api-zod";
 import { getCandidateIdsForInstitution } from "../lib/candidate-institutions";
-import { requireAdmin } from "../middleware/require-auth";
+import { requireAdmin, requireAuth } from "../middleware/require-auth";
+import { usersTable } from "@workspace/db";
 
 const router: IRouter = Router();
 
 async function getInstitutionStats(institutionId: number) {
-  const studentIds = await getCandidateIdsForInstitution(institutionId);
+  // Tracking metrics use VERIFIED students only — institutions can't claim
+  // placement credit for someone they haven't actually verified as a student.
+  const studentIds = await getCandidateIdsForInstitution(institutionId, {
+    verifiedOnly: true,
+  });
 
   if (studentIds.length === 0) {
     return { studentCount: 0, placementRate: 0 };
@@ -71,12 +76,14 @@ router.get("/institutions", async (_req, res): Promise<void> => {
 
   // Compute per-institution student count + placement rate in TWO queries
   // total (instead of 2*N) to avoid the obvious N+1 scaling cliff.
+  // Tracking metrics use VERIFIED links only.
   const institutionIds = all.map((i) => i.id);
 
   const linkRows = await db
     .select({
       institutionId: candidateInstitutionsTable.institutionId,
       candidateId: candidateInstitutionsTable.candidateId,
+      verifiedAt: candidateInstitutionsTable.verifiedAt,
     })
     .from(candidateInstitutionsTable)
     .where(inArray(candidateInstitutionsTable.institutionId, institutionIds));
@@ -84,6 +91,7 @@ router.get("/institutions", async (_req, res): Promise<void> => {
   const studentsByInst = new Map<number, Set<number>>();
   const allStudentIds = new Set<number>();
   for (const r of linkRows) {
+    if (r.verifiedAt == null) continue; // unverified links don't count
     let set = studentsByInst.get(r.institutionId);
     if (!set) {
       set = new Set<number>();
@@ -218,21 +226,39 @@ router.get("/institutions/:id/students", async (req, res): Promise<void> => {
     .orderBy(desc(candidatesTable.talentScore));
 
   // Determine whether each student's link to this institution is primary
-  // so the UI can flag transfer / multi-affiliation students.
+  // so the UI can flag transfer / multi-affiliation students, and whether
+  // this institution has VERIFIED them as a real student.
   const linkRows = await db
     .select({
       candidateId: candidateInstitutionsTable.candidateId,
       isPrimary: candidateInstitutionsTable.isPrimary,
+      verifiedAt: candidateInstitutionsTable.verifiedAt,
+      verifiedByName: usersTable.fullName,
     })
     .from(candidateInstitutionsTable)
+    .leftJoin(
+      usersTable,
+      eq(usersTable.id, candidateInstitutionsTable.verifiedBy),
+    )
     .where(
       and(
         eq(candidateInstitutionsTable.institutionId, params.data.id),
         inArray(candidateInstitutionsTable.candidateId, studentIds),
       ),
     );
-  const primaryByCandidate = new Map<number, boolean>(
-    linkRows.map((r) => [r.candidateId, r.isPrimary]),
+  const linkInfoByCandidate = new Map<
+    number,
+    { isPrimary: boolean; isVerified: boolean; verifiedAt: string | null; verifiedByName: string | null }
+  >(
+    linkRows.map((r) => [
+      r.candidateId,
+      {
+        isPrimary: r.isPrimary,
+        isVerified: r.verifiedAt != null,
+        verifiedAt: r.verifiedAt ? r.verifiedAt.toISOString() : null,
+        verifiedByName: r.verifiedByName,
+      },
+    ]),
   );
 
   const apps = await db
@@ -265,6 +291,7 @@ router.get("/institutions/:id/students", async (req, res): Promise<void> => {
   res.json(
     students.map((s) => {
       const stats = statsByCandidate.get(s.id) ?? { count: 0, status: "active", employerName: null };
+      const link = linkInfoByCandidate.get(s.id);
       return {
         candidateId: s.id,
         fullName: s.fullName,
@@ -275,10 +302,97 @@ router.get("/institutions/:id/students", async (req, res): Promise<void> => {
         status: stats.status,
         currentEmployerName: stats.employerName,
         applicationsCount: stats.count,
-        isPrimaryAffiliation: primaryByCandidate.get(s.id) ?? false,
+        isPrimaryAffiliation: link?.isPrimary ?? false,
+        isVerified: link?.isVerified ?? false,
+        verifiedAt: link?.verifiedAt ?? null,
+        verifiedByName: link?.verifiedByName ?? null,
       };
     }),
   );
 });
+
+/**
+ * Authorization helper for verify/unverify: caller must be either a
+ * platform admin OR an institution member (not viewer) of the SAME
+ * institution being acted on. We do this inline because the standard
+ * org-member helper doesn't compare URL params against the session's
+ * institutionId.
+ */
+function canManageInstitutionStudents(
+  user: { role: string; orgRole: string | null; institutionId: number | null },
+  institutionId: number,
+): boolean {
+  if (user.role === "admin") return true;
+  if (user.role !== "institution") return false;
+  if (user.institutionId !== institutionId) return false;
+  // Viewers can't change verification status — only owners and coordinators.
+  return user.orgRole === "owner" || user.orgRole === "coordinator";
+}
+
+router.post(
+  "/institutions/:id/students/:candidateId/verify",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const institutionId = Number(req.params["id"]);
+    const candidateId = Number(req.params["candidateId"]);
+    if (!Number.isInteger(institutionId) || !Number.isInteger(candidateId)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    const me = req.currentUser!;
+    if (!canManageInstitutionStudents(me, institutionId)) {
+      res.status(403).json({ error: "Not allowed to verify this institution's students" });
+      return;
+    }
+    const result = await db
+      .update(candidateInstitutionsTable)
+      .set({ verifiedAt: new Date(), verifiedBy: me.id })
+      .where(
+        and(
+          eq(candidateInstitutionsTable.institutionId, institutionId),
+          eq(candidateInstitutionsTable.candidateId, candidateId),
+        ),
+      )
+      .returning();
+    if (result.length === 0) {
+      res.status(404).json({ error: "Student is not linked to this institution" });
+      return;
+    }
+    res.json({ ok: true, verifiedAt: result[0]!.verifiedAt!.toISOString() });
+  },
+);
+
+router.post(
+  "/institutions/:id/students/:candidateId/unverify",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const institutionId = Number(req.params["id"]);
+    const candidateId = Number(req.params["candidateId"]);
+    if (!Number.isInteger(institutionId) || !Number.isInteger(candidateId)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    const me = req.currentUser!;
+    if (!canManageInstitutionStudents(me, institutionId)) {
+      res.status(403).json({ error: "Not allowed to unverify this institution's students" });
+      return;
+    }
+    const result = await db
+      .update(candidateInstitutionsTable)
+      .set({ verifiedAt: null, verifiedBy: null })
+      .where(
+        and(
+          eq(candidateInstitutionsTable.institutionId, institutionId),
+          eq(candidateInstitutionsTable.candidateId, candidateId),
+        ),
+      )
+      .returning();
+    if (result.length === 0) {
+      res.status(404).json({ error: "Student is not linked to this institution" });
+      return;
+    }
+    res.json({ ok: true });
+  },
+);
 
 export default router;

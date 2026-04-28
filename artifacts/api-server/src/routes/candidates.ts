@@ -52,6 +52,8 @@ function serializeCandidate(
     institutionId: primary?.id ?? c.institutionId ?? null,
     institutionName: primary?.name ?? null,
     institutions,
+    // True when ANY institution has explicitly verified this candidate.
+    isVerified: institutions.some((i) => i.isVerified),
     skills: c.skills,
     createdAt: c.createdAt.toISOString(),
   };

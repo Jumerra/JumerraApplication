@@ -106,3 +106,4 @@ export * from "./updateCandidateAvailability";
 export * from "./updateSiteContentRequest";
 export * from "./updateSiteContentRequestItemsItem";
 export * from "./updateSiteContentRequestItemsItemType";
+export * from "./verifyStudentResponse";

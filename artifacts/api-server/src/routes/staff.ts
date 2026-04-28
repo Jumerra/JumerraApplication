@@ -147,10 +147,14 @@ router.post("/staff/invite", requireOrgOwner, async (req, res) => {
       logger: req.log,
     });
 
+    // SECURITY: only expose the setup URL to the inviter when email
+    // delivery is NOT configured. Once a real provider is wired up the
+    // link is delivered to the invitee directly and must not leak via
+    // the API response. The raw `token` is never returned (the URL is
+    // sufficient for the no-email fallback workflow).
     res.status(201).json({
       member: toStaffRow(created),
-      setupUrl,
-      token,
+      setupUrl: emailResult.sent ? null : setupUrl,
       expiresAt: expiresAt.toISOString(),
       emailSent: emailResult.sent,
     });

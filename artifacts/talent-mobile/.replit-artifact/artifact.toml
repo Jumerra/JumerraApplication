@@ -1,0 +1,27 @@
+kind = "mobile"
+previewPath = "/mobile/"
+title = "TalentLink Mobile"
+version = "1.0.0"
+id = "artifacts/talent-mobile"
+router = "expo-domain"
+
+[[integratedSkills]]
+name = "expo"
+version = "1.0.0"
+
+[[services]]
+ensurePreviewReachable = "/status"
+name = "expo"
+paths = [ "/mobile/" ]
+localPort = 25947
+
+[services.development]
+run = "pnpm --filter @workspace/talent-mobile run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/talent-mobile", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/talent-mobile", "run", "serve" ]
+
+[services.env]
+PORT = "25947"
+BASE_PATH = "/mobile/"

@@ -10,6 +10,7 @@ A smart talent ecosystem connecting candidates (interns/grads/early-career) with
 - **DB** (`lib/db`): Drizzle schema split per domain under `src/schema/`. Seed at `src/seed.ts` (run with `pnpm dlx tsx src/seed.ts`).
 - **API client** (`lib/api-client-react`): Orval-generated React Query hooks consumed by the frontend.
 - **Web app** (`artifacts/talent-platform`): React + Vite + wouter + shadcn/ui + Recharts + framer-motion + sonner. Role context (`src/lib/auth.tsx`) provides `View as` switching across Candidate / Employer / Institution / Admin (persisted in localStorage). All three default IDs are 1 and seed data guarantees those entities exist.
+- **Mobile app** (`artifacts/talent-mobile`, preview path `/mobile/`): Expo + Expo Router + React Native, **candidate-only experience** (browse jobs, view detail w/ match score, apply, track applications, view profile). Hardcoded `CURRENT_CANDIDATE_ID = 1` in `constants/auth.ts` (no auth on mobile). Tabs: Discover / Search / Applications / Profile. Stack screens: `job/[id]/index` (detail), `job/[id]/apply` (modal). Reuses the same `@workspace/api-client-react` hooks as the web app and the same backend. Design tokens in `constants/colors.ts` mirror the web emerald palette (light + dark via `useColors()`). Inter fonts loaded via `@expo-google-fonts/inter`. Feather icons only (no emojis).
 
 ## Domain model
 

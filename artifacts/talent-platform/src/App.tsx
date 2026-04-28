@@ -24,6 +24,8 @@ import InstitutionDashboard from "@/pages/dashboard/institution";
 import AdminDashboard from "@/pages/dashboard/admin";
 import AdminRegistrationsPage from "@/pages/dashboard/admin/registrations";
 import AdminOnboardPage from "@/pages/dashboard/admin/onboard";
+import AdminSiteContentPage from "@/pages/dashboard/admin/site-content";
+import StaffPage from "@/pages/dashboard/staff";
 import LoginPage from "@/pages/auth/login";
 import SignupPage from "@/pages/auth/signup";
 import SetupPasswordPage from "@/pages/auth/setup-password";
@@ -58,6 +60,10 @@ function Router() {
         <Route path="/dashboard/admin" component={AdminDashboard} />
         <Route path="/dashboard/admin/registrations" component={AdminRegistrationsPage} />
         <Route path="/dashboard/admin/onboard" component={AdminOnboardPage} />
+        <Route path="/dashboard/admin/site-content" component={AdminSiteContentPage} />
+        <Route path="/dashboard/admin/staff" component={StaffPage} />
+        <Route path="/dashboard/employer/staff" component={StaffPage} />
+        <Route path="/dashboard/institution/staff" component={StaffPage} />
 
         <Route path="/login" component={LoginPage} />
         <Route path="/signup" component={SignupPage} />

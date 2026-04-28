@@ -44,3 +44,59 @@ export async function requireAdmin(
     next();
   });
 }
+
+/**
+ * True if the user has owner-level write privileges on their org
+ * (employer/institution owner, or platform super_admin).
+ */
+export function isOrgOwner(user: User | undefined | null): boolean {
+  if (!user) return false;
+  if (user.role === "admin") return user.orgRole === "super_admin";
+  return user.orgRole === "owner";
+}
+
+/**
+ * Allow access only to org owners (or platform super admins). Used for
+ * staff invite/remove and other write actions on team membership.
+ */
+export async function requireOrgOwner(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  await requireAuth(req, res, () => {
+    if (!isOrgOwner(req.currentUser)) {
+      res.status(403).json({ error: "Owner access required" });
+      return;
+    }
+    next();
+  });
+}
+
+/**
+ * Allow access to any user that is part of an organization (has an
+ * orgRole). Candidates have no orgRole and are denied.
+ */
+export async function requireOrgMember(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  await requireAuth(req, res, () => {
+    const u = req.currentUser;
+    if (!u) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    // Admins are always considered org members (super_admin by default).
+    if (u.role === "admin") {
+      next();
+      return;
+    }
+    if (!u.orgRole) {
+      res.status(403).json({ error: "Organization member access required" });
+      return;
+    }
+    next();
+  });
+}

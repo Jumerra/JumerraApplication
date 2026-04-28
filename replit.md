@@ -28,7 +28,31 @@ A smart talent ecosystem connecting candidates (interns/grads/early-career) with
   - Today it returns `{ sent: false, reason: "email-not-configured" }`. For `kind: "setup"` (admin onboarding) it logs the full URL so admins can copy it; for `kind: "reset"` it intentionally logs only a short token fingerprint (never the full URL) to avoid plaintext reset links in logs.
   - The admin onboarding success card reads `emailSent` and only shows the copyable link when `emailSent === false`, so once the email layer starts returning `{ sent: true }` the link disappears from the UI automatically.
   - **Email provider not connected.** A Resend integration was offered and dismissed by the user. To wire real delivery later, either revisit the Resend integration, pick another provider (SendGrid, Gmail, Outlook, AgentMail are all available as integrations), or take a direct provider API key as a secret. Implementation point is the single `TODO` in `lib/email.ts` — replace the `return { sent: false, ... }` with a real send and return `{ sent: true, provider }`.
-- **Seeded admin**: `admin@talentlink.com` / `admin123`.
+- **Seeded admin**: `admin@talentlink.com` / `admin123`. Other test users: `techcorp@talentlink.com` / `employer123` (employer owner of #7), `stanford@talentlink.com` / `institution123` (institution owner of #4), `alex@example.com` / `candidate123`.
+
+## Roles & staff invites
+
+- `users.org_role` (nullable text) layers on top of `users.role` for in-org permissions:
+  - `admin` → `super_admin` | `support`
+  - `employer` → `owner` | `recruiter` | `viewer`
+  - `institution` → `owner` | `coordinator` | `viewer`
+  - `candidate` → null
+- Backfill: existing admins → `super_admin`; first user attached to each employer/institution → `owner`. Admin onboarding now sets `org_role: 'owner'` for new employer/institution users.
+- Middleware (`require-auth.ts`):
+  - `requireOrgOwner` — owner of the same org (or any platform admin).
+  - `requireOrgMember` — any user belonging to the same org (admins always pass).
+- Endpoints (`routes/staff.ts`):
+  - `GET /api/staff` — admin sees all org members; employer/institution owner sees only their org.
+  - `POST /api/staff/invite` — owner-only. Creates a `password_setup_tokens` row, calls the stubbed email layer, and ALWAYS returns the `setupUrl` so the inviter can copy it.
+  - `DELETE /api/staff/:id` — owner-only. Cannot remove yourself or the last owner of an org.
+- Web: `/dashboard/<role>/staff` (single page reused by admin/employer/institution). Owners see invite form + remove buttons; non-owners see a read-only roster. Layout dropdown adds **Team** for employer/institution and **Admin team** for admin.
+
+## Light website builder
+
+- `site_content(key TEXT PK, type TEXT, value TEXT, updated_at, updated_by → users.id)` — bulk key/value store for editable home-page copy and image URLs.
+- `GET /api/site-content` — public; returns `{ items: [{ key, type, value }] }`.
+- `PUT /api/site-content` — admin-only bulk upsert. Validates `type ∈ {text, image}`, key ≤200, value ≤5000.
+- Web: `/dashboard/admin/site-content` groups all 21 keys into Hero / How it works / Audience cards with sticky save bar and image previews. `home.tsx` consumes `useGetSiteContent` with hard-coded fallbacks for every key, and runs every image URL through a `safeImage` allow-list (http(s)/data:image/relative paths only) to block `javascript:` URIs.
 - **Mobile app** (`artifacts/talent-mobile`, preview path `/mobile/`): Expo + Expo Router + React Native, **candidate-only experience** (browse jobs, view detail w/ match score, apply, track applications, view profile). Hardcoded `CURRENT_CANDIDATE_ID = 1` in `constants/auth.ts` (no auth on mobile). Tabs: Discover / Search / Applications / Profile. Stack screens: `job/[id]/index` (detail), `job/[id]/apply` (modal). Reuses the same `@workspace/api-client-react` hooks as the web app and the same backend. Design tokens in `constants/colors.ts` mirror the web emerald palette (light + dark via `useColors()`). Inter fonts loaded via `@expo-google-fonts/inter`. Feather icons only (no emojis).
 
 ## Domain model

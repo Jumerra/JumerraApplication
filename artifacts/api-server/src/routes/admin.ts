@@ -15,7 +15,9 @@ import { sendAuthLinkEmail, originFromReq } from "../lib/email";
 
 const router: Router = Router();
 
-router.use(requireAdmin);
+// Scope this middleware to /admin/* only — without the path prefix it
+// would leak onto every other router mounted on /api after this one.
+router.use("/admin", requireAdmin);
 
 /**
  * GET /api/admin/registrations?status=pending|active|rejected|all
@@ -130,6 +132,7 @@ router.post("/admin/registrations/:id/approve", async (req, res) => {
           });
         }
       } else if (user.role === "employer") {
+        updates.orgRole = "owner";
         const empName = (data.companyName as string) ?? user.fullName;
         const [e] = await tx
           .insert(employersTable)
@@ -151,6 +154,7 @@ router.post("/admin/registrations/:id/approve", async (req, res) => {
           .returning();
         updates.employerId = e.id;
       } else {
+        updates.orgRole = "owner";
         const instName = (data.institutionName as string) ?? user.fullName;
         const [i] = await tx
           .insert(institutionsTable)
@@ -300,6 +304,7 @@ router.post("/admin/onboard", async (req, res) => {
           role,
           status: "invited",
           fullName,
+          orgRole: "owner",
           approvedAt: new Date(),
           ...updates,
         })

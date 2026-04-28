@@ -32,6 +32,14 @@ export const usersTable = pgTable(
     candidateId: integer("candidate_id"),
     employerId: integer("employer_id"),
     institutionId: integer("institution_id"),
+    /**
+     * Sub-role inside the user's organization (or platform). Null for
+     * candidates. Allowed values per top-level role:
+     *   admin       -> 'super_admin' | 'support'
+     *   employer    -> 'owner' | 'recruiter' | 'viewer'
+     *   institution -> 'owner' | 'coordinator' | 'viewer'
+     */
+    orgRole: text("org_role"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

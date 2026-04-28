@@ -926,6 +926,7 @@ export const LoginUserResponse = zod.object({
       fullName: zod.string(),
       role: zod.enum(["candidate", "employer", "institution", "admin"]),
       status: zod.enum(["pending", "active", "rejected", "invited"]),
+      orgRole: zod.string().nullable(),
       candidateId: zod.number().nullable(),
       employerId: zod.number().nullable(),
       institutionId: zod.number().nullable(),
@@ -946,6 +947,7 @@ export const GetCurrentUserResponse = zod.object({
       fullName: zod.string(),
       role: zod.enum(["candidate", "employer", "institution", "admin"]),
       status: zod.enum(["pending", "active", "rejected", "invited"]),
+      orgRole: zod.string().nullable(),
       candidateId: zod.number().nullable(),
       employerId: zod.number().nullable(),
       institutionId: zod.number().nullable(),
@@ -967,6 +969,7 @@ export const SetupPasswordResponse = zod.object({
       fullName: zod.string(),
       role: zod.enum(["candidate", "employer", "institution", "admin"]),
       status: zod.enum(["pending", "active", "rejected", "invited"]),
+      orgRole: zod.string().nullable(),
       candidateId: zod.number().nullable(),
       employerId: zod.number().nullable(),
       institutionId: zod.number().nullable(),
@@ -1076,4 +1079,74 @@ export const ListOnboardedUsersResponse = zod.object({
       institutionId: zod.number().nullish(),
     }),
   ),
+});
+
+/**
+ * @summary Public site content for the home page (admin-editable)
+ */
+export const GetSiteContentResponse = zod.object({
+  items: zod.array(
+    zod.object({
+      key: zod.string(),
+      type: zod.enum(["text", "image"]),
+      value: zod.string(),
+      updatedAt: zod.coerce.date().optional(),
+    }),
+  ),
+});
+
+/**
+ * @summary Bulk upsert site content (admin only)
+ */
+export const UpdateSiteContentBody = zod.object({
+  items: zod.array(
+    zod.object({
+      key: zod.string(),
+      type: zod.enum(["text", "image"]),
+      value: zod.string(),
+    }),
+  ),
+});
+
+export const UpdateSiteContentResponse = zod.object({
+  ok: zod.boolean(),
+});
+
+/**
+ * @summary List staff visible to the current user
+ */
+export const ListStaffResponse = zod.object({
+  members: zod.array(
+    zod.object({
+      id: zod.number(),
+      email: zod.string(),
+      fullName: zod.string(),
+      role: zod.enum(["employer", "institution", "admin"]),
+      orgRole: zod.string().nullable(),
+      status: zod.enum(["pending", "active", "rejected", "invited"]),
+      employerId: zod.number().nullable(),
+      institutionId: zod.number().nullable(),
+      createdAt: zod.coerce.date(),
+    }),
+  ),
+});
+
+/**
+ * @summary Invite a teammate to the current org (owner only)
+ */
+export const InviteStaffBody = zod.object({
+  email: zod.string(),
+  fullName: zod.string(),
+  orgRole: zod.string(),
+});
+
+/**
+ * @summary Remove a teammate (owner only)
+ */
+export const RemoveStaffParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const RemoveStaffResponse = zod.object({
+  ok: zod.boolean(),
 });

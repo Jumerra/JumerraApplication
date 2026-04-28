@@ -83,6 +83,7 @@ export type PublicUser = {
   fullName: string;
   role: string;
   status: string;
+  orgRole: string | null;
   candidateId: number | null;
   employerId: number | null;
   institutionId: number | null;
@@ -95,6 +96,7 @@ export function toPublicUser(user: User): PublicUser {
     fullName: user.fullName,
     role: user.role,
     status: user.status,
+    orgRole: user.orgRole,
     candidateId: user.candidateId,
     employerId: user.employerId,
     institutionId: user.institutionId,

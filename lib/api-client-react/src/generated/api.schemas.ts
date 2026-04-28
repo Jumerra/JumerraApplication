@@ -34,6 +34,7 @@ export interface AuthUser {
   fullName: string;
   role: AuthUserRole;
   status: AuthUserStatus;
+  orgRole: string | null;
   candidateId: number | null;
   employerId: number | null;
   institutionId: number | null;
@@ -697,6 +698,92 @@ export interface SalaryInsight {
   maxSalary: number;
   currency: string;
   sampleSize: number;
+}
+
+export type SiteContentItemType =
+  (typeof SiteContentItemType)[keyof typeof SiteContentItemType];
+
+export const SiteContentItemType = {
+  text: "text",
+  image: "image",
+} as const;
+
+export interface SiteContentItem {
+  key: string;
+  type: SiteContentItemType;
+  value: string;
+  updatedAt?: string;
+}
+
+export interface SiteContentResponse {
+  items: SiteContentItem[];
+}
+
+export type UpdateSiteContentRequestItemsItemType =
+  (typeof UpdateSiteContentRequestItemsItemType)[keyof typeof UpdateSiteContentRequestItemsItemType];
+
+export const UpdateSiteContentRequestItemsItemType = {
+  text: "text",
+  image: "image",
+} as const;
+
+export type UpdateSiteContentRequestItemsItem = {
+  key: string;
+  type: UpdateSiteContentRequestItemsItemType;
+  value: string;
+};
+
+export interface UpdateSiteContentRequest {
+  items: UpdateSiteContentRequestItemsItem[];
+}
+
+export type StaffMemberRole =
+  (typeof StaffMemberRole)[keyof typeof StaffMemberRole];
+
+export const StaffMemberRole = {
+  employer: "employer",
+  institution: "institution",
+  admin: "admin",
+} as const;
+
+export type StaffMemberStatus =
+  (typeof StaffMemberStatus)[keyof typeof StaffMemberStatus];
+
+export const StaffMemberStatus = {
+  pending: "pending",
+  active: "active",
+  rejected: "rejected",
+  invited: "invited",
+} as const;
+
+export interface StaffMember {
+  id: number;
+  email: string;
+  fullName: string;
+  role: StaffMemberRole;
+  orgRole: string | null;
+  status: StaffMemberStatus;
+  employerId: number | null;
+  institutionId: number | null;
+  createdAt: string;
+}
+
+export interface StaffListResponse {
+  members: StaffMember[];
+}
+
+export interface InviteStaffRequest {
+  email: string;
+  fullName: string;
+  orgRole: string;
+}
+
+export interface InviteStaffResponse {
+  member: StaffMember;
+  setupUrl: string;
+  token: string;
+  expiresAt: string;
+  emailSent: boolean;
 }
 
 export type ListCandidatesParams = {

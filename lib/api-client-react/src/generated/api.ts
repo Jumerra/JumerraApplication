@@ -39,6 +39,8 @@ import type {
   InstitutionDashboard,
   InstitutionDetail,
   InstitutionStudent,
+  InviteStaffRequest,
+  InviteStaffResponse,
   Job,
   JobDetail,
   JobMatch,
@@ -61,9 +63,12 @@ import type {
   SalaryInsight,
   SetupPasswordRequest,
   SetupTokenInfo,
+  SiteContentResponse,
   Skill,
+  StaffListResponse,
   UpdateApplication,
   UpdateCandidate,
+  UpdateSiteContentRequest,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -3281,3 +3286,401 @@ export function useListOnboardedUsers<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Public site content for the home page (admin-editable)
+ */
+export const getGetSiteContentUrl = () => {
+  return `/api/site-content`;
+};
+
+export const getSiteContent = async (
+  options?: RequestInit,
+): Promise<SiteContentResponse> => {
+  return customFetch<SiteContentResponse>(getGetSiteContentUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetSiteContentQueryKey = () => {
+  return [`/api/site-content`] as const;
+};
+
+export const getGetSiteContentQueryOptions = <
+  TData = Awaited<ReturnType<typeof getSiteContent>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getSiteContent>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetSiteContentQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getSiteContent>>> = ({
+    signal,
+  }) => getSiteContent({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getSiteContent>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetSiteContentQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getSiteContent>>
+>;
+export type GetSiteContentQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Public site content for the home page (admin-editable)
+ */
+
+export function useGetSiteContent<
+  TData = Awaited<ReturnType<typeof getSiteContent>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getSiteContent>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetSiteContentQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Bulk upsert site content (admin only)
+ */
+export const getUpdateSiteContentUrl = () => {
+  return `/api/site-content`;
+};
+
+export const updateSiteContent = async (
+  updateSiteContentRequest: UpdateSiteContentRequest,
+  options?: RequestInit,
+): Promise<OkResponse> => {
+  return customFetch<OkResponse>(getUpdateSiteContentUrl(), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateSiteContentRequest),
+  });
+};
+
+export const getUpdateSiteContentMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSiteContent>>,
+    TError,
+    { data: BodyType<UpdateSiteContentRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateSiteContent>>,
+  TError,
+  { data: BodyType<UpdateSiteContentRequest> },
+  TContext
+> => {
+  const mutationKey = ["updateSiteContent"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateSiteContent>>,
+    { data: BodyType<UpdateSiteContentRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateSiteContent(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateSiteContentMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateSiteContent>>
+>;
+export type UpdateSiteContentMutationBody = BodyType<UpdateSiteContentRequest>;
+export type UpdateSiteContentMutationError = ErrorType<void>;
+
+/**
+ * @summary Bulk upsert site content (admin only)
+ */
+export const useUpdateSiteContent = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSiteContent>>,
+    TError,
+    { data: BodyType<UpdateSiteContentRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateSiteContent>>,
+  TError,
+  { data: BodyType<UpdateSiteContentRequest> },
+  TContext
+> => {
+  return useMutation(getUpdateSiteContentMutationOptions(options));
+};
+
+/**
+ * @summary List staff visible to the current user
+ */
+export const getListStaffUrl = () => {
+  return `/api/staff`;
+};
+
+export const listStaff = async (
+  options?: RequestInit,
+): Promise<StaffListResponse> => {
+  return customFetch<StaffListResponse>(getListStaffUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListStaffQueryKey = () => {
+  return [`/api/staff`] as const;
+};
+
+export const getListStaffQueryOptions = <
+  TData = Awaited<ReturnType<typeof listStaff>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof listStaff>>, TError, TData>;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListStaffQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listStaff>>> = ({
+    signal,
+  }) => listStaff({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listStaff>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListStaffQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listStaff>>
+>;
+export type ListStaffQueryError = ErrorType<void>;
+
+/**
+ * @summary List staff visible to the current user
+ */
+
+export function useListStaff<
+  TData = Awaited<ReturnType<typeof listStaff>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof listStaff>>, TError, TData>;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListStaffQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Invite a teammate to the current org (owner only)
+ */
+export const getInviteStaffUrl = () => {
+  return `/api/staff/invite`;
+};
+
+export const inviteStaff = async (
+  inviteStaffRequest: InviteStaffRequest,
+  options?: RequestInit,
+): Promise<InviteStaffResponse> => {
+  return customFetch<InviteStaffResponse>(getInviteStaffUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(inviteStaffRequest),
+  });
+};
+
+export const getInviteStaffMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof inviteStaff>>,
+    TError,
+    { data: BodyType<InviteStaffRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof inviteStaff>>,
+  TError,
+  { data: BodyType<InviteStaffRequest> },
+  TContext
+> => {
+  const mutationKey = ["inviteStaff"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof inviteStaff>>,
+    { data: BodyType<InviteStaffRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return inviteStaff(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type InviteStaffMutationResult = NonNullable<
+  Awaited<ReturnType<typeof inviteStaff>>
+>;
+export type InviteStaffMutationBody = BodyType<InviteStaffRequest>;
+export type InviteStaffMutationError = ErrorType<void>;
+
+/**
+ * @summary Invite a teammate to the current org (owner only)
+ */
+export const useInviteStaff = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof inviteStaff>>,
+    TError,
+    { data: BodyType<InviteStaffRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof inviteStaff>>,
+  TError,
+  { data: BodyType<InviteStaffRequest> },
+  TContext
+> => {
+  return useMutation(getInviteStaffMutationOptions(options));
+};
+
+/**
+ * @summary Remove a teammate (owner only)
+ */
+export const getRemoveStaffUrl = (id: number) => {
+  return `/api/staff/${id}`;
+};
+
+export const removeStaff = async (
+  id: number,
+  options?: RequestInit,
+): Promise<OkResponse> => {
+  return customFetch<OkResponse>(getRemoveStaffUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getRemoveStaffMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removeStaff>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof removeStaff>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["removeStaff"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof removeStaff>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return removeStaff(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RemoveStaffMutationResult = NonNullable<
+  Awaited<ReturnType<typeof removeStaff>>
+>;
+
+export type RemoveStaffMutationError = ErrorType<void>;
+
+/**
+ * @summary Remove a teammate (owner only)
+ */
+export const useRemoveStaff = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removeStaff>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof removeStaff>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getRemoveStaffMutationOptions(options));
+};

@@ -30,6 +30,8 @@ import {
   UserPlus,
   LogIn,
   KeyRound,
+  Sparkles,
+  Users,
 } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import {
@@ -184,9 +186,33 @@ export function Layout({ children }: { children: React.ReactNode }) {
                           <UserPlus className="w-4 h-4" /> Onboard partner
                         </Link>
                       </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link href="/dashboard/admin/site-content" className="gap-2 cursor-pointer">
+                          <Sparkles className="w-4 h-4" /> Edit homepage
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link href="/dashboard/admin/staff" className="gap-2 cursor-pointer">
+                          <Users className="w-4 h-4" /> Admin team
+                        </Link>
+                      </DropdownMenuItem>
                       <DropdownMenuSeparator />
                     </>
                   )}
+                  {(sessionUser.role === "employer" || sessionUser.role === "institution") &&
+                    sessionUser.orgRole && (
+                      <>
+                        <DropdownMenuItem asChild>
+                          <Link
+                            href={`/dashboard/${sessionUser.role}/staff`}
+                            className="gap-2 cursor-pointer"
+                          >
+                            <Users className="w-4 h-4" /> Team
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                      </>
+                    )}
                   <DropdownMenuItem asChild>
                     <Link href="/account/password" className="gap-2 cursor-pointer">
                       <KeyRound className="w-4 h-4" /> Change password

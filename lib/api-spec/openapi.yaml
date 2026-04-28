@@ -730,6 +730,88 @@ paths:
                 required: [users]
         "403": { description: Admin only }
 
+  /site-content:
+    get:
+      operationId: getSiteContent
+      tags: [site]
+      summary: Public site content for the home page (admin-editable)
+      responses:
+        "200":
+          description: All site content rows
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SiteContentResponse" }
+    put:
+      operationId: updateSiteContent
+      tags: [site]
+      summary: Bulk upsert site content (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateSiteContentRequest" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
+        "400": { description: Invalid input }
+        "403": { description: Admin only }
+
+  /staff:
+    get:
+      operationId: listStaff
+      tags: [staff]
+      summary: List staff visible to the current user
+      responses:
+        "200":
+          description: Staff members
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StaffListResponse" }
+        "403": { description: Organization member access required }
+
+  /staff/invite:
+    post:
+      operationId: inviteStaff
+      tags: [staff]
+      summary: Invite a teammate to the current org (owner only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InviteStaffRequest" }
+      responses:
+        "201":
+          description: Invite created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InviteStaffResponse" }
+        "400": { description: Invalid input }
+        "403": { description: Owner access required }
+        "409": { description: Email already in use }
+
+  /staff/{id}:
+    delete:
+      operationId: removeStaff
+      tags: [staff]
+      summary: Remove a teammate (owner only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Removed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
+        "400": { description: Invalid input }
+        "403": { description: Owner access required }
+        "404": { description: Member not found }
+
 components:
   schemas:
     HealthStatus:
@@ -750,10 +832,11 @@ components:
         status:
           type: string
           enum: [pending, active, rejected, invited]
+        orgRole: { type: string, nullable: true }
         candidateId: { type: integer, nullable: true }
         employerId: { type: integer, nullable: true }
         institutionId: { type: integer, nullable: true }
-      required: [id, email, fullName, role, status, candidateId, employerId, institutionId]
+      required: [id, email, fullName, role, status, orgRole, candidateId, employerId, institutionId]
 
     AuthSession:
       type: object
@@ -1600,3 +1683,82 @@ components:
         currency: { type: string }
         sampleSize: { type: integer }
       required: [role, averageSalary, minSalary, maxSalary, currency, sampleSize]
+
+    SiteContentItem:
+      type: object
+      properties:
+        key: { type: string }
+        type:
+          type: string
+          enum: [text, image]
+        value: { type: string }
+        updatedAt: { type: string, format: date-time }
+      required: [key, type, value]
+
+    SiteContentResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/SiteContentItem" }
+      required: [items]
+
+    UpdateSiteContentRequest:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              key: { type: string }
+              type:
+                type: string
+                enum: [text, image]
+              value: { type: string }
+            required: [key, type, value]
+      required: [items]
+
+    StaffMember:
+      type: object
+      properties:
+        id: { type: integer }
+        email: { type: string }
+        fullName: { type: string }
+        role:
+          type: string
+          enum: [employer, institution, admin]
+        orgRole: { type: string, nullable: true }
+        status:
+          type: string
+          enum: [pending, active, rejected, invited]
+        employerId: { type: integer, nullable: true }
+        institutionId: { type: integer, nullable: true }
+        createdAt: { type: string, format: date-time }
+      required: [id, email, fullName, role, orgRole, status, employerId, institutionId, createdAt]
+
+    StaffListResponse:
+      type: object
+      properties:
+        members:
+          type: array
+          items: { $ref: "#/components/schemas/StaffMember" }
+      required: [members]
+
+    InviteStaffRequest:
+      type: object
+      properties:
+        email: { type: string }
+        fullName: { type: string }
+        orgRole: { type: string }
+      required: [email, fullName, orgRole]
+
+    InviteStaffResponse:
+      type: object
+      properties:
+        member: { $ref: "#/components/schemas/StaffMember" }
+        setupUrl: { type: string }
+        token: { type: string }
+        expiresAt: { type: string, format: date-time }
+        emailSent: { type: boolean }
+      required: [member, setupUrl, token, expiresAt, emailSent]

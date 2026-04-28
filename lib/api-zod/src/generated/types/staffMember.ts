@@ -5,17 +5,17 @@
  * Talent Platform API
  * OpenAPI spec version: 0.1.0
  */
-import type { AuthUserRole } from "./authUserRole";
-import type { AuthUserStatus } from "./authUserStatus";
+import type { StaffMemberRole } from "./staffMemberRole";
+import type { StaffMemberStatus } from "./staffMemberStatus";
 
-export interface AuthUser {
+export interface StaffMember {
   id: number;
   email: string;
   fullName: string;
-  role: AuthUserRole;
-  status: AuthUserStatus;
+  role: StaffMemberRole;
   orgRole: string | null;
-  candidateId: number | null;
+  status: StaffMemberStatus;
   employerId: number | null;
   institutionId: number | null;
+  createdAt: Date;
 }

@@ -1,4 +1,5 @@
-import { useListJobs, useGetSalaryInsights, useGetRecentActivity, useGetPlatformStats } from "@workspace/api-client-react";
+import { useMemo } from "react";
+import { useListJobs, useGetSalaryInsights, useGetRecentActivity, useGetPlatformStats, useGetSiteContent } from "@workspace/api-client-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -24,13 +25,31 @@ export default function Home() {
   const { data: insights, isLoading: isLoadingInsights } = useGetSalaryInsights();
   const { data: activity, isLoading: isLoadingActivity } = useGetRecentActivity();
   const { data: stats } = useGetPlatformStats();
+  const { data: site } = useGetSiteContent();
+
+  const content = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const item of site?.items ?? []) map.set(item.key, item.value);
+    return (key: string, fallback: string) => map.get(key) ?? fallback;
+  }, [site]);
+
+  // Sanitize image URLs from the CMS — only allow http(s), data:, or relative paths
+  // (block javascript:/vbscript:/etc to prevent XSS via image src).
+  const safeImage = (raw: string, fallback: string): string => {
+    const v = raw.trim();
+    if (!v) return fallback;
+    if (v.startsWith("/") || v.startsWith("./") || v.startsWith("../")) return v;
+    if (/^https?:\/\//i.test(v) || /^data:image\//i.test(v)) return v;
+    return fallback;
+  };
+  const heroImage = safeImage(content("home.hero.image", "/hero.png"), "/hero.png");
 
   return (
     <div className="flex flex-col min-h-screen">
       {/* Hero Section */}
       <section className="relative py-20 lg:py-32 overflow-hidden bg-primary/5">
         <div className="absolute inset-0 z-0">
-          <img src="/hero.png" alt="Career Growth" className="w-full h-full object-cover opacity-20 mix-blend-overlay" />
+          <img src={heroImage} alt="Career Growth" className="w-full h-full object-cover opacity-20 mix-blend-overlay" />
           <div className="absolute inset-0 bg-gradient-to-b from-background/40 to-background" />
         </div>
         <div className="container relative z-10 px-4 md:px-6">
@@ -41,17 +60,20 @@ export default function Home() {
             className="max-w-4xl mx-auto text-center space-y-8"
           >
             <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight text-foreground leading-[1.1]">
-              The smart talent ecosystem for the <span className="text-primary bg-clip-text text-transparent bg-gradient-to-r from-primary to-emerald-400">next generation</span>
+              {content("home.hero.headline_main", "The smart talent ecosystem for the")} <span className="text-primary bg-clip-text text-transparent bg-gradient-to-r from-primary to-emerald-400">{content("home.hero.headline_highlight", "next generation")}</span>
             </h1>
             <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-              Connect with internships, remote jobs, and full-time roles. Powered by AI matching to help you land where you belong faster.
+              {content(
+                "home.hero.subhead",
+                "Connect with internships, remote jobs, and full-time roles. Powered by AI matching to help you land where you belong faster.",
+              )}
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
               <Button asChild size="lg" className="h-12 px-8 text-base shadow-lg shadow-primary/20">
-                <Link href="/jobs">Find work</Link>
+                <Link href="/jobs">{content("home.hero.cta_primary", "Find work")}</Link>
               </Button>
               <Button asChild size="lg" variant="outline" className="h-12 px-8 text-base bg-background/50 backdrop-blur">
-                <Link href="/employers">Hire talent</Link>
+                <Link href="/employers">{content("home.hero.cta_secondary", "Hire talent")}</Link>
               </Button>
             </div>
           </motion.div>
@@ -84,8 +106,11 @@ export default function Home() {
       <section className="py-24 bg-background">
         <div className="container px-4 md:px-6">
           <div className="text-center max-w-2xl mx-auto mb-16">
-            <h2 className="text-3xl font-bold mb-4">How AI matching works</h2>
-            <p className="text-muted-foreground text-lg">We analyze skills, experience, and potential to create perfect pairings between talent and opportunity.</p>
+            <h2 className="text-3xl font-bold mb-4">{content("home.howit.title", "How AI matching works")}</h2>
+            <p className="text-muted-foreground text-lg">{content(
+              "home.howit.subtitle",
+              "We analyze skills, experience, and potential to create perfect pairings between talent and opportunity.",
+            )}</p>
           </div>
           
           <motion.div 
@@ -101,24 +126,33 @@ export default function Home() {
               <div className="w-16 h-16 mx-auto bg-primary/10 text-primary rounded-2xl flex items-center justify-center mb-6 -mt-12 border-4 border-background">
                 <UserCircle2 className="w-8 h-8" />
               </div>
-              <h3 className="text-xl font-bold mb-2">1. Build your profile</h3>
-              <p className="text-muted-foreground">Showcase your skills, education, and experience to build a comprehensive talent graph.</p>
+              <h3 className="text-xl font-bold mb-2">{content("home.howit.step1_title", "1. Build your profile")}</h3>
+              <p className="text-muted-foreground">{content(
+                "home.howit.step1_desc",
+                "Showcase your skills, education, and experience to build a comprehensive talent graph.",
+              )}</p>
             </motion.div>
             
             <motion.div variants={item} className="relative z-10 bg-background rounded-2xl p-6 text-center border shadow-sm">
               <div className="w-16 h-16 mx-auto bg-primary/10 text-primary rounded-2xl flex items-center justify-center mb-6 -mt-12 border-4 border-background">
                 <Sparkles className="w-8 h-8" />
               </div>
-              <h3 className="text-xl font-bold mb-2">2. Get matched</h3>
-              <p className="text-muted-foreground">Our AI instantly pairs you with roles that fit your unique profile and career goals.</p>
+              <h3 className="text-xl font-bold mb-2">{content("home.howit.step2_title", "2. Get matched")}</h3>
+              <p className="text-muted-foreground">{content(
+                "home.howit.step2_desc",
+                "Our AI instantly pairs you with roles that fit your unique profile and career goals.",
+              )}</p>
             </motion.div>
             
             <motion.div variants={item} className="relative z-10 bg-background rounded-2xl p-6 text-center border shadow-sm">
               <div className="w-16 h-16 mx-auto bg-primary/10 text-primary rounded-2xl flex items-center justify-center mb-6 -mt-12 border-4 border-background">
                 <CheckCircle2 className="w-8 h-8" />
               </div>
-              <h3 className="text-xl font-bold mb-2">3. Land the job</h3>
-              <p className="text-muted-foreground">Apply with one click, track your pipeline, and get hired faster than ever before.</p>
+              <h3 className="text-xl font-bold mb-2">{content("home.howit.step3_title", "3. Land the job")}</h3>
+              <p className="text-muted-foreground">{content(
+                "home.howit.step3_desc",
+                "Apply with one click, track your pipeline, and get hired faster than ever before.",
+              )}</p>
             </motion.div>
           </motion.div>
         </div>
@@ -140,8 +174,11 @@ export default function Home() {
                   <div className="mx-auto w-16 h-16 bg-primary/10 text-primary rounded-full flex items-center justify-center mb-6">
                     <UserCircle2 className="w-8 h-8" />
                   </div>
-                  <h3 className="text-2xl font-bold">Candidates</h3>
-                  <p className="text-muted-foreground">Discover roles that match your skills, build your profile, and fast-track your career with AI recommendations.</p>
+                  <h3 className="text-2xl font-bold">{content("home.aud.candidates_title", "Candidates")}</h3>
+                  <p className="text-muted-foreground">{content(
+                    "home.aud.candidates_desc",
+                    "Discover roles that match your skills, build your profile, and fast-track your career with AI recommendations.",
+                  )}</p>
                   <Button asChild variant="link" className="mt-4">
                     <Link href="/dashboard/candidate">View Candidate Dashboard <ArrowRight className="w-4 h-4 ml-2" /></Link>
                   </Button>
@@ -155,8 +192,11 @@ export default function Home() {
                   <div className="mx-auto w-16 h-16 bg-primary/10 text-primary rounded-full flex items-center justify-center mb-6">
                     <Building2 className="w-8 h-8" />
                   </div>
-                  <h3 className="text-2xl font-bold">Employers</h3>
-                  <p className="text-muted-foreground">Post opportunities, instantly see matched talent, and streamline your hiring pipeline from application to offer.</p>
+                  <h3 className="text-2xl font-bold">{content("home.aud.employers_title", "Employers")}</h3>
+                  <p className="text-muted-foreground">{content(
+                    "home.aud.employers_desc",
+                    "Post opportunities, instantly see matched talent, and streamline your hiring pipeline from application to offer.",
+                  )}</p>
                   <Button asChild variant="link" className="mt-4">
                     <Link href="/dashboard/employer">View Employer Dashboard <ArrowRight className="w-4 h-4 ml-2" /></Link>
                   </Button>
@@ -170,8 +210,11 @@ export default function Home() {
                   <div className="mx-auto w-16 h-16 bg-primary/10 text-primary rounded-full flex items-center justify-center mb-6">
                     <GraduationCap className="w-8 h-8" />
                   </div>
-                  <h3 className="text-2xl font-bold">Institutions</h3>
-                  <p className="text-muted-foreground">Track student placements in real-time, monitor readiness scores, and partner with top employers.</p>
+                  <h3 className="text-2xl font-bold">{content("home.aud.institutions_title", "Institutions")}</h3>
+                  <p className="text-muted-foreground">{content(
+                    "home.aud.institutions_desc",
+                    "Track student placements in real-time, monitor readiness scores, and partner with top employers.",
+                  )}</p>
                   <Button asChild variant="link" className="mt-4">
                     <Link href="/dashboard/institution">Track your students <ArrowRight className="w-4 h-4 ml-2" /></Link>
                   </Button>

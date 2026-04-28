@@ -9,12 +9,16 @@ import skillsRouter from "./skills";
 import dashboardRouter from "./dashboard";
 import authRouter from "./auth";
 import adminRouter from "./admin";
+import siteContentRouter from "./site-content";
+import staffRouter from "./staff";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(authRouter);
 router.use(adminRouter);
+router.use(siteContentRouter);
+router.use(staffRouter);
 router.use(candidatesRouter);
 router.use(employersRouter);
 router.use(institutionsRouter);

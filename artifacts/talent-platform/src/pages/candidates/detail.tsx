@@ -3,7 +3,7 @@ import { Link, useParams } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MapPin, Mail, Phone, ExternalLink, Video, Star, Award, Briefcase, GraduationCap, Sparkles } from "lucide-react";
+import { MapPin, Mail, Phone, ExternalLink, Video, Star, Award, Briefcase, GraduationCap, Sparkles, Link2 } from "lucide-react";
 
 export default function CandidateDetail() {
   const { id } = useParams();
@@ -58,6 +58,40 @@ export default function CandidateDetail() {
                 <Phone className="w-4 h-4" /> {candidate.phone}
               </div>
             </div>
+
+            {candidate.institutions && candidate.institutions.length > 0 && (
+              <div className="mt-6">
+                <p className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-2">
+                  Institutions
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {candidate.institutions.map((inst) => (
+                    <div
+                      key={inst.id}
+                      className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm border ${
+                        inst.isPrimary
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-muted text-foreground border-border"
+                      }`}
+                    >
+                      {inst.isPrimary ? (
+                        <GraduationCap className="w-3.5 h-3.5" />
+                      ) : (
+                        <Link2 className="w-3.5 h-3.5" />
+                      )}
+                      <span className="font-medium">{inst.name}</span>
+                      <span
+                        className={`text-[10px] uppercase tracking-wider font-semibold ${
+                          inst.isPrimary ? "opacity-80" : "text-muted-foreground"
+                        }`}
+                      >
+                        {inst.isPrimary ? "Primary" : "Affiliated"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="flex flex-wrap gap-3 mt-6">
               {candidate.portfolioUrl && (

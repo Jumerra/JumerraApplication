@@ -3,7 +3,6 @@ import { eq, and, sql, desc } from "drizzle-orm";
 import {
   db,
   candidatesTable,
-  institutionsTable,
   educationTable,
   experienceTable,
   certificationsTable,
@@ -20,10 +19,20 @@ import {
   GetCandidateRecommendationsParams,
 } from "@workspace/api-zod";
 import { calculateMatchScore } from "../lib/matching";
+import {
+  getCandidateIdsForInstitution,
+  getInstitutionLinksByCandidate,
+  setCandidateInstitutionLinks,
+  type InstitutionLink,
+} from "../lib/candidate-institutions";
 
 const router: IRouter = Router();
 
-function serializeCandidate(c: typeof candidatesTable.$inferSelect, institutionName: string | null) {
+function serializeCandidate(
+  c: typeof candidatesTable.$inferSelect,
+  institutions: InstitutionLink[],
+) {
+  const primary = institutions.find((i) => i.isPrimary) ?? institutions[0] ?? null;
   return {
     id: c.id,
     fullName: c.fullName,
@@ -39,8 +48,9 @@ function serializeCandidate(c: typeof candidatesTable.$inferSelect, institutionN
     yearsExperience: c.yearsExperience,
     talentScore: c.talentScore,
     isBoosted: c.isBoosted,
-    institutionId: c.institutionId,
-    institutionName,
+    institutionId: primary?.id ?? c.institutionId ?? null,
+    institutionName: primary?.name ?? null,
+    institutions,
     skills: c.skills,
     createdAt: c.createdAt.toISOString(),
   };
@@ -53,20 +63,23 @@ router.get("/candidates", async (req, res): Promise<void> => {
     return;
   }
 
+  const filters = params.data;
+
+  // If filtering by institution, scope candidates to those linked to that
+  // institution (primary OR additional affiliation) via the junction table.
+  let allowedIds: Set<number> | null = null;
+  if (filters.institutionId) {
+    const ids = await getCandidateIdsForInstitution(filters.institutionId);
+    allowedIds = new Set(ids);
+  }
+
   const rows = await db
-    .select({
-      candidate: candidatesTable,
-      institutionName: institutionsTable.name,
-    })
+    .select()
     .from(candidatesTable)
-    .leftJoin(
-      institutionsTable,
-      eq(candidatesTable.institutionId, institutionsTable.id),
-    )
     .orderBy(desc(candidatesTable.isBoosted), desc(candidatesTable.talentScore));
 
-  const filters = params.data;
-  const filtered = rows.filter(({ candidate }) => {
+  const filtered = rows.filter((candidate) => {
+    if (allowedIds && !allowedIds.has(candidate.id)) return false;
     if (filters.search) {
       const q = filters.search.toLowerCase();
       const blob = `${candidate.fullName} ${candidate.headline} ${candidate.bio} ${candidate.skills.join(" ")}`.toLowerCase();
@@ -81,16 +94,18 @@ router.get("/candidates", async (req, res): Promise<void> => {
         return false;
       }
     }
-    if (filters.institutionId && candidate.institutionId !== filters.institutionId) {
-      return false;
-    }
     if (filters.minScore && candidate.talentScore < filters.minScore) {
       return false;
     }
     return true;
   });
 
-  res.json(filtered.map(({ candidate, institutionName }) => serializeCandidate(candidate, institutionName)));
+  const linkMap = await getInstitutionLinksByCandidate(filtered.map((c) => c.id));
+  res.json(
+    filtered.map((candidate) =>
+      serializeCandidate(candidate, linkMap.get(candidate.id) ?? []),
+    ),
+  );
 });
 
 router.post("/candidates", async (req, res): Promise<void> => {
@@ -118,16 +133,11 @@ router.post("/candidates", async (req, res): Promise<void> => {
     })
     .returning();
 
-  let institutionName: string | null = null;
-  if (created.institutionId) {
-    const [inst] = await db
-      .select({ name: institutionsTable.name })
-      .from(institutionsTable)
-      .where(eq(institutionsTable.id, created.institutionId));
-    institutionName = inst?.name ?? null;
-  }
+  // Mirror the primary institution into the junction table.
+  await setCandidateInstitutionLinks(created.id, created.institutionId, []);
 
-  res.status(201).json(serializeCandidate(created, institutionName));
+  const linkMap = await getInstitutionLinksByCandidate([created.id]);
+  res.status(201).json(serializeCandidate(created, linkMap.get(created.id) ?? []));
 });
 
 router.get("/candidates/:id", async (req, res): Promise<void> => {
@@ -137,29 +147,27 @@ router.get("/candidates/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const [row] = await db
-    .select({
-      candidate: candidatesTable,
-      institutionName: institutionsTable.name,
-    })
+  const [candidate] = await db
+    .select()
     .from(candidatesTable)
-    .leftJoin(institutionsTable, eq(candidatesTable.institutionId, institutionsTable.id))
     .where(eq(candidatesTable.id, params.data.id));
 
-  if (!row) {
+  if (!candidate) {
     res.status(404).json({ error: "Candidate not found" });
     return;
   }
 
-  const [education, experience, certifications, badges] = await Promise.all([
-    db.select().from(educationTable).where(eq(educationTable.candidateId, params.data.id)),
-    db.select().from(experienceTable).where(eq(experienceTable.candidateId, params.data.id)),
-    db.select().from(certificationsTable).where(eq(certificationsTable.candidateId, params.data.id)),
-    db.select().from(badgesTable).where(eq(badgesTable.candidateId, params.data.id)),
-  ]);
+  const [education, experience, certifications, badges, linkMap] =
+    await Promise.all([
+      db.select().from(educationTable).where(eq(educationTable.candidateId, params.data.id)),
+      db.select().from(experienceTable).where(eq(experienceTable.candidateId, params.data.id)),
+      db.select().from(certificationsTable).where(eq(certificationsTable.candidateId, params.data.id)),
+      db.select().from(badgesTable).where(eq(badgesTable.candidateId, params.data.id)),
+      getInstitutionLinksByCandidate([params.data.id]),
+    ]);
 
   res.json({
-    ...serializeCandidate(row.candidate, row.institutionName),
+    ...serializeCandidate(candidate, linkMap.get(candidate.id) ?? []),
     education: education.map((e) => ({
       id: e.id,
       institution: e.institution,
@@ -215,16 +223,22 @@ router.patch("/candidates/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  let institutionName: string | null = null;
-  if (updated.institutionId) {
-    const [inst] = await db
-      .select({ name: institutionsTable.name })
-      .from(institutionsTable)
-      .where(eq(institutionsTable.id, updated.institutionId));
-    institutionName = inst?.name ?? null;
+  // Keep the junction table in sync with the new primary affiliation.
+  // Existing additional affiliations are preserved.
+  if ("institutionId" in parsed.data) {
+    const existing = await getInstitutionLinksByCandidate([updated.id]);
+    const additional = (existing.get(updated.id) ?? [])
+      .filter((l) => l.id !== updated.institutionId)
+      .map((l) => l.id);
+    await setCandidateInstitutionLinks(
+      updated.id,
+      updated.institutionId,
+      additional,
+    );
   }
 
-  res.json(serializeCandidate(updated, institutionName));
+  const linkMap = await getInstitutionLinksByCandidate([updated.id]);
+  res.json(serializeCandidate(updated, linkMap.get(updated.id) ?? []));
 });
 
 router.get("/candidates/:id/recommendations", async (req, res): Promise<void> => {

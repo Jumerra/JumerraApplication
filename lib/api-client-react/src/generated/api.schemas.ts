@@ -24,6 +24,15 @@ export const CandidateAvailability = {
   not_looking: "not_looking",
 } as const;
 
+export interface CandidateInstitutionLink {
+  /** Institution id */
+  id: number;
+  name: string;
+  type: string;
+  logoUrl: string;
+  isPrimary: boolean;
+}
+
 export interface Candidate {
   id: number;
   fullName: string;
@@ -41,6 +50,8 @@ export interface Candidate {
   isBoosted: boolean;
   institutionId?: number | null;
   institutionName?: string | null;
+  /** All institutions this candidate is affiliated with (primary first). */
+  institutions: CandidateInstitutionLink[];
   skills: string[];
   createdAt: string;
 }
@@ -134,6 +145,8 @@ export interface UpdateCandidate {
   phone?: string;
   avatarUrl?: string;
   yearsExperience?: number;
+  /** Sets the candidate's PRIMARY institution affiliation. Existing secondary affiliations are preserved. */
+  institutionId?: number | null;
   skills?: string[];
   availability?: UpdateCandidateAvailability;
   isBoosted?: boolean;
@@ -270,6 +283,8 @@ export interface InstitutionStudent {
   status: InstitutionStudentStatus;
   currentEmployerName?: string | null;
   applicationsCount: number;
+  /** True if this institution is the student's primary affiliation; false if it's a secondary (e.g. transfer or bootcamp) link. */
+  isPrimaryAffiliation: boolean;
 }
 
 export type CreateInstitutionType =

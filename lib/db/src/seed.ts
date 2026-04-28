@@ -5,6 +5,7 @@ import {
   institutionsTable,
   employersTable,
   candidatesTable,
+  candidateInstitutionsTable,
   educationTable,
   experienceTable,
   certificationsTable,
@@ -21,6 +22,7 @@ async function clear() {
     certifications,
     experience_entries,
     education_entries,
+    candidate_institutions,
     jobs,
     candidates,
     employers,
@@ -318,6 +320,47 @@ async function main() {
       skills: ["Figma", "UI Design", "UX Research"],
     },
   ]).returning();
+
+  // Many-to-many candidate ↔ institutions. Each candidate is linked
+  // to their primary institution PLUS one or more additional ones for
+  // candidates with mixed academic paths (transfer, bootcamp, etc.).
+  // Institutions can see ALL their linked candidates on their dashboard,
+  // not just the ones whose primary affiliation is them.
+  console.log("Seeding candidate ↔ institution links…");
+  const additionalLinks: Array<{ candidateIdx: number; institutionIdx: number }> = [
+    // Maya Patel (Northstar grad) also took the Apex Engineering Bootcamp
+    { candidateIdx: 0, institutionIdx: 2 },
+    // Aiko Tanaka (Northstar M.S.) also a Pacific Coast undergrad transfer
+    { candidateIdx: 2, institutionIdx: 1 },
+    // Daniel Okafor (Apex bootcamp) also did Pacific Coast continuing ed
+    { candidateIdx: 3, institutionIdx: 1 },
+    // Marcus Thompson (Pacific Coast) also did Northstar executive program
+    { candidateIdx: 7, institutionIdx: 0 },
+    // Ela Hartman (Apex) also Northstar online certs
+    { candidateIdx: 8, institutionIdx: 0 },
+  ];
+  const linkRows = [
+    // primary affiliations (mirror candidates.institutionId)
+    ...candidates
+      .filter((c) => c.institutionId != null)
+      .map((c) => ({
+        candidateId: c.id,
+        institutionId: c.institutionId as number,
+        isPrimary: true,
+      })),
+    // additional affiliations (skip if already linked as primary)
+    ...additionalLinks
+      .filter(
+        ({ candidateIdx, institutionIdx }) =>
+          candidates[candidateIdx].institutionId !== inst[institutionIdx].id,
+      )
+      .map(({ candidateIdx, institutionIdx }) => ({
+        candidateId: candidates[candidateIdx].id,
+        institutionId: inst[institutionIdx].id,
+        isPrimary: false,
+      })),
+  ];
+  await db.insert(candidateInstitutionsTable).values(linkRows);
 
   // Detail data for first candidate (Maya, id=1)
   console.log("Seeding candidate detail (education / experience / certs / badges)…");

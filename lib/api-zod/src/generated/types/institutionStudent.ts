@@ -17,4 +17,6 @@ export interface InstitutionStudent {
   status: InstitutionStudentStatus;
   currentEmployerName?: string | null;
   applicationsCount: number;
+  /** True if this institution is the student's primary affiliation; false if it's a secondary (e.g. transfer or bootcamp) link. */
+  isPrimaryAffiliation: boolean;
 }

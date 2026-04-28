@@ -525,6 +525,11 @@ components:
         isBoosted: { type: boolean }
         institutionId: { type: integer, nullable: true }
         institutionName: { type: string, nullable: true }
+        institutions:
+          type: array
+          description: All institutions this candidate is affiliated with (primary first).
+          items:
+            $ref: "#/components/schemas/CandidateInstitutionLink"
         skills:
           type: array
           items: { type: string }
@@ -542,8 +547,19 @@ components:
         - yearsExperience
         - talentScore
         - isBoosted
+        - institutions
         - skills
         - createdAt
+
+    CandidateInstitutionLink:
+      type: object
+      properties:
+        id: { type: integer, description: "Institution id" }
+        name: { type: string }
+        type: { type: string }
+        logoUrl: { type: string }
+        isPrimary: { type: boolean }
+      required: [id, name, type, logoUrl, isPrimary]
 
     CandidateDetail:
       allOf:
@@ -646,6 +662,10 @@ components:
         phone: { type: string }
         avatarUrl: { type: string }
         yearsExperience: { type: integer }
+        institutionId:
+          type: integer
+          nullable: true
+          description: Sets the candidate's PRIMARY institution affiliation. Existing secondary affiliations are preserved.
         skills:
           type: array
           items: { type: string }
@@ -772,6 +792,9 @@ components:
           enum: [active, applying, interviewing, hired, graduated]
         currentEmployerName: { type: string, nullable: true }
         applicationsCount: { type: integer }
+        isPrimaryAffiliation:
+          type: boolean
+          description: True if this institution is the student's primary affiliation; false if it's a secondary (e.g. transfer or bootcamp) link.
       required:
         - candidateId
         - fullName
@@ -781,6 +804,7 @@ components:
         - readinessScore
         - status
         - applicationsCount
+        - isPrimaryAffiliation
 
     CreateInstitution:
       type: object

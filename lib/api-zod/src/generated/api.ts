@@ -42,6 +42,19 @@ export const ListCandidatesResponseItem = zod.object({
   isBoosted: zod.boolean(),
   institutionId: zod.number().nullish(),
   institutionName: zod.string().nullish(),
+  institutions: zod
+    .array(
+      zod.object({
+        id: zod.number().describe("Institution id"),
+        name: zod.string(),
+        type: zod.string(),
+        logoUrl: zod.string(),
+        isPrimary: zod.boolean(),
+      }),
+    )
+    .describe(
+      "All institutions this candidate is affiliated with (primary first).",
+    ),
   skills: zod.array(zod.string()),
   createdAt: zod.coerce.date(),
 });
@@ -86,6 +99,19 @@ export const GetCandidateResponse = zod
     isBoosted: zod.boolean(),
     institutionId: zod.number().nullish(),
     institutionName: zod.string().nullish(),
+    institutions: zod
+      .array(
+        zod.object({
+          id: zod.number().describe("Institution id"),
+          name: zod.string(),
+          type: zod.string(),
+          logoUrl: zod.string(),
+          isPrimary: zod.boolean(),
+        }),
+      )
+      .describe(
+        "All institutions this candidate is affiliated with (primary first).",
+      ),
     skills: zod.array(zod.string()),
     createdAt: zod.coerce.date(),
   })
@@ -143,6 +169,12 @@ export const UpdateCandidateBody = zod.object({
   phone: zod.string().optional(),
   avatarUrl: zod.string().optional(),
   yearsExperience: zod.number().optional(),
+  institutionId: zod
+    .number()
+    .nullish()
+    .describe(
+      "Sets the candidate's PRIMARY institution affiliation. Existing secondary affiliations are preserved.",
+    ),
   skills: zod.array(zod.string()).optional(),
   availability: zod.enum(["open", "employed", "not_looking"]).optional(),
   isBoosted: zod.boolean().optional(),
@@ -165,6 +197,19 @@ export const UpdateCandidateResponse = zod.object({
   isBoosted: zod.boolean(),
   institutionId: zod.number().nullish(),
   institutionName: zod.string().nullish(),
+  institutions: zod
+    .array(
+      zod.object({
+        id: zod.number().describe("Institution id"),
+        name: zod.string(),
+        type: zod.string(),
+        logoUrl: zod.string(),
+        isPrimary: zod.boolean(),
+      }),
+    )
+    .describe(
+      "All institutions this candidate is affiliated with (primary first).",
+    ),
   skills: zod.array(zod.string()),
   createdAt: zod.coerce.date(),
 });
@@ -346,6 +391,11 @@ export const ListInstitutionStudentsResponseItem = zod.object({
   ]),
   currentEmployerName: zod.string().nullish(),
   applicationsCount: zod.number(),
+  isPrimaryAffiliation: zod
+    .boolean()
+    .describe(
+      "True if this institution is the student's primary affiliation; false if it's a secondary (e.g. transfer or bootcamp) link.",
+    ),
 });
 export const ListInstitutionStudentsResponse = zod.array(
   ListInstitutionStudentsResponseItem,
@@ -743,6 +793,11 @@ export const GetInstitutionDashboardResponse = zod.object({
       ]),
       currentEmployerName: zod.string().nullish(),
       applicationsCount: zod.number(),
+      isPrimaryAffiliation: zod
+        .boolean()
+        .describe(
+          "True if this institution is the student's primary affiliation; false if it's a secondary (e.g. transfer or bootcamp) link.",
+        ),
     }),
   ),
 });

@@ -16,6 +16,8 @@ export interface UpdateCandidate {
   phone?: string;
   avatarUrl?: string;
   yearsExperience?: number;
+  /** Sets the candidate's PRIMARY institution affiliation. Existing secondary affiliations are preserved. */
+  institutionId?: number | null;
   skills?: string[];
   availability?: UpdateCandidateAvailability;
   isBoosted?: boolean;

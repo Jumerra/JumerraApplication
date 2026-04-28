@@ -1,9 +1,10 @@
 import { Router, type IRouter } from "express";
-import { eq, sql, desc, and } from "drizzle-orm";
+import { eq, inArray, sql, desc, and } from "drizzle-orm";
 import {
   db,
   institutionsTable,
   candidatesTable,
+  candidateInstitutionsTable,
   applicationsTable,
   jobsTable,
   employersTable,
@@ -13,34 +14,31 @@ import {
   GetInstitutionParams,
   ListInstitutionStudentsParams,
 } from "@workspace/api-zod";
+import { getCandidateIdsForInstitution } from "../lib/candidate-institutions";
 
 const router: IRouter = Router();
 
 async function getInstitutionStats(institutionId: number) {
-  const students = await db
-    .select()
-    .from(candidatesTable)
-    .where(eq(candidatesTable.institutionId, institutionId));
+  const studentIds = await getCandidateIdsForInstitution(institutionId);
 
-  if (students.length === 0) {
+  if (studentIds.length === 0) {
     return { studentCount: 0, placementRate: 0 };
   }
 
-  const studentIds = students.map((s) => s.id);
   const hires = await db
     .select({ candidateId: applicationsTable.candidateId })
     .from(applicationsTable)
     .where(
       and(
         eq(applicationsTable.status, "hired"),
-        sql`${applicationsTable.candidateId} IN (${sql.join(studentIds.map((id) => sql`${id}`), sql`, `)})`,
+        inArray(applicationsTable.candidateId, studentIds),
       ),
     );
 
   const placedIds = new Set(hires.map((h) => h.candidateId));
   return {
-    studentCount: students.length,
-    placementRate: placedIds.size / students.length,
+    studentCount: studentIds.length,
+    placementRate: placedIds.size / studentIds.length,
   };
 }
 
@@ -65,12 +63,61 @@ function serializeInstitution(
 router.get("/institutions", async (_req, res): Promise<void> => {
   const all = await db.select().from(institutionsTable).orderBy(institutionsTable.name);
 
-  const result = await Promise.all(
-    all.map(async (i) => {
-      const stats = await getInstitutionStats(i.id);
-      return serializeInstitution(i, stats.studentCount, stats.placementRate);
-    }),
-  );
+  if (all.length === 0) {
+    res.json([]);
+    return;
+  }
+
+  // Compute per-institution student count + placement rate in TWO queries
+  // total (instead of 2*N) to avoid the obvious N+1 scaling cliff.
+  const institutionIds = all.map((i) => i.id);
+
+  const linkRows = await db
+    .select({
+      institutionId: candidateInstitutionsTable.institutionId,
+      candidateId: candidateInstitutionsTable.candidateId,
+    })
+    .from(candidateInstitutionsTable)
+    .where(inArray(candidateInstitutionsTable.institutionId, institutionIds));
+
+  const studentsByInst = new Map<number, Set<number>>();
+  const allStudentIds = new Set<number>();
+  for (const r of linkRows) {
+    let set = studentsByInst.get(r.institutionId);
+    if (!set) {
+      set = new Set<number>();
+      studentsByInst.set(r.institutionId, set);
+    }
+    set.add(r.candidateId);
+    allStudentIds.add(r.candidateId);
+  }
+
+  const hiredIds = new Set<number>();
+  if (allStudentIds.size > 0) {
+    const hires = await db
+      .select({ candidateId: applicationsTable.candidateId })
+      .from(applicationsTable)
+      .where(
+        and(
+          eq(applicationsTable.status, "hired"),
+          inArray(applicationsTable.candidateId, Array.from(allStudentIds)),
+        ),
+      );
+    for (const h of hires) hiredIds.add(h.candidateId);
+  }
+
+  const result = all.map((i) => {
+    const studentSet = studentsByInst.get(i.id);
+    const studentCount = studentSet?.size ?? 0;
+    let placedCount = 0;
+    if (studentSet) {
+      for (const cid of studentSet) {
+        if (hiredIds.has(cid)) placedCount += 1;
+      }
+    }
+    const placementRate = studentCount === 0 ? 0 : placedCount / studentCount;
+    return serializeInstitution(i, studentCount, placementRate);
+  });
 
   res.json(result);
 });
@@ -105,21 +152,22 @@ router.get("/institutions/:id", async (req, res): Promise<void> => {
 
   const stats = await getInstitutionStats(institution.id);
 
-  // Top employers that hired students from this institution
-  const hires = await db
-    .select({
-      employer: employersTable,
-    })
-    .from(applicationsTable)
-    .innerJoin(candidatesTable, eq(candidatesTable.id, applicationsTable.candidateId))
-    .innerJoin(jobsTable, eq(jobsTable.id, applicationsTable.jobId))
-    .innerJoin(employersTable, eq(employersTable.id, jobsTable.employerId))
-    .where(
-      and(
-        eq(candidatesTable.institutionId, institution.id),
-        eq(applicationsTable.status, "hired"),
-      ),
-    );
+  // Top employers that hired students from this institution (any affiliation)
+  const studentIdsForEmployers = await getCandidateIdsForInstitution(institution.id);
+  const hires =
+    studentIdsForEmployers.length === 0
+      ? []
+      : await db
+          .select({ employer: employersTable })
+          .from(applicationsTable)
+          .innerJoin(jobsTable, eq(jobsTable.id, applicationsTable.jobId))
+          .innerJoin(employersTable, eq(employersTable.id, jobsTable.employerId))
+          .where(
+            and(
+              inArray(applicationsTable.candidateId, studentIdsForEmployers),
+              eq(applicationsTable.status, "hired"),
+            ),
+          );
 
   const employerMap = new Map<number, typeof employersTable.$inferSelect>();
   for (const { employer } of hires) {
@@ -155,18 +203,36 @@ router.get("/institutions/:id/students", async (req, res): Promise<void> => {
     return;
   }
 
-  const students = await db
-    .select()
-    .from(candidatesTable)
-    .where(eq(candidatesTable.institutionId, params.data.id))
-    .orderBy(desc(candidatesTable.talentScore));
+  const studentIds = await getCandidateIdsForInstitution(params.data.id);
 
-  if (students.length === 0) {
+  if (studentIds.length === 0) {
     res.json([]);
     return;
   }
 
-  const studentIds = students.map((s) => s.id);
+  const students = await db
+    .select()
+    .from(candidatesTable)
+    .where(inArray(candidatesTable.id, studentIds))
+    .orderBy(desc(candidatesTable.talentScore));
+
+  // Determine whether each student's link to this institution is primary
+  // so the UI can flag transfer / multi-affiliation students.
+  const linkRows = await db
+    .select({
+      candidateId: candidateInstitutionsTable.candidateId,
+      isPrimary: candidateInstitutionsTable.isPrimary,
+    })
+    .from(candidateInstitutionsTable)
+    .where(
+      and(
+        eq(candidateInstitutionsTable.institutionId, params.data.id),
+        inArray(candidateInstitutionsTable.candidateId, studentIds),
+      ),
+    );
+  const primaryByCandidate = new Map<number, boolean>(
+    linkRows.map((r) => [r.candidateId, r.isPrimary]),
+  );
 
   const apps = await db
     .select({
@@ -177,9 +243,7 @@ router.get("/institutions/:id/students", async (req, res): Promise<void> => {
     .from(applicationsTable)
     .innerJoin(jobsTable, eq(jobsTable.id, applicationsTable.jobId))
     .innerJoin(employersTable, eq(employersTable.id, jobsTable.employerId))
-    .where(
-      sql`${applicationsTable.candidateId} IN (${sql.join(studentIds.map((id) => sql`${id}`), sql`, `)})`,
-    );
+    .where(inArray(applicationsTable.candidateId, studentIds));
 
   const statsByCandidate = new Map<number, { count: number; status: string; employerName: string | null }>();
   for (const a of apps) {
@@ -210,6 +274,7 @@ router.get("/institutions/:id/students", async (req, res): Promise<void> => {
         status: stats.status,
         currentEmployerName: stats.employerName,
         applicationsCount: stats.count,
+        isPrimaryAffiliation: primaryByCandidate.get(s.id) ?? false,
       };
     }),
   );

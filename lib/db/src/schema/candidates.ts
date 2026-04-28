@@ -6,6 +6,7 @@ import {
   boolean,
   timestamp,
   date,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 export const candidatesTable = pgTable("candidates", {
@@ -23,6 +24,8 @@ export const candidatesTable = pgTable("candidates", {
   yearsExperience: integer("years_experience").notNull().default(0),
   talentScore: integer("talent_score").notNull().default(50),
   isBoosted: boolean("is_boosted").notNull().default(false),
+  // Primary institution affiliation (back-compat). All affiliations
+  // (primary + others) live in candidate_institutions for full coverage.
   institutionId: integer("institution_id"),
   skills: text("skills").array().notNull().default([]),
   createdAt: timestamp("created_at", { withTimezone: true })
@@ -32,6 +35,36 @@ export const candidatesTable = pgTable("candidates", {
 
 export type Candidate = typeof candidatesTable.$inferSelect;
 export type InsertCandidate = typeof candidatesTable.$inferInsert;
+
+/**
+ * Many-to-many link between candidates and institutions.
+ * A candidate can be affiliated with multiple institutions (e.g. a
+ * university grad who later attended a bootcamp). Exactly one row per
+ * (candidate, institution). The `isPrimary` flag mirrors
+ * candidates.institutionId for the candidate's main affiliation.
+ */
+export const candidateInstitutionsTable = pgTable(
+  "candidate_institutions",
+  {
+    id: serial("id").primaryKey(),
+    candidateId: integer("candidate_id").notNull(),
+    institutionId: integer("institution_id").notNull(),
+    isPrimary: boolean("is_primary").notNull().default(false),
+    joinedAt: timestamp("joined_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    candidateInstitutionUnique: uniqueIndex("candidate_institution_unique").on(
+      t.candidateId,
+      t.institutionId,
+    ),
+  }),
+);
+
+export type CandidateInstitution = typeof candidateInstitutionsTable.$inferSelect;
+export type InsertCandidateInstitution =
+  typeof candidateInstitutionsTable.$inferInsert;
 
 export const educationTable = pgTable("education_entries", {
   id: serial("id").primaryKey(),

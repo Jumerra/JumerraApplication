@@ -17,6 +17,7 @@ A smart talent ecosystem connecting candidates (interns/grads/early-career) with
 - `institutions` — universities, colleges, bootcamps that track placement of their students.
 - `employers` — companies that post jobs and hire candidates.
 - `candidates` — students/grads with skills, talent score, optional institution. Detail tables: `education_entries`, `experience_entries`, `certifications`, `badges`.
+- `candidate_institutions` — many-to-many junction between candidates and institutions. Each row has `isPrimary` (true exactly once per candidate, mirroring `candidates.institutionId`). Lets a candidate belong to several institutions (e.g. university grad + bootcamp) and lets each institution see them on its dashboard. Helpers in `artifacts/api-server/src/lib/candidate-institutions.ts`: `getInstitutionLinksByCandidate`, `getCandidateIdsForInstitution`, `setCandidateInstitutionLinks`. The `Candidate` API response includes an `institutions` array (primary first); the `InstitutionStudent` row includes `isPrimaryAffiliation` so dashboards can label affiliated-vs-primary students.
 - `jobs` — postings owned by an employer with skills, type, salary, etc.
 - `applications` — many-to-many between candidates and jobs with status pipeline (applied → screening → interview → offer → hired / rejected / withdrawn) and a precomputed match score.
 - `skills` — a small catalog used for filter UIs.

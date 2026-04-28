@@ -237,7 +237,12 @@ export default function ProfileScreen() {
           <InfoRow icon="mail" label="Email" value={candidate.email} />
           <Divider />
           <InfoRow icon="phone" label="Phone" value={candidate.phone} />
-          {candidate.institutionName ? (
+          {candidate.institutions && candidate.institutions.length > 0 ? (
+            <>
+              <Divider />
+              <InstitutionsRow institutions={candidate.institutions} />
+            </>
+          ) : candidate.institutionName ? (
             <>
               <Divider />
               <InfoRow
@@ -289,6 +294,83 @@ function Divider() {
   const colors = useColors();
   return (
     <View style={[styles.divider, { backgroundColor: colors.border }]} />
+  );
+}
+
+function InstitutionsRow({
+  institutions,
+}: {
+  institutions: Array<{
+    id: number;
+    name: string;
+    type: string;
+    logoUrl: string;
+    isPrimary: boolean;
+  }>;
+}) {
+  const colors = useColors();
+  const label = institutions.length > 1 ? "Institutions" : "Institution";
+  return (
+    <View style={styles.infoRow}>
+      <View
+        style={[
+          styles.infoIcon,
+          { backgroundColor: colors.secondary, borderRadius: colors.radius },
+        ]}
+      >
+        <Feather name="book" size={14} color={colors.foreground} />
+      </View>
+      <View style={[styles.infoText, { gap: 6 }]}>
+        <Text style={[styles.infoLabel, { color: colors.mutedForeground }]}>
+          {label}
+        </Text>
+        <View style={{ gap: 6 }}>
+          {institutions.map((inst) => (
+            <View
+              key={inst.id}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 8,
+                flexWrap: "wrap",
+              }}
+            >
+              <Text
+                style={[styles.infoValue, { color: colors.foreground }]}
+                numberOfLines={1}
+              >
+                {inst.name}
+              </Text>
+              <View
+                style={{
+                  paddingHorizontal: 8,
+                  paddingVertical: 2,
+                  borderRadius: 999,
+                  backgroundColor: inst.isPrimary
+                    ? colors.primary
+                    : colors.secondary,
+                  borderWidth: inst.isPrimary ? 0 : 1,
+                  borderColor: colors.border,
+                }}
+              >
+                <Text
+                  style={{
+                    fontFamily: "Inter_600SemiBold",
+                    fontSize: 10,
+                    color: inst.isPrimary
+                      ? colors.primaryForeground
+                      : colors.mutedForeground,
+                    letterSpacing: 0.3,
+                  }}
+                >
+                  {inst.isPrimary ? "PRIMARY" : "AFFILIATED"}
+                </Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      </View>
+    </View>
   );
 }
 

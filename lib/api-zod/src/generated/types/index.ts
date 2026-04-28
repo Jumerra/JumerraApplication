@@ -17,6 +17,7 @@ export * from "./candidateAvailability";
 export * from "./candidateDashboard";
 export * from "./candidateDashboardStatusBreakdownItem";
 export * from "./candidateDetail";
+export * from "./candidateInstitutionLink";
 export * from "./candidateMatch";
 export * from "./certification";
 export * from "./createApplication";

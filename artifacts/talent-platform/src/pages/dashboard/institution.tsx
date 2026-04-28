@@ -1,10 +1,13 @@
-import { useGetInstitutionDashboard } from "@workspace/api-client-react";
+import {
+  useGetInstitutionDashboard,
+  useListInstitutionStudents,
+} from "@workspace/api-client-react";
 import { useAuth } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Users, GraduationCap, Building2, Banknote, MapPin, Briefcase } from "lucide-react";
+import { Users, GraduationCap, Building2, Banknote, Briefcase, Link2 } from "lucide-react";
 import { Link } from "wouter";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from "recharts";
 
@@ -12,12 +15,16 @@ export default function InstitutionDashboard() {
   const { userId } = useAuth();
   const id = userId || 1;
   const { data: dashboard, isLoading } = useGetInstitutionDashboard(id);
+  const { data: students = [], isLoading: studentsLoading } =
+    useListInstitutionStudents(id);
 
   if (isLoading) {
     return <div className="container py-12 px-4"><div className="animate-pulse h-[800px] bg-muted rounded-2xl" /></div>;
   }
 
   if (!dashboard) return null;
+
+  const affiliatedCount = students.filter((s) => !s.isPrimaryAffiliation).length;
 
   const COLORS = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
 
@@ -40,6 +47,12 @@ export default function InstitutionDashboard() {
           <CardContent className="p-6">
             <p className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2"><Users className="w-4 h-4"/> Total Students</p>
             <p className="text-3xl font-bold">{dashboard.totalStudents}</p>
+            {affiliatedCount > 0 ? (
+              <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                <Link2 className="w-3 h-3" />
+                {affiliatedCount} cross-affiliated
+              </p>
+            ) : null}
           </CardContent>
         </Card>
         <Card className="shadow-sm bg-primary/5 border-primary/20">
@@ -62,6 +75,79 @@ export default function InstitutionDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle>Student Roster</CardTitle>
+          <CardDescription>
+            Every candidate linked to {dashboard.institutionName} — including those whose
+            primary affiliation is another institution.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="pl-6">Student</TableHead>
+                <TableHead>Affiliation</TableHead>
+                <TableHead>Readiness</TableHead>
+                <TableHead>Applications</TableHead>
+                <TableHead className="pr-6 text-right">Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {studentsLoading ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                    Loading roster…
+                  </TableCell>
+                </TableRow>
+              ) : students.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                    No students linked yet.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                students.map((s) => (
+                  <TableRow key={s.candidateId}>
+                    <TableCell className="pl-6">
+                      <div className="flex items-center gap-3">
+                        <img src={s.avatarUrl} className="w-8 h-8 rounded-full object-cover bg-muted" alt="" />
+                        <div>
+                          <Link href={`/candidates/${s.candidateId}`} className="font-medium hover:text-primary transition-colors block">
+                            {s.fullName}
+                          </Link>
+                          <span className="text-xs text-muted-foreground truncate max-w-[200px] inline-block">{s.headline}</span>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {s.isPrimaryAffiliation ? (
+                        <Badge variant="default" className="text-xs">Primary</Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-xs flex items-center gap-1 w-fit">
+                          <Link2 className="w-3 h-3" /> Affiliated
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Progress value={s.readinessScore} className="h-2 w-16" />
+                        <span className="text-xs">{s.readinessScore}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{s.applicationsCount}</TableCell>
+                    <TableCell className="pr-6 text-right">
+                      <Badge variant="secondary" className="capitalize">{s.status}</Badge>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
       <div className="grid lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">

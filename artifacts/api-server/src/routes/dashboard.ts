@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, sql, desc, and } from "drizzle-orm";
+import { eq, inArray, sql, desc, and } from "drizzle-orm";
 import {
   db,
   candidatesTable,
@@ -14,6 +14,7 @@ import {
   GetCandidateDashboardParams,
 } from "@workspace/api-zod";
 import { calculateMatchScore } from "../lib/matching";
+import { getCandidateIdsForInstitution } from "../lib/candidate-institutions";
 
 const router: IRouter = Router();
 
@@ -220,8 +221,15 @@ router.get("/dashboard/institution/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const students = await db.select().from(candidatesTable).where(eq(candidatesTable.institutionId, institution.id));
-  const studentIds = students.map((s) => s.id);
+  // Pull every candidate linked to this institution (primary OR additional
+  // affiliation) so the dashboard reflects all students they're tracking.
+  const studentIds = await getCandidateIdsForInstitution(institution.id);
+  const students = studentIds.length === 0
+    ? []
+    : await db
+        .select()
+        .from(candidatesTable)
+        .where(inArray(candidatesTable.id, studentIds));
 
   let placedStudents = 0;
   let avgSalary = 0;

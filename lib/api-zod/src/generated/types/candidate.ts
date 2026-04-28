@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { CandidateAvailability } from "./candidateAvailability";
+import type { CandidateInstitutionLink } from "./candidateInstitutionLink";
 
 export interface Candidate {
   id: number;
@@ -24,6 +25,8 @@ export interface Candidate {
   isBoosted: boolean;
   institutionId?: number | null;
   institutionName?: string | null;
+  /** All institutions this candidate is affiliated with (primary first). */
+  institutions: CandidateInstitutionLink[];
   skills: string[];
   createdAt: Date;
 }

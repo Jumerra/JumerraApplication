@@ -1,0 +1,76 @@
+import { Switch, Route, Router as WouterRouter } from "wouter";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Toaster } from "@/components/ui/toaster";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { AuthProvider } from "@/lib/auth";
+import { Layout } from "@/components/layout";
+import { ThemeProvider } from "@/components/theme-provider";
+import NotFound from "@/pages/not-found";
+
+import Home from "@/pages/home";
+import JobsList from "@/pages/jobs/index";
+import JobDetail from "@/pages/jobs/detail";
+import JobPost from "@/pages/jobs/post";
+import JobApply from "@/pages/jobs/apply";
+import EmployersList from "@/pages/employers/index";
+import EmployerDetail from "@/pages/employers/detail";
+import InstitutionsList from "@/pages/institutions/index";
+import InstitutionDetail from "@/pages/institutions/detail";
+import CandidatesList from "@/pages/candidates/index";
+import CandidateDetail from "@/pages/candidates/detail";
+import CandidateDashboard from "@/pages/dashboard/candidate";
+import EmployerDashboard from "@/pages/dashboard/employer";
+import InstitutionDashboard from "@/pages/dashboard/institution";
+import AdminDashboard from "@/pages/dashboard/admin";
+
+const queryClient = new QueryClient();
+
+function Router() {
+  return (
+    <Layout>
+      <Switch>
+        <Route path="/" component={Home} />
+        
+        <Route path="/jobs" component={JobsList} />
+        <Route path="/jobs/:id" component={JobDetail} />
+        <Route path="/post-job" component={JobPost} />
+        <Route path="/apply/:jobId" component={JobApply} />
+        
+        <Route path="/employers" component={EmployersList} />
+        <Route path="/employers/:id" component={EmployerDetail} />
+        
+        <Route path="/institutions" component={InstitutionsList} />
+        <Route path="/institutions/:id" component={InstitutionDetail} />
+        
+        <Route path="/candidates" component={CandidatesList} />
+        <Route path="/candidates/:id" component={CandidateDetail} />
+        
+        <Route path="/dashboard/candidate" component={CandidateDashboard} />
+        <Route path="/dashboard/employer" component={EmployerDashboard} />
+        <Route path="/dashboard/institution" component={InstitutionDashboard} />
+        <Route path="/dashboard/admin" component={AdminDashboard} />
+        
+        <Route component={NotFound} />
+      </Switch>
+    </Layout>
+  );
+}
+
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider defaultTheme="light" storageKey="talentlink-theme">
+        <TooltipProvider>
+          <AuthProvider>
+            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+              <Router />
+            </WouterRouter>
+          </AuthProvider>
+          <Toaster />
+        </TooltipProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
+  );
+}
+
+export default App;

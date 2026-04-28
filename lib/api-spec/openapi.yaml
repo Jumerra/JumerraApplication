@@ -3,20 +3,33 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Talent Platform API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: candidates
+    description: Candidate profiles
+  - name: employers
+    description: Employer profiles
+  - name: institutions
+    description: Educational institutions
+  - name: jobs
+    description: Job postings
+  - name: applications
+    description: Job applications
+  - name: skills
+    description: Skill catalog
+  - name: dashboard
+    description: Aggregated insights
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,13 +37,1145 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /candidates:
+    get:
+      operationId: listCandidates
+      tags: [candidates]
+      summary: List candidates with optional filters
+      parameters:
+        - in: query
+          name: search
+          schema: { type: string }
+        - in: query
+          name: location
+          schema: { type: string }
+        - in: query
+          name: skill
+          schema: { type: string }
+        - in: query
+          name: institutionId
+          schema: { type: integer }
+        - in: query
+          name: minScore
+          schema: { type: integer }
+      responses:
+        "200":
+          description: List of candidates
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Candidate" }
+    post:
+      operationId: createCandidate
+      tags: [candidates]
+      summary: Create candidate profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateCandidate" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Candidate" }
+  /candidates/{id}:
+    get:
+      operationId: getCandidate
+      tags: [candidates]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Candidate detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CandidateDetail" }
+    patch:
+      operationId: updateCandidate
+      tags: [candidates]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateCandidate" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Candidate" }
+
+  /employers:
+    get:
+      operationId: listEmployers
+      tags: [employers]
+      parameters:
+        - in: query
+          name: search
+          schema: { type: string }
+      responses:
+        "200":
+          description: Employers
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Employer" }
+    post:
+      operationId: createEmployer
+      tags: [employers]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateEmployer" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Employer" }
+  /employers/{id}:
+    get:
+      operationId: getEmployer
+      tags: [employers]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Employer detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EmployerDetail" }
+
+  /institutions:
+    get:
+      operationId: listInstitutions
+      tags: [institutions]
+      responses:
+        "200":
+          description: Institutions
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Institution" }
+    post:
+      operationId: createInstitution
+      tags: [institutions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateInstitution" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Institution" }
+  /institutions/{id}:
+    get:
+      operationId: getInstitution
+      tags: [institutions]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Institution detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InstitutionDetail" }
+  /institutions/{id}/students:
+    get:
+      operationId: listInstitutionStudents
+      tags: [institutions]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Students at institution with placement status
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/InstitutionStudent" }
+
+  /jobs:
+    get:
+      operationId: listJobs
+      tags: [jobs]
+      parameters:
+        - in: query
+          name: search
+          schema: { type: string }
+        - in: query
+          name: type
+          schema:
+            type: string
+            enum: [internship, part_time, full_time, contract, remote]
+        - in: query
+          name: location
+          schema: { type: string }
+        - in: query
+          name: remote
+          schema: { type: boolean }
+        - in: query
+          name: employerId
+          schema: { type: integer }
+        - in: query
+          name: featured
+          schema: { type: boolean }
+        - in: query
+          name: skill
+          schema: { type: string }
+      responses:
+        "200":
+          description: Jobs
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Job" }
+    post:
+      operationId: createJob
+      tags: [jobs]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateJob" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Job" }
+  /jobs/{id}:
+    get:
+      operationId: getJob
+      tags: [jobs]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Job detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JobDetail" }
+  /jobs/{id}/matches:
+    get:
+      operationId: getJobMatches
+      tags: [jobs]
+      summary: AI-style ranked candidate matches for a job
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Ranked candidate matches
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/CandidateMatch" }
+
+  /candidates/{id}/recommendations:
+    get:
+      operationId: getCandidateRecommendations
+      tags: [candidates]
+      summary: AI-style ranked job recommendations for a candidate
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Ranked job matches
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/JobMatch" }
+
+  /applications:
+    get:
+      operationId: listApplications
+      tags: [applications]
+      parameters:
+        - in: query
+          name: candidateId
+          schema: { type: integer }
+        - in: query
+          name: jobId
+          schema: { type: integer }
+        - in: query
+          name: employerId
+          schema: { type: integer }
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [applied, screening, interview, offer, hired, rejected, withdrawn]
+      responses:
+        "200":
+          description: Applications
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Application" }
+    post:
+      operationId: createApplication
+      tags: [applications]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateApplication" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Application" }
+  /applications/{id}:
+    patch:
+      operationId: updateApplicationStatus
+      tags: [applications]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateApplication" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Application" }
+
+  /skills:
+    get:
+      operationId: listSkills
+      tags: [skills]
+      responses:
+        "200":
+          description: Skills catalog
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Skill" }
+
+  /dashboard/platform:
+    get:
+      operationId: getPlatformStats
+      tags: [dashboard]
+      summary: Admin overview metrics
+      responses:
+        "200":
+          description: Platform stats
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformStats" }
+
+  /dashboard/employer/{id}:
+    get:
+      operationId: getEmployerDashboard
+      tags: [dashboard]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Employer dashboard summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EmployerDashboard" }
+
+  /dashboard/institution/{id}:
+    get:
+      operationId: getInstitutionDashboard
+      tags: [dashboard]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Institution dashboard summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InstitutionDashboard" }
+
+  /dashboard/candidate/{id}:
+    get:
+      operationId: getCandidateDashboard
+      tags: [dashboard]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Candidate dashboard summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CandidateDashboard" }
+
+  /dashboard/activity:
+    get:
+      operationId: getRecentActivity
+      tags: [dashboard]
+      summary: Cross-platform recent activity feed
+      responses:
+        "200":
+          description: Recent activity
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ActivityItem" }
+
+  /dashboard/salary-insights:
+    get:
+      operationId: getSalaryInsights
+      tags: [dashboard]
+      summary: Average salary by role/skill
+      responses:
+        "200":
+          description: Salary insights
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SalaryInsight" }
+
 components:
   schemas:
     HealthStatus:
       type: object
       properties:
+        status: { type: string }
+      required: [status]
+
+    Skill:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        category: { type: string }
+      required: [id, name, category]
+
+    Candidate:
+      type: object
+      properties:
+        id: { type: integer }
+        fullName: { type: string }
+        headline: { type: string }
+        bio: { type: string }
+        location: { type: string }
+        avatarUrl: { type: string }
+        email: { type: string }
+        phone: { type: string }
+        portfolioUrl: { type: string, nullable: true }
+        videoIntroUrl: { type: string, nullable: true }
+        availability:
+          type: string
+          enum: [open, employed, not_looking]
+        yearsExperience: { type: integer }
+        talentScore: { type: integer }
+        isBoosted: { type: boolean }
+        institutionId: { type: integer, nullable: true }
+        institutionName: { type: string, nullable: true }
+        skills:
+          type: array
+          items: { type: string }
+        createdAt: { type: string, format: date-time }
+      required:
+        - id
+        - fullName
+        - headline
+        - bio
+        - location
+        - avatarUrl
+        - email
+        - phone
+        - availability
+        - yearsExperience
+        - talentScore
+        - isBoosted
+        - skills
+        - createdAt
+
+    CandidateDetail:
+      allOf:
+        - $ref: "#/components/schemas/Candidate"
+        - type: object
+          properties:
+            education:
+              type: array
+              items: { $ref: "#/components/schemas/EducationEntry" }
+            experience:
+              type: array
+              items: { $ref: "#/components/schemas/ExperienceEntry" }
+            certifications:
+              type: array
+              items: { $ref: "#/components/schemas/Certification" }
+            badges:
+              type: array
+              items: { $ref: "#/components/schemas/Badge" }
+          required: [education, experience, certifications, badges]
+
+    EducationEntry:
+      type: object
+      properties:
+        id: { type: integer }
+        institution: { type: string }
+        degree: { type: string }
+        fieldOfStudy: { type: string }
+        startYear: { type: integer }
+        endYear: { type: integer, nullable: true }
+      required: [id, institution, degree, fieldOfStudy, startYear]
+
+    ExperienceEntry:
+      type: object
+      properties:
+        id: { type: integer }
+        company: { type: string }
+        title: { type: string }
+        description: { type: string }
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date, nullable: true }
+      required: [id, company, title, description, startDate]
+
+    Certification:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        issuer: { type: string }
+        issuedAt: { type: string, format: date }
+      required: [id, name, issuer, issuedAt]
+
+    Badge:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        description: { type: string }
+        tier:
+          type: string
+          enum: [bronze, silver, gold, platinum]
+      required: [id, name, description, tier]
+
+    CreateCandidate:
+      type: object
+      properties:
+        fullName: { type: string }
+        headline: { type: string }
+        bio: { type: string }
+        location: { type: string }
+        email: { type: string }
+        phone: { type: string }
+        avatarUrl: { type: string }
+        yearsExperience: { type: integer }
+        institutionId: { type: integer, nullable: true }
+        skills:
+          type: array
+          items: { type: string }
+        availability:
+          type: string
+          enum: [open, employed, not_looking]
+      required:
+        - fullName
+        - headline
+        - bio
+        - location
+        - email
+        - phone
+        - yearsExperience
+        - skills
+        - availability
+
+    UpdateCandidate:
+      type: object
+      properties:
+        fullName: { type: string }
+        headline: { type: string }
+        bio: { type: string }
+        location: { type: string }
+        email: { type: string }
+        phone: { type: string }
+        avatarUrl: { type: string }
+        yearsExperience: { type: integer }
+        skills:
+          type: array
+          items: { type: string }
+        availability:
+          type: string
+          enum: [open, employed, not_looking]
+        isBoosted: { type: boolean }
+
+    Employer:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        tagline: { type: string }
+        description: { type: string }
+        industry: { type: string }
+        location: { type: string }
+        logoUrl: { type: string }
+        coverUrl: { type: string }
+        websiteUrl: { type: string }
+        size:
+          type: string
+          enum: [startup, small, midsize, large, enterprise]
+        verified: { type: boolean }
+        openJobs: { type: integer }
+        createdAt: { type: string, format: date-time }
+      required:
+        - id
+        - name
+        - tagline
+        - description
+        - industry
+        - location
+        - logoUrl
+        - coverUrl
+        - websiteUrl
+        - size
+        - verified
+        - openJobs
+        - createdAt
+
+    EmployerDetail:
+      allOf:
+        - $ref: "#/components/schemas/Employer"
+        - type: object
+          properties:
+            jobs:
+              type: array
+              items: { $ref: "#/components/schemas/Job" }
+          required: [jobs]
+
+    CreateEmployer:
+      type: object
+      properties:
+        name: { type: string }
+        tagline: { type: string }
+        description: { type: string }
+        industry: { type: string }
+        location: { type: string }
+        logoUrl: { type: string }
+        coverUrl: { type: string }
+        websiteUrl: { type: string }
+        size:
+          type: string
+          enum: [startup, small, midsize, large, enterprise]
+      required:
+        - name
+        - tagline
+        - description
+        - industry
+        - location
+        - logoUrl
+        - coverUrl
+        - websiteUrl
+        - size
+
+    Institution:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        type:
+          type: string
+          enum: [university, college, bootcamp, vocational, other]
+        location: { type: string }
+        logoUrl: { type: string }
+        websiteUrl: { type: string }
+        studentCount: { type: integer }
+        placementRate: { type: number }
+        createdAt: { type: string, format: date-time }
+      required:
+        - id
+        - name
+        - type
+        - location
+        - logoUrl
+        - websiteUrl
+        - studentCount
+        - placementRate
+        - createdAt
+
+    InstitutionDetail:
+      allOf:
+        - $ref: "#/components/schemas/Institution"
+        - type: object
+          properties:
+            description: { type: string }
+            partnerEmployers:
+              type: array
+              items: { $ref: "#/components/schemas/Employer" }
+          required: [description, partnerEmployers]
+
+    InstitutionStudent:
+      type: object
+      properties:
+        candidateId: { type: integer }
+        fullName: { type: string }
+        avatarUrl: { type: string }
+        headline: { type: string }
+        talentScore: { type: integer }
+        readinessScore: { type: integer }
         status:
           type: string
+          enum: [active, applying, interviewing, hired, graduated]
+        currentEmployerName: { type: string, nullable: true }
+        applicationsCount: { type: integer }
       required:
+        - candidateId
+        - fullName
+        - avatarUrl
+        - headline
+        - talentScore
+        - readinessScore
         - status
+        - applicationsCount
 
+    CreateInstitution:
+      type: object
+      properties:
+        name: { type: string }
+        type:
+          type: string
+          enum: [university, college, bootcamp, vocational, other]
+        location: { type: string }
+        logoUrl: { type: string }
+        websiteUrl: { type: string }
+        description: { type: string }
+      required: [name, type, location, logoUrl, websiteUrl, description]
+
+    Job:
+      type: object
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        employerId: { type: integer }
+        employerName: { type: string }
+        employerLogoUrl: { type: string }
+        type:
+          type: string
+          enum: [internship, part_time, full_time, contract, remote]
+        location: { type: string }
+        remote: { type: boolean }
+        salaryMin: { type: integer, nullable: true }
+        salaryMax: { type: integer, nullable: true }
+        currency: { type: string }
+        summary: { type: string }
+        skills:
+          type: array
+          items: { type: string }
+        featured: { type: boolean }
+        applicationsCount: { type: integer }
+        postedAt: { type: string, format: date-time }
+      required:
+        - id
+        - title
+        - employerId
+        - employerName
+        - employerLogoUrl
+        - type
+        - location
+        - remote
+        - currency
+        - summary
+        - skills
+        - featured
+        - applicationsCount
+        - postedAt
+
+    JobDetail:
+      allOf:
+        - $ref: "#/components/schemas/Job"
+        - type: object
+          properties:
+            description: { type: string }
+            responsibilities:
+              type: array
+              items: { type: string }
+            requirements:
+              type: array
+              items: { type: string }
+            benefits:
+              type: array
+              items: { type: string }
+          required: [description, responsibilities, requirements, benefits]
+
+    CreateJob:
+      type: object
+      properties:
+        title: { type: string }
+        employerId: { type: integer }
+        type:
+          type: string
+          enum: [internship, part_time, full_time, contract, remote]
+        location: { type: string }
+        remote: { type: boolean }
+        salaryMin: { type: integer, nullable: true }
+        salaryMax: { type: integer, nullable: true }
+        currency: { type: string }
+        summary: { type: string }
+        description: { type: string }
+        responsibilities:
+          type: array
+          items: { type: string }
+        requirements:
+          type: array
+          items: { type: string }
+        benefits:
+          type: array
+          items: { type: string }
+        skills:
+          type: array
+          items: { type: string }
+        featured: { type: boolean }
+      required:
+        - title
+        - employerId
+        - type
+        - location
+        - remote
+        - currency
+        - summary
+        - description
+        - responsibilities
+        - requirements
+        - benefits
+        - skills
+
+    Application:
+      type: object
+      properties:
+        id: { type: integer }
+        jobId: { type: integer }
+        jobTitle: { type: string }
+        candidateId: { type: integer }
+        candidateName: { type: string }
+        candidateAvatarUrl: { type: string }
+        employerId: { type: integer }
+        employerName: { type: string }
+        employerLogoUrl: { type: string }
+        status:
+          type: string
+          enum: [applied, screening, interview, offer, hired, rejected, withdrawn]
+        matchScore: { type: integer }
+        coverNote: { type: string }
+        appliedAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      required:
+        - id
+        - jobId
+        - jobTitle
+        - candidateId
+        - candidateName
+        - candidateAvatarUrl
+        - employerId
+        - employerName
+        - employerLogoUrl
+        - status
+        - matchScore
+        - coverNote
+        - appliedAt
+        - updatedAt
+
+    CreateApplication:
+      type: object
+      properties:
+        jobId: { type: integer }
+        candidateId: { type: integer }
+        coverNote: { type: string }
+      required: [jobId, candidateId, coverNote]
+
+    UpdateApplication:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [applied, screening, interview, offer, hired, rejected, withdrawn]
+      required: [status]
+
+    CandidateMatch:
+      type: object
+      properties:
+        candidateId: { type: integer }
+        fullName: { type: string }
+        avatarUrl: { type: string }
+        headline: { type: string }
+        location: { type: string }
+        talentScore: { type: integer }
+        matchScore: { type: integer }
+        matchedSkills:
+          type: array
+          items: { type: string }
+      required:
+        - candidateId
+        - fullName
+        - avatarUrl
+        - headline
+        - location
+        - talentScore
+        - matchScore
+        - matchedSkills
+
+    JobMatch:
+      type: object
+      properties:
+        jobId: { type: integer }
+        title: { type: string }
+        employerName: { type: string }
+        employerLogoUrl: { type: string }
+        location: { type: string }
+        type:
+          type: string
+          enum: [internship, part_time, full_time, contract, remote]
+        salaryMin: { type: integer, nullable: true }
+        salaryMax: { type: integer, nullable: true }
+        currency: { type: string }
+        matchScore: { type: integer }
+        matchedSkills:
+          type: array
+          items: { type: string }
+      required:
+        - jobId
+        - title
+        - employerName
+        - employerLogoUrl
+        - location
+        - type
+        - currency
+        - matchScore
+        - matchedSkills
+
+    PlatformStats:
+      type: object
+      properties:
+        totalCandidates: { type: integer }
+        totalEmployers: { type: integer }
+        totalInstitutions: { type: integer }
+        totalJobs: { type: integer }
+        totalApplications: { type: integer }
+        totalHires: { type: integer }
+        applicationsByStatus:
+          type: array
+          items:
+            type: object
+            properties:
+              status: { type: string }
+              count: { type: integer }
+            required: [status, count]
+        jobsByType:
+          type: array
+          items:
+            type: object
+            properties:
+              type: { type: string }
+              count: { type: integer }
+            required: [type, count]
+        signupsTrend:
+          type: array
+          items:
+            type: object
+            properties:
+              date: { type: string, format: date }
+              candidates: { type: integer }
+              employers: { type: integer }
+            required: [date, candidates, employers]
+      required:
+        - totalCandidates
+        - totalEmployers
+        - totalInstitutions
+        - totalJobs
+        - totalApplications
+        - totalHires
+        - applicationsByStatus
+        - jobsByType
+        - signupsTrend
+
+    EmployerDashboard:
+      type: object
+      properties:
+        employerId: { type: integer }
+        employerName: { type: string }
+        openJobs: { type: integer }
+        totalApplications: { type: integer }
+        interviewsScheduled: { type: integer }
+        hires: { type: integer }
+        averageMatchScore: { type: integer }
+        pipelineByStage:
+          type: array
+          items:
+            type: object
+            properties:
+              status: { type: string }
+              count: { type: integer }
+            required: [status, count]
+        topJobs:
+          type: array
+          items: { $ref: "#/components/schemas/Job" }
+        recentApplications:
+          type: array
+          items: { $ref: "#/components/schemas/Application" }
+      required:
+        - employerId
+        - employerName
+        - openJobs
+        - totalApplications
+        - interviewsScheduled
+        - hires
+        - averageMatchScore
+        - pipelineByStage
+        - topJobs
+        - recentApplications
+
+    InstitutionDashboard:
+      type: object
+      properties:
+        institutionId: { type: integer }
+        institutionName: { type: string }
+        totalStudents: { type: integer }
+        placedStudents: { type: integer }
+        placementRate: { type: number }
+        averageReadiness: { type: integer }
+        averageSalary: { type: integer }
+        topEmployers:
+          type: array
+          items:
+            type: object
+            properties:
+              employerId: { type: integer }
+              employerName: { type: string }
+              employerLogoUrl: { type: string }
+              hires: { type: integer }
+            required: [employerId, employerName, employerLogoUrl, hires]
+        statusBreakdown:
+          type: array
+          items:
+            type: object
+            properties:
+              status: { type: string }
+              count: { type: integer }
+            required: [status, count]
+        recentHires:
+          type: array
+          items: { $ref: "#/components/schemas/InstitutionStudent" }
+      required:
+        - institutionId
+        - institutionName
+        - totalStudents
+        - placedStudents
+        - placementRate
+        - averageReadiness
+        - averageSalary
+        - topEmployers
+        - statusBreakdown
+        - recentHires
+
+    CandidateDashboard:
+      type: object
+      properties:
+        candidateId: { type: integer }
+        fullName: { type: string }
+        talentScore: { type: integer }
+        profileCompleteness: { type: integer }
+        applicationsCount: { type: integer }
+        interviewsCount: { type: integer }
+        offersCount: { type: integer }
+        statusBreakdown:
+          type: array
+          items:
+            type: object
+            properties:
+              status: { type: string }
+              count: { type: integer }
+            required: [status, count]
+        recommendedJobs:
+          type: array
+          items: { $ref: "#/components/schemas/JobMatch" }
+        recentApplications:
+          type: array
+          items: { $ref: "#/components/schemas/Application" }
+      required:
+        - candidateId
+        - fullName
+        - talentScore
+        - profileCompleteness
+        - applicationsCount
+        - interviewsCount
+        - offersCount
+        - statusBreakdown
+        - recommendedJobs
+        - recentApplications
+
+    ActivityItem:
+      type: object
+      properties:
+        id: { type: string }
+        type:
+          type: string
+          enum: [application, hire, job_posted, candidate_joined, employer_joined]
+        title: { type: string }
+        subtitle: { type: string }
+        avatarUrl: { type: string }
+        timestamp: { type: string, format: date-time }
+      required: [id, type, title, subtitle, avatarUrl, timestamp]
+
+    SalaryInsight:
+      type: object
+      properties:
+        role: { type: string }
+        averageSalary: { type: integer }
+        minSalary: { type: integer }
+        maxSalary: { type: integer }
+        currency: { type: string }
+        sampleSize: { type: integer }
+      required: [role, averageSalary, minSalary, maxSalary, currency, sampleSize]

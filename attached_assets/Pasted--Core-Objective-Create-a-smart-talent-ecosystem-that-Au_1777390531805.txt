@@ -1,0 +1,123 @@
+🎯 Core Objective
+
+Create a smart talent ecosystem that:
+
+Automatically matches candidates to internships, remote jobs, part-time, and full-time roles
+Enables institutions to track student placement in real time
+Helps employers hire faster using AI tools
+Provides candidates with career growth tools and monetization options
+👥 User Roles & Dashboards
+
+1. Candidate (Web + Mobile App)
+
+Features:
+
+Profile creation (education, skills, portfolio, video intro, certifications)
+AI-powered CV/Resume builder (paid feature)
+AI job matching recommendations (based on skills, behavior, and preferences)
+Apply to jobs/internships
+Track application status (Applied → Interview → Hired)
+Chat with employers
+Schedule & attend interviews (video/audio integration)
+Profile boosting (paid visibility feature)
+Skill assessments & badges
+Internship & job alerts (push notifications)
+Freelance/remote gigs marketplace
+Salary insights & career recommendations
+2. Employer Dashboard (Web App)
+
+Features:
+
+Company profile creation & verification
+Post jobs/internships (with AI-generated descriptions)
+AI candidate matching & ranking
+Filter candidates (skills, location, school, experience)
+Schedule interviews (calendar integration)
+Chat & communicate with candidates
+Applicant Tracking System (ATS)
+Bulk invite candidates to apply
+Analytics dashboard (applications, hires, engagement)
+Talent pipeline management
+Employer branding page
+3. Institution Dashboard (Web App)
+
+Features:
+
+Create institution profile
+Upload/manage students
+Track student employment status in real time
+Dashboard analytics (placement rate, top employers, salary data)
+Approve/verify student profiles
+Partner with employers
+Internship program tracking
+Notifications when students get hired
+Reports export (PDF/Excel)
+🤖 AI Features (Core Differentiator)
+
+Smart job-candidate matching algorithm (skills, behavior, preferences)
+AI CV/Resume generator (freemium → paid upgrade)
+AI career coach (suggest skills, jobs, salary expectations)
+AI interview assistant (practice questions + feedback)
+AI job description generator for employers
+AI fraud detection (fake profiles/jobs)
+💰 Monetization
+
+Subscription plans for employers (SaaS hiring tools)
+Paid CV builder (candidates)
+Profile boosting (candidates)
+Featured job listings (employers)
+Institution licensing (universities pay for dashboard)
+Ads & promotions
+Fintech layer (optional future):
+Internship stipends
+Salary advance
+Payroll integration
+📱 Platform Requirements
+
+Web app for all users (responsive design)
+Mobile app (Candidates only)
+Secure authentication (email, Google, LinkedIn login)
+Role-based dashboards
+Real-time notifications (email + in-app)
+Scalable database structure
+🔗 Integrations
+
+Payment gateway (Stripe/Paystack)
+Video interviews (Zoom/Google Meet API)
+Email & notifications
+Cloud storage (CVs, videos)
+AI APIs (OpenAI for matching, CV generation, chatbot)
+📊 Admin Panel
+
+Manage users (candidates, employers, institutions)
+Monitor platform activity
+Approve/reject accounts
+Revenue dashboard
+Content moderation
+System analytics
+🧠 Advanced Features (Market Winning Edge)
+
+Talent scoring system (like a “credit score” for employability)
+Referral system (students refer other candidates)
+Job readiness score for institutions
+Blockchain-based certificate verification (optional future)
+API for companies to plug into their HR systems
+Community (mentorship, forums, networking)
+Gamification (badges, leaderboards)
+🎨 UI/UX Requirements
+
+Clean, modern UI (similar to LinkedIn + Upwork hybrid)
+Easy onboarding for all roles
+Dashboard-based navigation
+Mobile-first for candidates
+Dark/light mode
+🏁 Final Output
+
+Generate:
+
+Database structure
+User flows
+UI pages (landing page, dashboards, job pages, profile pages)
+Workflow automations (matching, notifications, applications)
+API connections
+Payment setup

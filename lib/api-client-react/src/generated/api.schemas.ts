@@ -162,6 +162,15 @@ export interface OkResponse {
   ok: boolean;
 }
 
+export interface SetEmployerVerifiedRequest {
+  verified: boolean;
+}
+
+export interface SetEmployerVerifiedResponse {
+  ok: boolean;
+  verified: boolean;
+}
+
 export interface VerifyStudentResponse {
   ok: boolean;
   verifiedAt: string;

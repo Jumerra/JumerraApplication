@@ -1149,6 +1149,55 @@ export const ListOnboardedUsersResponse = zod.object({
 });
 
 /**
+ * @summary Permanently remove a candidate and their related data (admin only)
+ */
+export const AdminDeleteCandidateParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AdminDeleteCandidateResponse = zod.object({
+  ok: zod.boolean(),
+});
+
+/**
+ * @summary Permanently remove an employer and their jobs/applications (admin only)
+ */
+export const AdminDeleteEmployerParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AdminDeleteEmployerResponse = zod.object({
+  ok: zod.boolean(),
+});
+
+/**
+ * @summary Toggle the employer verified flag (admin only)
+ */
+export const AdminSetEmployerVerifiedParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AdminSetEmployerVerifiedBody = zod.object({
+  verified: zod.boolean(),
+});
+
+export const AdminSetEmployerVerifiedResponse = zod.object({
+  ok: zod.boolean(),
+  verified: zod.boolean(),
+});
+
+/**
+ * @summary Permanently remove an institution and unlink its members (admin only)
+ */
+export const AdminDeleteInstitutionParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AdminDeleteInstitutionResponse = zod.object({
+  ok: zod.boolean(),
+});
+
+/**
  * @summary Public site content for the home page (admin-editable)
  */
 export const GetSiteContentResponse = zod.object({

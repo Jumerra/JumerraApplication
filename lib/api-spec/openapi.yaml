@@ -769,6 +769,88 @@ paths:
                 required: [users]
         "403": { description: Admin only }
 
+  /admin/candidates/{id}:
+    delete:
+      operationId: adminDeleteCandidate
+      tags: [admin]
+      summary: Permanently remove a candidate and their related data (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
+        "400": { description: Invalid id }
+        "403": { description: Admin only }
+
+  /admin/employers/{id}:
+    delete:
+      operationId: adminDeleteEmployer
+      tags: [admin]
+      summary: Permanently remove an employer and their jobs/applications (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
+        "400": { description: Invalid id }
+        "403": { description: Admin only }
+
+  /admin/employers/{id}/verify:
+    patch:
+      operationId: adminSetEmployerVerified
+      tags: [admin]
+      summary: Toggle the employer verified flag (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SetEmployerVerifiedRequest" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SetEmployerVerifiedResponse" }
+        "400": { description: Invalid id }
+        "403": { description: Admin only }
+        "404": { description: Employer not found }
+
+  /admin/institutions/{id}:
+    delete:
+      operationId: adminDeleteInstitution
+      tags: [admin]
+      summary: Permanently remove an institution and unlink its members (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
+        "400": { description: Invalid id }
+        "403": { description: Admin only }
+
   /site-content:
     get:
       operationId: getSiteContent
@@ -1018,6 +1100,19 @@ components:
       properties:
         ok: { type: boolean }
       required: [ok]
+
+    SetEmployerVerifiedRequest:
+      type: object
+      properties:
+        verified: { type: boolean }
+      required: [verified]
+
+    SetEmployerVerifiedResponse:
+      type: object
+      properties:
+        ok: { type: boolean }
+        verified: { type: boolean }
+      required: [ok, verified]
 
     VerifyStudentResponse:
       type: object

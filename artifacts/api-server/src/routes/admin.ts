@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
 import {
   usersTable,
   pendingRegistrationsTable,
@@ -8,6 +8,8 @@ import {
   employersTable,
   institutionsTable,
   candidateInstitutionsTable,
+  jobsTable,
+  applicationsTable,
 } from "@workspace/db";
 import { requireAdmin } from "../middleware/require-auth";
 import { createSetupToken, findUserByEmail } from "../lib/auth";
@@ -365,6 +367,177 @@ router.get("/admin/onboarded", async (_req, res) => {
     .where(eq(usersTable.status, "invited"))
     .orderBy(desc(usersTable.createdAt));
   res.json({ users: rows });
+});
+
+/**
+ * DELETE /api/admin/candidates/:id
+ * Removes a candidate, their applications, institution affiliations,
+ * and unlinks the auth user. Wrapped in a transaction so the operation
+ * is atomic.
+ */
+router.delete("/admin/candidates/:id", async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  try {
+    const ok = await db.transaction(async (tx) => {
+      const [existing] = await tx
+        .select({ id: candidatesTable.id })
+        .from(candidatesTable)
+        .where(eq(candidatesTable.id, id));
+      if (!existing) return false;
+      await tx
+        .delete(applicationsTable)
+        .where(eq(applicationsTable.candidateId, id));
+      await tx
+        .delete(candidateInstitutionsTable)
+        .where(eq(candidateInstitutionsTable.candidateId, id));
+      await tx
+        .update(usersTable)
+        .set({ candidateId: null })
+        .where(eq(usersTable.candidateId, id));
+      await tx.delete(candidatesTable).where(eq(candidatesTable.id, id));
+      return true;
+    });
+    if (!ok) {
+      res.status(404).json({ error: "Candidate not found" });
+      return;
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    req.log.error({ err, id }, "delete candidate failed");
+    res.status(500).json({ error: "Delete failed" });
+  }
+});
+
+/**
+ * DELETE /api/admin/employers/:id
+ * Removes an employer, all their jobs, all applications to those jobs,
+ * and unlinks any users tied to the employer.
+ */
+router.delete("/admin/employers/:id", async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  try {
+    const ok = await db.transaction(async (tx) => {
+      const [existing] = await tx
+        .select({ id: employersTable.id })
+        .from(employersTable)
+        .where(eq(employersTable.id, id));
+      if (!existing) return false;
+      const jobs = await tx
+        .select({ id: jobsTable.id })
+        .from(jobsTable)
+        .where(eq(jobsTable.employerId, id));
+      const jobIds = jobs.map((j) => j.id);
+      if (jobIds.length > 0) {
+        await tx
+          .delete(applicationsTable)
+          .where(
+            sql`${applicationsTable.jobId} IN (${sql.join(
+              jobIds.map((jid) => sql`${jid}`),
+              sql`, `,
+            )})`,
+          );
+        await tx.delete(jobsTable).where(eq(jobsTable.employerId, id));
+      }
+      // Clear both the org FK and the org role so that we never leave an
+      // "owner with no org" account around — that state would silently
+      // break org-owner middleware invariants.
+      await tx
+        .update(usersTable)
+        .set({ employerId: null, orgRole: null })
+        .where(eq(usersTable.employerId, id));
+      await tx.delete(employersTable).where(eq(employersTable.id, id));
+      return true;
+    });
+    if (!ok) {
+      res.status(404).json({ error: "Employer not found" });
+      return;
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    req.log.error({ err, id }, "delete employer failed");
+    res.status(500).json({ error: "Delete failed" });
+  }
+});
+
+/**
+ * PATCH /api/admin/employers/:id/verify
+ * Toggles the employer's verified flag. Body: { verified: boolean }.
+ */
+router.patch("/admin/employers/:id/verify", async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const verified = Boolean(req.body?.verified);
+  try {
+    const [updated] = await db
+      .update(employersTable)
+      .set({ verified })
+      .where(eq(employersTable.id, id))
+      .returning();
+    if (!updated) {
+      res.status(404).json({ error: "Employer not found" });
+      return;
+    }
+    res.json({ ok: true, verified: updated.verified });
+  } catch (err) {
+    req.log.error({ err, id }, "verify employer failed");
+    res.status(500).json({ error: "Update failed" });
+  }
+});
+
+/**
+ * DELETE /api/admin/institutions/:id
+ * Removes an institution, all candidate-institution affiliations
+ * tied to it, and unlinks any users belonging to it.
+ */
+router.delete("/admin/institutions/:id", async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  try {
+    const ok = await db.transaction(async (tx) => {
+      const [existing] = await tx
+        .select({ id: institutionsTable.id })
+        .from(institutionsTable)
+        .where(eq(institutionsTable.id, id));
+      if (!existing) return false;
+      await tx
+        .delete(candidateInstitutionsTable)
+        .where(eq(candidateInstitutionsTable.institutionId, id));
+      await tx
+        .update(candidatesTable)
+        .set({ institutionId: null })
+        .where(eq(candidatesTable.institutionId, id));
+      // Clear both the org FK and the org role so we don't leave behind
+      // an "owner with no org" account.
+      await tx
+        .update(usersTable)
+        .set({ institutionId: null, orgRole: null })
+        .where(eq(usersTable.institutionId, id));
+      await tx.delete(institutionsTable).where(eq(institutionsTable.id, id));
+      return true;
+    });
+    if (!ok) {
+      res.status(404).json({ error: "Institution not found" });
+      return;
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    req.log.error({ err, id }, "delete institution failed");
+    res.status(500).json({ error: "Delete failed" });
+  }
 });
 
 export default router;

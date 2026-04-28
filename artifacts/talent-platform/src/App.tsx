@@ -25,7 +25,11 @@ import AdminDashboard from "@/pages/dashboard/admin";
 import AdminRegistrationsPage from "@/pages/dashboard/admin/registrations";
 import AdminOnboardPage from "@/pages/dashboard/admin/onboard";
 import AdminSiteContentPage from "@/pages/dashboard/admin/site-content";
+import AdminCandidatesPage from "@/pages/dashboard/admin/candidates";
+import AdminEmployersPage from "@/pages/dashboard/admin/employers";
+import AdminInstitutionsPage from "@/pages/dashboard/admin/institutions";
 import StaffPage from "@/pages/dashboard/staff";
+import { AdminLayout } from "@/components/admin-layout";
 import LoginPage from "@/pages/auth/login";
 import SignupPage from "@/pages/auth/signup";
 import SetupPasswordPage from "@/pages/auth/setup-password";
@@ -57,11 +61,30 @@ function Router() {
         <Route path="/dashboard/candidate" component={CandidateDashboard} />
         <Route path="/dashboard/employer" component={EmployerDashboard} />
         <Route path="/dashboard/institution" component={InstitutionDashboard} />
-        <Route path="/dashboard/admin" component={AdminDashboard} />
-        <Route path="/dashboard/admin/registrations" component={AdminRegistrationsPage} />
-        <Route path="/dashboard/admin/onboard" component={AdminOnboardPage} />
-        <Route path="/dashboard/admin/site-content" component={AdminSiteContentPage} />
-        <Route path="/dashboard/admin/staff" component={StaffPage} />
+        <Route path="/dashboard/admin">
+          <AdminLayout><AdminDashboard /></AdminLayout>
+        </Route>
+        <Route path="/dashboard/admin/candidates">
+          <AdminLayout><AdminCandidatesPage /></AdminLayout>
+        </Route>
+        <Route path="/dashboard/admin/employers">
+          <AdminLayout><AdminEmployersPage /></AdminLayout>
+        </Route>
+        <Route path="/dashboard/admin/institutions">
+          <AdminLayout><AdminInstitutionsPage /></AdminLayout>
+        </Route>
+        <Route path="/dashboard/admin/registrations">
+          <AdminLayout><AdminRegistrationsPage /></AdminLayout>
+        </Route>
+        <Route path="/dashboard/admin/onboard">
+          <AdminLayout><AdminOnboardPage /></AdminLayout>
+        </Route>
+        <Route path="/dashboard/admin/site-content">
+          <AdminLayout><AdminSiteContentPage /></AdminLayout>
+        </Route>
+        <Route path="/dashboard/admin/staff">
+          <AdminLayout><StaffPage /></AdminLayout>
+        </Route>
         <Route path="/dashboard/employer/staff" component={StaffPage} />
         <Route path="/dashboard/institution/staff" component={StaffPage} />
 

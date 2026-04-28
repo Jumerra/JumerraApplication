@@ -61,6 +61,8 @@ import type {
   RegisterResponse,
   RegistrationDecisionBody,
   SalaryInsight,
+  SetEmployerVerifiedRequest,
+  SetEmployerVerifiedResponse,
   SetupPasswordRequest,
   SetupTokenInfo,
   SiteContentResponse,
@@ -3469,6 +3471,349 @@ export function useListOnboardedUsers<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Permanently remove a candidate and their related data (admin only)
+ */
+export const getAdminDeleteCandidateUrl = (id: number) => {
+  return `/api/admin/candidates/${id}`;
+};
+
+export const adminDeleteCandidate = async (
+  id: number,
+  options?: RequestInit,
+): Promise<OkResponse> => {
+  return customFetch<OkResponse>(getAdminDeleteCandidateUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getAdminDeleteCandidateMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminDeleteCandidate>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminDeleteCandidate>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["adminDeleteCandidate"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminDeleteCandidate>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return adminDeleteCandidate(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminDeleteCandidateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminDeleteCandidate>>
+>;
+
+export type AdminDeleteCandidateMutationError = ErrorType<void>;
+
+/**
+ * @summary Permanently remove a candidate and their related data (admin only)
+ */
+export const useAdminDeleteCandidate = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminDeleteCandidate>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof adminDeleteCandidate>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getAdminDeleteCandidateMutationOptions(options));
+};
+
+/**
+ * @summary Permanently remove an employer and their jobs/applications (admin only)
+ */
+export const getAdminDeleteEmployerUrl = (id: number) => {
+  return `/api/admin/employers/${id}`;
+};
+
+export const adminDeleteEmployer = async (
+  id: number,
+  options?: RequestInit,
+): Promise<OkResponse> => {
+  return customFetch<OkResponse>(getAdminDeleteEmployerUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getAdminDeleteEmployerMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminDeleteEmployer>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminDeleteEmployer>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["adminDeleteEmployer"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminDeleteEmployer>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return adminDeleteEmployer(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminDeleteEmployerMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminDeleteEmployer>>
+>;
+
+export type AdminDeleteEmployerMutationError = ErrorType<void>;
+
+/**
+ * @summary Permanently remove an employer and their jobs/applications (admin only)
+ */
+export const useAdminDeleteEmployer = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminDeleteEmployer>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof adminDeleteEmployer>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getAdminDeleteEmployerMutationOptions(options));
+};
+
+/**
+ * @summary Toggle the employer verified flag (admin only)
+ */
+export const getAdminSetEmployerVerifiedUrl = (id: number) => {
+  return `/api/admin/employers/${id}/verify`;
+};
+
+export const adminSetEmployerVerified = async (
+  id: number,
+  setEmployerVerifiedRequest: SetEmployerVerifiedRequest,
+  options?: RequestInit,
+): Promise<SetEmployerVerifiedResponse> => {
+  return customFetch<SetEmployerVerifiedResponse>(
+    getAdminSetEmployerVerifiedUrl(id),
+    {
+      ...options,
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(setEmployerVerifiedRequest),
+    },
+  );
+};
+
+export const getAdminSetEmployerVerifiedMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminSetEmployerVerified>>,
+    TError,
+    { id: number; data: BodyType<SetEmployerVerifiedRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminSetEmployerVerified>>,
+  TError,
+  { id: number; data: BodyType<SetEmployerVerifiedRequest> },
+  TContext
+> => {
+  const mutationKey = ["adminSetEmployerVerified"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminSetEmployerVerified>>,
+    { id: number; data: BodyType<SetEmployerVerifiedRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return adminSetEmployerVerified(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminSetEmployerVerifiedMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminSetEmployerVerified>>
+>;
+export type AdminSetEmployerVerifiedMutationBody =
+  BodyType<SetEmployerVerifiedRequest>;
+export type AdminSetEmployerVerifiedMutationError = ErrorType<void>;
+
+/**
+ * @summary Toggle the employer verified flag (admin only)
+ */
+export const useAdminSetEmployerVerified = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminSetEmployerVerified>>,
+    TError,
+    { id: number; data: BodyType<SetEmployerVerifiedRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof adminSetEmployerVerified>>,
+  TError,
+  { id: number; data: BodyType<SetEmployerVerifiedRequest> },
+  TContext
+> => {
+  return useMutation(getAdminSetEmployerVerifiedMutationOptions(options));
+};
+
+/**
+ * @summary Permanently remove an institution and unlink its members (admin only)
+ */
+export const getAdminDeleteInstitutionUrl = (id: number) => {
+  return `/api/admin/institutions/${id}`;
+};
+
+export const adminDeleteInstitution = async (
+  id: number,
+  options?: RequestInit,
+): Promise<OkResponse> => {
+  return customFetch<OkResponse>(getAdminDeleteInstitutionUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getAdminDeleteInstitutionMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminDeleteInstitution>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminDeleteInstitution>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["adminDeleteInstitution"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminDeleteInstitution>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return adminDeleteInstitution(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminDeleteInstitutionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminDeleteInstitution>>
+>;
+
+export type AdminDeleteInstitutionMutationError = ErrorType<void>;
+
+/**
+ * @summary Permanently remove an institution and unlink its members (admin only)
+ */
+export const useAdminDeleteInstitution = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminDeleteInstitution>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof adminDeleteInstitution>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getAdminDeleteInstitutionMutationOptions(options));
+};
 
 /**
  * @summary Public site content for the home page (admin-editable)

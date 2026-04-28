@@ -89,6 +89,8 @@ export * from "./registration";
 export * from "./registrationDecisionBody";
 export * from "./registrationSubmittedData";
 export * from "./salaryInsight";
+export * from "./setEmployerVerifiedRequest";
+export * from "./setEmployerVerifiedResponse";
 export * from "./setupPasswordRequest";
 export * from "./setupTokenInfo";
 export * from "./siteContentItem";

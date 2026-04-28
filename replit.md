@@ -47,6 +47,25 @@ A smart talent ecosystem connecting candidates (interns/grads/early-career) with
   - `DELETE /api/staff/:id` — owner-only. Cannot remove yourself or the last owner of an org.
 - Web: `/dashboard/<role>/staff` (single page reused by admin/employer/institution). Owners see invite form + remove buttons; non-owners see a read-only roster. Layout dropdown adds **Team** for employer/institution and **Admin team** for admin.
 
+## Admin console (sidebar layout)
+
+- All `/dashboard/admin/*` pages are wrapped in `AdminLayout` (`artifacts/talent-platform/src/components/admin-layout.tsx`), which renders a shadcn `Sidebar` (collapsible="icon") with three groups:
+  - **Overview**: Dashboard
+  - **Manage**: Candidates, Employers, Institutions
+  - **Operations**: Registrations, Onboard partner, Site content, Admin team
+- The layout centralizes the admin guard — non-admins see an "Admin access required" card instead of any admin content (UI-side; the API also enforces admin-only middleware on every action).
+- Sidebar collapsed/expanded state is persisted via the `sidebar_state` cookie (read at mount, written by SidebarProvider on toggle).
+- Header dropdown collapses all admin items into a single "Admin console" link that opens `/dashboard/admin`.
+- New admin management pages with delete + (employer) verify-toggle actions:
+  - `/dashboard/admin/candidates` → `useAdminDeleteCandidate`
+  - `/dashboard/admin/employers` → `useAdminDeleteEmployer`, `useAdminSetEmployerVerified`
+  - `/dashboard/admin/institutions` → `useAdminDeleteInstitution`
+- Server delete endpoints (`artifacts/api-server/src/routes/admin.ts`) run cascading cleanup in a transaction:
+  - candidate → applications, candidate_institutions, null users.candidateId
+  - employer → applications for their jobs, jobs, null users.employerId AND clear orgRole
+  - institution → candidate_institutions, null candidates.institutionId, null users.institutionId AND clear orgRole
+  - All return 404 on missing IDs (existence checked before mutation).
+
 ## Light website builder
 
 - `site_content(key TEXT PK, type TEXT, value TEXT, updated_at, updated_by → users.id)` — bulk key/value store for editable home-page copy and image URLs.

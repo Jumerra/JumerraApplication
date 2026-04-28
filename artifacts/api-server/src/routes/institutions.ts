@@ -15,6 +15,7 @@ import {
   ListInstitutionStudentsParams,
 } from "@workspace/api-zod";
 import { getCandidateIdsForInstitution } from "../lib/candidate-institutions";
+import { requireAdmin } from "../middleware/require-auth";
 
 const router: IRouter = Router();
 
@@ -122,7 +123,7 @@ router.get("/institutions", async (_req, res): Promise<void> => {
   res.json(result);
 });
 
-router.post("/institutions", async (req, res): Promise<void> => {
+router.post("/institutions", requireAdmin, async (req, res): Promise<void> => {
   const parsed = CreateInstitutionBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });

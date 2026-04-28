@@ -1,7 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  getGetCandidateDashboardQueryKey,
   getListApplicationsQueryKey,
   useCreateApplication,
   useGetJob,
@@ -25,7 +24,6 @@ import { EmptyState } from "@/components/EmptyState";
 import { JobTypeBadge } from "@/components/JobTypeBadge";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
-import { CURRENT_CANDIDATE_ID } from "@/constants/auth";
 import { useColors } from "@/hooks/useColors";
 
 const MIN_LENGTH = 30;
@@ -52,9 +50,8 @@ export default function ApplyScreen() {
       {
         data: {
           jobId,
-          candidateId: CURRENT_CANDIDATE_ID,
           coverNote: coverNote.trim(),
-        },
+        } as { jobId: number; candidateId: number; coverNote: string },
       },
       {
         onSuccess: () => {
@@ -64,15 +61,7 @@ export default function ApplyScreen() {
             ).catch(() => {});
           }
           queryClient.invalidateQueries({
-            queryKey: getListApplicationsQueryKey({
-              candidateId: CURRENT_CANDIDATE_ID,
-            }),
-          });
-          queryClient.invalidateQueries({
             queryKey: getListApplicationsQueryKey(),
-          });
-          queryClient.invalidateQueries({
-            queryKey: getGetCandidateDashboardQueryKey(CURRENT_CANDIDATE_ID),
           });
           if (router.canGoBack()) {
             router.back();

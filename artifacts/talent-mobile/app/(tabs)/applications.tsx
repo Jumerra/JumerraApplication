@@ -22,7 +22,6 @@ import { EmptyState } from "@/components/EmptyState";
 import { FilterChip } from "@/components/FilterChip";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { StatCard } from "@/components/StatCard";
-import { CURRENT_CANDIDATE_ID } from "@/constants/auth";
 import { useColors } from "@/hooks/useColors";
 
 const WEB_TOP_INSET = Platform.OS === "web" ? 67 : 0;
@@ -44,10 +43,10 @@ export default function ApplicationsScreen() {
   const insets = useSafeAreaInsets();
   const [filter, setFilter] = useState<StatusFilter>("all");
 
-  const dashboardQuery = useGetCandidateDashboard(CURRENT_CANDIDATE_ID);
+  const dashboardQuery = useGetCandidateDashboard(0);
   const params = useMemo(
     () => ({
-      candidateId: CURRENT_CANDIDATE_ID,
+      candidateId: 0,
       status: filter === "all" ? undefined : filter,
     }),
     [filter],

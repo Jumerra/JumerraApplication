@@ -25,6 +25,7 @@ import {
   setCandidateInstitutionLinks,
   type InstitutionLink,
 } from "../lib/candidate-institutions";
+import { requireAdmin, requireAuth } from "../middleware/require-auth";
 
 const router: IRouter = Router();
 
@@ -108,7 +109,7 @@ router.get("/candidates", async (req, res): Promise<void> => {
   );
 });
 
-router.post("/candidates", async (req, res): Promise<void> => {
+router.post("/candidates", requireAdmin, async (req, res): Promise<void> => {
   const parsed = CreateCandidateBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -199,10 +200,19 @@ router.get("/candidates/:id", async (req, res): Promise<void> => {
   });
 });
 
-router.patch("/candidates/:id", async (req, res): Promise<void> => {
+router.patch("/candidates/:id", requireAuth, async (req, res): Promise<void> => {
   const params = UpdateCandidateParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const user = req.currentUser!;
+  const isAdmin = user.role === "admin";
+  const isOwner = user.candidateId === params.data.id;
+
+  if (!isAdmin && !isOwner) {
+    res.status(403).json({ error: "Forbidden" });
     return;
   }
 
@@ -212,9 +222,14 @@ router.patch("/candidates/:id", async (req, res): Promise<void> => {
     return;
   }
 
+  const updateData = { ...parsed.data };
+  if (!isAdmin) {
+    delete (updateData as Record<string, unknown>).isBoosted;
+  }
+
   const [updated] = await db
     .update(candidatesTable)
-    .set(parsed.data)
+    .set(updateData)
     .where(eq(candidatesTable.id, params.data.id))
     .returning();
 

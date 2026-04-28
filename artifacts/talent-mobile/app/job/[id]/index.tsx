@@ -22,7 +22,6 @@ import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { MatchScoreBadge } from "@/components/MatchScoreBadge";
 import { SkillChip } from "@/components/SkillChip";
 import { StatusPill } from "@/components/StatusPill";
-import { CURRENT_CANDIDATE_ID } from "@/constants/auth";
 import { useColors } from "@/hooks/useColors";
 import { formatSalary } from "@/lib/format";
 
@@ -34,7 +33,7 @@ export default function JobDetailScreen() {
 
   const { data: job, isLoading, error } = useGetJob(jobId);
   const { data: applications } = useListApplications({
-    candidateId: CURRENT_CANDIDATE_ID,
+    candidateId: 0,
     jobId: Number.isFinite(jobId) ? jobId : undefined,
   });
 

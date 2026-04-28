@@ -86,10 +86,25 @@ router.get("/jobs", async (req, res): Promise<void> => {
   );
 });
 
-router.post("/jobs", async (req, res): Promise<void> => {
+router.post("/jobs", requireAuth, async (req, res): Promise<void> => {
+  const user = req.currentUser!;
+
+  if (user.role !== "employer" && user.role !== "admin") {
+    res.status(403).json({ error: "Only employers or admins may post jobs" });
+    return;
+  }
+
   const parsed = CreateJobBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const employerId =
+    user.role === "admin" ? parsed.data.employerId : user.employerId;
+
+  if (!employerId) {
+    res.status(403).json({ error: "No employer account linked to this user" });
     return;
   }
 
@@ -97,6 +112,7 @@ router.post("/jobs", async (req, res): Promise<void> => {
     .insert(jobsTable)
     .values({
       ...parsed.data,
+      employerId,
       featured: parsed.data.featured ?? false,
     })
     .returning();

@@ -14,7 +14,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { EmptyState } from "@/components/EmptyState";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { SkillChip } from "@/components/SkillChip";
-import { CURRENT_CANDIDATE_ID } from "@/constants/auth";
 import { useColors } from "@/hooks/useColors";
 
 const WEB_TOP_INSET = Platform.OS === "web" ? 67 : 0;
@@ -22,9 +21,7 @@ const WEB_TOP_INSET = Platform.OS === "web" ? 67 : 0;
 export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { data: candidate, isLoading, isError } = useGetCandidate(
-    CURRENT_CANDIDATE_ID,
-  );
+  const { data: candidate, isLoading, isError } = useGetCandidate(0);
 
   if (isLoading) {
     return (

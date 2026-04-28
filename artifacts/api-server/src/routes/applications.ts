@@ -14,6 +14,7 @@ import {
   UpdateApplicationStatusBody,
 } from "@workspace/api-zod";
 import { calculateMatchScore } from "../lib/matching";
+import { requireAuth } from "../middleware/require-auth";
 
 const router: IRouter = Router();
 
@@ -100,8 +101,24 @@ router.get("/applications", async (req, res): Promise<void> => {
   res.json(result);
 });
 
-router.post("/applications", async (req, res): Promise<void> => {
-  const parsed = CreateApplicationBody.safeParse(req.body);
+router.post("/applications", requireAuth, async (req, res): Promise<void> => {
+  const user = req.currentUser!;
+
+  if (user.role !== "candidate" && user.role !== "admin") {
+    res.status(403).json({ error: "Only candidates may submit applications" });
+    return;
+  }
+
+  const candidateId = user.role === "admin"
+    ? (req.body?.candidateId as number | undefined)
+    : user.candidateId;
+
+  if (!candidateId) {
+    res.status(403).json({ error: "No candidate profile linked to this account" });
+    return;
+  }
+
+  const parsed = CreateApplicationBody.safeParse({ ...req.body, candidateId });
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
@@ -154,7 +171,14 @@ router.post("/applications", async (req, res): Promise<void> => {
   res.status(201).json(serialized);
 });
 
-router.patch("/applications/:id", async (req, res): Promise<void> => {
+router.patch("/applications/:id", requireAuth, async (req, res): Promise<void> => {
+  const user = req.currentUser!;
+
+  if (user.role !== "employer" && user.role !== "admin") {
+    res.status(403).json({ error: "Only employers or admins may update application status" });
+    return;
+  }
+
   const params = UpdateApplicationStatusParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -164,6 +188,22 @@ router.patch("/applications/:id", async (req, res): Promise<void> => {
   const parsed = UpdateApplicationStatusBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const [row] = await db
+    .select({ applicationId: applicationsTable.id, jobEmployerId: jobsTable.employerId })
+    .from(applicationsTable)
+    .innerJoin(jobsTable, eq(jobsTable.id, applicationsTable.jobId))
+    .where(eq(applicationsTable.id, params.data.id));
+
+  if (!row) {
+    res.status(404).json({ error: "Application not found" });
+    return;
+  }
+
+  if (user.role === "employer" && row.jobEmployerId !== user.employerId) {
+    res.status(403).json({ error: "Forbidden" });
     return;
   }
 

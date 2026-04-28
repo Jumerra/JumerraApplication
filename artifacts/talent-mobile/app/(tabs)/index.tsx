@@ -24,7 +24,6 @@ import { JobCard } from "@/components/JobCard";
 import { JobRow } from "@/components/JobRow";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { SectionHeader } from "@/components/SectionHeader";
-import { CURRENT_CANDIDATE_ID } from "@/constants/auth";
 import { useColors } from "@/hooks/useColors";
 
 const WEB_TOP_INSET = Platform.OS === "web" ? 67 : 0;
@@ -34,10 +33,8 @@ export default function DiscoverScreen() {
   const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
 
-  const candidateQuery = useGetCandidate(CURRENT_CANDIDATE_ID);
-  const recommendationsQuery = useGetCandidateRecommendations(
-    CURRENT_CANDIDATE_ID,
-  );
+  const candidateQuery = useGetCandidate(0);
+  const recommendationsQuery = useGetCandidateRecommendations(0);
   const trendingQuery = useListJobs({ featured: true });
 
   const candidate = candidateQuery.data;

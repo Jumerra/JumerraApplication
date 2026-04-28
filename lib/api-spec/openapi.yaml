@@ -571,6 +571,43 @@ paths:
               schema: { $ref: "#/components/schemas/AuthSession" }
         "400": { description: Invalid token or password }
 
+  /auth/forgot-password:
+    post:
+      operationId: requestPasswordReset
+      tags: [auth]
+      summary: Request a password reset link (always returns ok=true)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ForgotPasswordRequest" }
+      responses:
+        "200":
+          description: Request acknowledged (does not reveal whether email is registered)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
+        "400": { description: Invalid input }
+
+  /auth/change-password:
+    post:
+      operationId: changePassword
+      tags: [auth]
+      summary: Change the current user's password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ChangePasswordRequest" }
+      responses:
+        "200":
+          description: Password updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
+        "400": { description: Invalid input }
+        "401": { description: "Not authenticated or current password incorrect" }
+
   /auth/setup-token/{token}:
     get:
       operationId: getSetupTokenInfo
@@ -761,6 +798,19 @@ components:
         token: { type: string }
         password: { type: string }
       required: [token, password]
+
+    ForgotPasswordRequest:
+      type: object
+      properties:
+        email: { type: string }
+      required: [email]
+
+    ChangePasswordRequest:
+      type: object
+      properties:
+        currentPassword: { type: string }
+        newPassword: { type: string }
+      required: [currentPassword, newPassword]
 
     SetupTokenInfo:
       type: object

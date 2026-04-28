@@ -202,9 +202,21 @@ export default function AdminOnboardPage() {
               <CheckCircle2 className="w-5 h-5" /> Account created
             </CardTitle>
             <CardDescription className="text-emerald-900/80">
-              Share this one-time setup link with{" "}
-              <span className="font-semibold">{result.user.fullName}</span> ({result.user.email}).
-              Link expires {new Date(result.expiresAt).toLocaleString()}.
+              {result.emailSent ? (
+                <>
+                  We emailed the setup link to{" "}
+                  <span className="font-semibold">{result.user.fullName}</span>{" "}
+                  ({result.user.email}). Link expires{" "}
+                  {new Date(result.expiresAt).toLocaleString()}.
+                </>
+              ) : (
+                <>
+                  Email is not yet configured. Share this one-time setup link
+                  with <span className="font-semibold">{result.user.fullName}</span>{" "}
+                  ({result.user.email}). Link expires{" "}
+                  {new Date(result.expiresAt).toLocaleString()}.
+                </>
+              )}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -223,9 +235,12 @@ export default function AdminOnboardPage() {
                 {copied ? "Copied" : "Copy"}
               </Button>
             </div>
-            <p className="text-xs text-emerald-900/70 mt-2">
-              Tip: send this link via your normal email tool. Once an email integration is connected, the platform will email it automatically.
-            </p>
+            {!result.emailSent && (
+              <p className="text-xs text-emerald-900/70 mt-2">
+                Tip: connect an email integration to have the platform deliver
+                this automatically.
+              </p>
+            )}
           </CardContent>
         </Card>
       )}

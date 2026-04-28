@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
 import crypto from "node:crypto";
 import { db } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import {
   usersTable,
   passwordSetupTokensTable,
@@ -41,9 +41,10 @@ export async function findUserById(id: number): Promise<User | null> {
 
 /**
  * Creates a one-time setup token and returns the relative setup link
- * the user should visit to set their password. Caller is responsible
- * for delivering the link (currently surfaced in the admin UI; in a
- * future iteration, swap this for an email send).
+ * the user should visit to set their password. Any prior unused tokens
+ * for the same user are invalidated atomically so that, after issuing a
+ * new link (e.g. on a forgot-password request), no older link can still
+ * be used to take over the account.
  */
 export async function createSetupToken(userId: number): Promise<{
   token: string;
@@ -52,10 +53,22 @@ export async function createSetupToken(userId: number): Promise<{
 }> {
   const token = crypto.randomBytes(32).toString("hex");
   const expiresAt = new Date(Date.now() + SETUP_TOKEN_TTL_MS);
-  await db.insert(passwordSetupTokensTable).values({
-    userId,
-    token,
-    expiresAt,
+  const now = new Date();
+  await db.transaction(async (tx) => {
+    await tx
+      .update(passwordSetupTokensTable)
+      .set({ usedAt: now })
+      .where(
+        and(
+          eq(passwordSetupTokensTable.userId, userId),
+          isNull(passwordSetupTokensTable.usedAt),
+        ),
+      );
+    await tx.insert(passwordSetupTokensTable).values({
+      userId,
+      token,
+      expiresAt,
+    });
   });
   return {
     token,

@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { PasswordInput } from "@/components/ui/password-input";
 import { KeyRound, AlertCircle, CheckCircle2 } from "lucide-react";
 
 export default function SetupPasswordPage() {
@@ -114,9 +115,8 @@ export default function SetupPasswordPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">New password</Label>
-              <Input
+              <PasswordInput
                 id="password"
-                type="password"
                 required
                 minLength={8}
                 value={password}
@@ -126,9 +126,8 @@ export default function SetupPasswordPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirm">Confirm password</Label>
-              <Input
+              <PasswordInput
                 id="confirm"
-                type="password"
                 required
                 minLength={8}
                 value={confirm}

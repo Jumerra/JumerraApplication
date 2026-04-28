@@ -77,6 +77,15 @@ export interface SetupPasswordRequest {
   password: string;
 }
 
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+}
+
 export interface SetupTokenInfo {
   email: string;
   fullName: string;

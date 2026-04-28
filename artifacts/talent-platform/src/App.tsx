@@ -27,6 +27,8 @@ import AdminOnboardPage from "@/pages/dashboard/admin/onboard";
 import LoginPage from "@/pages/auth/login";
 import SignupPage from "@/pages/auth/signup";
 import SetupPasswordPage from "@/pages/auth/setup-password";
+import ForgotPasswordPage from "@/pages/auth/forgot-password";
+import ChangePasswordPage from "@/pages/account/change-password";
 
 const queryClient = new QueryClient();
 
@@ -60,6 +62,8 @@ function Router() {
         <Route path="/login" component={LoginPage} />
         <Route path="/signup" component={SignupPage} />
         <Route path="/setup-password" component={SetupPasswordPage} />
+        <Route path="/forgot-password" component={ForgotPasswordPage} />
+        <Route path="/account/password" component={ChangePasswordPage} />
         
         <Route component={NotFound} />
       </Switch>

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PasswordInput } from "@/components/ui/password-input";
 import { UserPlus, AlertCircle, CheckCircle2, GraduationCap, Briefcase, UserCircle2 } from "lucide-react";
 
 type RoleTab = "candidate" | "employer" | "institution";
@@ -148,7 +149,14 @@ export default function SignupPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="password">Password</Label>
-                  <Input id="password" type="password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} />
+                  <PasswordInput
+                    id="password"
+                    required
+                    minLength={8}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    autoComplete="new-password"
+                  />
                 </div>
               </div>
               <TabsContent value="candidate" className="space-y-4 m-0">

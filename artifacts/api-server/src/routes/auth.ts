@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { eq, and, gt, isNull } from "drizzle-orm";
+import { eq, and, gt, isNull, sql } from "drizzle-orm";
 import {
   usersTable,
   pendingRegistrationsTable,
@@ -12,8 +12,10 @@ import {
   findUserByEmail,
   findUserById,
   toPublicUser,
+  createSetupToken,
 } from "../lib/auth";
 import { requireAuth } from "../middleware/require-auth";
+import { sendAuthLinkEmail, originFromReq } from "../lib/email";
 
 const router: Router = Router();
 
@@ -179,6 +181,18 @@ router.post("/auth/setup-password", async (req, res) => {
       const tokenRow = consumed[0];
       if (!tokenRow) return null;
 
+      // Invalidate any other still-active tokens for this user so a
+      // single password setup/reset always retires every outstanding link.
+      await tx
+        .update(passwordSetupTokensTable)
+        .set({ usedAt: now })
+        .where(
+          and(
+            eq(passwordSetupTokensTable.userId, tokenRow.userId),
+            isNull(passwordSetupTokensTable.usedAt),
+          ),
+        );
+
       const userRows = await tx
         .select()
         .from(usersTable)
@@ -220,6 +234,116 @@ router.post("/auth/setup-password", async (req, res) => {
     }
     req.log.error({ err }, "setup-password failed");
     res.status(500).json({ error: "Password setup failed" });
+  }
+});
+
+/**
+ * POST /api/auth/forgot-password
+ * Always returns 200 with the same body to avoid leaking whether an email
+ * is registered. If the email matches an active or invited user, a fresh
+ * setup token is issued and an email send is attempted (today the link is
+ * also logged for admin recovery while email is not configured).
+ */
+router.post("/auth/forgot-password", async (req, res) => {
+  try {
+    const { email } = req.body ?? {};
+    if (typeof email !== "string" || email.trim().length === 0) {
+      res.status(400).json({ error: "Email required" });
+      return;
+    }
+    const user = await findUserByEmail(email);
+    // We only issue tokens for users who can actually sign in. "rejected"
+    // and "pending" sign-ups deliberately do not get a reset link.
+    if (user && (user.status === "active" || user.status === "invited")) {
+      const { setupUrl } = await createSetupToken(user.id);
+      await sendAuthLinkEmail({
+        to: user.email,
+        fullName: user.fullName,
+        linkPath: setupUrl,
+        kind: "reset",
+        origin: originFromReq(req),
+        logger: req.log,
+      });
+    } else {
+      // Log a benign trace so support can confirm the request was received.
+      req.log.info({ email: email.toLowerCase().trim() }, "forgot-password: no match");
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    req.log.error({ err }, "forgot-password failed");
+    // Still return ok=true so callers cannot use errors to enumerate emails.
+    res.json({ ok: true });
+  }
+});
+
+/**
+ * POST /api/auth/change-password
+ * Authenticated user changes their own password by re-supplying the current one.
+ */
+router.post("/auth/change-password", requireAuth, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body ?? {};
+    if (
+      typeof currentPassword !== "string" ||
+      typeof newPassword !== "string"
+    ) {
+      res.status(400).json({ error: "Current and new password required" });
+      return;
+    }
+    if (newPassword.length < 8) {
+      res.status(400).json({ error: "New password must be at least 8 characters" });
+      return;
+    }
+    if (newPassword === currentPassword) {
+      res.status(400).json({ error: "New password must differ from current" });
+      return;
+    }
+    const user = req.currentUser!;
+    if (!user.passwordHash) {
+      res.status(400).json({ error: "Account has no password set yet" });
+      return;
+    }
+    const ok = await verifyPassword(currentPassword, user.passwordHash);
+    if (!ok) {
+      res.status(401).json({ error: "Current password is incorrect" });
+      return;
+    }
+    const passwordHash = await hashPassword(newPassword);
+    await db
+      .update(usersTable)
+      .set({ passwordHash })
+      .where(eq(usersTable.id, user.id));
+
+    // Rotate the session id to prevent fixation, and revoke any other
+    // active sessions for this user by removing their rows from the
+    // session store. The current session is regenerated *after* the
+    // delete so the user stays signed in here but is logged out
+    // everywhere else.
+    const currentSid = req.sessionID;
+    try {
+      await db.execute(sql`
+        delete from "session"
+        where sid <> ${currentSid}
+        and (sess->>'userId')::int = ${user.id}
+      `);
+    } catch (cleanupErr) {
+      req.log.warn(
+        { err: cleanupErr, userId: user.id },
+        "could not revoke other sessions after password change",
+      );
+    }
+    await new Promise<void>((resolve, reject) => {
+      req.session.regenerate((err) => (err ? reject(err) : resolve()));
+    });
+    req.session.userId = user.id;
+    await new Promise<void>((resolve, reject) => {
+      req.session.save((err) => (err ? reject(err) : resolve()));
+    });
+
+    res.json({ ok: true });
+  } catch (err) {
+    req.log.error({ err }, "change-password failed");
+    res.status(500).json({ error: "Could not update password" });
   }
 });
 

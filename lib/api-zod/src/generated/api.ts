@@ -975,6 +975,29 @@ export const SetupPasswordResponse = zod.object({
   ]),
 });
 
+/**
+ * @summary Request a password reset link (always returns ok=true)
+ */
+export const RequestPasswordResetBody = zod.object({
+  email: zod.string(),
+});
+
+export const RequestPasswordResetResponse = zod.object({
+  ok: zod.boolean(),
+});
+
+/**
+ * @summary Change the current user's password
+ */
+export const ChangePasswordBody = zod.object({
+  currentPassword: zod.string(),
+  newPassword: zod.string(),
+});
+
+export const ChangePasswordResponse = zod.object({
+  ok: zod.boolean(),
+});
+
 export const GetSetupTokenInfoParams = zod.object({
   token: zod.coerce.string(),
 });

@@ -29,6 +29,7 @@ import {
   ShieldAlert,
   UserPlus,
   LogIn,
+  KeyRound,
 } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import {
@@ -186,6 +187,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
                       <DropdownMenuSeparator />
                     </>
                   )}
+                  <DropdownMenuItem asChild>
+                    <Link href="/account/password" className="gap-2 cursor-pointer">
+                      <KeyRound className="w-4 h-4" /> Change password
+                    </Link>
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={handleLogout} className="gap-2 cursor-pointer">
                     <LogOut className="w-4 h-4" /> Log out
                   </DropdownMenuItem>

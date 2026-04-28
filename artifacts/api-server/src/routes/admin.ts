@@ -11,6 +11,7 @@ import {
 } from "@workspace/db";
 import { requireAdmin } from "../middleware/require-auth";
 import { createSetupToken, findUserByEmail } from "../lib/auth";
+import { sendAuthLinkEmail, originFromReq } from "../lib/email";
 
 const router: Router = Router();
 
@@ -308,13 +309,14 @@ router.post("/admin/onboard", async (req, res) => {
 
     const { setupUrl, expiresAt, token } = await createSetupToken(user.id);
 
-    // Logging the setupUrl is intentional MVP behaviour: there is no email
-    // integration yet, and admins need a recovery channel for the link.
-    // Replace with an email send + remove the URL from logs once mail is wired up.
-    req.log.info(
-      { userId: user.id, setupUrl },
-      "admin onboarded user — password setup link generated",
-    );
+    const emailResult = await sendAuthLinkEmail({
+      to: user.email,
+      fullName: user.fullName,
+      linkPath: setupUrl,
+      kind: "setup",
+      origin: originFromReq(req),
+      logger: req.log,
+    });
 
     res.status(201).json({
       user: {
@@ -326,6 +328,7 @@ router.post("/admin/onboard", async (req, res) => {
       setupUrl,
       token,
       expiresAt: expiresAt.toISOString(),
+      emailSent: emailResult.sent,
     });
   } catch (err) {
     req.log.error({ err }, "onboard failed");

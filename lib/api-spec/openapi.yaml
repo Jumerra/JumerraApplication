@@ -910,6 +910,32 @@ paths:
         "403": { description: Admin only }
         "404": { description: Application not found }
 
+  /admin/analytics/institutions:
+    get:
+      operationId: adminGetInstitutionAnalytics
+      tags: [admin]
+      summary: Per-institution candidate counts (admin only)
+      responses:
+        "200":
+          description: Institution analytics
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InstitutionAnalyticsResponse" }
+        "403": { description: Admin only }
+
+  /admin/analytics/employers:
+    get:
+      operationId: adminGetEmployerAnalytics
+      tags: [admin]
+      summary: Per-employer hires + activity counts (admin only)
+      responses:
+        "200":
+          description: Employer analytics
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EmployerAnalyticsResponse" }
+        "403": { description: Admin only }
+
   /admin/hires/analytics:
     get:
       operationId: adminGetHiresAnalytics
@@ -1233,6 +1259,62 @@ components:
           type: array
           items: { $ref: "#/components/schemas/HiresAnalyticsPoint" }
       required: [bucket, from, to, total, points]
+
+    InstitutionAnalyticsRow:
+      type: object
+      properties:
+        institutionId: { type: integer }
+        institutionName: { type: string }
+        location: { type: string }
+        candidateCount: { type: integer }
+        hiredCount: { type: integer }
+        applicationCount: { type: integer }
+      required:
+        - institutionId
+        - institutionName
+        - location
+        - candidateCount
+        - hiredCount
+        - applicationCount
+
+    InstitutionAnalyticsResponse:
+      type: object
+      properties:
+        totalCandidates: { type: integer }
+        totalHires: { type: integer }
+        rows:
+          type: array
+          items: { $ref: "#/components/schemas/InstitutionAnalyticsRow" }
+      required: [totalCandidates, totalHires, rows]
+
+    EmployerAnalyticsRow:
+      type: object
+      properties:
+        employerId: { type: integer }
+        employerName: { type: string }
+        industry: { type: string }
+        jobsCount: { type: integer }
+        applicationsCount: { type: integer }
+        hiresCount: { type: integer }
+        uniqueCandidatesHired: { type: integer }
+      required:
+        - employerId
+        - employerName
+        - industry
+        - jobsCount
+        - applicationsCount
+        - hiresCount
+        - uniqueCandidatesHired
+
+    EmployerAnalyticsResponse:
+      type: object
+      properties:
+        totalEmployers: { type: integer }
+        totalHires: { type: integer }
+        rows:
+          type: array
+          items: { $ref: "#/components/schemas/EmployerAnalyticsRow" }
+      required: [totalEmployers, totalHires, rows]
 
     VerifyStudentResponse:
       type: object

@@ -1276,6 +1276,43 @@ export const AdminDeleteApplicationResponse = zod.object({
 });
 
 /**
+ * @summary Per-institution candidate counts (admin only)
+ */
+export const AdminGetInstitutionAnalyticsResponse = zod.object({
+  totalCandidates: zod.number(),
+  totalHires: zod.number(),
+  rows: zod.array(
+    zod.object({
+      institutionId: zod.number(),
+      institutionName: zod.string(),
+      location: zod.string(),
+      candidateCount: zod.number(),
+      hiredCount: zod.number(),
+      applicationCount: zod.number(),
+    }),
+  ),
+});
+
+/**
+ * @summary Per-employer hires + activity counts (admin only)
+ */
+export const AdminGetEmployerAnalyticsResponse = zod.object({
+  totalEmployers: zod.number(),
+  totalHires: zod.number(),
+  rows: zod.array(
+    zod.object({
+      employerId: zod.number(),
+      employerName: zod.string(),
+      industry: zod.string(),
+      jobsCount: zod.number(),
+      applicationsCount: zod.number(),
+      hiresCount: zod.number(),
+      uniqueCandidatesHired: zod.number(),
+    }),
+  ),
+});
+
+/**
  * @summary Time-bucketed counts of hires (admin only)
  */
 export const adminGetHiresAnalyticsQueryBucketDefault = `day`;

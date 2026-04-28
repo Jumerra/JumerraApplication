@@ -34,12 +34,14 @@ import type {
   CreateInstitution,
   CreateJob,
   Employer,
+  EmployerAnalyticsResponse,
   EmployerDashboard,
   EmployerDetail,
   ForgotPasswordRequest,
   HealthStatus,
   HiresAnalyticsResponse,
   Institution,
+  InstitutionAnalyticsResponse,
   InstitutionDashboard,
   InstitutionDetail,
   InstitutionStudent,
@@ -4005,6 +4007,165 @@ export const useAdminDeleteApplication = <
 > => {
   return useMutation(getAdminDeleteApplicationMutationOptions(options));
 };
+
+/**
+ * @summary Per-institution candidate counts (admin only)
+ */
+export const getAdminGetInstitutionAnalyticsUrl = () => {
+  return `/api/admin/analytics/institutions`;
+};
+
+export const adminGetInstitutionAnalytics = async (
+  options?: RequestInit,
+): Promise<InstitutionAnalyticsResponse> => {
+  return customFetch<InstitutionAnalyticsResponse>(
+    getAdminGetInstitutionAnalyticsUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getAdminGetInstitutionAnalyticsQueryKey = () => {
+  return [`/api/admin/analytics/institutions`] as const;
+};
+
+export const getAdminGetInstitutionAnalyticsQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminGetInstitutionAnalytics>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof adminGetInstitutionAnalytics>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getAdminGetInstitutionAnalyticsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof adminGetInstitutionAnalytics>>
+  > = ({ signal }) =>
+    adminGetInstitutionAnalytics({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminGetInstitutionAnalytics>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type AdminGetInstitutionAnalyticsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminGetInstitutionAnalytics>>
+>;
+export type AdminGetInstitutionAnalyticsQueryError = ErrorType<void>;
+
+/**
+ * @summary Per-institution candidate counts (admin only)
+ */
+
+export function useAdminGetInstitutionAnalytics<
+  TData = Awaited<ReturnType<typeof adminGetInstitutionAnalytics>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof adminGetInstitutionAnalytics>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getAdminGetInstitutionAnalyticsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Per-employer hires + activity counts (admin only)
+ */
+export const getAdminGetEmployerAnalyticsUrl = () => {
+  return `/api/admin/analytics/employers`;
+};
+
+export const adminGetEmployerAnalytics = async (
+  options?: RequestInit,
+): Promise<EmployerAnalyticsResponse> => {
+  return customFetch<EmployerAnalyticsResponse>(
+    getAdminGetEmployerAnalyticsUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getAdminGetEmployerAnalyticsQueryKey = () => {
+  return [`/api/admin/analytics/employers`] as const;
+};
+
+export const getAdminGetEmployerAnalyticsQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminGetEmployerAnalytics>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof adminGetEmployerAnalytics>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getAdminGetEmployerAnalyticsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof adminGetEmployerAnalytics>>
+  > = ({ signal }) => adminGetEmployerAnalytics({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminGetEmployerAnalytics>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type AdminGetEmployerAnalyticsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminGetEmployerAnalytics>>
+>;
+export type AdminGetEmployerAnalyticsQueryError = ErrorType<void>;
+
+/**
+ * @summary Per-employer hires + activity counts (admin only)
+ */
+
+export function useAdminGetEmployerAnalytics<
+  TData = Awaited<ReturnType<typeof adminGetEmployerAnalytics>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof adminGetEmployerAnalytics>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getAdminGetEmployerAnalyticsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Time-bucketed counts of hires (admin only)

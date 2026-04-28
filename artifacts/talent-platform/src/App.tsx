@@ -30,6 +30,7 @@ import AdminEmployersPage from "@/pages/dashboard/admin/employers";
 import AdminInstitutionsPage from "@/pages/dashboard/admin/institutions";
 import AdminApplicationsPage from "@/pages/dashboard/admin/applications";
 import AdminHiresPage from "@/pages/dashboard/admin/hires";
+import AdminPartnerAnalyticsPage from "@/pages/dashboard/admin/partner-analytics";
 import StaffPage from "@/pages/dashboard/staff";
 import { AdminLayout } from "@/components/admin-layout";
 import LoginPage from "@/pages/auth/login";
@@ -80,6 +81,9 @@ function Router() {
         </Route>
         <Route path="/dashboard/admin/hires">
           <AdminLayout><AdminHiresPage /></AdminLayout>
+        </Route>
+        <Route path="/dashboard/admin/partner-analytics">
+          <AdminLayout><AdminPartnerAnalyticsPage /></AdminLayout>
         </Route>
         <Route path="/dashboard/admin/registrations">
           <AdminLayout><AdminRegistrationsPage /></AdminLayout>

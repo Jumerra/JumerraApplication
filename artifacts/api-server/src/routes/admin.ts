@@ -636,6 +636,217 @@ router.delete("/admin/applications/:id", async (req, res) => {
 });
 
 /**
+ * GET /api/admin/analytics/institutions
+ * Per-institution roll-up:
+ *  - candidateCount   = unique candidates affiliated via candidate_institutions
+ *  - applicationCount = total applications submitted by those candidates
+ *  - hiredCount       = total hired applications from those candidates
+ * Application/hire counts are application-level (one hire per application
+ * with status='hired'), matching the existing hires analytics semantics.
+ */
+router.get("/admin/analytics/institutions", async (_req, res) => {
+  const rows = await db.execute<{
+    institution_id: number;
+    institution_name: string;
+    location: string;
+    candidate_count: string;
+    application_count: string;
+    hired_count: string;
+  }>(sql`
+    SELECT
+      i.id AS institution_id,
+      i.name AS institution_name,
+      i.location AS location,
+      COUNT(DISTINCT ci.candidate_id)::text AS candidate_count,
+      COUNT(DISTINCT a.id)::text AS application_count,
+      COUNT(DISTINCT a.id) FILTER (WHERE a.status = 'hired')::text AS hired_count
+    FROM ${institutionsTable} i
+    LEFT JOIN ${candidateInstitutionsTable} ci ON ci.institution_id = i.id
+    LEFT JOIN ${applicationsTable} a ON a.candidate_id = ci.candidate_id
+    GROUP BY i.id, i.name, i.location
+    ORDER BY candidate_count DESC, i.name ASC
+  `);
+  const mapped = rows.rows.map((r) => ({
+    institutionId: r.institution_id,
+    institutionName: r.institution_name,
+    location: r.location ?? "",
+    candidateCount: Number(r.candidate_count),
+    applicationCount: Number(r.application_count),
+    hiredCount: Number(r.hired_count),
+  }));
+  const totalCandidates = mapped.reduce((s, r) => s + r.candidateCount, 0);
+  const totalHires = mapped.reduce((s, r) => s + r.hiredCount, 0);
+  res.json({ totalCandidates, totalHires, rows: mapped });
+});
+
+/**
+ * GET /api/admin/analytics/employers
+ * Per-employer activity roll-up: number of jobs posted, applications
+ * received, hires made, and unique candidates hired.
+ */
+router.get("/admin/analytics/employers", async (_req, res) => {
+  const rows = await db.execute<{
+    employer_id: number;
+    employer_name: string;
+    industry: string;
+    jobs_count: string;
+    applications_count: string;
+    hires_count: string;
+    unique_candidates_hired: string;
+  }>(sql`
+    SELECT
+      e.id AS employer_id,
+      e.name AS employer_name,
+      e.industry AS industry,
+      COUNT(DISTINCT j.id)::text AS jobs_count,
+      COUNT(DISTINCT a.id)::text AS applications_count,
+      COUNT(DISTINCT a.id) FILTER (WHERE a.status = 'hired')::text AS hires_count,
+      COUNT(DISTINCT a.candidate_id) FILTER (WHERE a.status = 'hired')::text AS unique_candidates_hired
+    FROM ${employersTable} e
+    LEFT JOIN ${jobsTable} j ON j.employer_id = e.id
+    LEFT JOIN ${applicationsTable} a ON a.job_id = j.id
+    GROUP BY e.id, e.name, e.industry
+    ORDER BY hires_count DESC, applications_count DESC, e.name ASC
+  `);
+  const mapped = rows.rows.map((r) => ({
+    employerId: r.employer_id,
+    employerName: r.employer_name,
+    industry: r.industry ?? "",
+    jobsCount: Number(r.jobs_count),
+    applicationsCount: Number(r.applications_count),
+    hiresCount: Number(r.hires_count),
+    uniqueCandidatesHired: Number(r.unique_candidates_hired),
+  }));
+  const totalHires = mapped.reduce((s, r) => s + r.hiresCount, 0);
+  res.json({ totalEmployers: mapped.length, totalHires, rows: mapped });
+});
+
+/**
+ * CSV exports for the partner analytics views above. Not in OpenAPI spec
+ * because they return text/csv. Same admin-only guard.
+ */
+function csvEscape(val: string | number): string {
+  let s = String(val);
+  // Defuse spreadsheet formula injection: any cell that starts with =, +,
+  // -, @ or a tab is treated as a formula by Excel/Sheets/Numbers when the
+  // CSV is opened. Prefixing a single quote neutralises it.
+  if (s.length > 0 && /^[=+\-@\t]/.test(s)) {
+    s = `'${s}`;
+  }
+  if (s.includes(",") || s.includes("\n") || s.includes('"')) {
+    return `"${s.replace(/"/g, '""')}"`;
+  }
+  return s;
+}
+
+function sendCsv(
+  res: import("express").Response,
+  filename: string,
+  lines: string[],
+): void {
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  res.send(lines.join("\n"));
+}
+
+router.get("/admin/analytics/institutions.csv", async (_req, res) => {
+  const result = await db.execute<{
+    institution_id: number;
+    institution_name: string;
+    location: string;
+    candidate_count: string;
+    application_count: string;
+    hired_count: string;
+  }>(sql`
+    SELECT
+      i.id AS institution_id,
+      i.name AS institution_name,
+      i.location AS location,
+      COUNT(DISTINCT ci.candidate_id)::text AS candidate_count,
+      COUNT(DISTINCT a.id)::text AS application_count,
+      COUNT(DISTINCT a.id) FILTER (WHERE a.status = 'hired')::text AS hired_count
+    FROM ${institutionsTable} i
+    LEFT JOIN ${candidateInstitutionsTable} ci ON ci.institution_id = i.id
+    LEFT JOIN ${applicationsTable} a ON a.candidate_id = ci.candidate_id
+    GROUP BY i.id, i.name, i.location
+    ORDER BY candidate_count DESC, i.name ASC
+  `);
+  const lines = [
+    "# TalentLink institution analytics",
+    `# Generated,${new Date().toISOString()}`,
+    "",
+    "institution_id,institution_name,location,candidates,applications,hires",
+  ];
+  for (const r of result.rows) {
+    lines.push(
+      [
+        r.institution_id,
+        csvEscape(r.institution_name),
+        csvEscape(r.location ?? ""),
+        r.candidate_count,
+        r.application_count,
+        r.hired_count,
+      ].join(","),
+    );
+  }
+  sendCsv(
+    res,
+    `talentlink-institutions-${new Date().toISOString().slice(0, 10)}.csv`,
+    lines,
+  );
+});
+
+router.get("/admin/analytics/employers.csv", async (_req, res) => {
+  const result = await db.execute<{
+    employer_id: number;
+    employer_name: string;
+    industry: string;
+    jobs_count: string;
+    applications_count: string;
+    hires_count: string;
+    unique_candidates_hired: string;
+  }>(sql`
+    SELECT
+      e.id AS employer_id,
+      e.name AS employer_name,
+      e.industry AS industry,
+      COUNT(DISTINCT j.id)::text AS jobs_count,
+      COUNT(DISTINCT a.id)::text AS applications_count,
+      COUNT(DISTINCT a.id) FILTER (WHERE a.status = 'hired')::text AS hires_count,
+      COUNT(DISTINCT a.candidate_id) FILTER (WHERE a.status = 'hired')::text AS unique_candidates_hired
+    FROM ${employersTable} e
+    LEFT JOIN ${jobsTable} j ON j.employer_id = e.id
+    LEFT JOIN ${applicationsTable} a ON a.job_id = j.id
+    GROUP BY e.id, e.name, e.industry
+    ORDER BY hires_count DESC, applications_count DESC, e.name ASC
+  `);
+  const lines = [
+    "# TalentLink employer analytics",
+    `# Generated,${new Date().toISOString()}`,
+    "",
+    "employer_id,employer_name,industry,jobs,applications,hires,unique_candidates_hired",
+  ];
+  for (const r of result.rows) {
+    lines.push(
+      [
+        r.employer_id,
+        csvEscape(r.employer_name),
+        csvEscape(r.industry ?? ""),
+        r.jobs_count,
+        r.applications_count,
+        r.hires_count,
+        r.unique_candidates_hired,
+      ].join(","),
+    );
+  }
+  sendCsv(
+    res,
+    `talentlink-employers-${new Date().toISOString().slice(0, 10)}.csv`,
+    lines,
+  );
+});
+
+/**
  * GET /api/admin/hires/analytics?bucket=day|week|month|year&from&to
  * Aggregates hires (applications.status='hired') keyed off updatedAt
  * (when the status was set). Returns a continuous series with zero-filled

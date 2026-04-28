@@ -30,6 +30,7 @@ import {
   Compass,
   Briefcase,
   Trophy,
+  Network,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 
@@ -75,6 +76,11 @@ const ADMIN_NAV: AdminNavGroup[] = [
     label: "Insights",
     items: [
       { href: "/dashboard/admin/hires", label: "Hires analytics", icon: Trophy },
+      {
+        href: "/dashboard/admin/partner-analytics",
+        label: "Partner analytics",
+        icon: Network,
+      },
     ],
   },
   {

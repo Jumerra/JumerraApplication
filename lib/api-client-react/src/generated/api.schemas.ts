@@ -229,6 +229,37 @@ export interface HiresAnalyticsResponse {
   points: HiresAnalyticsPoint[];
 }
 
+export interface InstitutionAnalyticsRow {
+  institutionId: number;
+  institutionName: string;
+  location: string;
+  candidateCount: number;
+  hiredCount: number;
+  applicationCount: number;
+}
+
+export interface InstitutionAnalyticsResponse {
+  totalCandidates: number;
+  totalHires: number;
+  rows: InstitutionAnalyticsRow[];
+}
+
+export interface EmployerAnalyticsRow {
+  employerId: number;
+  employerName: string;
+  industry: string;
+  jobsCount: number;
+  applicationsCount: number;
+  hiresCount: number;
+  uniqueCandidatesHired: number;
+}
+
+export interface EmployerAnalyticsResponse {
+  totalEmployers: number;
+  totalHires: number;
+  rows: EmployerAnalyticsRow[];
+}
+
 export interface VerifyStudentResponse {
   ok: boolean;
   verifiedAt: string;

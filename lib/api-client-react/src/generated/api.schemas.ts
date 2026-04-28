@@ -171,6 +171,64 @@ export interface SetEmployerVerifiedResponse {
   verified: boolean;
 }
 
+export type ApplicationStatus =
+  (typeof ApplicationStatus)[keyof typeof ApplicationStatus];
+
+export const ApplicationStatus = {
+  applied: "applied",
+  screening: "screening",
+  interview: "interview",
+  offer: "offer",
+  hired: "hired",
+  rejected: "rejected",
+  withdrawn: "withdrawn",
+} as const;
+
+export interface Application {
+  id: number;
+  jobId: number;
+  jobTitle: string;
+  candidateId: number;
+  candidateName: string;
+  candidateAvatarUrl: string;
+  employerId: number;
+  employerName: string;
+  employerLogoUrl: string;
+  status: ApplicationStatus;
+  matchScore: number;
+  coverNote: string;
+  appliedAt: string;
+  updatedAt: string;
+}
+
+export interface AdminApplicationListResponse {
+  applications: Application[];
+}
+
+export interface HiresAnalyticsPoint {
+  periodStart: string;
+  label: string;
+  count: number;
+}
+
+export type HiresAnalyticsResponseBucket =
+  (typeof HiresAnalyticsResponseBucket)[keyof typeof HiresAnalyticsResponseBucket];
+
+export const HiresAnalyticsResponseBucket = {
+  day: "day",
+  week: "week",
+  month: "month",
+  year: "year",
+} as const;
+
+export interface HiresAnalyticsResponse {
+  bucket: HiresAnalyticsResponseBucket;
+  from: string;
+  to: string;
+  total: number;
+  points: HiresAnalyticsPoint[];
+}
+
 export interface VerifyStudentResponse {
   ok: boolean;
   verifiedAt: string;
@@ -517,36 +575,6 @@ export interface CreateJob {
   featured?: boolean;
 }
 
-export type ApplicationStatus =
-  (typeof ApplicationStatus)[keyof typeof ApplicationStatus];
-
-export const ApplicationStatus = {
-  applied: "applied",
-  screening: "screening",
-  interview: "interview",
-  offer: "offer",
-  hired: "hired",
-  rejected: "rejected",
-  withdrawn: "withdrawn",
-} as const;
-
-export interface Application {
-  id: number;
-  jobId: number;
-  jobTitle: string;
-  candidateId: number;
-  candidateName: string;
-  candidateAvatarUrl: string;
-  employerId: number;
-  employerName: string;
-  employerLogoUrl: string;
-  status: ApplicationStatus;
-  matchScore: number;
-  coverNote: string;
-  appliedAt: string;
-  updatedAt: string;
-}
-
 export interface CreateApplication {
   jobId: number;
   candidateId: number;
@@ -887,3 +915,60 @@ export type ListRegistrations200 = {
 export type ListOnboardedUsers200 = {
   users: OnboardedUser[];
 };
+
+export type AdminListApplicationsParams = {
+  status?: AdminListApplicationsStatus;
+  /**
+   * ISO date (inclusive lower bound on appliedAt)
+   */
+  from?: string;
+  /**
+   * ISO date (inclusive upper bound on appliedAt)
+   */
+  to?: string;
+  /**
+   * Free-text filter against candidate, employer, and job title
+   */
+  q?: string;
+  /**
+   * @minimum 1
+   * @maximum 500
+   */
+  limit?: number;
+};
+
+export type AdminListApplicationsStatus =
+  (typeof AdminListApplicationsStatus)[keyof typeof AdminListApplicationsStatus];
+
+export const AdminListApplicationsStatus = {
+  all: "all",
+  applied: "applied",
+  screening: "screening",
+  interview: "interview",
+  offer: "offer",
+  hired: "hired",
+  rejected: "rejected",
+  withdrawn: "withdrawn",
+} as const;
+
+export type AdminGetHiresAnalyticsParams = {
+  bucket?: AdminGetHiresAnalyticsBucket;
+  /**
+   * ISO date inclusive lower bound on hire updatedAt
+   */
+  from?: string;
+  /**
+   * ISO date inclusive upper bound on hire updatedAt
+   */
+  to?: string;
+};
+
+export type AdminGetHiresAnalyticsBucket =
+  (typeof AdminGetHiresAnalyticsBucket)[keyof typeof AdminGetHiresAnalyticsBucket];
+
+export const AdminGetHiresAnalyticsBucket = {
+  day: "day",
+  week: "week",
+  month: "month",
+  year: "year",
+} as const;

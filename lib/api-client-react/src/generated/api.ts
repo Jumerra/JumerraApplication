@@ -18,6 +18,9 @@ import type {
 
 import type {
   ActivityItem,
+  AdminApplicationListResponse,
+  AdminGetHiresAnalyticsParams,
+  AdminListApplicationsParams,
   Application,
   AuthSession,
   Candidate,
@@ -35,6 +38,7 @@ import type {
   EmployerDetail,
   ForgotPasswordRequest,
   HealthStatus,
+  HiresAnalyticsResponse,
   Institution,
   InstitutionDashboard,
   InstitutionDetail,
@@ -3814,6 +3818,296 @@ export const useAdminDeleteInstitution = <
 > => {
   return useMutation(getAdminDeleteInstitutionMutationOptions(options));
 };
+
+/**
+ * @summary List all applications across the platform (admin only)
+ */
+export const getAdminListApplicationsUrl = (
+  params?: AdminListApplicationsParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/admin/applications?${stringifiedParams}`
+    : `/api/admin/applications`;
+};
+
+export const adminListApplications = async (
+  params?: AdminListApplicationsParams,
+  options?: RequestInit,
+): Promise<AdminApplicationListResponse> => {
+  return customFetch<AdminApplicationListResponse>(
+    getAdminListApplicationsUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getAdminListApplicationsQueryKey = (
+  params?: AdminListApplicationsParams,
+) => {
+  return [`/api/admin/applications`, ...(params ? [params] : [])] as const;
+};
+
+export const getAdminListApplicationsQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminListApplications>>,
+  TError = ErrorType<void>,
+>(
+  params?: AdminListApplicationsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof adminListApplications>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getAdminListApplicationsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof adminListApplications>>
+  > = ({ signal }) =>
+    adminListApplications(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminListApplications>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type AdminListApplicationsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminListApplications>>
+>;
+export type AdminListApplicationsQueryError = ErrorType<void>;
+
+/**
+ * @summary List all applications across the platform (admin only)
+ */
+
+export function useAdminListApplications<
+  TData = Awaited<ReturnType<typeof adminListApplications>>,
+  TError = ErrorType<void>,
+>(
+  params?: AdminListApplicationsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof adminListApplications>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getAdminListApplicationsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Remove an application (admin only)
+ */
+export const getAdminDeleteApplicationUrl = (id: number) => {
+  return `/api/admin/applications/${id}`;
+};
+
+export const adminDeleteApplication = async (
+  id: number,
+  options?: RequestInit,
+): Promise<OkResponse> => {
+  return customFetch<OkResponse>(getAdminDeleteApplicationUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getAdminDeleteApplicationMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminDeleteApplication>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminDeleteApplication>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["adminDeleteApplication"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminDeleteApplication>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return adminDeleteApplication(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminDeleteApplicationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminDeleteApplication>>
+>;
+
+export type AdminDeleteApplicationMutationError = ErrorType<void>;
+
+/**
+ * @summary Remove an application (admin only)
+ */
+export const useAdminDeleteApplication = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminDeleteApplication>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof adminDeleteApplication>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getAdminDeleteApplicationMutationOptions(options));
+};
+
+/**
+ * @summary Time-bucketed counts of hires (admin only)
+ */
+export const getAdminGetHiresAnalyticsUrl = (
+  params?: AdminGetHiresAnalyticsParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/admin/hires/analytics?${stringifiedParams}`
+    : `/api/admin/hires/analytics`;
+};
+
+export const adminGetHiresAnalytics = async (
+  params?: AdminGetHiresAnalyticsParams,
+  options?: RequestInit,
+): Promise<HiresAnalyticsResponse> => {
+  return customFetch<HiresAnalyticsResponse>(
+    getAdminGetHiresAnalyticsUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getAdminGetHiresAnalyticsQueryKey = (
+  params?: AdminGetHiresAnalyticsParams,
+) => {
+  return [`/api/admin/hires/analytics`, ...(params ? [params] : [])] as const;
+};
+
+export const getAdminGetHiresAnalyticsQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminGetHiresAnalytics>>,
+  TError = ErrorType<void>,
+>(
+  params?: AdminGetHiresAnalyticsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof adminGetHiresAnalytics>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getAdminGetHiresAnalyticsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof adminGetHiresAnalytics>>
+  > = ({ signal }) =>
+    adminGetHiresAnalytics(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminGetHiresAnalytics>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type AdminGetHiresAnalyticsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminGetHiresAnalytics>>
+>;
+export type AdminGetHiresAnalyticsQueryError = ErrorType<void>;
+
+/**
+ * @summary Time-bucketed counts of hires (admin only)
+ */
+
+export function useAdminGetHiresAnalytics<
+  TData = Awaited<ReturnType<typeof adminGetHiresAnalytics>>,
+  TError = ErrorType<void>,
+>(
+  params?: AdminGetHiresAnalyticsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof adminGetHiresAnalytics>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getAdminGetHiresAnalyticsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Public site content for the home page (admin-editable)

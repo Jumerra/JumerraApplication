@@ -851,6 +851,96 @@ paths:
         "400": { description: Invalid id }
         "403": { description: Admin only }
 
+  /admin/applications:
+    get:
+      operationId: adminListApplications
+      tags: [admin]
+      summary: List all applications across the platform (admin only)
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [all, applied, screening, interview, offer, hired, rejected, withdrawn]
+        - name: from
+          in: query
+          required: false
+          description: ISO date (inclusive lower bound on appliedAt)
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          required: false
+          description: ISO date (inclusive upper bound on appliedAt)
+          schema: { type: string, format: date-time }
+        - name: q
+          in: query
+          required: false
+          description: Free-text filter against candidate, employer, and job title
+          schema: { type: string }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 500, default: 200 }
+      responses:
+        "200":
+          description: Applications
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminApplicationListResponse" }
+        "403": { description: Admin only }
+
+  /admin/applications/{id}:
+    delete:
+      operationId: adminDeleteApplication
+      tags: [admin]
+      summary: Remove an application (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
+        "400": { description: Invalid id }
+        "403": { description: Admin only }
+        "404": { description: Application not found }
+
+  /admin/hires/analytics:
+    get:
+      operationId: adminGetHiresAnalytics
+      tags: [admin]
+      summary: Time-bucketed counts of hires (admin only)
+      parameters:
+        - name: bucket
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [day, week, month, year]
+            default: day
+        - name: from
+          in: query
+          required: false
+          description: ISO date inclusive lower bound on hire updatedAt
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          required: false
+          description: ISO date inclusive upper bound on hire updatedAt
+          schema: { type: string, format: date-time }
+      responses:
+        "200":
+          description: Aggregated hire counts
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HiresAnalyticsResponse" }
+        "403": { description: Admin only }
+
   /site-content:
     get:
       operationId: getSiteContent
@@ -1113,6 +1203,36 @@ components:
         ok: { type: boolean }
         verified: { type: boolean }
       required: [ok, verified]
+
+    AdminApplicationListResponse:
+      type: object
+      properties:
+        applications:
+          type: array
+          items: { $ref: "#/components/schemas/Application" }
+      required: [applications]
+
+    HiresAnalyticsPoint:
+      type: object
+      properties:
+        periodStart: { type: string, format: date-time }
+        label: { type: string }
+        count: { type: integer }
+      required: [periodStart, label, count]
+
+    HiresAnalyticsResponse:
+      type: object
+      properties:
+        bucket:
+          type: string
+          enum: [day, week, month, year]
+        from: { type: string, format: date-time }
+        to: { type: string, format: date-time }
+        total: { type: integer }
+        points:
+          type: array
+          items: { $ref: "#/components/schemas/HiresAnalyticsPoint" }
+      required: [bucket, from, to, total, points]
 
     VerifyStudentResponse:
       type: object

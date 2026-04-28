@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc, sql, and, gte, lte, or, ilike } from "drizzle-orm";
 import {
   usersTable,
   pendingRegistrationsTable,
@@ -538,6 +538,267 @@ router.delete("/admin/institutions/:id", async (req, res) => {
     req.log.error({ err, id }, "delete institution failed");
     res.status(500).json({ error: "Delete failed" });
   }
+});
+
+/**
+ * GET /api/admin/applications
+ * Cross-platform application list with optional status / date / text filters.
+ */
+router.get("/admin/applications", async (req, res) => {
+  const status = (req.query.status as string | undefined) ?? "all";
+  const fromRaw = req.query.from as string | undefined;
+  const toRaw = req.query.to as string | undefined;
+  const q = ((req.query.q as string | undefined) ?? "").trim();
+  const limitRaw = Number(req.query.limit ?? 200);
+  const limit = Math.min(Math.max(Number.isFinite(limitRaw) ? limitRaw : 200, 1), 500);
+
+  const fromDate = fromRaw ? new Date(fromRaw) : undefined;
+  const toDate = toRaw ? new Date(toRaw) : undefined;
+
+  const conds = [];
+  const VALID = ["applied", "screening", "interview", "offer", "hired", "rejected", "withdrawn"];
+  if (status !== "all" && VALID.includes(status)) {
+    conds.push(eq(applicationsTable.status, status));
+  }
+  if (fromDate && !Number.isNaN(fromDate.getTime())) {
+    conds.push(gte(applicationsTable.appliedAt, fromDate));
+  }
+  if (toDate && !Number.isNaN(toDate.getTime())) {
+    conds.push(lte(applicationsTable.appliedAt, toDate));
+  }
+  if (q.length > 0) {
+    const like = `%${q}%`;
+    const qCond = or(
+      ilike(candidatesTable.fullName, like),
+      ilike(employersTable.name, like),
+      ilike(jobsTable.title, like),
+    );
+    if (qCond) conds.push(qCond);
+  }
+  const where = conds.length > 0 ? and(...conds) : undefined;
+
+  const rows = await db
+    .select({
+      id: applicationsTable.id,
+      jobId: applicationsTable.jobId,
+      jobTitle: jobsTable.title,
+      candidateId: applicationsTable.candidateId,
+      candidateName: candidatesTable.fullName,
+      candidateAvatarUrl: candidatesTable.avatarUrl,
+      employerId: jobsTable.employerId,
+      employerName: employersTable.name,
+      employerLogoUrl: employersTable.logoUrl,
+      status: applicationsTable.status,
+      matchScore: applicationsTable.matchScore,
+      coverNote: applicationsTable.coverNote,
+      appliedAt: applicationsTable.appliedAt,
+      updatedAt: applicationsTable.updatedAt,
+    })
+    .from(applicationsTable)
+    .innerJoin(jobsTable, eq(jobsTable.id, applicationsTable.jobId))
+    .innerJoin(candidatesTable, eq(candidatesTable.id, applicationsTable.candidateId))
+    .innerJoin(employersTable, eq(employersTable.id, jobsTable.employerId))
+    .where(where)
+    .orderBy(desc(applicationsTable.appliedAt))
+    .limit(limit);
+
+  res.json({
+    applications: rows.map((r) => ({
+      ...r,
+      candidateAvatarUrl: r.candidateAvatarUrl ?? "",
+      employerLogoUrl: r.employerLogoUrl ?? "",
+      coverNote: r.coverNote ?? "",
+      appliedAt: r.appliedAt.toISOString(),
+      updatedAt: r.updatedAt.toISOString(),
+    })),
+  });
+});
+
+/**
+ * DELETE /api/admin/applications/:id
+ */
+router.delete("/admin/applications/:id", async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const [existing] = await db
+    .select({ id: applicationsTable.id })
+    .from(applicationsTable)
+    .where(eq(applicationsTable.id, id));
+  if (!existing) {
+    res.status(404).json({ error: "Application not found" });
+    return;
+  }
+  await db.delete(applicationsTable).where(eq(applicationsTable.id, id));
+  res.json({ ok: true });
+});
+
+/**
+ * GET /api/admin/hires/analytics?bucket=day|week|month|year&from&to
+ * Aggregates hires (applications.status='hired') keyed off updatedAt
+ * (when the status was set). Returns a continuous series with zero-filled
+ * buckets so the chart never has gaps.
+ */
+const BUCKET_TO_PG: Record<string, string> = {
+  day: "day",
+  week: "week",
+  month: "month",
+  year: "year",
+};
+
+function defaultRange(bucket: string, now: Date): { from: Date; to: Date } {
+  const to = new Date(now);
+  const from = new Date(now);
+  if (bucket === "day") from.setDate(from.getDate() - 29);
+  else if (bucket === "week") from.setDate(from.getDate() - 7 * 11);
+  else if (bucket === "month") from.setMonth(from.getMonth() - 11);
+  else from.setFullYear(from.getFullYear() - 4);
+  return { from, to };
+}
+
+function truncateUTC(d: Date, bucket: string): Date {
+  const x = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  if (bucket === "day") return x;
+  if (bucket === "week") {
+    // Postgres date_trunc('week') uses Monday as week start (ISO).
+    const day = x.getUTCDay(); // 0=Sun..6=Sat
+    const diff = (day + 6) % 7; // days since Monday
+    x.setUTCDate(x.getUTCDate() - diff);
+    return x;
+  }
+  if (bucket === "month") return new Date(Date.UTC(x.getUTCFullYear(), x.getUTCMonth(), 1));
+  return new Date(Date.UTC(x.getUTCFullYear(), 0, 1));
+}
+
+function advance(d: Date, bucket: string): Date {
+  const x = new Date(d);
+  if (bucket === "day") x.setUTCDate(x.getUTCDate() + 1);
+  else if (bucket === "week") x.setUTCDate(x.getUTCDate() + 7);
+  else if (bucket === "month") x.setUTCMonth(x.getUTCMonth() + 1);
+  else x.setUTCFullYear(x.getUTCFullYear() + 1);
+  return x;
+}
+
+function labelFor(d: Date, bucket: string): string {
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  if (bucket === "day" || bucket === "week") return `${y}-${m}-${day}`;
+  if (bucket === "month") return `${y}-${m}`;
+  return String(y);
+}
+
+async function loadHireBuckets(bucket: string, from: Date, to: Date) {
+  const pgBucket = BUCKET_TO_PG[bucket] ?? "day";
+  // Force the truncation into UTC so the bucket boundaries match the
+  // JS-side `truncateUTC` keys regardless of the Postgres session
+  // timezone. Without `AT TIME ZONE 'UTC'`, `date_trunc` uses the session
+  // TZ and produces shifted boundaries that the JS lookup map misses.
+  const rows = await db.execute<{ period: Date; count: string }>(sql`
+    SELECT (date_trunc(${pgBucket}, ${applicationsTable.updatedAt} AT TIME ZONE 'UTC') AT TIME ZONE 'UTC') AS period,
+           COUNT(*)::text AS count
+    FROM ${applicationsTable}
+    WHERE ${applicationsTable.status} = 'hired'
+      AND ${applicationsTable.updatedAt} >= ${from}
+      AND ${applicationsTable.updatedAt} <= ${to}
+    GROUP BY period
+    ORDER BY period ASC
+  `);
+  const counts = new Map<number, number>();
+  for (const r of rows.rows) {
+    const d = new Date(r.period);
+    counts.set(d.getTime(), Number(r.count));
+  }
+  const points: { periodStart: string; label: string; count: number }[] = [];
+  let cursor = truncateUTC(from, bucket);
+  const end = truncateUTC(to, bucket);
+  while (cursor.getTime() <= end.getTime()) {
+    points.push({
+      periodStart: cursor.toISOString(),
+      label: labelFor(cursor, bucket),
+      count: counts.get(cursor.getTime()) ?? 0,
+    });
+    cursor = advance(cursor, bucket);
+    if (points.length > 5000) break;
+  }
+  const total = points.reduce((s, p) => s + p.count, 0);
+  return { points, total };
+}
+
+router.get("/admin/hires/analytics", async (req, res) => {
+  const bucket = (() => {
+    const b = (req.query.bucket as string | undefined) ?? "day";
+    return ["day", "week", "month", "year"].includes(b) ? b : "day";
+  })();
+  const fromRaw = req.query.from as string | undefined;
+  const toRaw = req.query.to as string | undefined;
+  const now = new Date();
+  const def = defaultRange(bucket, now);
+  const from = fromRaw ? new Date(fromRaw) : def.from;
+  const to = toRaw ? new Date(toRaw) : def.to;
+  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || from > to) {
+    res.status(400).json({ error: "Invalid date range" });
+    return;
+  }
+  const { points, total } = await loadHireBuckets(bucket, from, to);
+  res.json({
+    bucket,
+    from: from.toISOString(),
+    to: to.toISOString(),
+    total,
+    points,
+  });
+});
+
+/**
+ * GET /api/admin/hires/export.csv?bucket=...&from=...&to=...
+ * Streams the same data as the analytics endpoint, plus a row-per-hire
+ * CSV download. Not in the OpenAPI spec because it returns text/csv.
+ */
+router.get("/admin/hires/export.csv", async (req, res) => {
+  const bucket = (() => {
+    const b = (req.query.bucket as string | undefined) ?? "day";
+    return ["day", "week", "month", "year"].includes(b) ? b : "day";
+  })();
+  const fromRaw = req.query.from as string | undefined;
+  const toRaw = req.query.to as string | undefined;
+  const now = new Date();
+  const def = defaultRange(bucket, now);
+  const from = fromRaw ? new Date(fromRaw) : def.from;
+  const to = toRaw ? new Date(toRaw) : def.to;
+  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || from > to) {
+    res.status(400).send("Invalid date range");
+    return;
+  }
+  const { points, total } = await loadHireBuckets(bucket, from, to);
+
+  const escape = (val: string | number) => {
+    const s = String(val);
+    if (s.includes(",") || s.includes("\n") || s.includes('"')) {
+      return `"${s.replace(/"/g, '""')}"`;
+    }
+    return s;
+  };
+
+  const lines: string[] = [];
+  lines.push(`# TalentLink hires export`);
+  lines.push(`# Bucket,${bucket}`);
+  lines.push(`# Range,${from.toISOString()},${to.toISOString()}`);
+  lines.push(`# Total hires,${total}`);
+  lines.push(``);
+  lines.push(`period_start,label,hires`);
+  for (const p of points) {
+    lines.push(`${p.periodStart},${escape(p.label)},${p.count}`);
+  }
+
+  const filename = `talentlink-hires-${bucket}-${from
+    .toISOString()
+    .slice(0, 10)}-to-${to.toISOString().slice(0, 10)}.csv`;
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  res.send(lines.join("\n"));
 });
 
 export default router;

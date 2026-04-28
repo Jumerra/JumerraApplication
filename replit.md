@@ -49,10 +49,13 @@ A smart talent ecosystem connecting candidates (interns/grads/early-career) with
 
 ## Admin console (sidebar layout)
 
-- All `/dashboard/admin/*` pages are wrapped in `AdminLayout` (`artifacts/talent-platform/src/components/admin-layout.tsx`), which renders a shadcn `Sidebar` (collapsible="icon") with three groups:
+- All `/dashboard/admin/*` pages are wrapped in `AdminLayout` (`artifacts/talent-platform/src/components/admin-layout.tsx`), which renders a shadcn `Sidebar` (collapsible="icon") with four groups:
   - **Overview**: Dashboard
-  - **Manage**: Candidates, Employers, Institutions
+  - **Manage**: Candidates, Employers, Institutions, Applications
+  - **Insights**: Hires analytics
   - **Operations**: Registrations, Onboard partner, Site content, Admin team
+- **Applications** (`/dashboard/admin/applications`): cross-platform application list. Filters: status (applied/screening/interview/offer/hired/rejected/withdrawn/all), free-text search across candidate name, employer name, and job title (debounced 250ms). Per-row status select reuses the existing `useUpdateApplicationStatus` mutation; per-row delete uses `useAdminDeleteApplication`.
+- **Hires analytics** (`/dashboard/admin/hires`): time-bucketed hires (day/week/month/year) using `useAdminGetHiresAnalytics`. Renders an area chart + summary cards (total, peak, average, recent vs earlier % change) + a tabular period breakdown. Date range pickers default to a sensible window per bucket (30 days / 12 weeks / 12 months / 5 years) and reset when the bucket changes. **Download CSV** triggers `GET /api/admin/hires/export.csv?bucket&from&to` (text/csv with `Content-Disposition: attachment; filename="talentlink-hires-<bucket>-<from>-to-<to>.csv"`).
 - The layout centralizes the admin guard — non-admins see an "Admin access required" card instead of any admin content (UI-side; the API also enforces admin-only middleware on every action).
 - Sidebar collapsed/expanded state is persisted via the `sidebar_state` cookie (read at mount, written by SidebarProvider on toggle).
 - Header dropdown collapses all admin items into a single "Admin console" link that opens `/dashboard/admin`.

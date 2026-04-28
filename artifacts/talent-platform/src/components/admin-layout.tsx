@@ -28,6 +28,8 @@ import {
   Sparkles,
   UsersRound,
   Compass,
+  Briefcase,
+  Trophy,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 
@@ -66,6 +68,13 @@ const ADMIN_NAV: AdminNavGroup[] = [
       { href: "/dashboard/admin/candidates", label: "Candidates", icon: Users },
       { href: "/dashboard/admin/employers", label: "Employers", icon: Building2 },
       { href: "/dashboard/admin/institutions", label: "Institutions", icon: GraduationCap },
+      { href: "/dashboard/admin/applications", label: "Applications", icon: Briefcase },
+    ],
+  },
+  {
+    label: "Insights",
+    items: [
+      { href: "/dashboard/admin/hires", label: "Hires analytics", icon: Trophy },
     ],
   },
   {

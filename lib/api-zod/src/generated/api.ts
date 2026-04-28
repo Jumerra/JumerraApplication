@@ -1198,6 +1198,117 @@ export const AdminDeleteInstitutionResponse = zod.object({
 });
 
 /**
+ * @summary List all applications across the platform (admin only)
+ */
+export const adminListApplicationsQueryLimitDefault = 200;
+export const adminListApplicationsQueryLimitMax = 500;
+
+export const AdminListApplicationsQueryParams = zod.object({
+  status: zod
+    .enum([
+      "all",
+      "applied",
+      "screening",
+      "interview",
+      "offer",
+      "hired",
+      "rejected",
+      "withdrawn",
+    ])
+    .optional(),
+  from: zod
+    .date()
+    .optional()
+    .describe("ISO date (inclusive lower bound on appliedAt)"),
+  to: zod
+    .date()
+    .optional()
+    .describe("ISO date (inclusive upper bound on appliedAt)"),
+  q: zod.coerce
+    .string()
+    .optional()
+    .describe("Free-text filter against candidate, employer, and job title"),
+  limit: zod.coerce
+    .number()
+    .min(1)
+    .max(adminListApplicationsQueryLimitMax)
+    .default(adminListApplicationsQueryLimitDefault),
+});
+
+export const AdminListApplicationsResponse = zod.object({
+  applications: zod.array(
+    zod.object({
+      id: zod.number(),
+      jobId: zod.number(),
+      jobTitle: zod.string(),
+      candidateId: zod.number(),
+      candidateName: zod.string(),
+      candidateAvatarUrl: zod.string(),
+      employerId: zod.number(),
+      employerName: zod.string(),
+      employerLogoUrl: zod.string(),
+      status: zod.enum([
+        "applied",
+        "screening",
+        "interview",
+        "offer",
+        "hired",
+        "rejected",
+        "withdrawn",
+      ]),
+      matchScore: zod.number(),
+      coverNote: zod.string(),
+      appliedAt: zod.coerce.date(),
+      updatedAt: zod.coerce.date(),
+    }),
+  ),
+});
+
+/**
+ * @summary Remove an application (admin only)
+ */
+export const AdminDeleteApplicationParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AdminDeleteApplicationResponse = zod.object({
+  ok: zod.boolean(),
+});
+
+/**
+ * @summary Time-bucketed counts of hires (admin only)
+ */
+export const adminGetHiresAnalyticsQueryBucketDefault = `day`;
+
+export const AdminGetHiresAnalyticsQueryParams = zod.object({
+  bucket: zod
+    .enum(["day", "week", "month", "year"])
+    .default(adminGetHiresAnalyticsQueryBucketDefault),
+  from: zod
+    .date()
+    .optional()
+    .describe("ISO date inclusive lower bound on hire updatedAt"),
+  to: zod
+    .date()
+    .optional()
+    .describe("ISO date inclusive upper bound on hire updatedAt"),
+});
+
+export const AdminGetHiresAnalyticsResponse = zod.object({
+  bucket: zod.enum(["day", "week", "month", "year"]),
+  from: zod.coerce.date(),
+  to: zod.coerce.date(),
+  total: zod.number(),
+  points: zod.array(
+    zod.object({
+      periodStart: zod.coerce.date(),
+      label: zod.string(),
+      count: zod.number(),
+    }),
+  ),
+});
+
+/**
  * @summary Public site content for the home page (admin-editable)
  */
 export const GetSiteContentResponse = zod.object({

@@ -8,6 +8,11 @@
 
 export * from "./activityItem";
 export * from "./activityItemType";
+export * from "./adminApplicationListResponse";
+export * from "./adminGetHiresAnalyticsBucket";
+export * from "./adminGetHiresAnalyticsParams";
+export * from "./adminListApplicationsParams";
+export * from "./adminListApplicationsStatus";
 export * from "./application";
 export * from "./applicationStatus";
 export * from "./authSession";
@@ -43,6 +48,9 @@ export * from "./employerSize";
 export * from "./experienceEntry";
 export * from "./forgotPasswordRequest";
 export * from "./healthStatus";
+export * from "./hiresAnalyticsPoint";
+export * from "./hiresAnalyticsResponse";
+export * from "./hiresAnalyticsResponseBucket";
 export * from "./institution";
 export * from "./institutionDashboard";
 export * from "./institutionDashboardStatusBreakdownItem";

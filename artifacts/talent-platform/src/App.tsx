@@ -28,6 +28,8 @@ import AdminSiteContentPage from "@/pages/dashboard/admin/site-content";
 import AdminCandidatesPage from "@/pages/dashboard/admin/candidates";
 import AdminEmployersPage from "@/pages/dashboard/admin/employers";
 import AdminInstitutionsPage from "@/pages/dashboard/admin/institutions";
+import AdminApplicationsPage from "@/pages/dashboard/admin/applications";
+import AdminHiresPage from "@/pages/dashboard/admin/hires";
 import StaffPage from "@/pages/dashboard/staff";
 import { AdminLayout } from "@/components/admin-layout";
 import LoginPage from "@/pages/auth/login";
@@ -72,6 +74,12 @@ function Router() {
         </Route>
         <Route path="/dashboard/admin/institutions">
           <AdminLayout><AdminInstitutionsPage /></AdminLayout>
+        </Route>
+        <Route path="/dashboard/admin/applications">
+          <AdminLayout><AdminApplicationsPage /></AdminLayout>
+        </Route>
+        <Route path="/dashboard/admin/hires">
+          <AdminLayout><AdminHiresPage /></AdminLayout>
         </Route>
         <Route path="/dashboard/admin/registrations">
           <AdminLayout><AdminRegistrationsPage /></AdminLayout>

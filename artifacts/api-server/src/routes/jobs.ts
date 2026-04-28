@@ -14,6 +14,7 @@ import {
   GetJobMatchesParams,
 } from "@workspace/api-zod";
 import { calculateMatchScore } from "../lib/matching";
+import { requireAuth } from "../middleware/require-auth";
 
 const router: IRouter = Router();
 
@@ -139,7 +140,7 @@ router.get("/jobs/:id", async (req, res): Promise<void> => {
   });
 });
 
-router.get("/jobs/:id/matches", async (req, res): Promise<void> => {
+router.get("/jobs/:id/matches", requireAuth, async (req, res): Promise<void> => {
   const params = GetJobMatchesParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });

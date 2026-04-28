@@ -11,8 +11,14 @@ import authRouter from "./auth";
 import adminRouter from "./admin";
 import siteContentRouter from "./site-content";
 import staffRouter from "./staff";
+import { requireAuth } from "../middleware/require-auth";
 
 const router: IRouter = Router();
+
+router.use("/candidates", requireAuth);
+router.use("/applications", requireAuth);
+router.use("/institutions", requireAuth);
+router.use("/dashboard", requireAuth);
 
 router.use(healthRouter);
 router.use(authRouter);

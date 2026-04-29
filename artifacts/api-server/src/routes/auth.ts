@@ -5,6 +5,7 @@ import {
   usersTable,
   pendingRegistrationsTable,
   passwordSetupTokensTable,
+  candidatesTable,
 } from "@workspace/db";
 import {
   hashPassword,
@@ -63,23 +64,48 @@ router.post("/auth/register", async (req, res) => {
     // are validated later by the institution(s) they listed. Employers
     // and institutions still go through admin review.
     const isCandidate = normalizedRole === "candidate";
-    const [user] = await db
-      .insert(usersTable)
-      .values({
-        email: normalizedEmail,
-        passwordHash,
-        role: normalizedRole,
-        status: isCandidate ? "active" : "pending",
-        approvedAt: isCandidate ? new Date() : null,
-        fullName,
-      })
-      .returning();
-    if (!isCandidate) {
-      await db.insert(pendingRegistrationsTable).values({
-        userId: user.id,
-        submittedData: submittedData ?? {},
-      });
-    }
+    await db.transaction(async (tx) => {
+      const [user] = await tx
+        .insert(usersTable)
+        .values({
+          email: normalizedEmail,
+          passwordHash,
+          role: normalizedRole,
+          status: isCandidate ? "active" : "pending",
+          approvedAt: isCandidate ? new Date() : null,
+          fullName,
+        })
+        .returning();
+
+      if (isCandidate) {
+        // Create the linked candidate row so the new user can immediately
+        // see their profile in the mobile app and apply to jobs. Defaults
+        // mirror the admin onboarding flow.
+        const [candidate] = await tx
+          .insert(candidatesTable)
+          .values({
+            fullName: user.fullName,
+            headline: "New candidate",
+            bio: "",
+            location: "",
+            email: user.email,
+            phone: "",
+            avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(
+              user.fullName,
+            )}`,
+          })
+          .returning();
+        await tx
+          .update(usersTable)
+          .set({ candidateId: candidate.id })
+          .where(eq(usersTable.id, user.id));
+      } else {
+        await tx.insert(pendingRegistrationsTable).values({
+          userId: user.id,
+          submittedData: submittedData ?? {},
+        });
+      }
+    });
     res.status(201).json({
       message: isCandidate
         ? "Welcome! You can sign in now. Your institution will verify your attendance separately."

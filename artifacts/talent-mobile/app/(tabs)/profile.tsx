@@ -1,9 +1,15 @@
 import { Feather } from "@expo/vector-icons";
-import { useGetCandidate } from "@workspace/api-client-react";
+import {
+  getGetCandidateQueryKey,
+  useGetCandidate,
+} from "@workspace/api-client-react";
 import { Image } from "expo-image";
 import React from "react";
 import {
+  ActivityIndicator,
+  Alert,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,6 +20,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { EmptyState } from "@/components/EmptyState";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { SkillChip } from "@/components/SkillChip";
+import { useAuth } from "@/hooks/useAuth";
 import { useColors } from "@/hooks/useColors";
 
 const WEB_TOP_INSET = Platform.OS === "web" ? 67 : 0;
@@ -21,9 +28,64 @@ const WEB_TOP_INSET = Platform.OS === "web" ? 67 : 0;
 export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { data: candidate, isLoading, isError } = useGetCandidate(0);
+  const { user, signOut, signOutPending } = useAuth();
+  const onSignOut = React.useCallback(() => {
+    void signOut().catch(() => {
+      Alert.alert(
+        "Couldn't sign out",
+        "We couldn't sign you out. Check your connection and try again.",
+      );
+    });
+  }, [signOut]);
 
-  if (isLoading) {
+  const isCandidateRole = user?.role === "candidate";
+  const candidateId = user?.candidateId ?? 0;
+  const hasCandidateRecord = isCandidateRole && user.candidateId != null;
+  const {
+    data: candidate,
+    isLoading,
+    isError,
+  } = useGetCandidate(candidateId, {
+    query: {
+      queryKey: getGetCandidateQueryKey(candidateId),
+      enabled: hasCandidateRecord,
+    },
+  });
+
+  if (user && !isCandidateRole) {
+    return (
+      <View style={[styles.flex, { backgroundColor: colors.background }]}>
+        <EmptyState
+          icon="user-x"
+          title="Candidate-only view"
+          subtitle="The mobile app is built for candidates. Sign in with a candidate account to see your profile."
+        />
+        <View style={{ paddingHorizontal: 24, paddingBottom: insets.bottom + 32 }}>
+          <SignOutButton onPress={onSignOut} pending={signOutPending} />
+        </View>
+      </View>
+    );
+  }
+
+  if (user && isCandidateRole && !hasCandidateRecord) {
+    // Legacy candidate accounts created before the auto-link change won't
+    // have a candidateId yet. Show a recovery state instead of locking
+    // them out, and let them sign out so support can repair the account.
+    return (
+      <View style={[styles.flex, { backgroundColor: colors.background }]}>
+        <EmptyState
+          icon="user-check"
+          title="Profile not ready yet"
+          subtitle="Your candidate profile hasn't been set up. Please contact support so we can finish creating it."
+        />
+        <View style={{ paddingHorizontal: 24, paddingBottom: insets.bottom + 32 }}>
+          <SignOutButton onPress={onSignOut} pending={signOutPending} />
+        </View>
+      </View>
+    );
+  }
+
+  if (isLoading || !user) {
     return (
       <View style={[styles.flex, { backgroundColor: colors.background }]}>
         <LoadingSpinner />
@@ -39,6 +101,9 @@ export default function ProfileScreen() {
           title="Profile unavailable"
           subtitle="We couldn't load your profile right now. Please try again in a moment."
         />
+        <View style={{ paddingHorizontal: 24, paddingBottom: insets.bottom + 32 }}>
+          <SignOutButton onPress={onSignOut} pending={signOutPending} />
+        </View>
       </View>
     );
   }
@@ -251,7 +316,45 @@ export default function ProfileScreen() {
           ) : null}
         </View>
       </View>
+
+      <SignOutButton onPress={onSignOut} pending={signOutPending} />
     </ScrollView>
+  );
+}
+
+function SignOutButton({
+  onPress,
+  pending,
+}: {
+  onPress: () => void;
+  pending: boolean;
+}) {
+  const colors = useColors();
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={pending}
+      style={({ pressed }) => [
+        styles.signOutButton,
+        {
+          backgroundColor: colors.secondary,
+          borderColor: colors.border,
+          borderRadius: colors.radius * 1.25,
+          opacity: pressed || pending ? 0.85 : 1,
+        },
+      ]}
+    >
+      {pending ? (
+        <ActivityIndicator color={colors.foreground} />
+      ) : (
+        <>
+          <Feather name="log-out" size={16} color={colors.foreground} />
+          <Text style={[styles.signOutText, { color: colors.foreground }]}>
+            Sign out
+          </Text>
+        </>
+      )}
+    </Pressable>
   );
 }
 
@@ -496,5 +599,18 @@ const styles = StyleSheet.create({
   divider: {
     height: 1,
     marginHorizontal: 14,
+  },
+  signOutButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 14,
+    borderWidth: 1,
+    marginTop: 4,
+  },
+  signOutText: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 14,
   },
 });

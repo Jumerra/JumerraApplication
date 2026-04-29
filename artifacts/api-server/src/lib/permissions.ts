@@ -2,14 +2,18 @@ import {
   db,
   adminRolesTable,
   adminRolePermissionsTable,
+  employersTable,
+  institutionsTable,
   type User,
+  type RoleScope,
 } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 
 /**
- * Catalog of every permission an admin sub-role can be granted. The
- * super-admin always has every permission implicitly. Permissions are
- * grouped for nicer rendering in the role-management UI.
+ * Catalog of every permission a sub-role can be granted. Implicit-all
+ * roles (admin:super_admin, employer:owner, institution:owner) bypass
+ * every check. Permissions are grouped for nicer rendering in the
+ * role-management UI.
  */
 export type PermissionDef = {
   key: string;
@@ -18,7 +22,10 @@ export type PermissionDef = {
   description: string;
 };
 
-export const PERMISSIONS: ReadonlyArray<PermissionDef> = [
+// =============================================================
+// ADMIN scope
+// =============================================================
+export const ADMIN_PERMISSIONS: ReadonlyArray<PermissionDef> = [
   {
     key: "registrations:view",
     label: "Review registrations",
@@ -111,24 +118,159 @@ export const PERMISSIONS: ReadonlyArray<PermissionDef> = [
   },
 ];
 
-export const PERMISSION_KEYS = new Set(PERMISSIONS.map((p) => p.key));
+// Backwards compat: many call-sites still import PERMISSIONS.
+export const PERMISSIONS = ADMIN_PERMISSIONS;
+export const PERMISSION_KEYS = new Set(ADMIN_PERMISSIONS.map((p) => p.key));
+
+// =============================================================
+// EMPLOYER scope
+// =============================================================
+export const EMPLOYER_PERMISSIONS: ReadonlyArray<PermissionDef> = [
+  {
+    key: "jobs:view",
+    label: "View jobs",
+    category: "Jobs",
+    description: "See job postings owned by this employer.",
+  },
+  {
+    key: "jobs:manage",
+    label: "Manage jobs",
+    category: "Jobs",
+    description: "Create, edit, publish, close, and delete job postings.",
+  },
+  {
+    key: "applications:view",
+    label: "View applications",
+    category: "Pipeline",
+    description: "See incoming applications and candidate matches.",
+  },
+  {
+    key: "applications:respond",
+    label: "Respond to applications",
+    category: "Pipeline",
+    description: "Move applicants forward, reject, schedule interviews, hire.",
+  },
+  {
+    key: "candidates:view",
+    label: "Search candidates",
+    category: "People",
+    description: "Browse the platform candidate directory.",
+  },
+  {
+    key: "org-profile:edit",
+    label: "Edit company profile",
+    category: "Org",
+    description: "Update company details, logo, and description.",
+  },
+  {
+    key: "analytics:view",
+    label: "View analytics",
+    category: "Insights",
+    description: "Hiring funnel and pipeline analytics for this employer.",
+  },
+  {
+    key: "staff:view",
+    label: "View team",
+    category: "Team",
+    description: "See other team members.",
+  },
+  {
+    key: "staff:manage",
+    label: "Manage team",
+    category: "Team",
+    description: "Invite, remove, and change teammates' roles.",
+  },
+];
+
+// =============================================================
+// INSTITUTION scope
+// =============================================================
+export const INSTITUTION_PERMISSIONS: ReadonlyArray<PermissionDef> = [
+  {
+    key: "students:view",
+    label: "View students",
+    category: "Students",
+    description: "Browse affiliated students and their placement status.",
+  },
+  {
+    key: "students:invite",
+    label: "Invite students",
+    category: "Students",
+    description: "Send invites to add students to this institution.",
+  },
+  {
+    key: "students:verify",
+    label: "Verify attendance",
+    category: "Students",
+    description: "Confirm or revoke a candidate's affiliation with this institution.",
+  },
+  {
+    key: "placements:view",
+    label: "View placements",
+    category: "Insights",
+    description: "Read-only access to placement and hire reports.",
+  },
+  {
+    key: "analytics:view",
+    label: "View analytics",
+    category: "Insights",
+    description: "Outcomes dashboards and partner analytics.",
+  },
+  {
+    key: "org-profile:edit",
+    label: "Edit institution profile",
+    category: "Org",
+    description: "Update institution details, logo, and description.",
+  },
+  {
+    key: "staff:view",
+    label: "View team",
+    category: "Team",
+    description: "See other team members.",
+  },
+  {
+    key: "staff:manage",
+    label: "Manage team",
+    category: "Team",
+    description: "Invite, remove, and change teammates' roles.",
+  },
+];
+
+export const PERMISSIONS_BY_SCOPE: Record<RoleScope, ReadonlyArray<PermissionDef>> = {
+  admin: ADMIN_PERMISSIONS,
+  employer: EMPLOYER_PERMISSIONS,
+  institution: INSTITUTION_PERMISSIONS,
+};
+
+export const PERMISSION_KEYS_BY_SCOPE: Record<RoleScope, Set<string>> = {
+  admin: new Set(ADMIN_PERMISSIONS.map((p) => p.key)),
+  employer: new Set(EMPLOYER_PERMISSIONS.map((p) => p.key)),
+  institution: new Set(INSTITUTION_PERMISSIONS.map((p) => p.key)),
+};
 
 /**
- * System (built-in) roles seeded on first boot. The super_admin role
- * has implicit all-permissions and is special-cased everywhere; the
- * others get sensible defaults that the super-admin may edit later.
+ * System (built-in) roles seeded on first boot. Implicit-all roles:
+ *   admin:super_admin, employer:owner, institution:owner.
+ * The other system roles get sensible defaults that the org owner may
+ * later edit.
  */
-export const SYSTEM_ROLES: ReadonlyArray<{
+type SystemRoleSpec = {
+  scope: RoleScope;
   name: string;
   description: string;
   permissions: ReadonlyArray<string>;
-}> = [
+};
+
+export const SYSTEM_ROLES: ReadonlyArray<SystemRoleSpec> = [
+  // ---- ADMIN ----
   {
+    scope: "admin",
     name: "super_admin",
     description: "Unrestricted access to every part of the platform admin.",
-    permissions: PERMISSIONS.map((p) => p.key),
+    permissions: ADMIN_PERMISSIONS.map((p) => p.key),
   },
   {
+    scope: "admin",
     name: "support",
     description: "Read-only access to help diagnose issues for users.",
     permissions: [
@@ -143,6 +285,7 @@ export const SYSTEM_ROLES: ReadonlyArray<{
     ],
   },
   {
+    scope: "admin",
     name: "account_manager",
     description: "Owns a book of employer/institution accounts and onboards new ones.",
     permissions: [
@@ -154,11 +297,13 @@ export const SYSTEM_ROLES: ReadonlyArray<{
     ],
   },
   {
+    scope: "admin",
     name: "finance",
     description: "Tracks revenue-relevant activity (hires, partner performance).",
     permissions: ["hires:view", "partner-analytics:view"],
   },
   {
+    scope: "admin",
     name: "hr",
     description: "Manages the admin team and candidate-facing operations.",
     permissions: [
@@ -169,6 +314,7 @@ export const SYSTEM_ROLES: ReadonlyArray<{
     ],
   },
   {
+    scope: "admin",
     name: "operations",
     description: "Runs day-to-day onboarding and account ops.",
     permissions: [
@@ -180,31 +326,142 @@ export const SYSTEM_ROLES: ReadonlyArray<{
       "institutions:manage",
     ],
   },
+
+  // ---- EMPLOYER ----
+  {
+    scope: "employer",
+    name: "owner",
+    description: "Full control of the employer account — every permission.",
+    permissions: EMPLOYER_PERMISSIONS.map((p) => p.key),
+  },
+  {
+    scope: "employer",
+    name: "recruiter",
+    description: "Day-to-day hiring: post jobs, respond to applications.",
+    permissions: [
+      "jobs:view",
+      "jobs:manage",
+      "applications:view",
+      "applications:respond",
+      "candidates:view",
+      "analytics:view",
+      "staff:view",
+    ],
+  },
+  {
+    scope: "employer",
+    name: "viewer",
+    description: "Read-only access to jobs, applications, and analytics.",
+    permissions: [
+      "jobs:view",
+      "applications:view",
+      "candidates:view",
+      "analytics:view",
+      "staff:view",
+    ],
+  },
+
+  // ---- INSTITUTION ----
+  {
+    scope: "institution",
+    name: "owner",
+    description: "Full control of the institution account — every permission.",
+    permissions: INSTITUTION_PERMISSIONS.map((p) => p.key),
+  },
+  {
+    scope: "institution",
+    name: "coordinator",
+    description: "Manages students, verifies attendance, sees outcomes.",
+    permissions: [
+      "students:view",
+      "students:invite",
+      "students:verify",
+      "placements:view",
+      "analytics:view",
+      "staff:view",
+    ],
+  },
+  {
+    scope: "institution",
+    name: "viewer",
+    description: "Read-only access to students, placements, and analytics.",
+    permissions: [
+      "students:view",
+      "placements:view",
+      "analytics:view",
+      "staff:view",
+    ],
+  },
 ];
 
 /**
- * True for accounts that should bypass all permission checks. Mirrors
- * `isSuperAdmin` in routes/admin.ts: legacy admins with a null
- * `org_role` are treated as super-admin.
+ * Maps a top-level user role to its permission scope. Returns null
+ * for roles that don't have a permission system (e.g. candidates).
  */
-export function isSuperAdminUser(user: User | null | undefined): boolean {
+export function scopeForUser(user: User | null | undefined): RoleScope | null {
+  if (!user) return null;
+  if (user.role === "admin") return "admin";
+  if (user.role === "employer") return "employer";
+  if (user.role === "institution") return "institution";
+  return null;
+}
+
+/**
+ * True for accounts that should bypass all permission checks within
+ * their scope. admin:super_admin (or null orgRole legacy admins),
+ * employer:owner, institution:owner are all implicit-all.
+ */
+export function isImplicitAllUser(
+  user: User | null | undefined,
+): boolean {
+  if (!user) return false;
+  if (user.role === "admin") {
+    return user.orgRole === "super_admin" || user.orgRole === null;
+  }
+  if (user.role === "employer" || user.role === "institution") {
+    return user.orgRole === "owner";
+  }
+  return false;
+}
+
+// Backwards compat: existing call-sites import isSuperAdminUser.
+export function isSuperAdminUser(
+  user: User | null | undefined,
+): boolean {
   if (!user || user.role !== "admin") return false;
   return user.orgRole === "super_admin" || user.orgRole === null;
 }
 
 /**
- * Returns the set of permission keys the given user effectively has.
- * Non-admins always get an empty set (these permissions are admin-only).
- * Super-admin gets the full catalog. Other admins get whatever rows
- * are in `admin_role_permissions` for the role whose name matches
- * their `org_role`.
+ * Returns the set of permission keys the given user effectively has,
+ * within their own scope. Candidates and roles outside the scope
+ * system always get an empty set. Implicit-all users get the full
+ * catalog for their scope.
+ *
+ * For employer/institution scopes, the lookup is constrained to the
+ * caller's own org id, so two employers may have a same-named "viewer"
+ * role with completely different permission sets.
  */
 export async function getUserPermissions(
   user: User | null | undefined,
 ): Promise<Set<string>> {
-  if (!user || user.role !== "admin") return new Set();
-  if (isSuperAdminUser(user)) return new Set(PERMISSION_KEYS);
+  const scope = scopeForUser(user);
+  if (!user || !scope) return new Set();
+  if (isImplicitAllUser(user)) {
+    return new Set(PERMISSION_KEYS_BY_SCOPE[scope]);
+  }
   if (!user.orgRole) return new Set();
+  const filters = [
+    eq(adminRolesTable.scope, scope),
+    eq(adminRolesTable.name, user.orgRole),
+  ];
+  if (scope === "employer") {
+    if (user.employerId === null) return new Set();
+    filters.push(eq(adminRolesTable.employerId, user.employerId));
+  } else if (scope === "institution") {
+    if (user.institutionId === null) return new Set();
+    filters.push(eq(adminRolesTable.institutionId, user.institutionId));
+  }
   const rows = await db
     .select({ permission: adminRolePermissionsTable.permission })
     .from(adminRolePermissionsTable)
@@ -212,25 +469,29 @@ export async function getUserPermissions(
       adminRolesTable,
       eq(adminRolesTable.id, adminRolePermissionsTable.roleId),
     )
-    .where(eq(adminRolesTable.name, user.orgRole));
+    .where(and(...filters));
   return new Set(rows.map((r) => r.permission));
 }
 
 /**
- * Express middleware factory. Assumes an upstream `requireAdmin` (or
- * equivalent) has already populated `req.currentUser`. Only allows
- * admins whose role grants `permission`; super-admins bypass.
+ * Express middleware factory. Allows a user with `permission` (within
+ * their own scope) through. Implicit-all users bypass. Anyone else
+ * (including signed-out users and candidates) gets 403.
  */
 import type { Request, Response, NextFunction } from "express";
 
 export function requirePermission(permission: string) {
-  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  return async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
     const user = req.currentUser;
-    if (!user || user.role !== "admin") {
-      res.status(403).json({ error: "Admin access required" });
+    if (!user) {
+      res.status(401).json({ error: "Authentication required" });
       return;
     }
-    if (isSuperAdminUser(user)) {
+    if (isImplicitAllUser(user)) {
       next();
       return;
     }
@@ -244,46 +505,109 @@ export function requirePermission(permission: string) {
 }
 
 /**
- * Idempotent seed: ensures every system role exists with its default
- * permissions. Safe to call on every server boot. Does NOT touch
- * non-system roles or wipe permissions on existing system roles whose
- * permissions have been customized.
+ * Insert any missing system roles for one specific org. Used at boot
+ * (per-org backfill) and right after a new employer/institution is
+ * provisioned. Idempotent and safe to call repeatedly.
+ *
+ * `target` describes which org (if any) we're seeding for. Admin
+ * scope has no per-org rows: pass `{ scope: "admin" }`.
  */
-export async function seedSystemRoles(): Promise<void> {
-  for (const role of SYSTEM_ROLES) {
+export async function seedSystemRolesFor(
+  target:
+    | { scope: "admin" }
+    | { scope: "employer"; employerId: number }
+    | { scope: "institution"; institutionId: number },
+): Promise<void> {
+  const systemRoles = SYSTEM_ROLES.filter((r) => r.scope === target.scope);
+  for (const role of systemRoles) {
+    const filters = [
+      eq(adminRolesTable.scope, role.scope),
+      eq(adminRolesTable.name, role.name),
+    ];
+    if (target.scope === "employer") {
+      filters.push(eq(adminRolesTable.employerId, target.employerId));
+    } else if (target.scope === "institution") {
+      filters.push(eq(adminRolesTable.institutionId, target.institutionId));
+    }
     const existing = await db
       .select()
       .from(adminRolesTable)
-      .where(eq(adminRolesTable.name, role.name))
+      .where(and(...filters))
       .limit(1);
-    let roleId: number;
     if (existing.length === 0) {
       const [created] = await db
         .insert(adminRolesTable)
         .values({
+          scope: role.scope,
+          employerId: target.scope === "employer" ? target.employerId : null,
+          institutionId:
+            target.scope === "institution" ? target.institutionId : null,
           name: role.name,
           description: role.description,
           isSystem: true,
         })
         .returning();
-      roleId = created.id;
-      // Newly inserted system role: install the default permissions.
-      await db.insert(adminRolePermissionsTable).values(
-        role.permissions.map((permission) => ({
-          roleId,
-          permission,
-        })),
-      );
-    } else {
-      roleId = existing[0].id;
-      // Make sure isSystem stays true for built-ins even if someone
-      // hand-edited the table.
-      if (!existing[0].isSystem) {
-        await db
-          .update(adminRolesTable)
-          .set({ isSystem: true })
-          .where(eq(adminRolesTable.id, roleId));
+      if (role.permissions.length > 0) {
+        await db.insert(adminRolePermissionsTable).values(
+          role.permissions.map((permission) => ({
+            roleId: created.id,
+            permission,
+          })),
+        );
       }
+    } else if (!existing[0].isSystem) {
+      await db
+        .update(adminRolesTable)
+        .set({ isSystem: true })
+        .where(eq(adminRolesTable.id, existing[0].id));
     }
   }
+}
+
+/**
+ * Boot-time seed: ensures every existing org has its scope's system
+ * roles, and cleans up any legacy rows from a previous schema where
+ * employer/institution roles had no org id. Safe to call on every
+ * server boot.
+ */
+export async function seedSystemRoles(): Promise<void> {
+  // Admin scope: no org id, single set of rows.
+  await seedSystemRolesFor({ scope: "admin" });
+
+  // Backfill per-org system roles for every existing employer/institution.
+  const employers = await db
+    .select({ id: employersTable.id })
+    .from(employersTable);
+  for (const emp of employers) {
+    await seedSystemRolesFor({ scope: "employer", employerId: emp.id });
+  }
+  const institutions = await db
+    .select({ id: institutionsTable.id })
+    .from(institutionsTable);
+  for (const inst of institutions) {
+    await seedSystemRolesFor({
+      scope: "institution",
+      institutionId: inst.id,
+    });
+  }
+
+  // Drop legacy global rows that were written before the org_id columns
+  // existed: any scope='employer'|'institution' row with no org id is
+  // unreachable (and a tenant-isolation hazard) under the new model.
+  await db
+    .delete(adminRolesTable)
+    .where(
+      and(
+        eq(adminRolesTable.scope, "employer"),
+        isNull(adminRolesTable.employerId),
+      ),
+    );
+  await db
+    .delete(adminRolesTable)
+    .where(
+      and(
+        eq(adminRolesTable.scope, "institution"),
+        isNull(adminRolesTable.institutionId),
+      ),
+    );
 }

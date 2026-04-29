@@ -16,6 +16,7 @@ import {
 } from "@workspace/api-zod";
 import { getCandidateIdsForInstitution } from "../lib/candidate-institutions";
 import { requireAdmin, requireAuth } from "../middleware/require-auth";
+import { requirePermission } from "../lib/permissions";
 import { usersTable, notificationsTable } from "@workspace/db";
 
 /**
@@ -424,6 +425,7 @@ function canManageInstitutionStudents(
 router.post(
   "/institutions/:id/students/:candidateId/verify",
   requireAuth,
+  requirePermission("students:verify"),
   async (req, res): Promise<void> => {
     const institutionId = Number(req.params["id"]);
     const candidateId = Number(req.params["candidateId"]);
@@ -468,6 +470,7 @@ router.post(
 router.post(
   "/institutions/:id/students/:candidateId/unverify",
   requireAuth,
+  requirePermission("students:verify"),
   async (req, res): Promise<void> => {
     const institutionId = Number(req.params["id"]);
     const candidateId = Number(req.params["candidateId"]);

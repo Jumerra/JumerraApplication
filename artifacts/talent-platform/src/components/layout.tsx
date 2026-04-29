@@ -43,7 +43,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 
 export function Layout({ children }: { children: React.ReactNode }) {
-  const { role, sessionUser, demoRole, setDemoRole } = useAuth();
+  const { role, sessionUser, demoRole, setDemoRole, hasPermission } = useAuth();
   const [location, navigate] = useLocation();
   const { theme, setTheme } = useTheme();
   const logout = useLogoutUser();
@@ -212,14 +212,27 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   {(sessionUser.role === "employer" || sessionUser.role === "institution") &&
                     sessionUser.orgRole && (
                       <>
-                        <DropdownMenuItem asChild>
-                          <Link
-                            href={`/dashboard/${sessionUser.role}/staff`}
-                            className="gap-2 cursor-pointer"
-                          >
-                            <Users className="w-4 h-4" /> Team
-                          </Link>
-                        </DropdownMenuItem>
+                        {(sessionUser.orgRole === "owner" ||
+                          hasPermission("staff:manage")) && (
+                          <DropdownMenuItem asChild>
+                            <Link
+                              href={`/dashboard/${sessionUser.role}/staff`}
+                              className="gap-2 cursor-pointer"
+                            >
+                              <Users className="w-4 h-4" /> Team
+                            </Link>
+                          </DropdownMenuItem>
+                        )}
+                        {sessionUser.orgRole === "owner" && (
+                          <DropdownMenuItem asChild>
+                            <Link
+                              href={`/dashboard/${sessionUser.role}/roles`}
+                              className="gap-2 cursor-pointer"
+                            >
+                              <ShieldCheck className="w-4 h-4" /> Roles & permissions
+                            </Link>
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuSeparator />
                       </>
                     )}

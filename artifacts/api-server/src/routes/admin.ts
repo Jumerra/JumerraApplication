@@ -1484,8 +1484,16 @@ router.get("/admin/roles", async (req, res) => {
   const roles = await db
     .select()
     .from(adminRolesTable)
+    .where(eq(adminRolesTable.scope, "admin"))
     .orderBy(desc(adminRolesTable.isSystem), adminRolesTable.name);
-  const perms = await db.select().from(adminRolePermissionsTable);
+  const roleIds = roles.map((r) => r.id);
+  const perms =
+    roleIds.length > 0
+      ? await db
+          .select()
+          .from(adminRolePermissionsTable)
+          .where(inArray(adminRolePermissionsTable.roleId, roleIds))
+      : [];
   const counts = await db
     .select({
       orgRole: usersTable.orgRole,
@@ -1595,7 +1603,7 @@ router.patch("/admin/roles/:id", async (req, res) => {
   const [role] = await db
     .select()
     .from(adminRolesTable)
-    .where(eq(adminRolesTable.id, id))
+    .where(and(eq(adminRolesTable.id, id), eq(adminRolesTable.scope, "admin")))
     .limit(1);
   if (!role) {
     res.status(404).json({ error: "Role not found" });
@@ -1653,7 +1661,7 @@ router.delete("/admin/roles/:id", async (req, res) => {
   const [role] = await db
     .select()
     .from(adminRolesTable)
-    .where(eq(adminRolesTable.id, id))
+    .where(and(eq(adminRolesTable.id, id), eq(adminRolesTable.scope, "admin")))
     .limit(1);
   if (!role) {
     res.status(404).json({ error: "Role not found" });

@@ -15,6 +15,7 @@ import {
 } from "@workspace/api-zod";
 import { calculateMatchScore } from "../lib/matching";
 import { requireAuth } from "../middleware/require-auth";
+import { requirePermission } from "../lib/permissions";
 
 const router: IRouter = Router();
 
@@ -171,7 +172,11 @@ router.post("/applications", requireAuth, async (req, res): Promise<void> => {
   res.status(201).json(serialized);
 });
 
-router.patch("/applications/:id", requireAuth, async (req, res): Promise<void> => {
+router.patch(
+  "/applications/:id",
+  requireAuth,
+  requirePermission("applications:respond"),
+  async (req, res): Promise<void> => {
   const user = req.currentUser!;
 
   if (user.role !== "employer" && user.role !== "admin") {

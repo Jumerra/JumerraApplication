@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { and, eq, isNotNull, ne, desc } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, ne, desc } from "drizzle-orm";
 import {
   adminRolesTable,
   employersTable,
@@ -15,32 +15,44 @@ import {
 import { createSetupToken, findUserByEmail } from "../lib/auth";
 import { sendAuthLinkEmail, originFromReq } from "../lib/email";
 
-const router: Router = Router();
-
 /**
- * Allowed orgRole values per top-level role. For admins this is loaded
- * dynamically from `admin_roles` so super-admin can introduce new roles
- * at runtime; for org-scoped roles it's a fixed set.
+ * Validates that `orgRole` is a defined role within the caller's
+ * org. For admins this is global; for employer/institution it must
+ * exist within the specific orgId.
  */
-const STATIC_ROLE_OPTIONS: Record<string, ReadonlyArray<string>> = {
-  employer: ["owner", "recruiter", "viewer"],
-  institution: ["owner", "coordinator", "viewer"],
-};
-
 async function isValidOrgRole(
   topLevelRole: string,
   orgRole: string,
+  orgId: number | null,
 ): Promise<boolean> {
-  if (topLevelRole === "admin") {
-    const [row] = await db
-      .select({ id: adminRolesTable.id })
-      .from(adminRolesTable)
-      .where(eq(adminRolesTable.name, orgRole))
-      .limit(1);
-    return !!row;
+  let scope: "admin" | "employer" | "institution" | null = null;
+  if (topLevelRole === "admin") scope = "admin";
+  else if (topLevelRole === "employer") scope = "employer";
+  else if (topLevelRole === "institution") scope = "institution";
+  if (!scope) return false;
+  const filters = [
+    eq(adminRolesTable.scope, scope),
+    eq(adminRolesTable.name, orgRole),
+  ];
+  if (scope === "employer") {
+    if (orgId === null) return false;
+    filters.push(eq(adminRolesTable.employerId, orgId));
+  } else if (scope === "institution") {
+    if (orgId === null) return false;
+    filters.push(eq(adminRolesTable.institutionId, orgId));
+  } else {
+    filters.push(isNull(adminRolesTable.employerId));
+    filters.push(isNull(adminRolesTable.institutionId));
   }
-  return STATIC_ROLE_OPTIONS[topLevelRole]?.includes(orgRole) ?? false;
+  const [row] = await db
+    .select({ id: adminRolesTable.id })
+    .from(adminRolesTable)
+    .where(and(...filters))
+    .limit(1);
+  return !!row;
 }
+
+const router: Router = Router();
 
 /**
  * Public summary of a staff member used by the team page.
@@ -122,7 +134,13 @@ router.post("/staff/invite", requireOrgOwner, async (req, res) => {
         .json({ error: "email, fullName, and orgRole are required" });
       return;
     }
-    if (!(await isValidOrgRole(me.role, orgRole))) {
+    const meOrgId =
+      me.role === "employer"
+        ? me.employerId
+        : me.role === "institution"
+          ? me.institutionId
+          : null;
+    if (!(await isValidOrgRole(me.role, orgRole, meOrgId))) {
       res.status(400).json({
         error: `Invalid orgRole "${orgRole}" for ${me.role}`,
       });
@@ -333,7 +351,13 @@ router.patch("/staff/:id/role", requireOrgOwner, async (req, res) => {
       }
     }
 
-    if (!(await isValidOrgRole(target.role, orgRole))) {
+    const targetOrgId =
+      target.role === "employer"
+        ? target.employerId
+        : target.role === "institution"
+          ? target.institutionId
+          : null;
+    if (!(await isValidOrgRole(target.role, orgRole, targetOrgId))) {
       res
         .status(400)
         .json({ error: `Invalid orgRole "${orgRole}" for ${target.role}` });

@@ -11,6 +11,7 @@ import authRouter from "./auth";
 import adminRouter from "./admin";
 import siteContentRouter from "./site-content";
 import staffRouter from "./staff";
+import orgRolesRouter from "./org-roles";
 import notificationsRouter from "./notifications";
 import { requireAuth } from "../middleware/require-auth";
 
@@ -26,6 +27,7 @@ router.use(authRouter);
 router.use(adminRouter);
 router.use(siteContentRouter);
 router.use(staffRouter);
+router.use(orgRolesRouter);
 router.use(notificationsRouter);
 router.use(candidatesRouter);
 router.use(employersRouter);

@@ -31,19 +31,6 @@ import {
 
 type RoleOption = { value: string; label: string; desc: string };
 
-const STATIC_ROLE_OPTIONS: Record<string, RoleOption[]> = {
-  employer: [
-    { value: "owner", label: "Owner", desc: "Can invite/remove teammates and manage everything." },
-    { value: "recruiter", label: "Recruiter", desc: "Can post jobs and review applications." },
-    { value: "viewer", label: "Viewer", desc: "Read-only access to dashboards." },
-  ],
-  institution: [
-    { value: "owner", label: "Owner", desc: "Can invite/remove teammates and manage everything." },
-    { value: "coordinator", label: "Coordinator", desc: "Manage students and placements." },
-    { value: "viewer", label: "Viewer", desc: "Read-only access to dashboards." },
-  ],
-};
-
 const STATIC_ROLE_LABELS: Record<string, string> = {
   super_admin: "Super Admin",
   support: "Support",
@@ -90,6 +77,33 @@ export default function StaffPage() {
   const [copied, setCopied] = useState(false);
   const [removing, setRemoving] = useState<number | null>(null);
 
+  // NOTE: All hooks must run unconditionally on every render. The early
+  // "access required" return must come AFTER every hook below.
+  const isSuperAdminUser =
+    sessionUser?.role === "admin" &&
+    (sessionUser.orgRole === "super_admin" || sessionUser.orgRole === null);
+  const isOrgScope =
+    sessionUser?.role === "employer" || sessionUser?.role === "institution";
+
+  const { data: adminRolesData } = useQuery({
+    queryKey: ["admin", "roles", "for-staff-page"],
+    queryFn: async () => {
+      const r = await fetch("/api/admin/roles", { credentials: "include" });
+      if (!r.ok) throw new Error(`${r.status}`);
+      return (await r.json()) as { roles: AdminRoleRow[] };
+    },
+    enabled: isSuperAdminUser,
+  });
+  const { data: orgRolesData } = useQuery({
+    queryKey: ["org-roles", "for-staff-page"],
+    queryFn: async () => {
+      const r = await fetch("/api/org-roles", { credentials: "include" });
+      if (!r.ok) throw new Error(`${r.status}`);
+      return (await r.json()) as { roles: AdminRoleRow[] };
+    },
+    enabled: isOrgScope,
+  });
+
   if (!sessionUser || sessionUser.role === "candidate" || sessionUser.orgRole === null) {
     return (
       <div className="container max-w-md py-16">
@@ -109,21 +123,6 @@ export default function StaffPage() {
   const isOwner =
     sessionUser.orgRole === "owner" || sessionUser.orgRole === "super_admin";
 
-  // Admins see whatever roles are currently defined in admin_roles, so
-  // custom roles created in the role-management page show up here. Org
-  // members keep using the small fixed set.
-  const isSuperAdminUser =
-    sessionUser.role === "admin" &&
-    (sessionUser.orgRole === "super_admin" || sessionUser.orgRole === null);
-  const { data: adminRolesData } = useQuery({
-    queryKey: ["admin", "roles", "for-staff-page"],
-    queryFn: async () => {
-      const r = await fetch("/api/admin/roles", { credentials: "include" });
-      if (!r.ok) throw new Error(`${r.status}`);
-      return (await r.json()) as { roles: AdminRoleRow[] };
-    },
-    enabled: isSuperAdminUser,
-  });
   const roleOptions: RoleOption[] =
     sessionUser.role === "admin"
       ? (adminRolesData?.roles ?? []).map((r) => ({
@@ -131,7 +130,13 @@ export default function StaffPage() {
           label: humanize(r.name),
           desc: r.description ?? "",
         }))
-      : STATIC_ROLE_OPTIONS[sessionUser.role] ?? [];
+      : isOrgScope
+        ? (orgRolesData?.roles ?? []).map((r) => ({
+            value: r.name,
+            label: humanize(r.name),
+            desc: r.description ?? "",
+          }))
+        : [];
 
   function labelForRole(name: string): string {
     return (

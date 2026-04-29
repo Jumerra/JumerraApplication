@@ -4,8 +4,8 @@ import {
   getGetCurrentUserQueryKey,
   useLoginUser,
 } from "@workspace/api-client-react";
-import { Link, useRouter } from "expo-router";
-import React, { useState } from "react";
+import { Link, useLocalSearchParams, useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -26,11 +26,26 @@ export default function SignInScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const params = useLocalSearchParams<{ email?: string }>();
+  const prefillEmail =
+    typeof params.email === "string" && params.email.length > 0
+      ? params.email
+      : null;
 
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(prefillEmail ?? "");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+
+  // Pre-fill the email when arriving from sign-up with a duplicate-email
+  // hand-off.  Only applied while the field is still empty so we never
+  // clobber what the user has started typing.
+  useEffect(() => {
+    if (prefillEmail && email.length === 0) {
+      setEmail(prefillEmail);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefillEmail]);
 
   const login = useLoginUser({
     mutation: {

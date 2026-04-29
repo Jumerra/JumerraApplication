@@ -34,6 +34,15 @@ export default function SignUpScreen() {
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
 
+  const [duplicateEmail, setDuplicateEmail] = useState<string | null>(null);
+
+  const goToSignInWithEmail = (prefill: string) => {
+    router.replace({
+      pathname: "/(auth)/sign-in",
+      params: { email: prefill },
+    });
+  };
+
   const login = useLoginUser({
     mutation: {
       onSuccess: async () => {
@@ -43,8 +52,13 @@ export default function SignUpScreen() {
         router.replace("/(tabs)");
       },
       onError: () => {
-        // Registration succeeded but auto-login failed; bounce to sign-in.
-        router.replace("/(auth)/sign-in");
+        // Registration succeeded server-side but the auto-login failed.
+        // This typically means a network blip — surface a clear explanation
+        // instead of silently bouncing the user back to sign-in.
+        setError(
+          "Your account was created, but we couldn't sign you in automatically. Please tap Sign in below to continue.",
+        );
+        setDuplicateEmail(email.trim());
       },
     },
   });
@@ -57,10 +71,26 @@ export default function SignUpScreen() {
         login.mutate({ data: { email: email.trim(), password } });
       },
       onError: (err: unknown) => {
-        const data = (err as { data?: { error?: string } | null } | null)
-          ?.data;
+        const typed = err as
+          | { status?: number; data?: { error?: string } | null }
+          | null;
+        const status = typed?.status;
+        const serverError = typed?.data?.error;
+
+        if (status === 409) {
+          // Email already in use — offer a one-tap path into sign-in with
+          // the email pre-filled so the user doesn't have to retype it.
+          setDuplicateEmail(email.trim());
+          setError(
+            serverError ??
+              "An account with this email already exists. Please sign in instead.",
+          );
+          return;
+        }
+
+        setDuplicateEmail(null);
         setError(
-          data?.error ??
+          serverError ??
             "We couldn't create your account. Please check your details and try again.",
         );
       },
@@ -189,9 +219,28 @@ export default function SignUpScreen() {
                 size={14}
                 color={colors.destructive}
               />
-              <Text style={[styles.errorText, { color: colors.destructive }]}>
-                {error}
-              </Text>
+              <View style={{ flex: 1, gap: 8 }}>
+                <Text style={[styles.errorText, { color: colors.destructive }]}>
+                  {error}
+                </Text>
+                {duplicateEmail ? (
+                  <Pressable
+                    onPress={() => goToSignInWithEmail(duplicateEmail)}
+                    hitSlop={8}
+                  >
+                    <Text
+                      style={{
+                        color: colors.destructive,
+                        fontFamily: "Inter_600SemiBold",
+                        fontSize: 13,
+                        textDecorationLine: "underline",
+                      }}
+                    >
+                      Sign in instead
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </View>
             </View>
           ) : null}
 

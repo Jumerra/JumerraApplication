@@ -1258,6 +1258,10 @@ export const ListApplicationsStatus = {
   withdrawn: "withdrawn",
 } as const;
 
+export type RegisterUser409 = {
+  error: string;
+};
+
 export type LogoutUser200 = {
   ok: boolean;
 };

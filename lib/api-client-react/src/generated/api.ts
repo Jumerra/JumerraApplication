@@ -80,6 +80,7 @@ import type {
   ProfileUpdateRequest,
   RegisterRequest,
   RegisterResponse,
+  RegisterUser409,
   RegistrationDecisionBody,
   SalaryInsight,
   SetEmployerVerifiedRequest,
@@ -3307,7 +3308,7 @@ export const registerUser = async (
 };
 
 export const getRegisterUserMutationOptions = <
-  TError = ErrorType<void>,
+  TError = ErrorType<void | RegisterUser409>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -3348,10 +3349,10 @@ export type RegisterUserMutationResult = NonNullable<
   Awaited<ReturnType<typeof registerUser>>
 >;
 export type RegisterUserMutationBody = BodyType<RegisterRequest>;
-export type RegisterUserMutationError = ErrorType<void>;
+export type RegisterUserMutationError = ErrorType<void | RegisterUser409>;
 
 export const useRegisterUser = <
-  TError = ErrorType<void>,
+  TError = ErrorType<void | RegisterUser409>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<

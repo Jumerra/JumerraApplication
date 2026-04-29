@@ -121,6 +121,7 @@ export * from "./registerRequest";
 export * from "./registerRequestRole";
 export * from "./registerRequestSubmittedData";
 export * from "./registerResponse";
+export * from "./registerUser409";
 export * from "./registration";
 export * from "./registrationDecisionBody";
 export * from "./registrationSubmittedData";

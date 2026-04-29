@@ -714,6 +714,15 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/RegisterResponse" }
         "400": { description: Invalid input }
+        "409":
+          description: Email already registered (candidate sign-up only)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { type: string }
+                required: [error]
 
   /auth/login:
     post:

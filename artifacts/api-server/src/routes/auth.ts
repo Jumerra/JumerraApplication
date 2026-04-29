@@ -47,10 +47,27 @@ router.post("/auth/register", async (req, res) => {
       return;
     }
     const normalizedEmail = email.toLowerCase().trim();
+    const isCandidate = normalizedRole === "candidate";
     const existing = await findUserByEmail(normalizedEmail);
     if (existing) {
-      // Return the same response as a successful registration to avoid
-      // leaking whether this email address is already in the system.
+      // Candidate sign-up auto-logs the new user in, which means a duplicate
+      // address is already observable to the caller via the failed
+      // post-signup login.  Returning a clear 409 here avoids the broken UX
+      // where the app pretends signup succeeded and then bounces the user
+      // back to sign-in with no explanation.  Employer/institution sign-up
+      // does not auto-login (admin approval is required) so we keep the
+      // silenced anti-enumeration response for those roles.
+      if (isCandidate) {
+        req.log.info(
+          { email: normalizedEmail },
+          "register: duplicate candidate email",
+        );
+        res.status(409).json({
+          error:
+            "An account with this email already exists. Please sign in instead.",
+        });
+        return;
+      }
       req.log.info({ email: normalizedEmail }, "register: duplicate email silenced");
       res.status(201).json({
         message:
@@ -63,7 +80,6 @@ router.post("/auth/register", async (req, res) => {
     // pending_registrations row is created. Their attendance claims
     // are validated later by the institution(s) they listed. Employers
     // and institutions still go through admin review.
-    const isCandidate = normalizedRole === "candidate";
     await db.transaction(async (tx) => {
       const [user] = await tx
         .insert(usersTable)
@@ -112,6 +128,30 @@ router.post("/auth/register", async (req, res) => {
         : "Registration received. An administrator will review your application shortly.",
     });
   } catch (err) {
+    // Postgres unique_violation (23505) from a race past the pre-check.
+    // Map it back to the same role-aware response as the explicit duplicate
+    // path so concurrent registrations don't surface as a generic 500.
+    const code = (err as { code?: string } | null)?.code;
+    if (code === "23505") {
+      const role =
+        typeof req.body?.role === "string"
+          ? req.body.role.toLowerCase()
+          : null;
+      if (role === "candidate") {
+        req.log.info({ err }, "register: duplicate candidate email (race)");
+        res.status(409).json({
+          error:
+            "An account with this email already exists. Please sign in instead.",
+        });
+        return;
+      }
+      req.log.info({ err }, "register: duplicate email silenced (race)");
+      res.status(201).json({
+        message:
+          "Registration received. An administrator will review your application shortly.",
+      });
+      return;
+    }
     req.log.error({ err }, "register failed");
     res.status(500).json({ error: "Registration failed" });
   }

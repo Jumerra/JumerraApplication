@@ -21,21 +21,32 @@ import { sendAuthLinkEmail, originFromReq } from "../lib/email";
 const router: Router = Router();
 
 // Auth endpoints must never be HTTP-cached.  iOS NSURLSession (which
-// React Native fetch uses inside Expo Go on iPhone) caches GET responses
-// by URL and adds `If-None-Match` to subsequent calls.  The first
-// `/auth/me` after app launch returns `{user: null}` (no session yet),
-// gets cached with its ETag, and a *post-login* `/auth/me` then re-uses
-// the same `If-None-Match`.  Express compares it to the freshly-computed
-// ETag for `{user: null}` (the login cookie did not always make the
-// round-trip on the first refetch in time) and replies `304 Not Modified`
-// with no body.  Our shared `customFetch` returns `null` for any 304, so
-// `useAuth` sees no user and `AuthGate` bounces the user straight back
-// to sign-in — they perceive this as "wrong credentials".
+// React Native fetch uses inside Expo Go on iPhone) and browser HTTP
+// caches both store GET responses by URL together with their ETag and
+// will then add `If-None-Match` to subsequent requests.  In practice
+// this means the first `/auth/me` after app launch (when there is no
+// session yet) gets cached as `{user: null}` with ETag-A, and the very
+// next `/auth/me` after sign-in re-uses the same `If-None-Match: ETag-A`.
+// If for any reason the server still computes `{user: null}` for that
+// follow-up request (cookie not attached, cross-site SameSite block,
+// etc.), Express's freshness check matches the new ETag against
+// ETag-A and replies `304 Not Modified` with no body.  Our shared
+// `customFetch` returns `null` for any 304, so `useAuth` then sees no
+// user and `AuthGate` bounces the candidate straight back to sign-in
+// — they perceive this as "wrong credentials" even though their login
+// actually succeeded.
 //
-// `Cache-Control: no-store` instructs every well-behaved client to skip
-// caching entirely, which means no `If-None-Match` is ever sent and the
-// server always returns a fresh 200 with the correct session-aware body.
-router.use((_req, res, next) => {
+// We defend in two layers:
+//   1. Strip `If-None-Match`/`If-Modified-Since` from incoming auth
+//      requests so Express's freshness check can never short-circuit
+//      to 304, even when a stale client cache (from before this fix
+//      was deployed) keeps echoing an old validator.
+//   2. Tell every well-behaved future client not to cache at all via
+//      `Cache-Control: no-store` (+ legacy `Pragma`/`Expires` for
+//      ancient HTTP/1.0 intermediaries).
+router.use((req, res, next) => {
+  delete req.headers["if-none-match"];
+  delete req.headers["if-modified-since"];
   res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
   res.set("Pragma", "no-cache");
   res.set("Expires", "0");

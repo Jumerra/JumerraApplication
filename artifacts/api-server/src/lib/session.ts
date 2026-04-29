@@ -17,6 +17,26 @@ export function buildSessionMiddleware(): RequestHandler {
     createTableIfMissing: false,
   });
 
+  // The mobile app's Expo web preview is served from REPLIT_EXPO_DEV_DOMAIN
+  // while the API is served from REPLIT_DEV_DOMAIN — those are different
+  // hosts, so requests from the mobile preview to /api/* are cross-site
+  // from the browser's perspective.  Modern browsers refuse to send
+  // SameSite=Lax cookies on cross-site sub-requests, which means after a
+  // successful POST /auth/login the session cookie was set but never
+  // re-attached to the immediate GET /auth/me, so AuthGate saw no user
+  // and bounced the candidate back to sign-in.  Switching to
+  // `SameSite=None; Secure` makes the session cookie work in cross-site
+  // contexts (the Replit dev/prod proxy already serves everything over
+  // HTTPS, so `Secure=true` is safe in development too).  iOS/Android
+  // native fetch in Expo Go also benefits because SameSite is irrelevant
+  // there but it relies on the cookie being explicitly stored, and
+  // having a consistent attribute set avoids surprises.
+  const cookieSecureOverride = process.env.SESSION_COOKIE_SECURE;
+  const secure =
+    cookieSecureOverride !== undefined
+      ? cookieSecureOverride === "true"
+      : true;
+
   return session({
     store,
     secret,
@@ -26,11 +46,11 @@ export function buildSessionMiddleware(): RequestHandler {
     rolling: true,
     cookie: {
       httpOnly: true,
-      sameSite: "lax",
-      // Auto-enable in production behind HTTPS; allow opt-out via env.
-      secure: process.env.SESSION_COOKIE_SECURE
-        ? process.env.SESSION_COOKIE_SECURE === "true"
-        : process.env.NODE_ENV === "production",
+      // SameSite=None is required for cross-site cookies; per spec it
+      // also REQUIRES Secure=true.  Both are kept aligned via the
+      // `secure` value above.
+      sameSite: "none",
+      secure,
       maxAge: 7 * 24 * 60 * 60 * 1000,
     },
   });

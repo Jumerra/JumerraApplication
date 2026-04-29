@@ -31,23 +31,29 @@ import type {
   AssignAccountManagerRequest,
   AssignAccountManagerResponse,
   AuthSession,
+  BoostSettings,
   Candidate,
+  CandidateCvResponse,
   CandidateDashboard,
   CandidateDetail,
   CandidateMatch,
   ChangePasswordRequest,
   CreateApplication,
+  CreateBoostCheckoutRequest,
+  CreateBoostCheckoutResponse,
   CreateCandidate,
   CreateEmployer,
   CreateInstitution,
   CreateInstitutionDepartment,
   CreateInstitutionFacility,
   CreateJob,
+  CvSettings,
   Employer,
   EmployerAnalyticsResponse,
   EmployerDashboard,
   EmployerDetail,
   ForgotPasswordRequest,
+  GenerateCvRequest,
   HealthStatus,
   HiresAnalyticsResponse,
   Institution,
@@ -92,7 +98,9 @@ import type {
   StaffListResponse,
   StaffMemberResponse,
   UpdateApplication,
+  UpdateBoostSettingsRequest,
   UpdateCandidate,
+  UpdateCvSettingsRequest,
   UpdateInstitutionDepartment,
   UpdateInstitutionFacility,
   UpdateInstitutionRequest,
@@ -100,6 +108,9 @@ import type {
   UpdateStaffRoleRequest,
   UploadUrlRequest,
   UploadUrlResponse,
+  VerifyBoostCheckoutRequest,
+  VerifyBoostCheckoutResponse,
+  VerifyCvCheckoutResponse,
   VerifyStudentResponse,
 } from "./api.schemas";
 
@@ -5983,6 +5994,854 @@ export const useUpdateSiteContent = <
   TContext
 > => {
   return useMutation(getUpdateSiteContentMutationOptions(options));
+};
+
+/**
+ * @summary Read the global Profile Boost configuration
+ */
+export const getGetBoostSettingsUrl = () => {
+  return `/api/boost/settings`;
+};
+
+export const getBoostSettings = async (
+  options?: RequestInit,
+): Promise<BoostSettings> => {
+  return customFetch<BoostSettings>(getGetBoostSettingsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetBoostSettingsQueryKey = () => {
+  return [`/api/boost/settings`] as const;
+};
+
+export const getGetBoostSettingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getBoostSettings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getBoostSettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetBoostSettingsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getBoostSettings>>
+  > = ({ signal }) => getBoostSettings({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getBoostSettings>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetBoostSettingsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getBoostSettings>>
+>;
+export type GetBoostSettingsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Read the global Profile Boost configuration
+ */
+
+export function useGetBoostSettings<
+  TData = Awaited<ReturnType<typeof getBoostSettings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getBoostSettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetBoostSettingsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update Profile Boost configuration (admin only)
+ */
+export const getUpdateBoostSettingsUrl = () => {
+  return `/api/admin/boost/settings`;
+};
+
+export const updateBoostSettings = async (
+  updateBoostSettingsRequest: UpdateBoostSettingsRequest,
+  options?: RequestInit,
+): Promise<BoostSettings> => {
+  return customFetch<BoostSettings>(getUpdateBoostSettingsUrl(), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateBoostSettingsRequest),
+  });
+};
+
+export const getUpdateBoostSettingsMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateBoostSettings>>,
+    TError,
+    { data: BodyType<UpdateBoostSettingsRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateBoostSettings>>,
+  TError,
+  { data: BodyType<UpdateBoostSettingsRequest> },
+  TContext
+> => {
+  const mutationKey = ["updateBoostSettings"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateBoostSettings>>,
+    { data: BodyType<UpdateBoostSettingsRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateBoostSettings(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateBoostSettingsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateBoostSettings>>
+>;
+export type UpdateBoostSettingsMutationBody =
+  BodyType<UpdateBoostSettingsRequest>;
+export type UpdateBoostSettingsMutationError = ErrorType<void>;
+
+/**
+ * @summary Update Profile Boost configuration (admin only)
+ */
+export const useUpdateBoostSettings = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateBoostSettings>>,
+    TError,
+    { data: BodyType<UpdateBoostSettingsRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateBoostSettings>>,
+  TError,
+  { data: BodyType<UpdateBoostSettingsRequest> },
+  TContext
+> => {
+  return useMutation(getUpdateBoostSettingsMutationOptions(options));
+};
+
+/**
+ * @summary Create a Stripe Checkout Session to boost this candidate
+ */
+export const getCreateBoostCheckoutUrl = (id: number) => {
+  return `/api/candidates/${id}/boost/checkout`;
+};
+
+export const createBoostCheckout = async (
+  id: number,
+  createBoostCheckoutRequest?: CreateBoostCheckoutRequest,
+  options?: RequestInit,
+): Promise<CreateBoostCheckoutResponse> => {
+  return customFetch<CreateBoostCheckoutResponse>(
+    getCreateBoostCheckoutUrl(id),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(createBoostCheckoutRequest),
+    },
+  );
+};
+
+export const getCreateBoostCheckoutMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createBoostCheckout>>,
+    TError,
+    { id: number; data: BodyType<CreateBoostCheckoutRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createBoostCheckout>>,
+  TError,
+  { id: number; data: BodyType<CreateBoostCheckoutRequest> },
+  TContext
+> => {
+  const mutationKey = ["createBoostCheckout"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createBoostCheckout>>,
+    { id: number; data: BodyType<CreateBoostCheckoutRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return createBoostCheckout(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateBoostCheckoutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createBoostCheckout>>
+>;
+export type CreateBoostCheckoutMutationBody =
+  BodyType<CreateBoostCheckoutRequest>;
+export type CreateBoostCheckoutMutationError = ErrorType<void>;
+
+/**
+ * @summary Create a Stripe Checkout Session to boost this candidate
+ */
+export const useCreateBoostCheckout = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createBoostCheckout>>,
+    TError,
+    { id: number; data: BodyType<CreateBoostCheckoutRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createBoostCheckout>>,
+  TError,
+  { id: number; data: BodyType<CreateBoostCheckoutRequest> },
+  TContext
+> => {
+  return useMutation(getCreateBoostCheckoutMutationOptions(options));
+};
+
+/**
+ * @summary Verify a Stripe Checkout Session and apply the boost on success
+ */
+export const getVerifyBoostCheckoutUrl = () => {
+  return `/api/boost/checkout/verify`;
+};
+
+export const verifyBoostCheckout = async (
+  verifyBoostCheckoutRequest: VerifyBoostCheckoutRequest,
+  options?: RequestInit,
+): Promise<VerifyBoostCheckoutResponse> => {
+  return customFetch<VerifyBoostCheckoutResponse>(getVerifyBoostCheckoutUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(verifyBoostCheckoutRequest),
+  });
+};
+
+export const getVerifyBoostCheckoutMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof verifyBoostCheckout>>,
+    TError,
+    { data: BodyType<VerifyBoostCheckoutRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof verifyBoostCheckout>>,
+  TError,
+  { data: BodyType<VerifyBoostCheckoutRequest> },
+  TContext
+> => {
+  const mutationKey = ["verifyBoostCheckout"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof verifyBoostCheckout>>,
+    { data: BodyType<VerifyBoostCheckoutRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return verifyBoostCheckout(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type VerifyBoostCheckoutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof verifyBoostCheckout>>
+>;
+export type VerifyBoostCheckoutMutationBody =
+  BodyType<VerifyBoostCheckoutRequest>;
+export type VerifyBoostCheckoutMutationError = ErrorType<void>;
+
+/**
+ * @summary Verify a Stripe Checkout Session and apply the boost on success
+ */
+export const useVerifyBoostCheckout = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof verifyBoostCheckout>>,
+    TError,
+    { data: BodyType<VerifyBoostCheckoutRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof verifyBoostCheckout>>,
+  TError,
+  { data: BodyType<VerifyBoostCheckoutRequest> },
+  TContext
+> => {
+  return useMutation(getVerifyBoostCheckoutMutationOptions(options));
+};
+
+/**
+ * @summary Read the global AI CV Builder configuration
+ */
+export const getGetCvSettingsUrl = () => {
+  return `/api/cv/settings`;
+};
+
+export const getCvSettings = async (
+  options?: RequestInit,
+): Promise<CvSettings> => {
+  return customFetch<CvSettings>(getGetCvSettingsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetCvSettingsQueryKey = () => {
+  return [`/api/cv/settings`] as const;
+};
+
+export const getGetCvSettingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCvSettings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getCvSettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetCvSettingsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getCvSettings>>> = ({
+    signal,
+  }) => getCvSettings({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCvSettings>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetCvSettingsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCvSettings>>
+>;
+export type GetCvSettingsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Read the global AI CV Builder configuration
+ */
+
+export function useGetCvSettings<
+  TData = Awaited<ReturnType<typeof getCvSettings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getCvSettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetCvSettingsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update AI CV Builder configuration (admin only)
+ */
+export const getUpdateCvSettingsUrl = () => {
+  return `/api/admin/cv/settings`;
+};
+
+export const updateCvSettings = async (
+  updateCvSettingsRequest: UpdateCvSettingsRequest,
+  options?: RequestInit,
+): Promise<CvSettings> => {
+  return customFetch<CvSettings>(getUpdateCvSettingsUrl(), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateCvSettingsRequest),
+  });
+};
+
+export const getUpdateCvSettingsMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateCvSettings>>,
+    TError,
+    { data: BodyType<UpdateCvSettingsRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateCvSettings>>,
+  TError,
+  { data: BodyType<UpdateCvSettingsRequest> },
+  TContext
+> => {
+  const mutationKey = ["updateCvSettings"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateCvSettings>>,
+    { data: BodyType<UpdateCvSettingsRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateCvSettings(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateCvSettingsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateCvSettings>>
+>;
+export type UpdateCvSettingsMutationBody = BodyType<UpdateCvSettingsRequest>;
+export type UpdateCvSettingsMutationError = ErrorType<void>;
+
+/**
+ * @summary Update AI CV Builder configuration (admin only)
+ */
+export const useUpdateCvSettings = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateCvSettings>>,
+    TError,
+    { data: BodyType<UpdateCvSettingsRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateCvSettings>>,
+  TError,
+  { data: BodyType<UpdateCvSettingsRequest> },
+  TContext
+> => {
+  return useMutation(getUpdateCvSettingsMutationOptions(options));
+};
+
+/**
+ * @summary Create a Stripe Checkout Session to unlock the AI CV Builder
+ */
+export const getCreateCvCheckoutUrl = (id: number) => {
+  return `/api/candidates/${id}/cv/checkout`;
+};
+
+export const createCvCheckout = async (
+  id: number,
+  createBoostCheckoutRequest: CreateBoostCheckoutRequest,
+  options?: RequestInit,
+): Promise<CreateBoostCheckoutResponse> => {
+  return customFetch<CreateBoostCheckoutResponse>(getCreateCvCheckoutUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createBoostCheckoutRequest),
+  });
+};
+
+export const getCreateCvCheckoutMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createCvCheckout>>,
+    TError,
+    { id: number; data: BodyType<CreateBoostCheckoutRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createCvCheckout>>,
+  TError,
+  { id: number; data: BodyType<CreateBoostCheckoutRequest> },
+  TContext
+> => {
+  const mutationKey = ["createCvCheckout"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createCvCheckout>>,
+    { id: number; data: BodyType<CreateBoostCheckoutRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return createCvCheckout(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateCvCheckoutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createCvCheckout>>
+>;
+export type CreateCvCheckoutMutationBody = BodyType<CreateBoostCheckoutRequest>;
+export type CreateCvCheckoutMutationError = ErrorType<void>;
+
+/**
+ * @summary Create a Stripe Checkout Session to unlock the AI CV Builder
+ */
+export const useCreateCvCheckout = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createCvCheckout>>,
+    TError,
+    { id: number; data: BodyType<CreateBoostCheckoutRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createCvCheckout>>,
+  TError,
+  { id: number; data: BodyType<CreateBoostCheckoutRequest> },
+  TContext
+> => {
+  return useMutation(getCreateCvCheckoutMutationOptions(options));
+};
+
+/**
+ * @summary Verify a Stripe Checkout Session and unlock the AI CV Builder
+ */
+export const getVerifyCvCheckoutUrl = () => {
+  return `/api/cv/checkout/verify`;
+};
+
+export const verifyCvCheckout = async (
+  verifyBoostCheckoutRequest: VerifyBoostCheckoutRequest,
+  options?: RequestInit,
+): Promise<VerifyCvCheckoutResponse> => {
+  return customFetch<VerifyCvCheckoutResponse>(getVerifyCvCheckoutUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(verifyBoostCheckoutRequest),
+  });
+};
+
+export const getVerifyCvCheckoutMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof verifyCvCheckout>>,
+    TError,
+    { data: BodyType<VerifyBoostCheckoutRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof verifyCvCheckout>>,
+  TError,
+  { data: BodyType<VerifyBoostCheckoutRequest> },
+  TContext
+> => {
+  const mutationKey = ["verifyCvCheckout"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof verifyCvCheckout>>,
+    { data: BodyType<VerifyBoostCheckoutRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return verifyCvCheckout(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type VerifyCvCheckoutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof verifyCvCheckout>>
+>;
+export type VerifyCvCheckoutMutationBody = BodyType<VerifyBoostCheckoutRequest>;
+export type VerifyCvCheckoutMutationError = ErrorType<void>;
+
+/**
+ * @summary Verify a Stripe Checkout Session and unlock the AI CV Builder
+ */
+export const useVerifyCvCheckout = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof verifyCvCheckout>>,
+    TError,
+    { data: BodyType<VerifyBoostCheckoutRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof verifyCvCheckout>>,
+  TError,
+  { data: BodyType<VerifyBoostCheckoutRequest> },
+  TContext
+> => {
+  return useMutation(getVerifyCvCheckoutMutationOptions(options));
+};
+
+/**
+ * @summary Read the latest AI-generated CV for this candidate
+ */
+export const getGetCandidateCvUrl = (id: number) => {
+  return `/api/candidates/${id}/cv`;
+};
+
+export const getCandidateCv = async (
+  id: number,
+  options?: RequestInit,
+): Promise<CandidateCvResponse> => {
+  return customFetch<CandidateCvResponse>(getGetCandidateCvUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetCandidateCvQueryKey = (id: number) => {
+  return [`/api/candidates/${id}/cv`] as const;
+};
+
+export const getGetCandidateCvQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCandidateCv>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCandidateCv>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetCandidateCvQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getCandidateCv>>> = ({
+    signal,
+  }) => getCandidateCv(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCandidateCv>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetCandidateCvQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCandidateCv>>
+>;
+export type GetCandidateCvQueryError = ErrorType<void>;
+
+/**
+ * @summary Read the latest AI-generated CV for this candidate
+ */
+
+export function useGetCandidateCv<
+  TData = Awaited<ReturnType<typeof getCandidateCv>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCandidateCv>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetCandidateCvQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Generate a new AI CV for this candidate (requires unlock)
+ */
+export const getGenerateCandidateCvUrl = (id: number) => {
+  return `/api/candidates/${id}/cv/generate`;
+};
+
+export const generateCandidateCv = async (
+  id: number,
+  generateCvRequest?: GenerateCvRequest,
+  options?: RequestInit,
+): Promise<CandidateCvResponse> => {
+  return customFetch<CandidateCvResponse>(getGenerateCandidateCvUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(generateCvRequest),
+  });
+};
+
+export const getGenerateCandidateCvMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof generateCandidateCv>>,
+    TError,
+    { id: number; data: BodyType<GenerateCvRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof generateCandidateCv>>,
+  TError,
+  { id: number; data: BodyType<GenerateCvRequest> },
+  TContext
+> => {
+  const mutationKey = ["generateCandidateCv"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof generateCandidateCv>>,
+    { id: number; data: BodyType<GenerateCvRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return generateCandidateCv(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type GenerateCandidateCvMutationResult = NonNullable<
+  Awaited<ReturnType<typeof generateCandidateCv>>
+>;
+export type GenerateCandidateCvMutationBody = BodyType<GenerateCvRequest>;
+export type GenerateCandidateCvMutationError = ErrorType<void>;
+
+/**
+ * @summary Generate a new AI CV for this candidate (requires unlock)
+ */
+export const useGenerateCandidateCv = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof generateCandidateCv>>,
+    TError,
+    { id: number; data: BodyType<GenerateCvRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof generateCandidateCv>>,
+  TError,
+  { id: number; data: BodyType<GenerateCvRequest> },
+  TContext
+> => {
+  return useMutation(getGenerateCandidateCvMutationOptions(options));
 };
 
 /**

@@ -40,6 +40,10 @@ export const ListCandidatesResponseItem = zod.object({
   yearsExperience: zod.number(),
   talentScore: zod.number(),
   isBoosted: zod.boolean(),
+  boostExpiresAt: zod.coerce
+    .date()
+    .nullish()
+    .describe("When the active boost expires. Null when not boosted."),
   institutionId: zod.number().nullish(),
   institutionName: zod.string().nullish(),
   institutions: zod
@@ -113,6 +117,10 @@ export const GetCandidateResponse = zod
     yearsExperience: zod.number(),
     talentScore: zod.number(),
     isBoosted: zod.boolean(),
+    boostExpiresAt: zod.coerce
+      .date()
+      .nullish()
+      .describe("When the active boost expires. Null when not boosted."),
     institutionId: zod.number().nullish(),
     institutionName: zod.string().nullish(),
     institutions: zod
@@ -292,6 +300,10 @@ export const UpdateCandidateResponse = zod
     yearsExperience: zod.number(),
     talentScore: zod.number(),
     isBoosted: zod.boolean(),
+    boostExpiresAt: zod.coerce
+      .date()
+      .nullish()
+      .describe("When the active boost expires. Null when not boosted."),
     institutionId: zod.number().nullish(),
     institutionName: zod.string().nullish(),
     institutions: zod
@@ -2212,6 +2224,196 @@ export const UpdateSiteContentBody = zod.object({
 
 export const UpdateSiteContentResponse = zod.object({
   ok: zod.boolean(),
+});
+
+/**
+ * @summary Read the global Profile Boost configuration
+ */
+export const getBoostSettingsResponsePriceCentsMin = 50;
+export const getBoostSettingsResponsePriceCentsMax = 1000000;
+
+export const GetBoostSettingsResponse = zod.object({
+  isActive: zod.boolean(),
+  priceCents: zod
+    .number()
+    .min(getBoostSettingsResponsePriceCentsMin)
+    .max(getBoostSettingsResponsePriceCentsMax),
+  currency: zod.string().describe("ISO 4217 lowercase, e.g. 'usd'"),
+  durationDays: zod.number().min(1),
+});
+
+/**
+ * @summary Update Profile Boost configuration (admin only)
+ */
+export const updateBoostSettingsBodyPriceCentsMin = 50;
+export const updateBoostSettingsBodyPriceCentsMax = 1000000;
+
+export const UpdateBoostSettingsBody = zod.object({
+  isActive: zod.boolean(),
+  priceCents: zod
+    .number()
+    .min(updateBoostSettingsBodyPriceCentsMin)
+    .max(updateBoostSettingsBodyPriceCentsMax),
+  currency: zod.string(),
+  durationDays: zod.number().min(1),
+});
+
+export const updateBoostSettingsResponsePriceCentsMin = 50;
+export const updateBoostSettingsResponsePriceCentsMax = 1000000;
+
+export const UpdateBoostSettingsResponse = zod.object({
+  isActive: zod.boolean(),
+  priceCents: zod
+    .number()
+    .min(updateBoostSettingsResponsePriceCentsMin)
+    .max(updateBoostSettingsResponsePriceCentsMax),
+  currency: zod.string().describe("ISO 4217 lowercase, e.g. 'usd'"),
+  durationDays: zod.number().min(1),
+});
+
+/**
+ * @summary Create a Stripe Checkout Session to boost this candidate
+ */
+export const CreateBoostCheckoutParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const CreateBoostCheckoutBody = zod.object({
+  successUrl: zod
+    .string()
+    .describe(
+      "Absolute URL the candidate is sent to after a successful\npayment. The string `{CHECKOUT_SESSION_ID}` is replaced with\nthe real Stripe session id by Stripe.\n",
+    ),
+  cancelUrl: zod
+    .string()
+    .describe("Absolute URL the candidate is sent to if they cancel."),
+});
+
+export const CreateBoostCheckoutResponse = zod.object({
+  sessionId: zod.string(),
+  checkoutUrl: zod.string(),
+});
+
+/**
+ * @summary Verify a Stripe Checkout Session and apply the boost on success
+ */
+export const VerifyBoostCheckoutBody = zod.object({
+  sessionId: zod.string(),
+});
+
+export const VerifyBoostCheckoutResponse = zod.object({
+  status: zod.enum(["paid", "pending", "failed", "expired"]),
+  boostExpiresAt: zod.coerce.date().nullable(),
+});
+
+/**
+ * @summary Read the global AI CV Builder configuration
+ */
+export const getCvSettingsResponsePriceCentsMin = 50;
+export const getCvSettingsResponsePriceCentsMax = 1000000;
+
+export const GetCvSettingsResponse = zod.object({
+  isActive: zod.boolean(),
+  priceCents: zod
+    .number()
+    .min(getCvSettingsResponsePriceCentsMin)
+    .max(getCvSettingsResponsePriceCentsMax),
+  currency: zod.string(),
+});
+
+/**
+ * @summary Update AI CV Builder configuration (admin only)
+ */
+export const updateCvSettingsBodyPriceCentsMin = 50;
+export const updateCvSettingsBodyPriceCentsMax = 1000000;
+
+export const UpdateCvSettingsBody = zod.object({
+  isActive: zod.boolean(),
+  priceCents: zod
+    .number()
+    .min(updateCvSettingsBodyPriceCentsMin)
+    .max(updateCvSettingsBodyPriceCentsMax),
+  currency: zod.string(),
+});
+
+export const updateCvSettingsResponsePriceCentsMin = 50;
+export const updateCvSettingsResponsePriceCentsMax = 1000000;
+
+export const UpdateCvSettingsResponse = zod.object({
+  isActive: zod.boolean(),
+  priceCents: zod
+    .number()
+    .min(updateCvSettingsResponsePriceCentsMin)
+    .max(updateCvSettingsResponsePriceCentsMax),
+  currency: zod.string(),
+});
+
+/**
+ * @summary Create a Stripe Checkout Session to unlock the AI CV Builder
+ */
+export const CreateCvCheckoutParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const CreateCvCheckoutBody = zod.object({
+  successUrl: zod
+    .string()
+    .describe(
+      "Absolute URL the candidate is sent to after a successful\npayment. The string `{CHECKOUT_SESSION_ID}` is replaced with\nthe real Stripe session id by Stripe.\n",
+    ),
+  cancelUrl: zod
+    .string()
+    .describe("Absolute URL the candidate is sent to if they cancel."),
+});
+
+export const CreateCvCheckoutResponse = zod.object({
+  sessionId: zod.string(),
+  checkoutUrl: zod.string(),
+});
+
+/**
+ * @summary Verify a Stripe Checkout Session and unlock the AI CV Builder
+ */
+export const VerifyCvCheckoutBody = zod.object({
+  sessionId: zod.string(),
+});
+
+export const VerifyCvCheckoutResponse = zod.object({
+  status: zod.enum(["paid", "pending", "failed", "expired"]),
+  unlocked: zod.boolean(),
+});
+
+/**
+ * @summary Read the latest AI-generated CV for this candidate
+ */
+export const GetCandidateCvParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetCandidateCvResponse = zod.object({
+  unlocked: zod.boolean(),
+  cvText: zod.string().nullable(),
+  generatedAt: zod.coerce.date().nullable(),
+});
+
+/**
+ * @summary Generate a new AI CV for this candidate (requires unlock)
+ */
+export const GenerateCandidateCvParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GenerateCandidateCvBody = zod.object({
+  focus: zod
+    .string()
+    .nullish()
+    .describe('Optional free-text guidance, e.g. \"target SRE roles\".'),
+});
+
+export const GenerateCandidateCvResponse = zod.object({
+  unlocked: zod.boolean(),
+  cvText: zod.string().nullable(),
+  generatedAt: zod.coerce.date().nullable(),
 });
 
 /**

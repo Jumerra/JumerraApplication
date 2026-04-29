@@ -8,3 +8,5 @@ export * from "./auth";
 export * from "./site";
 export * from "./admin-roles";
 export * from "./notifications";
+export * from "./boost";
+export * from "./cv";

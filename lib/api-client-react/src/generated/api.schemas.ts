@@ -409,6 +409,8 @@ export interface Candidate {
   yearsExperience: number;
   talentScore: number;
   isBoosted: boolean;
+  /** When the active boost expires. Null when not boosted. */
+  boostExpiresAt?: string | null;
   institutionId?: number | null;
   institutionName?: string | null;
   /** All institutions this candidate is affiliated with (primary first). */
@@ -1080,6 +1082,111 @@ export interface SiteContentItem {
 
 export interface SiteContentResponse {
   items: SiteContentItem[];
+}
+
+export interface BoostSettings {
+  isActive: boolean;
+  /**
+   * @minimum 50
+   * @maximum 1000000
+   */
+  priceCents: number;
+  /** ISO 4217 lowercase, e.g. 'usd' */
+  currency: string;
+  /** @minimum 1 */
+  durationDays: number;
+}
+
+export interface UpdateBoostSettingsRequest {
+  isActive: boolean;
+  /**
+   * @minimum 50
+   * @maximum 1000000
+   */
+  priceCents: number;
+  currency: string;
+  /** @minimum 1 */
+  durationDays: number;
+}
+
+export interface CreateBoostCheckoutRequest {
+  /** Absolute URL the candidate is sent to after a successful
+payment. The string `{CHECKOUT_SESSION_ID}` is replaced with
+the real Stripe session id by Stripe.
+ */
+  successUrl: string;
+  /** Absolute URL the candidate is sent to if they cancel. */
+  cancelUrl: string;
+}
+
+export interface CreateBoostCheckoutResponse {
+  sessionId: string;
+  checkoutUrl: string;
+}
+
+export interface VerifyBoostCheckoutRequest {
+  sessionId: string;
+}
+
+export type VerifyBoostCheckoutResponseStatus =
+  (typeof VerifyBoostCheckoutResponseStatus)[keyof typeof VerifyBoostCheckoutResponseStatus];
+
+export const VerifyBoostCheckoutResponseStatus = {
+  paid: "paid",
+  pending: "pending",
+  failed: "failed",
+  expired: "expired",
+} as const;
+
+export interface VerifyBoostCheckoutResponse {
+  status: VerifyBoostCheckoutResponseStatus;
+  boostExpiresAt: string | null;
+}
+
+export interface CvSettings {
+  isActive: boolean;
+  /**
+   * @minimum 50
+   * @maximum 1000000
+   */
+  priceCents: number;
+  currency: string;
+}
+
+export interface UpdateCvSettingsRequest {
+  isActive: boolean;
+  /**
+   * @minimum 50
+   * @maximum 1000000
+   */
+  priceCents: number;
+  currency: string;
+}
+
+export type VerifyCvCheckoutResponseStatus =
+  (typeof VerifyCvCheckoutResponseStatus)[keyof typeof VerifyCvCheckoutResponseStatus];
+
+export const VerifyCvCheckoutResponseStatus = {
+  paid: "paid",
+  pending: "pending",
+  failed: "failed",
+  expired: "expired",
+} as const;
+
+export interface VerifyCvCheckoutResponse {
+  status: VerifyCvCheckoutResponseStatus;
+  unlocked: boolean;
+}
+
+export interface GenerateCvRequest {
+  /** Optional free-text guidance, e.g. "target SRE roles". */
+  focus?: string | null;
+}
+
+export interface CandidateCvResponse {
+  unlocked: boolean;
+  cvText: string | null;
+  generatedAt: string | null;
 }
 
 export type UpdateSiteContentRequestItemsItemType =

@@ -8,6 +8,7 @@ import {
   index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { institutionDepartmentsTable } from "./institutions";
 
 /**
@@ -52,7 +53,7 @@ export const usersTable = pgTable(
      * org-wide rather than orphaning them.
      */
     assignedDepartmentId: integer("assigned_department_id").references(
-      () => institutionDepartmentsTable.id,
+      (): AnyPgColumn => institutionDepartmentsTable.id,
       { onDelete: "set null" },
     ),
     /**

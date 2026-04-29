@@ -51,6 +51,7 @@ function serializeCandidate(
     yearsExperience: c.yearsExperience,
     talentScore: c.talentScore,
     isBoosted: c.isBoosted,
+    boostExpiresAt: c.boostExpiresAt ? c.boostExpiresAt.toISOString() : null,
     institutionId: primary?.id ?? c.institutionId ?? null,
     institutionName: primary?.name ?? null,
     institutions: institutions.map((i) => ({

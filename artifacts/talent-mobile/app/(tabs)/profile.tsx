@@ -1,8 +1,22 @@
 import { Feather } from "@expo/vector-icons";
 import {
   getGetCandidateQueryKey,
+  getGetBoostSettingsQueryKey,
+  getGetCvSettingsQueryKey,
+  getGetCandidateCvQueryKey,
   useGetCandidate,
+  useGetBoostSettings,
+  useGetCvSettings,
+  useGetCandidateCv,
+  useCreateBoostCheckout,
+  useVerifyBoostCheckout,
+  useCreateCvCheckout,
+  useVerifyCvCheckout,
+  useGenerateCandidateCv,
 } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import * as WebBrowser from "expo-web-browser";
+import * as Linking from "expo-linking";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import React from "react";
@@ -343,6 +357,8 @@ export default function ProfileScreen() {
       {candidate.education && candidate.education.length > 0 ? (
         <EducationSection entries={candidate.education} />
       ) : null}
+
+      <PremiumSection candidateId={candidateId} />
 
       <SignOutButton onPress={onSignOut} pending={signOutPending} />
     </ScrollView>
@@ -749,4 +765,465 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_600SemiBold",
     fontSize: 14,
   },
+});
+
+function formatPriceMobile(cents: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: currency.toUpperCase(),
+    }).format(cents / 100);
+  } catch {
+    return `${(cents / 100).toFixed(2)} ${currency.toUpperCase()}`;
+  }
+}
+
+function getReturnUrl(suffix: string): string {
+  if (Platform.OS === "web") {
+    return `${window.location.origin}${suffix}?session_id={CHECKOUT_SESSION_ID}`;
+  }
+  // Native: use a deep link back into the app. session_id is appended as a
+  // literal placeholder; we parse it out of the WebBrowser result instead.
+  return Linking.createURL(suffix.replace(/^\//, ""), {
+    queryParams: { session_id: "{CHECKOUT_SESSION_ID}" },
+  });
+}
+
+function PremiumSection({ candidateId }: { candidateId: number }) {
+  const colors = useColors();
+  const queryClient = useQueryClient();
+  const { data: boostSettings } = useGetBoostSettings();
+  const { data: cvSettings } = useGetCvSettings();
+  const { data: cv, refetch: refetchCv } = useGetCandidateCv(candidateId, {
+    query: {
+      enabled: candidateId > 0,
+      queryKey: getGetCandidateCvQueryKey(candidateId),
+    },
+  });
+  const { data: candidateData, refetch: refetchCandidate } = useGetCandidate(
+    candidateId,
+    {
+      query: {
+        enabled: candidateId > 0,
+        queryKey: getGetCandidateQueryKey(candidateId),
+      },
+    },
+  );
+
+  const createBoostCheckout = useCreateBoostCheckout();
+  const verifyBoost = useVerifyBoostCheckout();
+  const createCvCheckout = useCreateCvCheckout();
+  const verifyCv = useVerifyCvCheckout();
+  const generate = useGenerateCandidateCv();
+
+  const [busy, setBusy] = React.useState<"boost" | "cv" | "generate" | null>(
+    null,
+  );
+
+  const boostExpiresAt = candidateData?.boostExpiresAt
+    ? new Date(candidateData.boostExpiresAt)
+    : null;
+  const isBoosted = !!boostExpiresAt && boostExpiresAt.getTime() > Date.now();
+
+  const showBoost = boostSettings?.isActive || isBoosted;
+  const showCv = cvSettings?.isActive || cv?.unlocked;
+  if (!showBoost && !showCv) return null;
+
+  const refreshAll = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: getGetCandidateQueryKey(candidateId),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: getGetBoostSettingsQueryKey(),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: getGetCvSettingsQueryKey(),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: getGetCandidateCvQueryKey(candidateId),
+      }),
+    ]);
+    await Promise.all([refetchCv(), refetchCandidate()]);
+  };
+
+  const runCheckout = async (
+    kind: "boost" | "cv",
+    createUrl: () => Promise<{ checkoutUrl: string; sessionId: string }>,
+    verify: (sessionId: string) => Promise<void>,
+  ) => {
+    setBusy(kind);
+    try {
+      const { checkoutUrl, sessionId } = await createUrl();
+      if (Platform.OS === "web") {
+        window.location.href = checkoutUrl;
+        return;
+      }
+      const result = await WebBrowser.openAuthSessionAsync(
+        checkoutUrl,
+        Linking.createURL(""),
+      );
+      if (result.type !== "success") {
+        // User cancelled or browser dismissed; nothing to verify yet.
+        return;
+      }
+      // Stripe substitutes session_id in the success URL with the real one;
+      // try to read it from the redirect, otherwise fall back to the id we
+      // got from the create call.
+      let sid = sessionId;
+      try {
+        const parsed = Linking.parse(result.url);
+        const fromUrl = parsed.queryParams?.session_id;
+        if (typeof fromUrl === "string" && fromUrl.length > 0) sid = fromUrl;
+      } catch {
+        // fall through with the original sessionId
+      }
+      await verify(sid);
+      await refreshAll();
+    } catch (err) {
+      Alert.alert(
+        "Checkout failed",
+        err instanceof Error ? err.message : "Please try again.",
+      );
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const onBoost = () =>
+    runCheckout(
+      "boost",
+      async () =>
+        createBoostCheckout.mutateAsync({
+          id: candidateId,
+          data: {
+            successUrl: getReturnUrl("/boost/return"),
+            cancelUrl:
+              Platform.OS === "web"
+                ? `${window.location.origin}/dashboard/candidate`
+                : Linking.createURL(""),
+          },
+        }),
+      async (sid) => {
+        await verifyBoost.mutateAsync({ data: { sessionId: sid } });
+      },
+    );
+
+  const onUnlockCv = () =>
+    runCheckout(
+      "cv",
+      async () =>
+        createCvCheckout.mutateAsync({
+          id: candidateId,
+          data: {
+            successUrl: getReturnUrl("/cv/return"),
+            cancelUrl:
+              Platform.OS === "web"
+                ? `${window.location.origin}/dashboard/candidate`
+                : Linking.createURL(""),
+          },
+        }),
+      async (sid) => {
+        await verifyCv.mutateAsync({ data: { sessionId: sid } });
+      },
+    );
+
+  const onGenerate = async () => {
+    setBusy("generate");
+    try {
+      await generate.mutateAsync({ id: candidateId, data: { focus: null } });
+      await refreshAll();
+    } catch (err) {
+      Alert.alert(
+        "Couldn't generate CV",
+        err instanceof Error ? err.message : "Please try again.",
+      );
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <View style={premiumStyles.section}>
+      <Text style={[premiumStyles.sectionTitle, { color: colors.foreground }]}>
+        Premium
+      </Text>
+
+      {showBoost ? (
+        <View
+          style={[
+            premiumStyles.card,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              borderRadius: colors.radius * 1.5,
+            },
+          ]}
+        >
+          <View style={premiumStyles.row}>
+            <View
+              style={[
+                premiumStyles.iconWrap,
+                { backgroundColor: colors.primary + "1A" },
+              ]}
+            >
+              <Feather name="zap" size={20} color={colors.primary} />
+            </View>
+            <View style={premiumStyles.body}>
+              <Text
+                style={[premiumStyles.title, { color: colors.foreground }]}
+              >
+                Profile Boost
+              </Text>
+              {isBoosted && boostExpiresAt ? (
+                <Text
+                  style={[
+                    premiumStyles.subtitle,
+                    { color: colors.mutedForeground },
+                  ]}
+                >
+                  Active until {boostExpiresAt.toLocaleDateString()}
+                </Text>
+              ) : boostSettings ? (
+                <Text
+                  style={[
+                    premiumStyles.subtitle,
+                    { color: colors.mutedForeground },
+                  ]}
+                >
+                  Stand out for {boostSettings.durationDays} days for {" "}
+                  {formatPriceMobile(
+                    boostSettings.priceCents,
+                    boostSettings.currency,
+                  )}
+                  .
+                </Text>
+              ) : null}
+            </View>
+          </View>
+          {!isBoosted && boostSettings?.isActive ? (
+            <Pressable
+              onPress={onBoost}
+              disabled={busy !== null}
+              style={({ pressed }) => [
+                premiumStyles.cta,
+                {
+                  backgroundColor: colors.primary,
+                  borderRadius: colors.radius,
+                  opacity: pressed || busy ? 0.85 : 1,
+                },
+              ]}
+              accessibilityLabel="Boost profile"
+            >
+              {busy === "boost" ? (
+                <ActivityIndicator color={colors.primaryForeground} />
+              ) : (
+                <>
+                  <Feather
+                    name="zap"
+                    size={14}
+                    color={colors.primaryForeground}
+                  />
+                  <Text
+                    style={[
+                      premiumStyles.ctaText,
+                      { color: colors.primaryForeground },
+                    ]}
+                  >
+                    Boost now
+                  </Text>
+                </>
+              )}
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+
+      {showCv ? (
+        <View
+          style={[
+            premiumStyles.card,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              borderRadius: colors.radius * 1.5,
+            },
+          ]}
+        >
+          <View style={premiumStyles.row}>
+            <View
+              style={[
+                premiumStyles.iconWrap,
+                { backgroundColor: colors.primary + "1A" },
+              ]}
+            >
+              <Feather name="file-text" size={20} color={colors.primary} />
+            </View>
+            <View style={premiumStyles.body}>
+              <Text
+                style={[premiumStyles.title, { color: colors.foreground }]}
+              >
+                AI CV Builder
+              </Text>
+              {cv?.unlocked ? (
+                <Text
+                  style={[
+                    premiumStyles.subtitle,
+                    { color: colors.mutedForeground },
+                  ]}
+                >
+                  {cv.cvText
+                    ? `Last generated ${cv.generatedAt ? new Date(cv.generatedAt).toLocaleDateString() : "recently"}.`
+                    : "Tap generate to create your CV from your profile."}
+                </Text>
+              ) : cvSettings ? (
+                <Text
+                  style={[
+                    premiumStyles.subtitle,
+                    { color: colors.mutedForeground },
+                  ]}
+                >
+                  One-time unlock for {" "}
+                  {formatPriceMobile(
+                    cvSettings.priceCents,
+                    cvSettings.currency,
+                  )}
+                  . Generate as many CVs as you like.
+                </Text>
+              ) : null}
+            </View>
+          </View>
+
+          {cv?.unlocked ? (
+            <>
+              <Pressable
+                onPress={onGenerate}
+                disabled={busy !== null}
+                style={({ pressed }) => [
+                  premiumStyles.cta,
+                  {
+                    backgroundColor: colors.primary,
+                    borderRadius: colors.radius,
+                    opacity: pressed || busy ? 0.85 : 1,
+                  },
+                ]}
+                accessibilityLabel="Generate CV"
+              >
+                {busy === "generate" ? (
+                  <ActivityIndicator color={colors.primaryForeground} />
+                ) : (
+                  <>
+                    <Feather
+                      name="refresh-cw"
+                      size={14}
+                      color={colors.primaryForeground}
+                    />
+                    <Text
+                      style={[
+                        premiumStyles.ctaText,
+                        { color: colors.primaryForeground },
+                      ]}
+                    >
+                      {cv.cvText ? "Regenerate" : "Generate CV"}
+                    </Text>
+                  </>
+                )}
+              </Pressable>
+              {cv.cvText ? (
+                <View
+                  style={[
+                    premiumStyles.cvBox,
+                    {
+                      backgroundColor: colors.secondary,
+                      borderColor: colors.border,
+                      borderRadius: colors.radius,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      premiumStyles.cvText,
+                      { color: colors.secondaryForeground },
+                    ]}
+                  >
+                    {cv.cvText}
+                  </Text>
+                </View>
+              ) : null}
+            </>
+          ) : cvSettings?.isActive ? (
+            <Pressable
+              onPress={onUnlockCv}
+              disabled={busy !== null}
+              style={({ pressed }) => [
+                premiumStyles.cta,
+                {
+                  backgroundColor: colors.primary,
+                  borderRadius: colors.radius,
+                  opacity: pressed || busy ? 0.85 : 1,
+                },
+              ]}
+              accessibilityLabel="Unlock AI CV builder"
+            >
+              {busy === "cv" ? (
+                <ActivityIndicator color={colors.primaryForeground} />
+              ) : (
+                <>
+                  <Feather
+                    name="unlock"
+                    size={14}
+                    color={colors.primaryForeground}
+                  />
+                  <Text
+                    style={[
+                      premiumStyles.ctaText,
+                      { color: colors.primaryForeground },
+                    ]}
+                  >
+                    Unlock now
+                  </Text>
+                </>
+              )}
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+const premiumStyles = StyleSheet.create({
+  section: { gap: 12 },
+  sectionTitle: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 14,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  card: {
+    borderWidth: 1,
+    padding: 16,
+    gap: 14,
+  },
+  row: { flexDirection: "row", gap: 12 },
+  iconWrap: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 10,
+  },
+  body: { flex: 1, gap: 4 },
+  title: { fontFamily: "Inter_600SemiBold", fontSize: 16 },
+  subtitle: { fontFamily: "Inter_400Regular", fontSize: 13, lineHeight: 18 },
+  cta: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 12,
+  },
+  ctaText: { fontFamily: "Inter_600SemiBold", fontSize: 14 },
+  cvBox: { borderWidth: 1, padding: 12, maxHeight: 320 },
+  cvText: { fontFamily: "Inter_400Regular", fontSize: 12, lineHeight: 18 },
 });

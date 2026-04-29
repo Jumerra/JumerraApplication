@@ -25,6 +25,11 @@ export const candidatesTable = pgTable("candidates", {
   yearsExperience: integer("years_experience").notNull().default(0),
   talentScore: integer("talent_score").notNull().default(50),
   isBoosted: boolean("is_boosted").notNull().default(false),
+  boostExpiresAt: timestamp("boost_expires_at", { withTimezone: true }),
+  aiCvUnlocked: boolean("ai_cv_unlocked").notNull().default(false),
+  aiCvUnlockedAt: timestamp("ai_cv_unlocked_at", { withTimezone: true }),
+  aiCvText: text("ai_cv_text"),
+  aiCvGeneratedAt: timestamp("ai_cv_generated_at", { withTimezone: true }),
   // Primary institution affiliation (back-compat). All affiliations
   // (primary + others) live in candidate_institutions for full coverage.
   institutionId: integer("institution_id"),

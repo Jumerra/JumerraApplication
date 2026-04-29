@@ -23,6 +23,8 @@ export interface Candidate {
   yearsExperience: number;
   talentScore: number;
   isBoosted: boolean;
+  /** When the active boost expires. Null when not boosted. */
+  boostExpiresAt?: Date | null;
   institutionId?: number | null;
   institutionName?: string | null;
   /** All institutions this candidate is affiliated with (primary first). */

@@ -28,6 +28,11 @@ import AdminDashboard from "@/pages/dashboard/admin";
 import AdminRegistrationsPage from "@/pages/dashboard/admin/registrations";
 import AdminOnboardPage from "@/pages/dashboard/admin/onboard";
 import AdminSiteContentPage from "@/pages/dashboard/admin/site-content";
+import AdminBoostSettingsPage from "@/pages/dashboard/admin/boost-settings";
+import AdminCvSettingsPage from "@/pages/dashboard/admin/cv-settings";
+import BoostReturnPage from "@/pages/boost/return";
+import CvReturnPage from "@/pages/cv/return";
+import CvBuilderPage from "@/pages/cv/builder";
 import AdminAccountManagersPage from "@/pages/dashboard/admin/account-managers";
 import AdminCandidatesPage from "@/pages/dashboard/admin/candidates";
 import AdminEmployersPage from "@/pages/dashboard/admin/employers";
@@ -104,6 +109,15 @@ function Router() {
         <Route path="/dashboard/admin/site-content">
           <AdminLayout><AdminSiteContentPage /></AdminLayout>
         </Route>
+        <Route path="/dashboard/admin/boost-settings">
+          <AdminLayout><AdminBoostSettingsPage /></AdminLayout>
+        </Route>
+        <Route path="/dashboard/admin/cv-settings">
+          <AdminLayout><AdminCvSettingsPage /></AdminLayout>
+        </Route>
+        <Route path="/boost/return" component={BoostReturnPage} />
+        <Route path="/cv/return" component={CvReturnPage} />
+        <Route path="/cv/builder" component={CvBuilderPage} />
         <Route path="/dashboard/admin/staff">
           <AdminLayout><StaffPage /></AdminLayout>
         </Route>

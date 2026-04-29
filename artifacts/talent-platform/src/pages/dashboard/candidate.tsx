@@ -7,6 +7,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Briefcase, CheckCircle2, Clock, MailOpen, TrendingUp, Sparkles, Star } from "lucide-react";
 import { Link } from "wouter";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import { BoostCard } from "@/components/boost-card";
+import { CvCard } from "@/components/cv-card";
 
 export default function CandidateDashboard() {
   const { userId } = useAuth();
@@ -93,6 +95,11 @@ export default function CandidateDashboard() {
             </div>
           </CardContent>
         </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <BoostCard candidateId={id} />
+        <CvCard candidateId={id} />
       </div>
 
       <div className="grid lg:grid-cols-3 gap-8">

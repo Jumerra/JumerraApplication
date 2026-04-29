@@ -14,6 +14,8 @@ import staffRouter from "./staff";
 import orgRolesRouter from "./org-roles";
 import notificationsRouter from "./notifications";
 import storageRouter from "./storage";
+import boostRouter from "./boost";
+import cvRouter from "./cv";
 import { requireAuth } from "../middleware/require-auth";
 
 const router: IRouter = Router();
@@ -31,6 +33,8 @@ router.use(staffRouter);
 router.use(orgRolesRouter);
 router.use(notificationsRouter);
 router.use(storageRouter);
+router.use(boostRouter);
+router.use(cvRouter);
 router.use(candidatesRouter);
 router.use(employersRouter);
 router.use(institutionsRouter);

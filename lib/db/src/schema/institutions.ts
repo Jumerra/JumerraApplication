@@ -7,6 +7,7 @@ import {
   index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { usersTable } from "./auth";
 
 export const institutionsTable = pgTable(
@@ -26,7 +27,7 @@ export const institutionsTable = pgTable(
      * ON DELETE SET NULL.
      */
     accountManagerId: integer("account_manager_id").references(
-      () => usersTable.id,
+      (): AnyPgColumn => usersTable.id,
       { onDelete: "set null" },
     ),
     createdAt: timestamp("created_at", { withTimezone: true })

@@ -30,6 +30,10 @@ tags:
     description: Admin-only operations
   - name: storage
     description: Object storage upload helpers
+  - name: boost
+    description: Paid Profile Boost configuration and checkout
+  - name: cv
+    description: Premium AI CV Builder configuration, checkout, and generation
 paths:
   /healthz:
     get:
@@ -1348,6 +1352,200 @@ paths:
         "400": { description: Invalid input }
         "403": { description: Admin only }
 
+  /boost/settings:
+    get:
+      operationId: getBoostSettings
+      tags: [boost]
+      summary: Read the global Profile Boost configuration
+      responses:
+        "200":
+          description: Boost settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BoostSettings" }
+
+  /admin/boost/settings:
+    put:
+      operationId: updateBoostSettings
+      tags: [boost, admin]
+      summary: Update Profile Boost configuration (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateBoostSettingsRequest" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BoostSettings" }
+        "400": { description: Invalid input }
+        "403": { description: Admin only }
+
+  /candidates/{id}/boost/checkout:
+    post:
+      operationId: createBoostCheckout
+      tags: [boost, candidates]
+      summary: Create a Stripe Checkout Session to boost this candidate
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateBoostCheckoutRequest" }
+      responses:
+        "200":
+          description: Checkout session created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CreateBoostCheckoutResponse" }
+        "400": { description: Boost is currently disabled or invalid input }
+        "403": { description: Not allowed }
+        "404": { description: Candidate not found }
+
+  /boost/checkout/verify:
+    post:
+      operationId: verifyBoostCheckout
+      tags: [boost]
+      summary: Verify a Stripe Checkout Session and apply the boost on success
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VerifyBoostCheckoutRequest" }
+      responses:
+        "200":
+          description: Verification result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VerifyBoostCheckoutResponse" }
+        "400": { description: Invalid input }
+        "404": { description: Session not found }
+
+  /cv/settings:
+    get:
+      operationId: getCvSettings
+      tags: [cv]
+      summary: Read the global AI CV Builder configuration
+      responses:
+        "200":
+          description: CV settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CvSettings" }
+
+  /admin/cv/settings:
+    put:
+      operationId: updateCvSettings
+      tags: [cv, admin]
+      summary: Update AI CV Builder configuration (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateCvSettingsRequest" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CvSettings" }
+        "400": { description: Invalid input }
+        "403": { description: Admin only }
+
+  /candidates/{id}/cv/checkout:
+    post:
+      operationId: createCvCheckout
+      tags: [cv, candidates]
+      summary: Create a Stripe Checkout Session to unlock the AI CV Builder
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateBoostCheckoutRequest" }
+      responses:
+        "200":
+          description: Checkout session created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CreateBoostCheckoutResponse" }
+        "400": { description: Feature disabled or invalid input }
+        "403": { description: Not allowed }
+        "404": { description: Candidate not found }
+
+  /cv/checkout/verify:
+    post:
+      operationId: verifyCvCheckout
+      tags: [cv]
+      summary: Verify a Stripe Checkout Session and unlock the AI CV Builder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VerifyBoostCheckoutRequest" }
+      responses:
+        "200":
+          description: Verification result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VerifyCvCheckoutResponse" }
+        "400": { description: Invalid input }
+        "404": { description: Session not found }
+
+  /candidates/{id}/cv:
+    get:
+      operationId: getCandidateCv
+      tags: [cv, candidates]
+      summary: Read the latest AI-generated CV for this candidate
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: CV state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CandidateCvResponse" }
+        "403": { description: Not allowed }
+        "404": { description: Candidate not found }
+
+  /candidates/{id}/cv/generate:
+    post:
+      operationId: generateCandidateCv
+      tags: [cv, candidates]
+      summary: Generate a new AI CV for this candidate (requires unlock)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/GenerateCvRequest" }
+      responses:
+        "200":
+          description: Generated CV
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CandidateCvResponse" }
+        "402": { description: AI CV Builder not unlocked }
+        "403": { description: Not allowed }
+        "404": { description: Candidate not found }
+
   /staff:
     get:
       operationId: listStaff
@@ -1821,6 +2019,11 @@ components:
         yearsExperience: { type: integer }
         talentScore: { type: integer }
         isBoosted: { type: boolean }
+        boostExpiresAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the active boost expires. Null when not boosted.
         institutionId: { type: integer, nullable: true }
         institutionName: { type: string, nullable: true }
         institutions:
@@ -2702,6 +2905,109 @@ components:
           type: array
           items: { $ref: "#/components/schemas/SiteContentItem" }
       required: [items]
+
+    BoostSettings:
+      type: object
+      properties:
+        isActive: { type: boolean }
+        priceCents: { type: integer, minimum: 50, maximum: 1000000 }
+        currency: { type: string, description: "ISO 4217 lowercase, e.g. 'usd'" }
+        durationDays: { type: integer, minimum: 1 }
+      required: [isActive, priceCents, currency, durationDays]
+
+    UpdateBoostSettingsRequest:
+      type: object
+      properties:
+        isActive: { type: boolean }
+        priceCents: { type: integer, minimum: 50, maximum: 1000000 }
+        currency: { type: string }
+        durationDays: { type: integer, minimum: 1 }
+      required: [isActive, priceCents, currency, durationDays]
+
+    CreateBoostCheckoutRequest:
+      type: object
+      properties:
+        successUrl:
+          type: string
+          description: |
+            Absolute URL the candidate is sent to after a successful
+            payment. The string `{CHECKOUT_SESSION_ID}` is replaced with
+            the real Stripe session id by Stripe.
+        cancelUrl:
+          type: string
+          description: Absolute URL the candidate is sent to if they cancel.
+      required: [successUrl, cancelUrl]
+
+    CreateBoostCheckoutResponse:
+      type: object
+      properties:
+        sessionId: { type: string }
+        checkoutUrl: { type: string }
+      required: [sessionId, checkoutUrl]
+
+    VerifyBoostCheckoutRequest:
+      type: object
+      properties:
+        sessionId: { type: string }
+      required: [sessionId]
+
+    VerifyBoostCheckoutResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [paid, pending, failed, expired]
+        boostExpiresAt:
+          type: string
+          format: date-time
+          nullable: true
+      required: [status, boostExpiresAt]
+
+    CvSettings:
+      type: object
+      properties:
+        isActive: { type: boolean }
+        priceCents: { type: integer, minimum: 50, maximum: 1000000 }
+        currency: { type: string }
+      required: [isActive, priceCents, currency]
+
+    UpdateCvSettingsRequest:
+      type: object
+      properties:
+        isActive: { type: boolean }
+        priceCents: { type: integer, minimum: 50, maximum: 1000000 }
+        currency: { type: string }
+      required: [isActive, priceCents, currency]
+
+    VerifyCvCheckoutResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [paid, pending, failed, expired]
+        unlocked: { type: boolean }
+      required: [status, unlocked]
+
+    GenerateCvRequest:
+      type: object
+      properties:
+        focus:
+          type: string
+          nullable: true
+          description: Optional free-text guidance, e.g. "target SRE roles".
+
+    CandidateCvResponse:
+      type: object
+      properties:
+        unlocked: { type: boolean }
+        cvText:
+          type: string
+          nullable: true
+        generatedAt:
+          type: string
+          format: date-time
+          nullable: true
+      required: [unlocked, cvText, generatedAt]
 
     UpdateSiteContentRequest:
       type: object

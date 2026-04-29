@@ -14,7 +14,7 @@ import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Users, GraduationCap, Building2, Banknote, Briefcase, Link2, ShieldCheck, ShieldAlert, Loader2, BookOpen, Building, Pencil, ArrowRight } from "lucide-react";
 import { Link } from "wouter";
-import { institutionKindLabel } from "@/lib/institution-kinds";
+import { institutionKindLabel, academicUnitTerms } from "@/lib/institution-kinds";
 import {
   useGetInstitution,
   useListMyInstitutionDepartments,
@@ -59,6 +59,7 @@ export default function InstitutionDashboard() {
       enabled: sessionUser?.role === "institution",
     },
   });
+  const academicTerms = academicUnitTerms(institution?.type);
   const queryClient = useQueryClient();
 
   // Only institution owners/coordinators (and platform admins) can change
@@ -142,7 +143,7 @@ export default function InstitutionDashboard() {
                     <BookOpen className="w-5 h-5" />
                   </div>
                   <div>
-                    <p className="font-semibold">Departments</p>
+                    <p className="font-semibold">{academicTerms.plural}</p>
                     <p className="text-sm text-muted-foreground">
                       {departments.length} listed
                       {isOwner ? " · manage" : ""}

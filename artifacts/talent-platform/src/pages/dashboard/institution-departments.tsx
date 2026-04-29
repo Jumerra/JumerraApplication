@@ -7,9 +7,12 @@ import {
   useCreateMyInstitutionDepartment,
   useUpdateMyInstitutionDepartment,
   useDeleteMyInstitutionDepartment,
+  useGetInstitution,
   getListMyInstitutionDepartmentsQueryKey,
+  getGetInstitutionQueryKey,
   type InstitutionDepartment,
 } from "@workspace/api-client-react";
+import { academicUnitTerms } from "@/lib/institution-kinds";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -85,6 +88,20 @@ export default function InstitutionDepartmentsPage() {
       },
     });
 
+  // Pull the institution so we know which kind it is. SHS schools see
+  // the same data renamed to "Programs" with SHS-friendly field labels.
+  const institutionId =
+    sessionUser?.role === "institution" ? sessionUser.institutionId : null;
+  const { data: institution } = useGetInstitution(institutionId ?? 0, {
+    query: {
+      queryKey: getGetInstitutionQueryKey(institutionId ?? 0),
+      enabled: institutionId != null,
+    },
+  });
+  const terms = academicUnitTerms(institution?.type);
+  const singularLower = terms.singular.toLowerCase();
+  const pluralLower = terms.plural.toLowerCase();
+
   const [editTarget, setEditTarget] = useState<InstitutionDepartment | null>(
     null,
   );
@@ -101,13 +118,13 @@ export default function InstitutionDepartmentsPage() {
   const create = useCreateMyInstitutionDepartment({
     mutation: {
       onSuccess: () => {
-        toast.success("Department created");
+        toast.success(`${terms.singular} created`);
         invalidate();
         setCreateOpen(false);
         setForm(EMPTY_FORM);
       },
       onError: (err) =>
-        toast.error("Could not create department", {
+        toast.error(`Could not create ${singularLower}`, {
           description: err instanceof Error ? err.message : undefined,
         }),
     },
@@ -116,12 +133,12 @@ export default function InstitutionDepartmentsPage() {
   const update = useUpdateMyInstitutionDepartment({
     mutation: {
       onSuccess: () => {
-        toast.success("Department updated");
+        toast.success(`${terms.singular} updated`);
         invalidate();
         setEditTarget(null);
       },
       onError: (err) =>
-        toast.error("Could not update department", {
+        toast.error(`Could not update ${singularLower}`, {
           description: err instanceof Error ? err.message : undefined,
         }),
     },
@@ -130,11 +147,11 @@ export default function InstitutionDepartmentsPage() {
   const remove = useDeleteMyInstitutionDepartment({
     mutation: {
       onSuccess: () => {
-        toast.success("Department removed");
+        toast.success(`${terms.singular} removed`);
         invalidate();
         setDeleteTarget(null);
       },
-      onError: () => toast.error("Could not delete department"),
+      onError: () => toast.error(`Could not delete ${singularLower}`),
     },
   });
 
@@ -207,24 +224,23 @@ export default function InstitutionDepartmentsPage() {
             <BookOpen className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Departments</h1>
-            <p className="text-muted-foreground">
-              Academic departments and programmes offered by your institution.
-            </p>
+            <h1 className="text-3xl font-bold tracking-tight">{terms.plural}</h1>
+            <p className="text-muted-foreground">{terms.hint}</p>
           </div>
         </div>
         {isOwner ? (
           <Button onClick={openCreate} className="gap-2">
-            <Plus className="w-4 h-4" /> Add department
+            <Plus className="w-4 h-4" /> Add {singularLower}
           </Button>
         ) : null}
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>All departments</CardTitle>
+          <CardTitle>All {pluralLower}</CardTitle>
           <CardDescription>
-            {departments.length} department{departments.length === 1 ? "" : "s"}
+            {departments.length}{" "}
+            {departments.length === 1 ? singularLower : pluralLower}
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
@@ -232,8 +248,8 @@ export default function InstitutionDepartmentsPage() {
             <TableHeader>
               <TableRow>
                 <TableHead className="pl-6">Name</TableHead>
-                <TableHead>Code</TableHead>
-                <TableHead>Head</TableHead>
+                <TableHead>{terms.codeLabel}</TableHead>
+                <TableHead>{terms.headLabel}</TableHead>
                 <TableHead className="hidden md:table-cell">Description</TableHead>
                 {isOwner ? (
                   <TableHead className="pr-6 text-right">Actions</TableHead>
@@ -247,7 +263,7 @@ export default function InstitutionDepartmentsPage() {
                     colSpan={isOwner ? 5 : 4}
                     className="text-center py-8 text-muted-foreground"
                   >
-                    Loading departments…
+                    Loading {pluralLower}…
                   </TableCell>
                 </TableRow>
               ) : departments.length === 0 ? (
@@ -256,8 +272,10 @@ export default function InstitutionDepartmentsPage() {
                     colSpan={isOwner ? 5 : 4}
                     className="text-center py-12 text-muted-foreground"
                   >
-                    No departments yet.
-                    {isOwner ? " Click \"Add department\" to create one." : ""}
+                    No {pluralLower} yet.
+                    {isOwner
+                      ? ` Click "Add ${singularLower}" to create one.`
+                      : ""}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -309,13 +327,13 @@ export default function InstitutionDepartmentsPage() {
         <DialogContent>
           <form onSubmit={handleCreateSubmit}>
             <DialogHeader>
-              <DialogTitle>Add department</DialogTitle>
+              <DialogTitle>Add {singularLower}</DialogTitle>
               <DialogDescription>
-                Create a new department. Names must be unique within your
+                Create a new {singularLower}. Names must be unique within your
                 institution.
               </DialogDescription>
             </DialogHeader>
-            <DepartmentFormFields form={form} setForm={setForm} />
+            <DepartmentFormFields form={form} setForm={setForm} terms={terms} />
             <DialogFooter>
               <Button
                 type="button"
@@ -345,12 +363,12 @@ export default function InstitutionDepartmentsPage() {
         <DialogContent>
           <form onSubmit={handleUpdateSubmit}>
             <DialogHeader>
-              <DialogTitle>Edit department</DialogTitle>
+              <DialogTitle>Edit {singularLower}</DialogTitle>
               <DialogDescription>
-                Update the department details.
+                Update the {singularLower} details.
               </DialogDescription>
             </DialogHeader>
-            <DepartmentFormFields form={form} setForm={setForm} />
+            <DepartmentFormFields form={form} setForm={setForm} terms={terms} />
             <DialogFooter>
               <Button
                 type="button"
@@ -379,7 +397,7 @@ export default function InstitutionDepartmentsPage() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete department?</AlertDialogTitle>
+            <AlertDialogTitle>Delete {singularLower}?</AlertDialogTitle>
             <AlertDialogDescription>
               This will remove "{deleteTarget?.name}" from your institution.
               This action cannot be undone.
@@ -413,10 +431,13 @@ export default function InstitutionDepartmentsPage() {
 function DepartmentFormFields({
   form,
   setForm,
+  terms,
 }: {
   form: FormState;
   setForm: React.Dispatch<React.SetStateAction<FormState>>;
+  terms: ReturnType<typeof academicUnitTerms>;
 }) {
+  const isProgram = terms.singular === "Program";
   return (
     <div className="grid gap-4 py-4">
       <div className="grid gap-2">
@@ -427,22 +448,22 @@ function DepartmentFormFields({
           onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
           required
           maxLength={200}
-          placeholder="Computer Science"
+          placeholder={isProgram ? "General Science" : "Computer Science"}
         />
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
         <div className="grid gap-2">
-          <Label htmlFor="dept-code">Code (optional)</Label>
+          <Label htmlFor="dept-code">{terms.codeLabel} (optional)</Label>
           <Input
             id="dept-code"
             value={form.code}
             onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
             maxLength={30}
-            placeholder="CS"
+            placeholder={isProgram ? "SCI" : "CS"}
           />
         </div>
         <div className="grid gap-2">
-          <Label htmlFor="dept-head">Head (optional)</Label>
+          <Label htmlFor="dept-head">{terms.headLabel} (optional)</Label>
           <Input
             id="dept-head"
             value={form.headName}

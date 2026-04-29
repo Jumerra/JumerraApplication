@@ -43,9 +43,12 @@ import { NotificationBell } from "@/components/notification-bell";
 import { useTheme } from "@/components/theme-provider";
 import {
   useLogoutUser,
+  useGetInstitution,
   getGetCurrentUserQueryKey,
+  getGetInstitutionQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { academicUnitTerms } from "@/lib/institution-kinds";
 
 function avatarSrc(avatarUrl: string | null | undefined): string | undefined {
   if (!avatarUrl) return undefined;
@@ -70,6 +73,19 @@ export function Layout({ children }: { children: React.ReactNode }) {
       ? [{ href: "/candidates", label: "Talent", icon: UserCircle2 }]
       : []),
   ];
+
+  // Pull the institution kind so the dropdown link can read "Programs"
+  // for SHS schools and "Departments" everywhere else. Cached query so
+  // this is essentially free across pages.
+  const institutionId =
+    sessionUser?.role === "institution" ? sessionUser.institutionId : null;
+  const { data: currentInstitution } = useGetInstitution(institutionId ?? 0, {
+    query: {
+      queryKey: getGetInstitutionQueryKey(institutionId ?? 0),
+      enabled: institutionId != null,
+    },
+  });
+  const academicTerms = academicUnitTerms(currentInstitution?.type);
 
   async function handleLogout() {
     await logout.mutateAsync();
@@ -261,7 +277,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
                                 href="/dashboard/institution/departments"
                                 className="gap-2 cursor-pointer"
                               >
-                                <BookOpen className="w-4 h-4" /> Departments
+                                <BookOpen className="w-4 h-4" />{" "}
+                                {academicTerms.plural}
                               </Link>
                             </DropdownMenuItem>
                             <DropdownMenuItem asChild>

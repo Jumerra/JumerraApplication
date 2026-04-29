@@ -374,6 +374,15 @@ paths:
           name: id
           required: true
           schema: { type: integer }
+        - in: query
+          name: departmentId
+          required: false
+          description: |
+            Filter by institution department/program. Owners and platform
+            admins may set this to scope the roster. Non-owner staff with
+            an assigned department are always hard-filtered server-side
+            and cannot widen the result by omitting or changing this param.
+          schema: { type: integer }
       responses:
         "200":
           description: Students at institution with placement status
@@ -1846,6 +1855,14 @@ components:
           type: string
           format: date-time
           nullable: true
+        departmentId:
+          type: integer
+          nullable: true
+          description: Department/program/faculty within this institution. Null when unassigned.
+        departmentName:
+          type: string
+          nullable: true
+          description: Resolved department/program name. Null when unassigned.
       required: [id, name, type, logoUrl, isPrimary, isVerified]
 
     CandidateDetail:
@@ -1953,6 +1970,14 @@ components:
           type: integer
           nullable: true
           description: Sets the candidate's PRIMARY institution affiliation. Existing secondary affiliations are preserved.
+        affiliations:
+          type: array
+          description: |
+            Optional full replacement of the candidate's per-institution
+            department assignments. When provided, every entry's
+            departmentId is validated to belong to the same institution.
+            Affiliations not listed here keep their current departmentId.
+          items: { $ref: "#/components/schemas/CandidateAffiliationInput" }
         skills:
           type: array
           items: { type: string }
@@ -1960,6 +1985,16 @@ components:
           type: string
           enum: [open, employed, not_looking]
         isBoosted: { type: boolean }
+
+    CandidateAffiliationInput:
+      type: object
+      properties:
+        institutionId: { type: integer }
+        departmentId:
+          type: integer
+          nullable: true
+          description: Department/program/faculty within `institutionId`. Null clears the assignment.
+      required: [institutionId]
 
     Employer:
       type: object
@@ -2202,6 +2237,14 @@ components:
           type: string
           nullable: true
           description: Name of the institution staff member who verified this student.
+        departmentId:
+          type: integer
+          nullable: true
+          description: Department/program/faculty the student belongs to within this institution. Null if unassigned.
+        departmentName:
+          type: string
+          nullable: true
+          description: Resolved name of the assigned department/program. Null if unassigned.
       required:
         - candidateId
         - fullName
@@ -2660,6 +2703,17 @@ components:
           enum: [pending, active, rejected, invited]
         employerId: { type: integer, nullable: true }
         institutionId: { type: integer, nullable: true }
+        assignedDepartmentId:
+          type: integer
+          nullable: true
+          description: |
+            Optional department/program scope for non-owner institution
+            staff. Null means org-wide. Owners always operate org-wide and
+            ignore this field.
+        assignedDepartmentName:
+          type: string
+          nullable: true
+          description: Resolved name of the assigned department/program. Null when org-wide.
         createdAt: { type: string, format: date-time }
       required: [id, email, fullName, role, orgRole, status, employerId, institutionId, createdAt]
 
@@ -2677,6 +2731,13 @@ components:
         email: { type: string }
         fullName: { type: string }
         orgRole: { type: string }
+        assignedDepartmentId:
+          type: integer
+          nullable: true
+          description: |
+            Optional department/program scope (institution staff only,
+            non-owner roles). Must reference a department of the inviter's
+            institution. Ignored for owner roles and for non-institution orgs.
       required: [email, fullName, orgRole]
 
     InviteStaffResponse:
@@ -2697,6 +2758,14 @@ components:
       type: object
       properties:
         orgRole: { type: string }
+        assignedDepartmentId:
+          type: integer
+          nullable: true
+          description: |
+            Optional department/program scope (institution staff only,
+            non-owner roles). Set to null to clear and grant org-wide
+            access. Omit to leave the existing scope unchanged. Ignored
+            for owner roles and for non-institution orgs.
       required: [orgRole]
 
     StaffMemberResponse:

@@ -21,7 +21,9 @@ import {
 import { calculateMatchScore } from "../lib/matching";
 import {
   getCandidateIdsForInstitution,
+  getInstitutionIdForDepartment,
   getInstitutionLinksByCandidate,
+  setCandidateAffiliationDepartment,
   setCandidateInstitutionLinks,
   type InstitutionLink,
 } from "../lib/candidate-institutions";
@@ -51,7 +53,18 @@ function serializeCandidate(
     isBoosted: c.isBoosted,
     institutionId: primary?.id ?? c.institutionId ?? null,
     institutionName: primary?.name ?? null,
-    institutions,
+    institutions: institutions.map((i) => ({
+      id: i.id,
+      name: i.name,
+      type: i.type,
+      logoUrl: i.logoUrl,
+      isPrimary: i.isPrimary,
+      isVerified: i.isVerified,
+      verifiedAt: i.verifiedAt,
+      verifiedByName: i.verifiedByName,
+      departmentId: i.departmentId ?? null,
+      departmentName: i.departmentName ?? null,
+    })),
     // True when ANY institution has explicitly verified this candidate.
     isVerified: institutions.some((i) => i.isVerified),
     skills: c.skills,
@@ -228,12 +241,28 @@ router.patch("/candidates/:id", requireAuth, async (req, res): Promise<void> => 
   if (!isAdmin) {
     delete (updateData as Record<string, unknown>).isBoosted;
   }
+  // `affiliations` lives in the junction table; strip it before the
+  // candidates UPDATE so drizzle doesn't see an unknown column.
+  const affiliationsInput = parsed.data.affiliations;
+  delete (updateData as Record<string, unknown>).affiliations;
 
-  const [updated] = await db
-    .update(candidatesTable)
-    .set(updateData)
-    .where(eq(candidatesTable.id, params.data.id))
-    .returning();
+  // If the request only updates per-affiliation departments (no top-level
+  // candidate fields), skip the candidates UPDATE — drizzle would otherwise
+  // throw "No values to set". We still need the candidate row to validate
+  // existence and to feed the response.
+  let updated;
+  if (Object.keys(updateData).length > 0) {
+    [updated] = await db
+      .update(candidatesTable)
+      .set(updateData)
+      .where(eq(candidatesTable.id, params.data.id))
+      .returning();
+  } else {
+    [updated] = await db
+      .select()
+      .from(candidatesTable)
+      .where(eq(candidatesTable.id, params.data.id));
+  }
 
   if (!updated) {
     res.status(404).json({ error: "Candidate not found" });
@@ -252,6 +281,34 @@ router.patch("/candidates/:id", requireAuth, async (req, res): Promise<void> => 
       updated.institutionId,
       additional,
     );
+  }
+
+  // Per-affiliation department updates. Each entry is upserted; an
+  // entry whose institutionId doesn't match an existing affiliation
+  // is skipped (the candidate must affiliate first via institutionId).
+  if (affiliationsInput && affiliationsInput.length > 0) {
+    const linkMap = await getInstitutionLinksByCandidate([updated.id]);
+    const linkedIds = new Set(
+      (linkMap.get(updated.id) ?? []).map((l) => l.id),
+    );
+    for (const aff of affiliationsInput) {
+      if (!linkedIds.has(aff.institutionId)) continue;
+      // Validate dept belongs to that institution if present.
+      if (aff.departmentId != null) {
+        const owner = await getInstitutionIdForDepartment(aff.departmentId);
+        if (owner !== aff.institutionId) {
+          res.status(400).json({
+            error: `Department ${aff.departmentId} does not belong to institution ${aff.institutionId}`,
+          });
+          return;
+        }
+      }
+      await setCandidateAffiliationDepartment(
+        updated.id,
+        aff.institutionId,
+        aff.departmentId ?? null,
+      );
+    }
   }
 
   const linkMap = await getInstitutionLinksByCandidate([updated.id]);

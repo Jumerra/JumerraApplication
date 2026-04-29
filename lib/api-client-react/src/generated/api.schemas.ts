@@ -388,6 +388,10 @@ export interface CandidateInstitutionLink {
   /** True if this institution has explicitly verified the candidate as a real student. */
   isVerified: boolean;
   verifiedAt?: string | null;
+  /** Department/program/faculty within this institution. Null when unassigned. */
+  departmentId?: number | null;
+  /** Resolved department/program name. Null when unassigned. */
+  departmentName?: string | null;
 }
 
 export interface Candidate {
@@ -493,6 +497,12 @@ export const UpdateCandidateAvailability = {
   not_looking: "not_looking",
 } as const;
 
+export interface CandidateAffiliationInput {
+  institutionId: number;
+  /** Department/program/faculty within `institutionId`. Null clears the assignment. */
+  departmentId?: number | null;
+}
+
 export interface UpdateCandidate {
   fullName?: string;
   headline?: string;
@@ -504,6 +514,12 @@ export interface UpdateCandidate {
   yearsExperience?: number;
   /** Sets the candidate's PRIMARY institution affiliation. Existing secondary affiliations are preserved. */
   institutionId?: number | null;
+  /** Optional full replacement of the candidate's per-institution
+department assignments. When provided, every entry's
+departmentId is validated to belong to the same institution.
+Affiliations not listed here keep their current departmentId.
+ */
+  affiliations?: CandidateAffiliationInput[];
   skills?: string[];
   availability?: UpdateCandidateAvailability;
   isBoosted?: boolean;
@@ -781,6 +797,10 @@ export interface InstitutionStudent {
   verifiedAt?: string | null;
   /** Name of the institution staff member who verified this student. */
   verifiedByName?: string | null;
+  /** Department/program/faculty the student belongs to within this institution. Null if unassigned. */
+  departmentId?: number | null;
+  /** Resolved name of the assigned department/program. Null if unassigned. */
+  departmentName?: string | null;
 }
 
 export interface CreateInstitution {
@@ -1068,6 +1088,13 @@ export interface StaffMember {
   status: StaffMemberStatus;
   employerId: number | null;
   institutionId: number | null;
+  /** Optional department/program scope for non-owner institution
+staff. Null means org-wide. Owners always operate org-wide and
+ignore this field.
+ */
+  assignedDepartmentId?: number | null;
+  /** Resolved name of the assigned department/program. Null when org-wide. */
+  assignedDepartmentName?: string | null;
   createdAt: string;
 }
 
@@ -1079,6 +1106,11 @@ export interface InviteStaffRequest {
   email: string;
   fullName: string;
   orgRole: string;
+  /** Optional department/program scope (institution staff only,
+non-owner roles). Must reference a department of the inviter's
+institution. Ignored for owner roles and for non-institution orgs.
+ */
+  assignedDepartmentId?: number | null;
 }
 
 export interface InviteStaffResponse {
@@ -1092,6 +1124,12 @@ export interface InviteStaffResponse {
 
 export interface UpdateStaffRoleRequest {
   orgRole: string;
+  /** Optional department/program scope (institution staff only,
+non-owner roles). Set to null to clear and grant org-wide
+access. Omit to leave the existing scope unchanged. Ignored
+for owner roles and for non-institution orgs.
+ */
+  assignedDepartmentId?: number | null;
 }
 
 export interface StaffMemberResponse {
@@ -1168,6 +1206,17 @@ export type ListInstitutionsMine =
 export const ListInstitutionsMine = {
   NUMBER_1: "1",
 } as const;
+
+export type ListInstitutionStudentsParams = {
+  /**
+ * Filter by institution department/program. Owners and platform
+admins may set this to scope the roster. Non-owner staff with
+an assigned department are always hard-filtered server-side
+and cannot widen the result by omitting or changing this param.
+
+ */
+  departmentId?: number;
+};
 
 export type ListJobsParams = {
   search?: string;

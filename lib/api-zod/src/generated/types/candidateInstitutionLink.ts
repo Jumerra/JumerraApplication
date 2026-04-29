@@ -16,4 +16,8 @@ export interface CandidateInstitutionLink {
   /** True if this institution has explicitly verified the candidate as a real student. */
   isVerified: boolean;
   verifiedAt?: Date | null;
+  /** Department/program/faculty within this institution. Null when unassigned. */
+  departmentId?: number | null;
+  /** Resolved department/program name. Null when unassigned. */
+  departmentName?: string | null;
 }

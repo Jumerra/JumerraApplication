@@ -17,6 +17,7 @@ import {
   CreateInstitutionBody,
   GetInstitutionParams,
   ListInstitutionStudentsParams,
+  ListInstitutionStudentsQueryParams,
   UpdateMyInstitutionBody,
   CreateMyInstitutionDepartmentBody,
   UpdateMyInstitutionDepartmentBody,
@@ -25,7 +26,10 @@ import {
   UpdateMyInstitutionFacilityBody,
   UpdateMyInstitutionFacilityParams,
 } from "@workspace/api-zod";
-import { getCandidateIdsForInstitution } from "../lib/candidate-institutions";
+import {
+  getCandidateIdsForInstitution,
+  getInstitutionIdForDepartment,
+} from "../lib/candidate-institutions";
 import {
   requireAdmin,
   requireAuth,
@@ -375,8 +379,29 @@ router.get("/institutions/:id/students", async (req, res): Promise<void> => {
     res.status(400).json({ error: params.error.message });
     return;
   }
+  const queryParams = ListInstitutionStudentsQueryParams.safeParse(req.query);
+  if (!queryParams.success) {
+    res.status(400).json({ error: queryParams.error.message });
+    return;
+  }
 
-  const studentIds = await getCandidateIdsForInstitution(params.data.id);
+  // Per-department scoping: a non-owner institution staffer with an
+  // assigned department is hard-scoped to that department server-side.
+  // Owners and platform admins may pass `?departmentId=` to filter
+  // voluntarily; everyone else's query value is ignored in favor of
+  // the assignment so a curious coordinator can't widen their view by
+  // omitting/changing the param.
+  const me = req.currentUser ?? null;
+  const isInstStaffOfThisInst =
+    me?.role === "institution" && me.institutionId === params.data.id;
+  const scopedDepartmentId =
+    isInstStaffOfThisInst && !isOrgOwner(me) && me?.assignedDepartmentId != null
+      ? me.assignedDepartmentId
+      : queryParams.data.departmentId ?? null;
+
+  const studentIds = await getCandidateIdsForInstitution(params.data.id, {
+    departmentId: scopedDepartmentId ?? undefined,
+  });
 
   if (studentIds.length === 0) {
     res.json([]);
@@ -391,18 +416,29 @@ router.get("/institutions/:id/students", async (req, res): Promise<void> => {
 
   // Determine whether each student's link to this institution is primary
   // so the UI can flag transfer / multi-affiliation students, and whether
-  // this institution has VERIFIED them as a real student.
+  // this institution has VERIFIED them as a real student. Also pull the
+  // resolved department name so the table can render it without a second
+  // round-trip.
   const linkRows = await db
     .select({
       candidateId: candidateInstitutionsTable.candidateId,
       isPrimary: candidateInstitutionsTable.isPrimary,
       verifiedAt: candidateInstitutionsTable.verifiedAt,
+      departmentId: candidateInstitutionsTable.departmentId,
+      departmentName: institutionDepartmentsTable.name,
       verifiedByName: usersTable.fullName,
     })
     .from(candidateInstitutionsTable)
     .leftJoin(
       usersTable,
       eq(usersTable.id, candidateInstitutionsTable.verifiedBy),
+    )
+    .leftJoin(
+      institutionDepartmentsTable,
+      eq(
+        institutionDepartmentsTable.id,
+        candidateInstitutionsTable.departmentId,
+      ),
     )
     .where(
       and(
@@ -412,7 +448,14 @@ router.get("/institutions/:id/students", async (req, res): Promise<void> => {
     );
   const linkInfoByCandidate = new Map<
     number,
-    { isPrimary: boolean; isVerified: boolean; verifiedAt: string | null; verifiedByName: string | null }
+    {
+      isPrimary: boolean;
+      isVerified: boolean;
+      verifiedAt: string | null;
+      verifiedByName: string | null;
+      departmentId: number | null;
+      departmentName: string | null;
+    }
   >(
     linkRows.map((r) => [
       r.candidateId,
@@ -421,6 +464,8 @@ router.get("/institutions/:id/students", async (req, res): Promise<void> => {
         isVerified: r.verifiedAt != null,
         verifiedAt: r.verifiedAt ? r.verifiedAt.toISOString() : null,
         verifiedByName: r.verifiedByName,
+        departmentId: r.departmentId,
+        departmentName: r.departmentName,
       },
     ]),
   );
@@ -470,6 +515,8 @@ router.get("/institutions/:id/students", async (req, res): Promise<void> => {
         isVerified: link?.isVerified ?? false,
         verifiedAt: link?.verifiedAt ?? null,
         verifiedByName: link?.verifiedByName ?? null,
+        departmentId: link?.departmentId ?? null,
+        departmentName: link?.departmentName ?? null,
       };
     }),
   );
@@ -493,6 +540,34 @@ function canManageInstitutionStudents(
   return user.orgRole === "owner" || user.orgRole === "coordinator";
 }
 
+/**
+ * Per-department scoping check for verify/unverify. Returns true when
+ * the actor either has org-wide access (owner / admin / unscoped staff)
+ * OR the candidate's affiliation row falls within the actor's assigned
+ * department. Returns false when a scoped staffer attempts to act on a
+ * candidate outside their department or without an affiliation row.
+ */
+async function canActOnCandidateAffiliation(
+  user: typeof usersTable.$inferSelect,
+  institutionId: number,
+  candidateId: number,
+): Promise<boolean> {
+  if (isOrgOwner(user)) return true;
+  if (user.assignedDepartmentId == null) return true;
+  const [link] = await db
+    .select({ departmentId: candidateInstitutionsTable.departmentId })
+    .from(candidateInstitutionsTable)
+    .where(
+      and(
+        eq(candidateInstitutionsTable.institutionId, institutionId),
+        eq(candidateInstitutionsTable.candidateId, candidateId),
+      ),
+    )
+    .limit(1);
+  if (!link) return false;
+  return link.departmentId === user.assignedDepartmentId;
+}
+
 router.post(
   "/institutions/:id/students/:candidateId/verify",
   requireAuth,
@@ -507,6 +582,10 @@ router.post(
     const me = req.currentUser!;
     if (!canManageInstitutionStudents(me, institutionId)) {
       res.status(403).json({ error: "Not allowed to verify this institution's students" });
+      return;
+    }
+    if (!(await canActOnCandidateAffiliation(me, institutionId, candidateId))) {
+      res.status(403).json({ error: "This student is outside your assigned department" });
       return;
     }
     const result = await db
@@ -552,6 +631,10 @@ router.post(
     const me = req.currentUser!;
     if (!canManageInstitutionStudents(me, institutionId)) {
       res.status(403).json({ error: "Not allowed to unverify this institution's students" });
+      return;
+    }
+    if (!(await canActOnCandidateAffiliation(me, institutionId, candidateId))) {
+      res.status(403).json({ error: "This student is outside your assigned department" });
       return;
     }
     const result = await db

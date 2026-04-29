@@ -8,6 +8,7 @@ import {
   index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+import { institutionDepartmentsTable } from "./institutions";
 
 /**
  * Application users (real auth-backed accounts). Distinct from the
@@ -42,6 +43,18 @@ export const usersTable = pgTable(
      *   institution -> 'owner' | 'coordinator' | 'viewer'
      */
     orgRole: text("org_role"),
+    /**
+     * Optional department/program scope for institution staff. When set,
+     * the user can only see and manage candidates affiliated with that
+     * department. Null means org-wide (all departments). Owners always
+     * see all and ignore this column. The FK is set to NULL on cascade
+     * when the parent department is deleted, downgrading the staffer to
+     * org-wide rather than orphaning them.
+     */
+    assignedDepartmentId: integer("assigned_department_id").references(
+      () => institutionDepartmentsTable.id,
+      { onDelete: "set null" },
+    ),
     /**
      * Universal profile fields available to every role. The candidate /
      * employer / institution tables continue to hold role-specific

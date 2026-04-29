@@ -5,6 +5,7 @@
  * Talent Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { CandidateAffiliationInput } from "./candidateAffiliationInput";
 import type { UpdateCandidateAvailability } from "./updateCandidateAvailability";
 
 export interface UpdateCandidate {
@@ -18,6 +19,12 @@ export interface UpdateCandidate {
   yearsExperience?: number;
   /** Sets the candidate's PRIMARY institution affiliation. Existing secondary affiliations are preserved. */
   institutionId?: number | null;
+  /** Optional full replacement of the candidate's per-institution
+department assignments. When provided, every entry's
+departmentId is validated to belong to the same institution.
+Affiliations not listed here keep their current departmentId.
+ */
+  affiliations?: CandidateAffiliationInput[];
   skills?: string[];
   availability?: UpdateCandidateAvailability;
   isBoosted?: boolean;

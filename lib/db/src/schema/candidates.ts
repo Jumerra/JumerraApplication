@@ -8,6 +8,7 @@ import {
   date,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+import { institutionDepartmentsTable } from "./institutions";
 
 export const candidatesTable = pgTable("candidates", {
   id: serial("id").primaryKey(),
@@ -58,6 +59,17 @@ export const candidateInstitutionsTable = pgTable(
     // "Unverified" and is excluded from the institution's tracking metrics.
     verifiedAt: timestamp("verified_at", { withTimezone: true }),
     verifiedBy: integer("verified_by"),
+    /**
+     * Optional department/program/faculty the candidate belongs to within
+     * this institution. Drives per-department scoping for institution staff
+     * (a coordinator with assigned_department_id sees only matching rows).
+     * Set to NULL on cascade if the parent department is removed so the
+     * affiliation survives as "no department".
+     */
+    departmentId: integer("department_id").references(
+      () => institutionDepartmentsTable.id,
+      { onDelete: "set null" },
+    ),
   },
   (t) => ({
     candidateInstitutionUnique: uniqueIndex("candidate_institution_unique").on(

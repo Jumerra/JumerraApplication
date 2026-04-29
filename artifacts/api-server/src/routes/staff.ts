@@ -1,9 +1,10 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { and, eq, isNotNull, isNull, ne, desc } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, ne, desc, inArray } from "drizzle-orm";
 import {
   adminRolesTable,
   employersTable,
+  institutionDepartmentsTable,
   institutionsTable,
   usersTable,
 } from "@workspace/db";
@@ -55,9 +56,56 @@ async function isValidOrgRole(
 const router: Router = Router();
 
 /**
- * Public summary of a staff member used by the team page.
+ * Resolves the human-readable name for a set of department ids in one
+ * round-trip. Used by `/staff` to enrich the response so the table can
+ * render names without a follow-up call per row.
  */
-function toStaffRow(u: typeof usersTable.$inferSelect) {
+async function resolveDepartmentNames(
+  departmentIds: number[],
+): Promise<Map<number, string>> {
+  const ids = Array.from(new Set(departmentIds.filter((n) => Number.isFinite(n))));
+  if (ids.length === 0) return new Map();
+  const rows = await db
+    .select({
+      id: institutionDepartmentsTable.id,
+      name: institutionDepartmentsTable.name,
+    })
+    .from(institutionDepartmentsTable)
+    .where(inArray(institutionDepartmentsTable.id, ids));
+  return new Map(rows.map((r) => [r.id, r.name]));
+}
+
+/**
+ * Validates that a department id belongs to the given institution.
+ * Used to prevent a malicious owner from assigning a coordinator to
+ * another institution's department by guessing ids.
+ */
+async function departmentBelongsToInstitution(
+  departmentId: number,
+  institutionId: number,
+): Promise<boolean> {
+  const [row] = await db
+    .select({ id: institutionDepartmentsTable.id })
+    .from(institutionDepartmentsTable)
+    .where(
+      and(
+        eq(institutionDepartmentsTable.id, departmentId),
+        eq(institutionDepartmentsTable.institutionId, institutionId),
+      ),
+    )
+    .limit(1);
+  return !!row;
+}
+
+/**
+ * Public summary of a staff member used by the team page. Department
+ * name is supplied separately so the call can batch the lookups across
+ * a list of staffers.
+ */
+function toStaffRow(
+  u: typeof usersTable.$inferSelect,
+  departmentName: string | null = null,
+) {
   return {
     id: u.id,
     email: u.email,
@@ -67,6 +115,8 @@ function toStaffRow(u: typeof usersTable.$inferSelect) {
     status: u.status,
     employerId: u.employerId,
     institutionId: u.institutionId,
+    assignedDepartmentId: u.assignedDepartmentId ?? null,
+    assignedDepartmentName: departmentName,
     createdAt: u.createdAt.toISOString(),
   };
 }
@@ -111,7 +161,21 @@ router.get("/staff", requireOrgMember, async (req, res) => {
       )
       .orderBy(desc(usersTable.createdAt));
   }
-  res.json({ members: rows.map(toStaffRow) });
+  const deptNames = await resolveDepartmentNames(
+    rows
+      .map((r) => r.assignedDepartmentId)
+      .filter((id): id is number => typeof id === "number"),
+  );
+  res.json({
+    members: rows.map((r) =>
+      toStaffRow(
+        r,
+        r.assignedDepartmentId != null
+          ? deptNames.get(r.assignedDepartmentId) ?? null
+          : null,
+      ),
+    ),
+  });
 });
 
 /**
@@ -123,7 +187,7 @@ router.get("/staff", requireOrgMember, async (req, res) => {
 router.post("/staff/invite", requireOrgOwner, async (req, res) => {
   try {
     const me = req.currentUser!;
-    const { email, fullName, orgRole } = req.body ?? {};
+    const { email, fullName, orgRole, assignedDepartmentId } = req.body ?? {};
     if (
       typeof email !== "string" ||
       typeof fullName !== "string" ||
@@ -147,6 +211,36 @@ router.post("/staff/invite", requireOrgOwner, async (req, res) => {
       return;
     }
 
+    // Department scoping is only meaningful for institution staff and
+    // never for owners (owners are intentionally org-wide). Silently
+    // drop the value for non-institution invites or owner invites.
+    let resolvedDeptId: number | null = null;
+    if (
+      me.role === "institution" &&
+      orgRole !== "owner" &&
+      assignedDepartmentId != null
+    ) {
+      if (
+        typeof assignedDepartmentId !== "number" ||
+        !Number.isInteger(assignedDepartmentId)
+      ) {
+        res.status(400).json({ error: "assignedDepartmentId must be an integer" });
+        return;
+      }
+      if (
+        !(await departmentBelongsToInstitution(
+          assignedDepartmentId,
+          me.institutionId!,
+        ))
+      ) {
+        res
+          .status(400)
+          .json({ error: "Department does not belong to your institution" });
+        return;
+      }
+      resolvedDeptId = assignedDepartmentId;
+    }
+
     const normalizedEmail = email.toLowerCase().trim();
     const existing = await findUserByEmail(normalizedEmail);
     if (existing) {
@@ -166,6 +260,7 @@ router.post("/staff/invite", requireOrgOwner, async (req, res) => {
       approvedAt: new Date(),
       employerId: me.role === "employer" ? me.employerId : null,
       institutionId: me.role === "institution" ? me.institutionId : null,
+      assignedDepartmentId: resolvedDeptId,
     };
 
     const [created] = await db
@@ -184,13 +279,20 @@ router.post("/staff/invite", requireOrgOwner, async (req, res) => {
       logger: req.log,
     });
 
+    const deptNames = await resolveDepartmentNames(
+      resolvedDeptId != null ? [resolvedDeptId] : [],
+    );
+
     // SECURITY: only expose the setup URL to the inviter when email
     // delivery is NOT configured. Once a real provider is wired up the
     // link is delivered to the invitee directly and must not leak via
     // the API response. The raw `token` is never returned (the URL is
     // sufficient for the no-email fallback workflow).
     res.status(201).json({
-      member: toStaffRow(created),
+      member: toStaffRow(
+        created,
+        resolvedDeptId != null ? deptNames.get(resolvedDeptId) ?? null : null,
+      ),
       setupUrl: emailResult.sent ? null : setupUrl,
       expiresAt: expiresAt.toISOString(),
       emailSent: emailResult.sent,
@@ -302,7 +404,15 @@ router.patch("/staff/:id/role", requireOrgOwner, async (req, res) => {
   try {
     const me = req.currentUser!;
     const targetId = Number(req.params.id);
-    const { orgRole } = req.body ?? {};
+    const { orgRole, assignedDepartmentId } = req.body ?? {};
+    // `assignedDepartmentId` participates in three modes:
+    //   - omitted (`undefined`) → leave the existing value unchanged
+    //   - `null`                → clear the assignment (org-wide access)
+    //   - integer               → assign to that department
+    const hasDeptUpdate = Object.prototype.hasOwnProperty.call(
+      req.body ?? {},
+      "assignedDepartmentId",
+    );
     if (!Number.isFinite(targetId)) {
       res.status(400).json({ error: "Invalid id" });
       return;
@@ -409,6 +519,38 @@ router.patch("/staff/:id/role", requireOrgOwner, async (req, res) => {
       target.orgRole === "account_manager" &&
       orgRole !== "account_manager";
 
+    // Resolve the department change. Owners are always org-wide so
+    // promoting someone to owner forces a clear, regardless of input.
+    // Demoting from owner inherits the requested value (or no-op).
+    let nextDeptId: number | null | undefined = undefined;
+    if (orgRole === "owner") {
+      nextDeptId = null;
+    } else if (target.role === "institution" && hasDeptUpdate) {
+      if (assignedDepartmentId === null) {
+        nextDeptId = null;
+      } else if (
+        typeof assignedDepartmentId === "number" &&
+        Number.isInteger(assignedDepartmentId)
+      ) {
+        if (
+          target.institutionId == null ||
+          !(await departmentBelongsToInstitution(
+            assignedDepartmentId,
+            target.institutionId,
+          ))
+        ) {
+          res
+            .status(400)
+            .json({ error: "Department does not belong to this institution" });
+          return;
+        }
+        nextDeptId = assignedDepartmentId;
+      } else {
+        res.status(400).json({ error: "assignedDepartmentId must be an integer or null" });
+        return;
+      }
+    }
+
     const updated = await db.transaction(async (tx) => {
       if (isDemotingManager) {
         await tx
@@ -420,14 +562,27 @@ router.patch("/staff/:id/role", requireOrgOwner, async (req, res) => {
           .set({ accountManagerId: null })
           .where(eq(institutionsTable.accountManagerId, target.id));
       }
+      const patch: { orgRole: string; assignedDepartmentId?: number | null } = {
+        orgRole,
+      };
+      if (nextDeptId !== undefined) patch.assignedDepartmentId = nextDeptId;
       const [row] = await tx
         .update(usersTable)
-        .set({ orgRole })
+        .set(patch)
         .where(eq(usersTable.id, target.id))
         .returning();
       return row;
     });
-    res.json({ member: toStaffRow(updated) });
+    const finalDeptId = updated.assignedDepartmentId;
+    const deptNames = await resolveDepartmentNames(
+      finalDeptId != null ? [finalDeptId] : [],
+    );
+    res.json({
+      member: toStaffRow(
+        updated,
+        finalDeptId != null ? deptNames.get(finalDeptId) ?? null : null,
+      ),
+    });
   } catch (err) {
     req.log.error({ err }, "staff role update failed");
     res.status(500).json({ error: "Update failed" });

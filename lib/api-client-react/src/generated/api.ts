@@ -65,6 +65,7 @@ import type {
   ListApplicationsParams,
   ListCandidatesParams,
   ListEmployersParams,
+  ListInstitutionStudentsParams,
   ListInstitutionsParams,
   ListJobsParams,
   ListOnboardedUsers200,
@@ -1797,22 +1798,47 @@ export function useGetInstitution<
   return { ...query, queryKey: queryOptions.queryKey };
 }
 
-export const getListInstitutionStudentsUrl = (id: number) => {
-  return `/api/institutions/${id}/students`;
+export const getListInstitutionStudentsUrl = (
+  id: number,
+  params?: ListInstitutionStudentsParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/institutions/${id}/students?${stringifiedParams}`
+    : `/api/institutions/${id}/students`;
 };
 
 export const listInstitutionStudents = async (
   id: number,
+  params?: ListInstitutionStudentsParams,
   options?: RequestInit,
 ): Promise<InstitutionStudent[]> => {
-  return customFetch<InstitutionStudent[]>(getListInstitutionStudentsUrl(id), {
-    ...options,
-    method: "GET",
-  });
+  return customFetch<InstitutionStudent[]>(
+    getListInstitutionStudentsUrl(id, params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
 };
 
-export const getListInstitutionStudentsQueryKey = (id: number) => {
-  return [`/api/institutions/${id}/students`] as const;
+export const getListInstitutionStudentsQueryKey = (
+  id: number,
+  params?: ListInstitutionStudentsParams,
+) => {
+  return [
+    `/api/institutions/${id}/students`,
+    ...(params ? [params] : []),
+  ] as const;
 };
 
 export const getListInstitutionStudentsQueryOptions = <
@@ -1820,6 +1846,7 @@ export const getListInstitutionStudentsQueryOptions = <
   TError = ErrorType<unknown>,
 >(
   id: number,
+  params?: ListInstitutionStudentsParams,
   options?: {
     query?: UseQueryOptions<
       Awaited<ReturnType<typeof listInstitutionStudents>>,
@@ -1832,12 +1859,12 @@ export const getListInstitutionStudentsQueryOptions = <
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey =
-    queryOptions?.queryKey ?? getListInstitutionStudentsQueryKey(id);
+    queryOptions?.queryKey ?? getListInstitutionStudentsQueryKey(id, params);
 
   const queryFn: QueryFunction<
     Awaited<ReturnType<typeof listInstitutionStudents>>
   > = ({ signal }) =>
-    listInstitutionStudents(id, { signal, ...requestOptions });
+    listInstitutionStudents(id, params, { signal, ...requestOptions });
 
   return {
     queryKey,
@@ -1861,6 +1888,7 @@ export function useListInstitutionStudents<
   TError = ErrorType<unknown>,
 >(
   id: number,
+  params?: ListInstitutionStudentsParams,
   options?: {
     query?: UseQueryOptions<
       Awaited<ReturnType<typeof listInstitutionStudents>>,
@@ -1870,7 +1898,11 @@ export function useListInstitutionStudents<
     request?: SecondParameter<typeof customFetch>;
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-  const queryOptions = getListInstitutionStudentsQueryOptions(id, options);
+  const queryOptions = getListInstitutionStudentsQueryOptions(
+    id,
+    params,
+    options,
+  );
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

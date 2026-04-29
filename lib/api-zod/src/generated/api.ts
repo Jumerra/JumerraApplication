@@ -56,6 +56,16 @@ export const ListCandidatesResponseItem = zod.object({
             "True if this institution has explicitly verified the candidate as a real student.",
           ),
         verifiedAt: zod.coerce.date().nullish(),
+        departmentId: zod
+          .number()
+          .nullish()
+          .describe(
+            "Department\/program\/faculty within this institution. Null when unassigned.",
+          ),
+        departmentName: zod
+          .string()
+          .nullish()
+          .describe("Resolved department\/program name. Null when unassigned."),
       }),
     )
     .describe(
@@ -119,6 +129,18 @@ export const GetCandidateResponse = zod
               "True if this institution has explicitly verified the candidate as a real student.",
             ),
           verifiedAt: zod.coerce.date().nullish(),
+          departmentId: zod
+            .number()
+            .nullish()
+            .describe(
+              "Department\/program\/faculty within this institution. Null when unassigned.",
+            ),
+          departmentName: zod
+            .string()
+            .nullish()
+            .describe(
+              "Resolved department\/program name. Null when unassigned.",
+            ),
         }),
       )
       .describe(
@@ -187,6 +209,22 @@ export const UpdateCandidateBody = zod.object({
     .describe(
       "Sets the candidate's PRIMARY institution affiliation. Existing secondary affiliations are preserved.",
     ),
+  affiliations: zod
+    .array(
+      zod.object({
+        institutionId: zod.number(),
+        departmentId: zod
+          .number()
+          .nullish()
+          .describe(
+            "Department\/program\/faculty within `institutionId`. Null clears the assignment.",
+          ),
+      }),
+    )
+    .optional()
+    .describe(
+      "Optional full replacement of the candidate's per-institution\ndepartment assignments. When provided, every entry's\ndepartmentId is validated to belong to the same institution.\nAffiliations not listed here keep their current departmentId.\n",
+    ),
   skills: zod.array(zod.string()).optional(),
   availability: zod.enum(["open", "employed", "not_looking"]).optional(),
   isBoosted: zod.boolean().optional(),
@@ -223,6 +261,16 @@ export const UpdateCandidateResponse = zod.object({
             "True if this institution has explicitly verified the candidate as a real student.",
           ),
         verifiedAt: zod.coerce.date().nullish(),
+        departmentId: zod
+          .number()
+          .nullish()
+          .describe(
+            "Department\/program\/faculty within this institution. Null when unassigned.",
+          ),
+        departmentName: zod
+          .string()
+          .nullish()
+          .describe("Resolved department\/program name. Null when unassigned."),
       }),
     )
     .describe(
@@ -801,6 +849,15 @@ export const ListInstitutionStudentsParams = zod.object({
   id: zod.coerce.number(),
 });
 
+export const ListInstitutionStudentsQueryParams = zod.object({
+  departmentId: zod.coerce
+    .number()
+    .optional()
+    .describe(
+      "Filter by institution department\/program. Owners and platform\nadmins may set this to scope the roster. Non-owner staff with\nan assigned department are always hard-filtered server-side\nand cannot widen the result by omitting or changing this param.\n",
+    ),
+});
+
 export const ListInstitutionStudentsResponseItem = zod.object({
   candidateId: zod.number(),
   fullName: zod.string(),
@@ -833,6 +890,18 @@ export const ListInstitutionStudentsResponseItem = zod.object({
     .nullish()
     .describe(
       "Name of the institution staff member who verified this student.",
+    ),
+  departmentId: zod
+    .number()
+    .nullish()
+    .describe(
+      "Department\/program\/faculty the student belongs to within this institution. Null if unassigned.",
+    ),
+  departmentName: zod
+    .string()
+    .nullish()
+    .describe(
+      "Resolved name of the assigned department\/program. Null if unassigned.",
     ),
 });
 export const ListInstitutionStudentsResponse = zod.array(
@@ -1272,6 +1341,18 @@ export const GetInstitutionDashboardResponse = zod.object({
         .nullish()
         .describe(
           "Name of the institution staff member who verified this student.",
+        ),
+      departmentId: zod
+        .number()
+        .nullish()
+        .describe(
+          "Department\/program\/faculty the student belongs to within this institution. Null if unassigned.",
+        ),
+      departmentName: zod
+        .string()
+        .nullish()
+        .describe(
+          "Resolved name of the assigned department\/program. Null if unassigned.",
         ),
     }),
   ),
@@ -2058,6 +2139,18 @@ export const ListStaffResponse = zod.object({
       status: zod.enum(["pending", "active", "rejected", "invited"]),
       employerId: zod.number().nullable(),
       institutionId: zod.number().nullable(),
+      assignedDepartmentId: zod
+        .number()
+        .nullish()
+        .describe(
+          "Optional department\/program scope for non-owner institution\nstaff. Null means org-wide. Owners always operate org-wide and\nignore this field.\n",
+        ),
+      assignedDepartmentName: zod
+        .string()
+        .nullish()
+        .describe(
+          "Resolved name of the assigned department\/program. Null when org-wide.",
+        ),
       createdAt: zod.coerce.date(),
     }),
   ),
@@ -2070,6 +2163,12 @@ export const InviteStaffBody = zod.object({
   email: zod.string(),
   fullName: zod.string(),
   orgRole: zod.string(),
+  assignedDepartmentId: zod
+    .number()
+    .nullish()
+    .describe(
+      "Optional department\/program scope (institution staff only,\nnon-owner roles). Must reference a department of the inviter's\ninstitution. Ignored for owner roles and for non-institution orgs.\n",
+    ),
 });
 
 /**
@@ -2092,6 +2191,12 @@ export const UpdateStaffRoleParams = zod.object({
 
 export const UpdateStaffRoleBody = zod.object({
   orgRole: zod.string(),
+  assignedDepartmentId: zod
+    .number()
+    .nullish()
+    .describe(
+      "Optional department\/program scope (institution staff only,\nnon-owner roles). Set to null to clear and grant org-wide\naccess. Omit to leave the existing scope unchanged. Ignored\nfor owner roles and for non-institution orgs.\n",
+    ),
 });
 
 export const UpdateStaffRoleResponse = zod.object({
@@ -2104,6 +2209,18 @@ export const UpdateStaffRoleResponse = zod.object({
     status: zod.enum(["pending", "active", "rejected", "invited"]),
     employerId: zod.number().nullable(),
     institutionId: zod.number().nullable(),
+    assignedDepartmentId: zod
+      .number()
+      .nullish()
+      .describe(
+        "Optional department\/program scope for non-owner institution\nstaff. Null means org-wide. Owners always operate org-wide and\nignore this field.\n",
+      ),
+    assignedDepartmentName: zod
+      .string()
+      .nullish()
+      .describe(
+        "Resolved name of the assigned department\/program. Null when org-wide.",
+      ),
     createdAt: zod.coerce.date(),
   }),
 });

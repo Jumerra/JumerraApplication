@@ -17,5 +17,12 @@ export interface StaffMember {
   status: StaffMemberStatus;
   employerId: number | null;
   institutionId: number | null;
+  /** Optional department/program scope for non-owner institution
+staff. Null means org-wide. Owners always operate org-wide and
+ignore this field.
+ */
+  assignedDepartmentId?: number | null;
+  /** Resolved name of the assigned department/program. Null when org-wide. */
+  assignedDepartmentName?: string | null;
   createdAt: Date;
 }

@@ -6,10 +6,15 @@ import {
   useInviteStaff,
   useRemoveStaff,
   useUpdateStaffRole,
+  useListMyInstitutionDepartments,
+  useGetInstitution,
   getListStaffQueryKey,
+  getListMyInstitutionDepartmentsQueryKey,
+  getGetInstitutionQueryKey,
   type InviteStaffResponse,
   type StaffMember,
 } from "@workspace/api-client-react";
+import { academicUnitTerms } from "@/lib/institution-kinds";
 import { useAuth } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -64,7 +69,9 @@ export default function StaffPage() {
   const enabled =
     !!sessionUser &&
     (sessionUser.orgRole !== null || sessionUser.role === "admin");
-  const { data, isLoading } = useListStaff({ query: { enabled } });
+  const { data, isLoading } = useListStaff({
+    query: { queryKey: getListStaffQueryKey(), enabled },
+  });
   const invite = useInviteStaff();
   const remove = useRemoveStaff();
   const updateRole = useUpdateStaffRole();
@@ -72,6 +79,8 @@ export default function StaffPage() {
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [orgRole, setOrgRole] = useState<string>("");
+  // "" = unset/all-departments. We persist as null on submit.
+  const [assignedDeptId, setAssignedDeptId] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<InviteStaffResponse | null>(null);
   const [copied, setCopied] = useState(false);
@@ -84,6 +93,26 @@ export default function StaffPage() {
     (sessionUser.orgRole === "super_admin" || sessionUser.orgRole === null);
   const isOrgScope =
     sessionUser?.role === "employer" || sessionUser?.role === "institution";
+  const isInstitutionScope = sessionUser?.role === "institution";
+  const myInstitutionId = isInstitutionScope
+    ? sessionUser.institutionId ?? 0
+    : 0;
+
+  // Department picker is institution-only. Fetching the institution detail
+  // gives us the kind so we can label the field "Program" for SHS schools.
+  const { data: myInstitution } = useGetInstitution(myInstitutionId, {
+    query: {
+      queryKey: getGetInstitutionQueryKey(myInstitutionId),
+      enabled: isInstitutionScope && myInstitutionId > 0,
+    },
+  });
+  const { data: myDepartments = [] } = useListMyInstitutionDepartments({
+    query: {
+      queryKey: getListMyInstitutionDepartmentsQueryKey(),
+      enabled: isInstitutionScope,
+    },
+  });
+  const academicTerms = academicUnitTerms(myInstitution?.type);
 
   const { data: adminRolesData } = useQuery({
     queryKey: ["admin", "roles", "for-staff-page"],
@@ -146,6 +175,11 @@ export default function StaffPage() {
     );
   }
 
+  // Owner roles always operate org-wide; the backend ignores the field
+  // for them, but we also hide the picker so the UI is unambiguous.
+  const isOwnerRole = (r: string) =>
+    r === "owner" || r === "super_admin";
+
   async function onInvite(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -157,13 +191,22 @@ export default function StaffPage() {
     }
     try {
       const res = await invite.mutateAsync({
-        data: { email, fullName, orgRole },
+        data: {
+          email,
+          fullName,
+          orgRole,
+          // Only attach the dept for institution scope + non-owner role.
+          ...(isInstitutionScope && !isOwnerRole(orgRole)
+            ? { assignedDepartmentId: assignedDeptId ? Number(assignedDeptId) : null }
+            : {}),
+        },
       });
       setResult(res);
       await queryClient.invalidateQueries({ queryKey: getListStaffQueryKey() });
       setEmail("");
       setFullName("");
       setOrgRole("");
+      setAssignedDeptId("");
     } catch (err: any) {
       setError(err?.data?.error ?? "Invite failed");
     }
@@ -193,6 +236,25 @@ export default function StaffPage() {
       await queryClient.invalidateQueries({ queryKey: getListStaffQueryKey() });
     } catch (err: any) {
       setError(err?.data?.error ?? "Role update failed");
+    }
+  }
+
+  // Per-row department picker for institution non-owner roles. We send
+  // assignedDepartmentId without orgRole so the backend leaves the role
+  // alone (handler reads orgRole via hasOwnProperty).
+  async function onChangeDept(member: StaffMember, nextDept: string) {
+    setError(null);
+    try {
+      await updateRole.mutateAsync({
+        id: member.id,
+        data: {
+          orgRole: member.orgRole ?? "",
+          assignedDepartmentId: nextDept ? Number(nextDept) : null,
+        },
+      });
+      await queryClient.invalidateQueries({ queryKey: getListStaffQueryKey() });
+    } catch (err: any) {
+      setError(err?.data?.error ?? "Department update failed");
     }
   }
 
@@ -279,6 +341,46 @@ export default function StaffPage() {
                   </SelectContent>
                 </Select>
               </div>
+              {isInstitutionScope && orgRole && !isOwnerRole(orgRole) ? (
+                <div className="space-y-2">
+                  <Label htmlFor="staff-dept">
+                    {academicTerms.singular} (optional)
+                  </Label>
+                  <Select
+                    value={assignedDeptId === "" ? "all" : assignedDeptId}
+                    onValueChange={(v) =>
+                      setAssignedDeptId(v === "all" ? "" : v)
+                    }
+                  >
+                    <SelectTrigger id="staff-dept">
+                      <SelectValue
+                        placeholder={`All ${academicTerms.plural.toLowerCase()}`}
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">
+                        All {academicTerms.plural.toLowerCase()}
+                      </SelectItem>
+                      {myDepartments.map((d) => (
+                        <SelectItem key={d.id} value={String(d.id)}>
+                          {d.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {myDepartments.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      No {academicTerms.plural.toLowerCase()} yet — add some
+                      from the dashboard to scope teammates.
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Limits this teammate to candidates in the chosen{" "}
+                      {academicTerms.singular.toLowerCase()}.
+                    </p>
+                  )}
+                </div>
+              ) : null}
               <Button type="submit" disabled={invite.isPending}>
                 <UserPlus className="w-4 h-4 mr-2" />
                 {invite.isPending ? "Inviting…" : "Send invite"}
@@ -394,6 +496,44 @@ export default function StaffPage() {
                       {m.orgRole ? labelForRole(m.orgRole) : "—"}
                     </Badge>
                   )}
+                  {isInstitutionScope &&
+                  m.orgRole &&
+                  !isOwnerRole(m.orgRole) ? (
+                    isOwner && m.id !== sessionUser.id ? (
+                      <Select
+                        value={
+                          m.assignedDepartmentId
+                            ? String(m.assignedDepartmentId)
+                            : "all"
+                        }
+                        onValueChange={(v) =>
+                          onChangeDept(m, v === "all" ? "" : v)
+                        }
+                        disabled={updateRole.isPending}
+                      >
+                        <SelectTrigger className="h-8 w-[170px] text-xs">
+                          <SelectValue
+                            placeholder={`All ${academicTerms.plural.toLowerCase()}`}
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">
+                            All {academicTerms.plural.toLowerCase()}
+                          </SelectItem>
+                          {myDepartments.map((d) => (
+                            <SelectItem key={d.id} value={String(d.id)}>
+                              {d.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Badge variant="outline" className="text-xs">
+                        {m.assignedDepartmentName ??
+                          `All ${academicTerms.plural.toLowerCase()}`}
+                      </Badge>
+                    )
+                  ) : null}
                   {m.status === "invited" && (
                     <Badge variant="outline" className="gap-1">
                       <Mail className="w-3 h-3" /> Invited

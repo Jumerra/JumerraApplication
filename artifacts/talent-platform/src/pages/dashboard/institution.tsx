@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   useGetInstitutionDashboard,
   useListInstitutionStudents,
@@ -6,6 +7,13 @@ import {
   getListInstitutionStudentsQueryKey,
   getGetInstitutionDashboardQueryKey,
 } from "@workspace/api-client-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useAuth } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -31,8 +39,27 @@ export default function InstitutionDashboard() {
   const { userId, sessionUser } = useAuth();
   const id = userId || 1;
   const { data: dashboard, isLoading } = useGetInstitutionDashboard(id);
+  // Owner-only client-side filter. Coordinators are auto-scoped server-side
+  // so the value here is ignored for them; we still send it because it's
+  // harmless and keeps the cache key stable for owners.
+  const [departmentFilter, setDepartmentFilter] = useState<string>("all");
   const { data: students = [], isLoading: studentsLoading } =
-    useListInstitutionStudents(id);
+    useListInstitutionStudents(
+      id,
+      departmentFilter === "all"
+        ? undefined
+        : { departmentId: Number(departmentFilter) },
+      {
+        query: {
+          queryKey: getListInstitutionStudentsQueryKey(
+            id,
+            departmentFilter === "all"
+              ? undefined
+              : { departmentId: Number(departmentFilter) },
+          ),
+        },
+      },
+    );
   // Pull the institution record for the kind badge. Only fetch when we
   // have an actual institutionId, otherwise we'd hit /institutions/0.
   const institutionId =
@@ -214,12 +241,39 @@ export default function InstitutionDashboard() {
       </div>
 
       <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle>Student Roster</CardTitle>
-          <CardDescription>
-            Every candidate linked to {dashboard.institutionName} — including those whose
-            primary affiliation is another institution.
-          </CardDescription>
+        <CardHeader className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
+          <div>
+            <CardTitle>Student Roster</CardTitle>
+            <CardDescription>
+              Every candidate linked to {dashboard.institutionName} — including those whose
+              primary affiliation is another institution.
+            </CardDescription>
+          </div>
+          {isOwner ? (
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-xs text-muted-foreground">
+                Filter by {academicTerms.singular.toLowerCase()}
+              </span>
+              <Select
+                value={departmentFilter}
+                onValueChange={setDepartmentFilter}
+              >
+                <SelectTrigger className="w-[220px] h-8">
+                  <SelectValue placeholder={`All ${academicTerms.plural.toLowerCase()}`} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">
+                    All {academicTerms.plural.toLowerCase()}
+                  </SelectItem>
+                  {departments.map((d) => (
+                    <SelectItem key={d.id} value={String(d.id)}>
+                      {d.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
         </CardHeader>
         <CardContent className="p-0">
           <Table>
@@ -227,6 +281,7 @@ export default function InstitutionDashboard() {
               <TableRow>
                 <TableHead className="pl-6">Student</TableHead>
                 <TableHead>Affiliation</TableHead>
+                <TableHead>{academicTerms.singular}</TableHead>
                 <TableHead>Readiness</TableHead>
                 <TableHead>Applications</TableHead>
                 <TableHead className="pr-6 text-right">Status</TableHead>
@@ -235,13 +290,13 @@ export default function InstitutionDashboard() {
             <TableBody>
               {studentsLoading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                     Loading roster…
                   </TableCell>
                 </TableRow>
               ) : students.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                     No students linked yet.
                   </TableCell>
                 </TableRow>
@@ -266,6 +321,15 @@ export default function InstitutionDashboard() {
                         <Badge variant="outline" className="text-xs flex items-center gap-1 w-fit">
                           <Link2 className="w-3 h-3" /> Affiliated
                         </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {s.departmentName ? (
+                        <span>{s.departmentName}</span>
+                      ) : (
+                        <span className="text-muted-foreground italic">
+                          Unassigned
+                        </span>
                       )}
                     </TableCell>
                     <TableCell>

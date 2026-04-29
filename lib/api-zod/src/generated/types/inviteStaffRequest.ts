@@ -10,4 +10,9 @@ export interface InviteStaffRequest {
   email: string;
   fullName: string;
   orgRole: string;
+  /** Optional department/program scope (institution staff only,
+non-owner roles). Must reference a department of the inviter's
+institution. Ignored for owner roles and for non-institution orgs.
+ */
+  assignedDepartmentId?: number | null;
 }

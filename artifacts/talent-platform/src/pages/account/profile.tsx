@@ -1,12 +1,29 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "wouter";
 import {
   useUpdateMyProfile,
+  useGetCandidate,
+  useUpdateCandidate,
   getGetCurrentUserQueryKey,
+  getGetCandidateQueryKey,
+  getGetInstitutionQueryKey,
+  getInstitution,
+  type CandidateInstitutionLink,
+  type InstitutionDetail,
 } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQueries } from "@tanstack/react-query";
 import { useUpload } from "@workspace/object-storage-web";
 import { useAuth } from "@/lib/auth";
+import { academicUnitTerms } from "@/lib/institution-kinds";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { GraduationCap } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -71,6 +88,28 @@ export default function ProfilePage() {
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
+  // Candidate-only education affiliations. We fetch the candidate record
+  // to read the per-institution department assignments. The session user
+  // doesn't include the institution links, so this is the canonical source.
+  // NOTE: backend candidate-ownership checks compare against
+  // `user.candidateId` (the linked candidate row), NOT `user.id` (the
+  // user account row), so we must use candidateId here.
+  const isCandidate =
+    sessionUser?.role === "candidate" && sessionUser.candidateId != null;
+  const candidateId = isCandidate ? sessionUser!.candidateId! : 0;
+  const { data: candidate } = useGetCandidate(candidateId, {
+    query: {
+      queryKey: getGetCandidateQueryKey(candidateId),
+      enabled: isCandidate && candidateId > 0,
+    },
+  });
+  const updateCandidate = useUpdateCandidate();
+
+  // Per-affiliation department selection (string for Select compatibility;
+  // "" = unassigned/null).
+  const [deptByInst, setDeptByInst] = useState<Record<number, string>>({});
+  const [savingInst, setSavingInst] = useState<number | null>(null);
+
   // Hydrate the form from the loaded session.
   useEffect(() => {
     if (!sessionUser) return;
@@ -80,6 +119,35 @@ export default function ProfilePage() {
     setBio(sessionUser.bio ?? "");
     setAvatarUrl(sessionUser.avatarUrl ?? null);
   }, [sessionUser]);
+
+  // Hydrate the dept picker map whenever the candidate record changes.
+  useEffect(() => {
+    if (!candidate) return;
+    const next: Record<number, string> = {};
+    for (const link of candidate.institutions) {
+      next[link.id] = link.departmentId ? String(link.departmentId) : "";
+    }
+    setDeptByInst(next);
+  }, [candidate]);
+
+  // Pull the department list for each institution the candidate is
+  // affiliated with. We need this both to render the picker options and
+  // to label things "Program" vs "Department" by institution kind.
+  const institutionLinks: CandidateInstitutionLink[] = useMemo(
+    () => candidate?.institutions ?? [],
+    [candidate],
+  );
+  // GET /institutions/{id} already returns the full department list,
+  // so we reuse it instead of adding a second endpoint. One query per
+  // affiliated institution; React Query dedupes if the same id repeats.
+  const institutionDetailQueries = useQueries({
+    queries: institutionLinks.map((link) => ({
+      queryKey: getGetInstitutionQueryKey(link.id),
+      queryFn: () => getInstitution(link.id),
+      enabled: isCandidate,
+      staleTime: 60_000,
+    })),
+  });
 
   const { uploadFile, isUploading, progress } = useUpload({
     onError: (err) => {
@@ -388,6 +456,153 @@ export default function ProfilePage() {
           </form>
         </CardContent>
       </Card>
+
+      {isCandidate && institutionLinks.length > 0 ? (
+        <Card className="shadow-md">
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
+                <GraduationCap className="w-5 h-5" />
+              </div>
+              <div>
+                <CardTitle className="text-lg">Education</CardTitle>
+                <CardDescription>
+                  Pick your department or program at each institution so your
+                  school can group you with the right cohort.
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            {institutionLinks.map((link, idx) => {
+              const detailQuery = institutionDetailQueries[idx];
+              const detail = detailQuery?.data as
+                | InstitutionDetail
+                | undefined;
+              const departments = detail?.departments ?? [];
+              const terms = academicUnitTerms(detail?.type ?? link.type);
+              const value = deptByInst[link.id] ?? "";
+              const original = link.departmentId
+                ? String(link.departmentId)
+                : "";
+              const dirty = value !== original;
+
+              const onSave = async () => {
+                setSavingInst(link.id);
+                try {
+                  await updateCandidate.mutateAsync({
+                    id: candidateId,
+                    data: {
+                      affiliations: [
+                        {
+                          institutionId: link.id,
+                          departmentId: value === "" ? null : Number(value),
+                        },
+                      ],
+                    },
+                  });
+                  await queryClient.invalidateQueries({
+                    queryKey: getGetCandidateQueryKey(candidateId),
+                  });
+                  toast({
+                    title: `${terms.singular} saved`,
+                    description: link.name,
+                  });
+                } catch (err: any) {
+                  toast({
+                    title: `Could not save ${terms.singular.toLowerCase()}`,
+                    description: err?.data?.error ?? "Please try again.",
+                    variant: "destructive",
+                  });
+                } finally {
+                  setSavingInst(null);
+                }
+              };
+
+              return (
+                <div
+                  key={link.id}
+                  className="flex flex-col sm:flex-row sm:items-end gap-3 sm:gap-4 p-4 rounded-lg border"
+                >
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
+                    <img
+                      src={link.logoUrl}
+                      alt=""
+                      className="w-10 h-10 rounded object-cover bg-muted shrink-0"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-medium truncate">{link.name}</p>
+                        {link.isPrimary ? (
+                          <Badge variant="default" className="text-[10px]">
+                            Primary
+                          </Badge>
+                        ) : null}
+                        {link.isVerified ? (
+                          <Badge variant="secondary" className="text-[10px]">
+                            Verified
+                          </Badge>
+                        ) : null}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {detailQuery?.isLoading
+                          ? `Loading ${terms.plural.toLowerCase()}…`
+                          : departments.length === 0
+                          ? `Your institution hasn't added ${terms.plural.toLowerCase()} yet.`
+                          : `Pick the ${terms.singular.toLowerCase()} you're enrolled in.`}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Select
+                      value={value === "" ? "none" : value}
+                      onValueChange={(v) =>
+                        setDeptByInst((m) => ({
+                          ...m,
+                          [link.id]: v === "none" ? "" : v,
+                        }))
+                      }
+                      disabled={
+                        departments.length === 0 ||
+                        savingInst === link.id ||
+                        detailQuery?.isLoading
+                      }
+                    >
+                      <SelectTrigger className="w-[220px]">
+                        <SelectValue
+                          placeholder={`Choose a ${terms.singular.toLowerCase()}`}
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">
+                          Not assigned
+                        </SelectItem>
+                        {departments.map((d) => (
+                          <SelectItem key={d.id} value={String(d.id)}>
+                            {d.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={onSave}
+                      disabled={
+                        !dirty ||
+                        savingInst === link.id ||
+                        updateCandidate.isPending
+                      }
+                    >
+                      {savingInst === link.id ? "Saving…" : "Save"}
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 }

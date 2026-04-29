@@ -4,6 +4,7 @@ import {
   useGetCandidate,
 } from "@workspace/api-client-react";
 import { Image } from "expo-image";
+import { router } from "expo-router";
 import React from "react";
 import {
   ActivityIndicator,
@@ -120,6 +121,27 @@ export default function ProfileScreen() {
         gap: 20,
       }}
     >
+      <View style={styles.editButtonRow}>
+        <Pressable
+          onPress={() => router.push("/profile-edit")}
+          style={({ pressed }) => [
+            styles.editButton,
+            {
+              backgroundColor: colors.secondary,
+              borderColor: colors.border,
+              borderRadius: colors.radius * 1.25,
+              opacity: pressed ? 0.85 : 1,
+            },
+          ]}
+          accessibilityLabel="Edit profile"
+        >
+          <Feather name="edit-2" size={14} color={colors.foreground} />
+          <Text style={[styles.editButtonText, { color: colors.foreground }]}>
+            Edit
+          </Text>
+        </Pressable>
+      </View>
+
       <View style={styles.heroWrap}>
         <View
           style={[
@@ -476,6 +498,22 @@ function InstitutionsRow({
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  editButtonRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+  },
+  editButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+  },
+  editButtonText: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 13,
+  },
   heroWrap: {
     alignItems: "center",
     gap: 8,

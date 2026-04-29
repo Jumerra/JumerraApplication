@@ -120,6 +120,10 @@ function RootLayoutNav() {
         name="job/[id]/apply"
         options={{ presentation: "modal", headerTitle: "Apply" }}
       />
+      <Stack.Screen
+        name="profile-edit"
+        options={{ presentation: "modal", headerTitle: "Edit profile" }}
+      />
     </Stack>
   );
 }

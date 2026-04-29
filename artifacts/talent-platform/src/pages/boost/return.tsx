@@ -18,6 +18,27 @@ export default function BoostReturnPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const sessionId = params.get("session_id");
+    const mobileRedirect = params.get("mobile_redirect");
+    const wasCancelled = params.get("cancelled") === "1";
+
+    // When the mobile app started this checkout, bounce back into the
+    // app via its deep link instead of rendering web confirmation UI.
+    // The mobile side will run verify itself.
+    if (mobileRedirect) {
+      const sep = mobileRedirect.includes("?") ? "&" : "?";
+      const parts: string[] = [];
+      if (wasCancelled) {
+        parts.push("cancelled=1");
+      } else if (sessionId) {
+        parts.push(`session_id=${encodeURIComponent(sessionId)}`);
+      }
+      const target = parts.length
+        ? `${mobileRedirect}${sep}${parts.join("&")}`
+        : mobileRedirect;
+      window.location.replace(target);
+      return;
+    }
+
     if (!sessionId) {
       setPhase("missing");
       return;

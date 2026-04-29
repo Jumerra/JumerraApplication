@@ -66,8 +66,9 @@ export function BoostCard({ candidateId }: { candidateId: number }) {
       });
       window.location.href = result.checkoutUrl;
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to start checkout";
-      setError(msg);
+      const raw =
+        err instanceof Error ? err.message : "Failed to start checkout";
+      setError(raw.replace(/^HTTP \d+ [^:]+: /, ""));
     }
   };
 

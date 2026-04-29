@@ -778,15 +778,52 @@ function formatPriceMobile(cents: number, currency: string): string {
   }
 }
 
-function getReturnUrl(suffix: string): string {
-  if (Platform.OS === "web") {
-    return `${window.location.origin}${suffix}?session_id={CHECKOUT_SESSION_ID}`;
+function getWebOrigin(): string {
+  if (Platform.OS === "web") return window.location.origin;
+  const domain = process.env.EXPO_PUBLIC_DOMAIN;
+  if (!domain) {
+    throw new Error(
+      "EXPO_PUBLIC_DOMAIN is not configured. Cannot start checkout.",
+    );
   }
-  // Native: use a deep link back into the app. session_id is appended as a
-  // literal placeholder; we parse it out of the WebBrowser result instead.
-  return Linking.createURL(suffix.replace(/^\//, ""), {
-    queryParams: { session_id: "{CHECKOUT_SESSION_ID}" },
-  });
+  return `https://${domain}`;
+}
+
+// On native, build a deep-link URL the in-app browser can hand back to
+// the app via openAuthSessionAsync. On web, returns null (we just use
+// window.location.href for redirects).
+function getDeepLinkPrefix(suffix: string): string | null {
+  if (Platform.OS === "web") return null;
+  return Linking.createURL(suffix.replace(/^\//, ""));
+}
+
+function buildSuccessUrl(suffix: string): string {
+  const origin = getWebOrigin();
+  const base = `${origin}${suffix}?session_id={CHECKOUT_SESSION_ID}`;
+  if (Platform.OS === "web") return base;
+  // Native: tell the web return page to bounce back into the app via a
+  // deep link instead of rendering its own confirmation UI.
+  const deepLink = getDeepLinkPrefix(suffix);
+  if (!deepLink) return base;
+  return `${base}&mobile_redirect=${encodeURIComponent(deepLink)}`;
+}
+
+function buildCancelUrl(suffix: string): string {
+  const origin = getWebOrigin();
+  if (Platform.OS === "web") return `${origin}/dashboard/candidate`;
+  // Reuse the return page so it bounces back to the app with a
+  // cancelled marker — keeps the in-app browser from getting stuck on
+  // the web dashboard after the user cancels Stripe.
+  const deepLink = getDeepLinkPrefix(suffix);
+  if (!deepLink) return `${origin}/dashboard/candidate`;
+  return `${origin}${suffix}?cancelled=1&mobile_redirect=${encodeURIComponent(deepLink)}`;
+}
+
+// Strip the "HTTP 400 Bad Request: " prefix added by our shared API
+// client so the user sees the actual server message.
+function humanizeError(err: unknown, fallback: string): string {
+  if (!(err instanceof Error)) return fallback;
+  return err.message.replace(/^HTTP \d+ [^:]+: /, "") || fallback;
 }
 
 function PremiumSection({ candidateId }: { candidateId: number }) {
@@ -849,41 +886,47 @@ function PremiumSection({ candidateId }: { candidateId: number }) {
 
   const runCheckout = async (
     kind: "boost" | "cv",
-    createUrl: () => Promise<{ checkoutUrl: string; sessionId: string }>,
+    suffix: "/boost/return" | "/cv/return",
+    createUrl: (urls: {
+      successUrl: string;
+      cancelUrl: string;
+    }) => Promise<{ checkoutUrl: string; sessionId: string }>,
     verify: (sessionId: string) => Promise<void>,
   ) => {
     setBusy(kind);
     try {
-      const { checkoutUrl, sessionId } = await createUrl();
+      const { checkoutUrl, sessionId } = await createUrl({
+        successUrl: buildSuccessUrl(suffix),
+        cancelUrl: buildCancelUrl(suffix),
+      });
       if (Platform.OS === "web") {
         window.location.href = checkoutUrl;
         return;
       }
+      const deepLink = getDeepLinkPrefix(suffix) ?? Linking.createURL("");
       const result = await WebBrowser.openAuthSessionAsync(
         checkoutUrl,
-        Linking.createURL(""),
+        deepLink,
       );
       if (result.type !== "success") {
-        // User cancelled or browser dismissed; nothing to verify yet.
+        // User dismissed the browser without reaching the success URL.
         return;
       }
-      // Stripe substitutes session_id in the success URL with the real one;
-      // try to read it from the redirect, otherwise fall back to the id we
-      // got from the create call.
-      let sid = sessionId;
-      try {
-        const parsed = Linking.parse(result.url);
-        const fromUrl = parsed.queryParams?.session_id;
-        if (typeof fromUrl === "string" && fromUrl.length > 0) sid = fromUrl;
-      } catch {
-        // fall through with the original sessionId
+      const parsed = Linking.parse(result.url);
+      const cancelled = parsed.queryParams?.cancelled;
+      if (cancelled === "1") {
+        // User clicked "Back" on Stripe; cancel URL bounced us home.
+        return;
       }
+      const fromUrl = parsed.queryParams?.session_id;
+      const sid =
+        typeof fromUrl === "string" && fromUrl.length > 0 ? fromUrl : sessionId;
       await verify(sid);
       await refreshAll();
     } catch (err) {
       Alert.alert(
         "Checkout failed",
-        err instanceof Error ? err.message : "Please try again.",
+        humanizeError(err, "Please try again."),
       );
     } finally {
       setBusy(null);
@@ -893,16 +936,11 @@ function PremiumSection({ candidateId }: { candidateId: number }) {
   const onBoost = () =>
     runCheckout(
       "boost",
-      async () =>
+      "/boost/return",
+      async ({ successUrl, cancelUrl }) =>
         createBoostCheckout.mutateAsync({
           id: candidateId,
-          data: {
-            successUrl: getReturnUrl("/boost/return"),
-            cancelUrl:
-              Platform.OS === "web"
-                ? `${window.location.origin}/dashboard/candidate`
-                : Linking.createURL(""),
-          },
+          data: { successUrl, cancelUrl },
         }),
       async (sid) => {
         await verifyBoost.mutateAsync({ data: { sessionId: sid } });
@@ -912,16 +950,11 @@ function PremiumSection({ candidateId }: { candidateId: number }) {
   const onUnlockCv = () =>
     runCheckout(
       "cv",
-      async () =>
+      "/cv/return",
+      async ({ successUrl, cancelUrl }) =>
         createCvCheckout.mutateAsync({
           id: candidateId,
-          data: {
-            successUrl: getReturnUrl("/cv/return"),
-            cancelUrl:
-              Platform.OS === "web"
-                ? `${window.location.origin}/dashboard/candidate`
-                : Linking.createURL(""),
-          },
+          data: { successUrl, cancelUrl },
         }),
       async (sid) => {
         await verifyCv.mutateAsync({ data: { sessionId: sid } });
@@ -936,7 +969,7 @@ function PremiumSection({ candidateId }: { candidateId: number }) {
     } catch (err) {
       Alert.alert(
         "Couldn't generate CV",
-        err instanceof Error ? err.message : "Please try again.",
+        humanizeError(err, "Please try again."),
       );
     } finally {
       setBusy(null);

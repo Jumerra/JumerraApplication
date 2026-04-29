@@ -50,7 +50,9 @@ export function CvCard({ candidateId }: { candidateId: number }) {
       });
       window.location.href = result.checkoutUrl;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to start checkout");
+      const raw =
+        err instanceof Error ? err.message : "Failed to start checkout";
+      setError(raw.replace(/^HTTP \d+ [^:]+: /, ""));
     }
   };
 

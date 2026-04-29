@@ -780,12 +780,15 @@ function formatPriceMobile(cents: number, currency: string): string {
 
 function getWebOrigin(): string {
   if (Platform.OS === "web") return window.location.origin;
-  const domain = process.env.EXPO_PUBLIC_DOMAIN;
-  if (!domain) {
+  const raw = process.env.EXPO_PUBLIC_DOMAIN;
+  if (!raw) {
     throw new Error(
       "EXPO_PUBLIC_DOMAIN is not configured. Cannot start checkout.",
     );
   }
+  // Tolerate misconfigured env values like "https://example.com" or
+  // trailing slashes — the rest of the app expects a bare host.
+  const domain = raw.replace(/^https?:\/\//, "").replace(/\/+$/, "");
   return `https://${domain}`;
 }
 

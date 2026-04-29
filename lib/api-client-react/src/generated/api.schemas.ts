@@ -38,8 +38,55 @@ export interface AuthUser {
   candidateId: number | null;
   employerId: number | null;
   institutionId: number | null;
+  /** Normalized object storage path (e.g. /objects/uploads/<id>) for the user's avatar image. */
+  avatarUrl: string | null;
+  phone: string | null;
+  /** Job title within the user's organization (free text). */
+  title: string | null;
+  bio: string | null;
   /** Effective admin permission keys; empty for non-admins. */
   permissions: string[];
+}
+
+/**
+ * Universal personal-profile update. All fields are optional; only the
+fields supplied are written. Pass null on a nullable field to clear it.
+
+ */
+export interface ProfileUpdateRequest {
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  fullName?: string;
+  /** @maxLength 50 */
+  phone?: string | null;
+  /** @maxLength 200 */
+  title?: string | null;
+  /** @maxLength 2000 */
+  bio?: string | null;
+  /** Normalized object path returned by the upload endpoint, or null to remove the avatar. */
+  avatarUrl?: string | null;
+}
+
+export interface UploadUrlRequest {
+  name: string;
+  size: number;
+  contentType: string;
+}
+
+export interface UploadUrlResponseMetadata {
+  name: string;
+  size: number;
+  contentType: string;
+}
+
+export interface UploadUrlResponse {
+  /** Presigned PUT URL the client uploads the file to. */
+  uploadURL: string;
+  /** Normalized object path (e.g. /objects/uploads/<id>) to persist as a reference. */
+  objectPath: string;
+  metadata: UploadUrlResponseMetadata;
 }
 
 export interface AuthSession {

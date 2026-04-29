@@ -13,6 +13,7 @@ import siteContentRouter from "./site-content";
 import staffRouter from "./staff";
 import orgRolesRouter from "./org-roles";
 import notificationsRouter from "./notifications";
+import storageRouter from "./storage";
 import { requireAuth } from "../middleware/require-auth";
 
 const router: IRouter = Router();
@@ -29,6 +30,7 @@ router.use(siteContentRouter);
 router.use(staffRouter);
 router.use(orgRolesRouter);
 router.use(notificationsRouter);
+router.use(storageRouter);
 router.use(candidatesRouter);
 router.use(employersRouter);
 router.use(institutionsRouter);

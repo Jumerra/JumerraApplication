@@ -18,6 +18,12 @@ export interface AuthUser {
   candidateId: number | null;
   employerId: number | null;
   institutionId: number | null;
+  /** Normalized object storage path (e.g. /objects/uploads/<id>) for the user's avatar image. */
+  avatarUrl: string | null;
+  phone: string | null;
+  /** Job title within the user's organization (free text). */
+  title: string | null;
+  bio: string | null;
   /** Effective admin permission keys; empty for non-admins. */
   permissions: string[];
 }

@@ -145,6 +145,88 @@ router.post("/auth/logout", (req, res) => {
   });
 });
 
+/**
+ * PATCH /api/auth/me/profile
+ * Update the current user's universal profile fields.
+ * Optional fields: only fields supplied are written. Pass null on
+ * nullable fields (phone, title, bio, avatarUrl) to clear them.
+ */
+router.patch("/auth/me/profile", requireAuth, async (req, res) => {
+  try {
+    const user = req.currentUser!;
+    const body = (req.body ?? {}) as Record<string, unknown>;
+
+    const updates: Record<string, string | null> = {};
+
+    if ("fullName" in body) {
+      const v = body.fullName;
+      if (typeof v !== "string" || v.trim().length === 0 || v.length > 200) {
+        res.status(400).json({ error: "fullName must be 1–200 characters" });
+        return;
+      }
+      updates.fullName = v.trim();
+    }
+    const nullableStringFields: Array<{ key: "phone" | "title" | "bio"; max: number }> = [
+      { key: "phone", max: 50 },
+      { key: "title", max: 200 },
+      { key: "bio", max: 2000 },
+    ];
+    for (const { key, max } of nullableStringFields) {
+      if (!(key in body)) continue;
+      const v = body[key];
+      if (v === null) {
+        updates[key] = null;
+        continue;
+      }
+      if (typeof v !== "string" || v.length > max) {
+        res.status(400).json({ error: `${key} must be a string up to ${max} characters or null` });
+        return;
+      }
+      // Trim phone/title; preserve bio whitespace; collapse empty to null.
+      const cleaned = key === "bio" ? v : v.trim();
+      updates[key] = cleaned.length === 0 ? null : cleaned;
+    }
+
+    // avatarUrl must be either null (clear) or a normalized object path
+    // produced by our own upload flow ("/objects/uploads/<id>"). This
+    // refuses arbitrary external URLs which would weaken storage
+    // ownership guarantees and could be used as tracking pixels.
+    if ("avatarUrl" in body) {
+      const v = body.avatarUrl;
+      if (v === null) {
+        updates.avatarUrl = null;
+      } else if (
+        typeof v === "string" &&
+        v.length <= 1000 &&
+        /^\/objects\/[A-Za-z0-9._/-]+$/.test(v)
+      ) {
+        updates.avatarUrl = v;
+      } else {
+        res.status(400).json({
+          error: "avatarUrl must be a normalized object path (e.g. /objects/uploads/<id>) or null",
+        });
+        return;
+      }
+    }
+
+    if (Object.keys(updates).length === 0) {
+      res.status(400).json({ error: "No fields to update" });
+      return;
+    }
+
+    await db.update(usersTable).set(updates).where(eq(usersTable.id, user.id));
+    const refreshed = await findUserById(user.id);
+    if (!refreshed) {
+      res.status(500).json({ error: "Profile reload failed" });
+      return;
+    }
+    res.json({ user: await toPublicUser(refreshed) });
+  } catch (err) {
+    req.log.error({ err }, "update-profile failed");
+    res.status(500).json({ error: "Could not update profile" });
+  }
+});
+
 /** GET /api/auth/me */
 router.get("/auth/me", async (req, res) => {
   const userId = req.session?.userId;

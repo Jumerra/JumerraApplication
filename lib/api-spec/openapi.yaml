@@ -28,6 +28,8 @@ tags:
     description: Authentication and registration
   - name: admin
     description: Admin-only operations
+  - name: storage
+    description: Object storage upload helpers
 paths:
   /healthz:
     get:
@@ -603,6 +605,43 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/AuthSession" }
+
+  /auth/me/profile:
+    patch:
+      operationId: updateMyProfile
+      tags: [auth]
+      summary: Update the current user's universal profile fields
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProfileUpdateRequest" }
+      responses:
+        "200":
+          description: Profile updated, returns the refreshed session user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthSession" }
+        "400": { description: Invalid input }
+        "401": { description: Not authenticated }
+
+  /storage/uploads/request-url:
+    post:
+      operationId: requestUploadUrl
+      tags: [storage]
+      summary: Request a presigned URL to upload a file to object storage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UploadUrlRequest" }
+      responses:
+        "200":
+          description: Presigned URL granted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UploadUrlResponse" }
+        "400": { description: Invalid input }
 
   /auth/setup-password:
     post:
@@ -1249,12 +1288,58 @@ components:
         candidateId: { type: integer, nullable: true }
         employerId: { type: integer, nullable: true }
         institutionId: { type: integer, nullable: true }
+        avatarUrl:
+          type: string
+          nullable: true
+          description: Normalized object storage path (e.g. /objects/uploads/<id>) for the user's avatar image.
+        phone: { type: string, nullable: true }
+        title: { type: string, nullable: true, description: "Job title within the user's organization (free text)." }
+        bio: { type: string, nullable: true }
         permissions:
           type: array
           items: { type: string }
           description: Effective admin permission keys; empty for non-admins.
       required:
-        [id, email, fullName, role, status, orgRole, candidateId, employerId, institutionId, permissions]
+        [id, email, fullName, role, status, orgRole, candidateId, employerId, institutionId, avatarUrl, phone, title, bio, permissions]
+
+    ProfileUpdateRequest:
+      type: object
+      description: |
+        Universal personal-profile update. All fields are optional; only the
+        fields supplied are written. Pass null on a nullable field to clear it.
+      properties:
+        fullName: { type: string, minLength: 1, maxLength: 200 }
+        phone: { type: string, nullable: true, maxLength: 50 }
+        title: { type: string, nullable: true, maxLength: 200 }
+        bio: { type: string, nullable: true, maxLength: 2000 }
+        avatarUrl:
+          type: string
+          nullable: true
+          description: Normalized object path returned by the upload endpoint, or null to remove the avatar.
+
+    UploadUrlRequest:
+      type: object
+      properties:
+        name: { type: string }
+        size: { type: integer }
+        contentType: { type: string }
+      required: [name, size, contentType]
+
+    UploadUrlResponseMetadata:
+      type: object
+      properties:
+        name: { type: string }
+        size: { type: integer }
+        contentType: { type: string }
+      required: [name, size, contentType]
+
+    UploadUrlResponse:
+      type: object
+      properties:
+        uploadURL: { type: string, description: "Presigned PUT URL the client uploads the file to." }
+        objectPath: { type: string, description: "Normalized object path (e.g. /objects/uploads/<id>) to persist as a reference." }
+        metadata: { $ref: "#/components/schemas/UploadUrlResponseMetadata" }
+      required: [uploadURL, objectPath, metadata]
 
     AuthSession:
       type: object

@@ -42,6 +42,17 @@ export const usersTable = pgTable(
      *   institution -> 'owner' | 'coordinator' | 'viewer'
      */
     orgRole: text("org_role"),
+    /**
+     * Universal profile fields available to every role. The candidate /
+     * employer / institution tables continue to hold role-specific
+     * profile data (headline, logoUrl, etc.); these columns let any user
+     * (including admins and org staff) maintain a personal avatar and
+     * contact info regardless of role.
+     */
+    avatarUrl: text("avatar_url"),
+    phone: text("phone"),
+    title: text("title"),
+    bio: text("bio"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

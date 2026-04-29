@@ -1054,6 +1054,18 @@ export const LoginUserResponse = zod.object({
       candidateId: zod.number().nullable(),
       employerId: zod.number().nullable(),
       institutionId: zod.number().nullable(),
+      avatarUrl: zod
+        .string()
+        .nullable()
+        .describe(
+          "Normalized object storage path (e.g. \/objects\/uploads\/<id>) for the user's avatar image.",
+        ),
+      phone: zod.string().nullable(),
+      title: zod
+        .string()
+        .nullable()
+        .describe("Job title within the user's organization (free text)."),
+      bio: zod.string().nullable(),
       permissions: zod
         .array(zod.string())
         .describe("Effective admin permission keys; empty for non-admins."),
@@ -1078,12 +1090,113 @@ export const GetCurrentUserResponse = zod.object({
       candidateId: zod.number().nullable(),
       employerId: zod.number().nullable(),
       institutionId: zod.number().nullable(),
+      avatarUrl: zod
+        .string()
+        .nullable()
+        .describe(
+          "Normalized object storage path (e.g. \/objects\/uploads\/<id>) for the user's avatar image.",
+        ),
+      phone: zod.string().nullable(),
+      title: zod
+        .string()
+        .nullable()
+        .describe("Job title within the user's organization (free text)."),
+      bio: zod.string().nullable(),
       permissions: zod
         .array(zod.string())
         .describe("Effective admin permission keys; empty for non-admins."),
     }),
     zod.null(),
   ]),
+});
+
+/**
+ * @summary Update the current user's universal profile fields
+ */
+export const updateMyProfileBodyFullNameMax = 200;
+
+export const updateMyProfileBodyPhoneMax = 50;
+
+export const updateMyProfileBodyTitleMax = 200;
+
+export const updateMyProfileBodyBioMax = 2000;
+
+export const UpdateMyProfileBody = zod
+  .object({
+    fullName: zod
+      .string()
+      .min(1)
+      .max(updateMyProfileBodyFullNameMax)
+      .optional(),
+    phone: zod.string().max(updateMyProfileBodyPhoneMax).nullish(),
+    title: zod.string().max(updateMyProfileBodyTitleMax).nullish(),
+    bio: zod.string().max(updateMyProfileBodyBioMax).nullish(),
+    avatarUrl: zod
+      .string()
+      .nullish()
+      .describe(
+        "Normalized object path returned by the upload endpoint, or null to remove the avatar.",
+      ),
+  })
+  .describe(
+    "Universal personal-profile update. All fields are optional; only the\nfields supplied are written. Pass null on a nullable field to clear it.\n",
+  );
+
+export const UpdateMyProfileResponse = zod.object({
+  user: zod.union([
+    zod.object({
+      id: zod.number(),
+      email: zod.string(),
+      fullName: zod.string(),
+      role: zod.enum(["candidate", "employer", "institution", "admin"]),
+      status: zod.enum(["pending", "active", "rejected", "invited"]),
+      orgRole: zod.string().nullable(),
+      candidateId: zod.number().nullable(),
+      employerId: zod.number().nullable(),
+      institutionId: zod.number().nullable(),
+      avatarUrl: zod
+        .string()
+        .nullable()
+        .describe(
+          "Normalized object storage path (e.g. \/objects\/uploads\/<id>) for the user's avatar image.",
+        ),
+      phone: zod.string().nullable(),
+      title: zod
+        .string()
+        .nullable()
+        .describe("Job title within the user's organization (free text)."),
+      bio: zod.string().nullable(),
+      permissions: zod
+        .array(zod.string())
+        .describe("Effective admin permission keys; empty for non-admins."),
+    }),
+    zod.null(),
+  ]),
+});
+
+/**
+ * @summary Request a presigned URL to upload a file to object storage
+ */
+export const RequestUploadUrlBody = zod.object({
+  name: zod.string(),
+  size: zod.number(),
+  contentType: zod.string(),
+});
+
+export const RequestUploadUrlResponse = zod.object({
+  uploadURL: zod
+    .string()
+    .describe("Presigned PUT URL the client uploads the file to."),
+  objectPath: zod
+    .string()
+    .describe(
+      "Normalized object path (e.g. \/objects\/uploads\/<id>) to persist as a reference.",
+    ),
+  metadata: zod.object({
+    name: zod.string(),
+    size: zod.number(),
+    contentType: zod.string(),
+  }),
 });
 
 export const SetupPasswordBody = zod.object({
@@ -1103,6 +1216,18 @@ export const SetupPasswordResponse = zod.object({
       candidateId: zod.number().nullable(),
       employerId: zod.number().nullable(),
       institutionId: zod.number().nullable(),
+      avatarUrl: zod
+        .string()
+        .nullable()
+        .describe(
+          "Normalized object storage path (e.g. \/objects\/uploads\/<id>) for the user's avatar image.",
+        ),
+      phone: zod.string().nullable(),
+      title: zod
+        .string()
+        .nullable()
+        .describe("Job title within the user's organization (free text)."),
+      bio: zod.string().nullable(),
       permissions: zod
         .array(zod.string())
         .describe("Effective admin permission keys; empty for non-admins."),

@@ -33,7 +33,9 @@ import {
   Users,
   UserCog,
   ShieldCheck,
+  User,
 } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { NotificationBell } from "@/components/notification-bell";
 import { useTheme } from "@/components/theme-provider";
 import {
@@ -41,6 +43,14 @@ import {
   getGetCurrentUserQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+
+function avatarSrc(avatarUrl: string | null | undefined): string | undefined {
+  if (!avatarUrl) return undefined;
+  if (avatarUrl.startsWith("/objects/")) {
+    return `/api/storage${avatarUrl}`;
+  }
+  return avatarUrl;
+}
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const { role, sessionUser, demoRole, setDemoRole, hasPermission } = useAuth();
@@ -159,9 +169,17 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="sm" className="gap-2 max-w-[200px]">
-                    <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold">
-                      {sessionUser.fullName.charAt(0).toUpperCase()}
-                    </div>
+                    <Avatar className="h-7 w-7">
+                      {avatarSrc(sessionUser.avatarUrl) && (
+                        <AvatarImage
+                          src={avatarSrc(sessionUser.avatarUrl)}
+                          alt={sessionUser.fullName}
+                        />
+                      )}
+                      <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
+                        {sessionUser.fullName.charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
                     <span className="truncate hidden sm:inline">
                       {sessionUser.fullName}
                     </span>
@@ -236,6 +254,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
                         <DropdownMenuSeparator />
                       </>
                     )}
+                  <DropdownMenuItem asChild>
+                    <Link href="/account/profile" className="gap-2 cursor-pointer">
+                      <User className="w-4 h-4" /> Profile
+                    </Link>
+                  </DropdownMenuItem>
                   <DropdownMenuItem asChild>
                     <Link href="/account/password" className="gap-2 cursor-pointer">
                       <KeyRound className="w-4 h-4" /> Change password

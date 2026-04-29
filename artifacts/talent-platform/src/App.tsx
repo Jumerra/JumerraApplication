@@ -41,6 +41,7 @@ import SignupPage from "@/pages/auth/signup";
 import SetupPasswordPage from "@/pages/auth/setup-password";
 import ForgotPasswordPage from "@/pages/auth/forgot-password";
 import ChangePasswordPage from "@/pages/account/change-password";
+import ProfilePage from "@/pages/account/profile";
 
 const queryClient = new QueryClient();
 
@@ -115,6 +116,7 @@ function Router() {
         <Route path="/signup" component={SignupPage} />
         <Route path="/setup-password" component={SetupPasswordPage} />
         <Route path="/forgot-password" component={ForgotPasswordPage} />
+        <Route path="/account/profile" component={ProfilePage} />
         <Route path="/account/password" component={ChangePasswordPage} />
         
         <Route component={NotFound} />

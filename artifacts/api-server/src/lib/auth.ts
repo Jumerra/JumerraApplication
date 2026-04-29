@@ -87,6 +87,10 @@ export type PublicUser = {
   candidateId: number | null;
   employerId: number | null;
   institutionId: number | null;
+  avatarUrl: string | null;
+  phone: string | null;
+  title: string | null;
+  bio: string | null;
   /**
    * Effective permission keys for the current user. Empty for non-admins.
    * Always present so the frontend can branch on it without nullchecks.
@@ -108,6 +112,10 @@ export async function toPublicUser(user: User): Promise<PublicUser> {
     candidateId: user.candidateId,
     employerId: user.employerId,
     institutionId: user.institutionId,
+    avatarUrl: user.avatarUrl,
+    phone: user.phone,
+    title: user.title,
+    bio: user.bio,
     permissions: Array.from(perms).sort(),
   };
 }

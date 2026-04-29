@@ -36,9 +36,20 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 export default function InstitutionDashboard() {
-  const { userId, sessionUser } = useAuth();
-  const id = userId || 1;
-  const { data: dashboard, isLoading } = useGetInstitutionDashboard(id);
+  const { sessionUser } = useAuth();
+  // Resolve the actual institution this user manages. Falling back to the
+  // user's own id (as we used to) caused /dashboard/institution/<userId>
+  // requests that 401 because the user isn't a member of that institution.
+  const institutionId =
+    sessionUser?.role === "institution" ? sessionUser.institutionId : null;
+  const id = institutionId ?? 0;
+  const hasInstitution = institutionId != null;
+  const { data: dashboard, isLoading } = useGetInstitutionDashboard(id, {
+    query: {
+      queryKey: getGetInstitutionDashboardQueryKey(id),
+      enabled: hasInstitution,
+    },
+  });
   // Owner-only client-side filter. Coordinators are auto-scoped server-side
   // so the value here is ignored for them; we still send it because it's
   // harmless and keeps the cache key stable for owners.
@@ -57,17 +68,16 @@ export default function InstitutionDashboard() {
               ? undefined
               : { departmentId: Number(departmentFilter) },
           ),
+          enabled: hasInstitution,
         },
       },
     );
   // Pull the institution record for the kind badge. Only fetch when we
   // have an actual institutionId, otherwise we'd hit /institutions/0.
-  const institutionId =
-    sessionUser?.role === "institution" ? sessionUser.institutionId : null;
   const { data: institution } = useGetInstitution(institutionId ?? 0, {
     query: {
       queryKey: getGetInstitutionQueryKey(institutionId ?? 0),
-      enabled: institutionId != null,
+      enabled: hasInstitution,
     },
   });
   // Owners get the management cards. We also need the lists' counts to
@@ -117,6 +127,22 @@ export default function InstitutionDashboard() {
     verifyMut.isPending || unverifyMut.isPending
       ? Number((verifyMut.variables ?? unverifyMut.variables)?.candidateId)
       : null;
+
+  if (!hasInstitution) {
+    return (
+      <div className="container px-4 py-12 max-w-3xl mx-auto">
+        <Card>
+          <CardHeader>
+            <CardTitle>No institution assigned</CardTitle>
+            <CardDescription>
+              Your account isn't linked to an institution yet. Please ask a
+              platform admin to assign you to one.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return <div className="container py-12 px-4"><div className="animate-pulse h-[800px] bg-muted rounded-2xl" /></div>;

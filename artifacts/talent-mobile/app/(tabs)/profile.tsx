@@ -23,6 +23,7 @@ import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { SkillChip } from "@/components/SkillChip";
 import { useAuth } from "@/hooks/useAuth";
 import { useColors } from "@/hooks/useColors";
+import { avatarSrc } from "@/lib/avatar";
 
 const WEB_TOP_INSET = Platform.OS === "web" ? 67 : 0;
 
@@ -149,9 +150,9 @@ export default function ProfileScreen() {
             { backgroundColor: colors.secondary, borderColor: colors.border },
           ]}
         >
-          {candidate.avatarUrl ? (
+          {avatarSrc(candidate.avatarUrl) ? (
             <Image
-              source={{ uri: candidate.avatarUrl }}
+              source={{ uri: avatarSrc(candidate.avatarUrl) }}
               style={styles.avatar}
               contentFit="cover"
               transition={200}

@@ -3,10 +3,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   getGetCandidateQueryKey,
   getGetCurrentUserQueryKey,
+  requestUploadUrl,
   useGetCandidate,
   useUpdateCandidate,
 } from "@workspace/api-client-react";
 import * as Haptics from "expo-haptics";
+import { Image } from "expo-image";
+import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import React from "react";
 import {
@@ -27,6 +30,7 @@ import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollV
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { useAuth } from "@/hooks/useAuth";
 import { useColors } from "@/hooks/useColors";
+import { avatarSrc } from "@/lib/avatar";
 
 type Availability = "open" | "employed" | "not_looking";
 
@@ -73,7 +77,14 @@ export default function ProfileEditScreen() {
   const [bio, setBio] = React.useState("");
   const [skills, setSkills] = React.useState<string[]>([]);
   const [skillDraft, setSkillDraft] = React.useState("");
+  const [avatarUrl, setAvatarUrl] = React.useState<string>("");
+  const [avatarUploading, setAvatarUploading] = React.useState(false);
   const [hydrated, setHydrated] = React.useState(false);
+  // Synchronous in-flight guard. State updates are async, so a fast
+  // double-tap on the avatar can re-enter pickAndUploadAvatar before
+  // setAvatarUploading(true) has flushed. A ref is set/cleared
+  // synchronously and prevents that race.
+  const uploadInFlightRef = React.useRef(false);
 
   // Hydrate the form once the candidate loads. We use a flag so the user's
   // edits aren't blown away on a background refetch.
@@ -87,6 +98,7 @@ export default function ProfileEditScreen() {
     setAvailability((candidate.availability as Availability) ?? "open");
     setBio(candidate.bio ?? "");
     setSkills(Array.isArray(candidate.skills) ? [...candidate.skills] : []);
+    setAvatarUrl(candidate.avatarUrl ?? "");
     setHydrated(true);
   }, [candidate, hydrated]);
 
@@ -101,7 +113,8 @@ export default function ProfileEditScreen() {
     hasCandidateRecord &&
     trimmedFullName.length > 0 &&
     yearsExperienceValid &&
-    !updateMutation.isPending;
+    !updateMutation.isPending &&
+    !avatarUploading;
 
   const addSkill = React.useCallback(() => {
     const next = skillDraft.trim();
@@ -132,6 +145,110 @@ export default function ProfileEditScreen() {
     setSkills((prev) => prev.filter((s) => s !== skill));
   }, []);
 
+  const pickAndUploadAvatar = React.useCallback(async () => {
+    // Synchronous re-entry guard. setAvatarUploading is async; the ref is
+    // not, so a double-tap still hits this guard reliably.
+    if (uploadInFlightRef.current) return;
+    uploadInFlightRef.current = true;
+    try {
+      // On native, ask for media-library permission. On web this is a no-op
+      // (the browser file picker is permission-less).
+      if (Platform.OS !== "web") {
+        const perm =
+          await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!perm.granted) {
+          Alert.alert(
+            "Permission needed",
+            "We need access to your photos so you can choose a profile picture.",
+          );
+          return;
+        }
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.85,
+      });
+      if (result.canceled) return;
+      const asset = result.assets[0];
+      if (!asset) return;
+
+      // Resolve the binary. RN supports `fetch(uri).blob()` on both web
+      // and native runtimes.
+      const fileResp = await fetch(asset.uri);
+      const blob = await fileResp.blob();
+      const size =
+        typeof asset.fileSize === "number" && asset.fileSize > 0
+          ? asset.fileSize
+          : blob.size;
+      const contentType =
+        asset.mimeType ||
+        (blob.type && blob.type !== "" ? blob.type : "image/jpeg");
+      const name =
+        asset.fileName ||
+        `avatar.${contentType.split("/")[1] ?? "jpg"}`;
+
+      // Server allowlist: png/jpg/jpeg/gif/webp; max 10MB.
+      const allowed = new Set([
+        "image/png",
+        "image/jpeg",
+        "image/jpg",
+        "image/gif",
+        "image/webp",
+      ]);
+      if (!allowed.has(contentType.toLowerCase())) {
+        Alert.alert(
+          "Unsupported image",
+          "Please choose a PNG, JPEG, GIF, or WebP image.",
+        );
+        return;
+      }
+      if (size > 10 * 1024 * 1024) {
+        Alert.alert(
+          "Image too large",
+          "Please choose an image under 10 MB.",
+        );
+        return;
+      }
+
+      setAvatarUploading(true);
+
+      // Step 1: ask the API for a presigned PUT URL.
+      const upload = await requestUploadUrl({ name, size, contentType });
+
+      // Step 2: PUT the bytes directly to GCS. Note: GCS presigned PUTs
+      // require the same Content-Type that the URL was signed for; the
+      // server signs without a content-type constraint, but setting one
+      // here is still correct for GCS to store the metadata.
+      const putResp = await fetch(upload.uploadURL, {
+        method: "PUT",
+        headers: { "Content-Type": contentType },
+        body: blob,
+      });
+      if (!putResp.ok) {
+        throw new Error(`Upload failed (${putResp.status})`);
+      }
+
+      setAvatarUrl(upload.objectPath);
+      if (Platform.OS !== "web") {
+        Haptics.notificationAsync(
+          Haptics.NotificationFeedbackType.Success,
+        ).catch(() => {});
+      }
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "We couldn't upload your photo. Please try again.";
+      Alert.alert("Upload failed", message);
+    } finally {
+      uploadInFlightRef.current = false;
+      setAvatarUploading(false);
+    }
+  }, []);
+
   const handleSave = React.useCallback(() => {
     if (!canSave || !hasCandidateRecord) return;
 
@@ -147,6 +264,7 @@ export default function ProfileEditScreen() {
           yearsExperience: yearsExperienceNum,
           availability,
           skills,
+          avatarUrl,
         },
       },
       {
@@ -197,6 +315,7 @@ export default function ProfileEditScreen() {
     yearsExperienceNum,
     availability,
     skills,
+    avatarUrl,
     queryClient,
   ]);
 
@@ -250,6 +369,64 @@ export default function ProfileEditScreen() {
         }}
         keyboardShouldPersistTaps="handled"
       >
+        <View style={styles.avatarSection}>
+          <Pressable
+            onPress={pickAndUploadAvatar}
+            disabled={avatarUploading}
+            accessibilityLabel="Change profile photo"
+            style={({ pressed }) => [
+              styles.avatarWrap,
+              {
+                backgroundColor: colors.secondary,
+                borderColor: colors.border,
+                opacity: pressed && !avatarUploading ? 0.85 : 1,
+              },
+            ]}
+          >
+            {avatarSrc(avatarUrl) ? (
+              <Image
+                source={{ uri: avatarSrc(avatarUrl) }}
+                style={styles.avatar}
+                contentFit="cover"
+                transition={150}
+              />
+            ) : (
+              <Feather
+                name="user"
+                size={42}
+                color={colors.mutedForeground}
+              />
+            )}
+            <View
+              style={[
+                styles.avatarBadge,
+                {
+                  backgroundColor: colors.primary,
+                  borderColor: colors.background,
+                },
+              ]}
+            >
+              {avatarUploading ? (
+                <ActivityIndicator
+                  size="small"
+                  color={colors.primaryForeground}
+                />
+              ) : (
+                <Feather
+                  name="camera"
+                  size={14}
+                  color={colors.primaryForeground}
+                />
+              )}
+            </View>
+          </Pressable>
+          <Text style={[styles.avatarHelper, { color: colors.mutedForeground }]}>
+            {avatarUploading
+              ? "Uploading..."
+              : "Tap to change profile photo"}
+          </Text>
+        </View>
+
         <Field
           label="Full name"
           value={fullName}
@@ -596,6 +773,42 @@ function Field({
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  avatarSection: {
+    alignItems: "center",
+    gap: 8,
+    paddingTop: 4,
+    paddingBottom: 8,
+  },
+  avatarWrap: {
+    width: 112,
+    height: 112,
+    borderRadius: 56,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "visible",
+    borderWidth: 1,
+    position: "relative",
+  },
+  avatar: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+  },
+  avatarBadge: {
+    position: "absolute",
+    right: -2,
+    bottom: -2,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+  },
+  avatarHelper: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 12,
+  },
   fieldGroup: { gap: 8 },
   label: {
     fontFamily: "Inter_600SemiBold",

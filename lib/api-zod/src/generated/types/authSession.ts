@@ -9,4 +9,12 @@ import type { AuthUser } from "./authUser";
 
 export interface AuthSession {
   user: AuthUser | null;
+  /** Signed session token returned by `/auth/login`.  Web clients
+running in cookie-restricted contexts (nested iframe previews,
+third-party-cookie-blocked browsers) should persist this and
+replay it via `Authorization: Bearer <token>` on every API
+request.  Other clients can ignore it: the normal session
+cookie is always set in parallel.
+ */
+  sessionToken?: string;
 }

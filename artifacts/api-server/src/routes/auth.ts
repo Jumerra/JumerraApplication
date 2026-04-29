@@ -1,4 +1,5 @@
 import { Router } from "express";
+import signature from "cookie-signature";
 import { db } from "@workspace/db";
 import { eq, and, gt, isNull, sql } from "drizzle-orm";
 import {
@@ -229,18 +230,44 @@ router.post("/auth/login", async (req, res) => {
       return;
     }
     req.session.userId = user.id;
-    res.json({ user: await toPublicUser(user) });
+    // Persist the session BEFORE responding so the cookie/token reflect a
+    // committed row, and so clients that immediately fire follow-up
+    // requests (admin dashboard, /auth/me) can attach the new identity.
+    await new Promise<void>((resolve, reject) => {
+      req.session.save((err) => (err ? reject(err) : resolve()));
+    });
+    const sessionToken = signSessionToken(req.sessionID);
+    res.json({ user: await toPublicUser(user), sessionToken });
   } catch (err) {
     req.log.error({ err }, "login failed");
     res.status(500).json({ error: "Login failed" });
   }
 });
 
+/**
+ * Sign a raw session id with the SESSION_SECRET so the resulting string
+ * matches the value express-session would put in the cookie.  We expose
+ * this signed value on the login response so clients in cookie-blocked
+ * contexts (nested iframe previews, third-party-cookie-disabled
+ * browsers) can persist the session in localStorage and replay it on
+ * subsequent requests via `Authorization: Bearer <token>`.  The bridge
+ * middleware turns that header back into a `Cookie` header for
+ * express-session, so signature validation flows through the normal
+ * code path with no new trust assumptions.
+ */
+function signSessionToken(sid: string): string {
+  const secret = process.env.SESSION_SECRET;
+  if (!secret) throw new Error("SESSION_SECRET env var is required");
+  return "s:" + signature.sign(sid, secret);
+}
+
 /** POST /api/auth/logout */
 router.post("/auth/logout", (req, res) => {
   req.session.destroy(() => {
     res.clearCookie("talentlink.sid");
-    res.json({ ok: true });
+    // `clearToken: true` tells the web client to also wipe the
+    // localStorage-backed session token used as a cookie fallback.
+    res.json({ ok: true, clearToken: true });
   });
 });
 

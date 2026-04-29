@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useLoginUser, getGetCurrentUserQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { setWebSessionToken } from "@/lib/web-session";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,6 +24,14 @@ export default function LoginPage() {
     try {
       const result = await login.mutateAsync({ data: { email, password } });
       const user = result.user;
+      // Persist the signed session token in localStorage so it can be
+      // replayed as Authorization: Bearer <token> on every API call.
+      // This is the cookie-blocked-context fallback (nested iframe
+      // previews, third-party-cookie-disabled browsers); the normal
+      // Set-Cookie still flows in parallel for browsers that honor it.
+      if (result.sessionToken) {
+        setWebSessionToken(result.sessionToken);
+      }
       // Seed the cache synchronously with the freshly-authenticated user so
       // the next render of any consumer of useGetCurrentUser sees the new
       // identity immediately. Without this, AdminLayout (and other

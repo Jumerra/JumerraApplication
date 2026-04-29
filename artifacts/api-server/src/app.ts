@@ -4,6 +4,7 @@ import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
 import { buildSessionMiddleware, sessionPartitionedCookiePatch } from "./lib/session";
+import { sessionTokenBridge } from "./middleware/session-token-bridge";
 import { seedSystemRoles } from "./lib/permissions";
 
 // Fire-and-forget on boot; logs but doesn't block startup. Safe because
@@ -121,6 +122,11 @@ app.use(express.urlencoded({ extended: true }));
 // Patch must run BEFORE express-session so it wraps res.setHeader
 // in time to intercept the session cookie that express-session writes.
 app.use(sessionPartitionedCookiePatch());
+// Bridge `Authorization: Bearer <token>` -> session cookie for clients
+// that cannot persist our partitioned cookie (e.g. nested iframe
+// previews when the browser blocks third-party cookies).  Must run
+// before express-session so the synthesised cookie is visible to it.
+app.use(sessionTokenBridge());
 app.use(buildSessionMiddleware());
 
 app.use("/api", router);

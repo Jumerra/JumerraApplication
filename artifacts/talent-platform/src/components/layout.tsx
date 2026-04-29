@@ -49,6 +49,7 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { academicUnitTerms } from "@/lib/institution-kinds";
+import { clearWebSessionToken } from "@/lib/web-session";
 
 function avatarSrc(avatarUrl: string | null | undefined): string | undefined {
   if (!avatarUrl) return undefined;
@@ -64,6 +65,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const { theme, setTheme } = useTheme();
   const logout = useLogoutUser();
   const queryClient = useQueryClient();
+  // Imported lazily here so the import sits with its sole call site;
+  // see web-session.ts for why the bearer-token fallback exists.
 
   const navLinks = [
     { href: "/jobs", label: "Find Jobs", icon: Search },
@@ -89,6 +92,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   async function handleLogout() {
     await logout.mutateAsync();
+    // Wipe the localStorage-backed bearer token so cookie-blocked
+    // browser contexts (nested iframe previews) don't keep replaying
+    // the now-destroyed session on subsequent requests.
+    clearWebSessionToken();
     await queryClient.invalidateQueries({ queryKey: getGetCurrentUserQueryKey() });
     navigate("/");
   }

@@ -1605,6 +1605,12 @@ export const LoginUserResponse = zod.object({
     }),
     zod.null(),
   ]),
+  sessionToken: zod
+    .string()
+    .optional()
+    .describe(
+      "Signed session token returned by `\/auth\/login`.  Web clients\nrunning in cookie-restricted contexts (nested iframe previews,\nthird-party-cookie-blocked browsers) should persist this and\nreplay it via `Authorization: Bearer <token>` on every API\nrequest.  Other clients can ignore it: the normal session\ncookie is always set in parallel.\n",
+    ),
 });
 
 export const LogoutUserResponse = zod.object({
@@ -1641,6 +1647,12 @@ export const GetCurrentUserResponse = zod.object({
     }),
     zod.null(),
   ]),
+  sessionToken: zod
+    .string()
+    .optional()
+    .describe(
+      "Signed session token returned by `\/auth\/login`.  Web clients\nrunning in cookie-restricted contexts (nested iframe previews,\nthird-party-cookie-blocked browsers) should persist this and\nreplay it via `Authorization: Bearer <token>` on every API\nrequest.  Other clients can ignore it: the normal session\ncookie is always set in parallel.\n",
+    ),
 });
 
 /**
@@ -1705,6 +1717,12 @@ export const UpdateMyProfileResponse = zod.object({
     }),
     zod.null(),
   ]),
+  sessionToken: zod
+    .string()
+    .optional()
+    .describe(
+      "Signed session token returned by `\/auth\/login`.  Web clients\nrunning in cookie-restricted contexts (nested iframe previews,\nthird-party-cookie-blocked browsers) should persist this and\nreplay it via `Authorization: Bearer <token>` on every API\nrequest.  Other clients can ignore it: the normal session\ncookie is always set in parallel.\n",
+    ),
 });
 
 /**
@@ -1767,6 +1785,12 @@ export const SetupPasswordResponse = zod.object({
     }),
     zod.null(),
   ]),
+  sessionToken: zod
+    .string()
+    .optional()
+    .describe(
+      "Signed session token returned by `\/auth\/login`.  Web clients\nrunning in cookie-restricted contexts (nested iframe previews,\nthird-party-cookie-blocked browsers) should persist this and\nreplay it via `Authorization: Bearer <token>` on every API\nrequest.  Other clients can ignore it: the normal session\ncookie is always set in parallel.\n",
+    ),
 });
 
 /**

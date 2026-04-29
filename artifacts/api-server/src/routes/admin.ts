@@ -287,6 +287,11 @@ router.post("/admin/onboard", async (req, res) => {
               entity.logoUrl ??
               `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(entName)}`,
             description: entity.description ?? "",
+            // Same auto-attribution as employers above.
+            accountManagerId:
+              req.currentUser?.orgRole === "account_manager"
+                ? req.currentUser.id
+                : null,
           })
           .returning();
         updates.institutionId = i.id;
@@ -307,6 +312,13 @@ router.post("/admin/onboard", async (req, res) => {
             tagline: entity.tagline ?? "",
             description: entity.description ?? "",
             size: entity.size ?? "1-10",
+            // Auto-attribution: an account_manager onboarding a new employer
+            // takes ownership of that account. Super-admins can reassign
+            // later via PATCH /admin/employers/:id/assign.
+            accountManagerId:
+              req.currentUser?.orgRole === "account_manager"
+                ? req.currentUser.id
+                : null,
           })
           .returning();
         updates.employerId = e.id;
@@ -507,6 +519,197 @@ router.patch("/admin/employers/:id/verify", async (req, res) => {
     req.log.error({ err, id }, "verify employer failed");
     res.status(500).json({ error: "Update failed" });
   }
+});
+
+/**
+ * GET /api/admin/account-managers
+ * Lists all platform admins flagged as account_manager, plus how many
+ * employers/institutions each one currently owns. Used by the
+ * "Account Managers" admin page and by the reassign dropdowns on the
+ * employers/institutions admin lists.
+ */
+router.get("/admin/account-managers", async (_req, res) => {
+  const managers = await db
+    .select({
+      id: usersTable.id,
+      email: usersTable.email,
+      fullName: usersTable.fullName,
+      status: usersTable.status,
+      createdAt: usersTable.createdAt,
+    })
+    .from(usersTable)
+    .where(
+      and(
+        eq(usersTable.role, "admin"),
+        eq(usersTable.orgRole, "account_manager"),
+      ),
+    )
+    .orderBy(usersTable.fullName);
+
+  if (managers.length === 0) {
+    res.json({ accountManagers: [] });
+    return;
+  }
+
+  const managerIds = managers.map((m) => m.id);
+
+  // Two batched count queries (one per entity) instead of N+1.
+  const empCounts = await db
+    .select({
+      mid: employersTable.accountManagerId,
+      n: sql<number>`count(*)::int`,
+    })
+    .from(employersTable)
+    .where(inArray(employersTable.accountManagerId, managerIds))
+    .groupBy(employersTable.accountManagerId);
+
+  const instCounts = await db
+    .select({
+      mid: institutionsTable.accountManagerId,
+      n: sql<number>`count(*)::int`,
+    })
+    .from(institutionsTable)
+    .where(inArray(institutionsTable.accountManagerId, managerIds))
+    .groupBy(institutionsTable.accountManagerId);
+
+  const empByMid = new Map<number, number>();
+  for (const r of empCounts) {
+    if (r.mid != null) empByMid.set(r.mid, Number(r.n));
+  }
+  const instByMid = new Map<number, number>();
+  for (const r of instCounts) {
+    if (r.mid != null) instByMid.set(r.mid, Number(r.n));
+  }
+
+  res.json({
+    accountManagers: managers.map((m) => ({
+      id: m.id,
+      email: m.email,
+      fullName: m.fullName,
+      status: m.status,
+      assignedEmployerCount: empByMid.get(m.id) ?? 0,
+      assignedInstitutionCount: instByMid.get(m.id) ?? 0,
+      createdAt: m.createdAt.toISOString(),
+    })),
+  });
+});
+
+/**
+ * Helper: assignments are super_admin only. Other admin roles can VIEW
+ * who manages what but cannot move books between managers.
+ */
+function isSuperAdmin(
+  user: { role: string; orgRole: string | null } | null | undefined,
+): boolean {
+  if (!user || user.role !== "admin") return false;
+  // Treat null orgRole (legacy admins predating org_role) as super_admin
+  // so existing accounts don't lose access.
+  return user.orgRole === "super_admin" || user.orgRole === null;
+}
+
+async function validateManagerAssignment(
+  managerId: number | null,
+): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+  if (managerId === null) return { ok: true };
+  if (!Number.isFinite(managerId)) {
+    return { ok: false, status: 400, error: "Invalid accountManagerId" };
+  }
+  const [m] = await db
+    .select({ id: usersTable.id, role: usersTable.role, orgRole: usersTable.orgRole, status: usersTable.status })
+    .from(usersTable)
+    .where(eq(usersTable.id, managerId));
+  if (!m) {
+    return { ok: false, status: 404, error: "Account manager not found" };
+  }
+  if (m.role !== "admin" || m.orgRole !== "account_manager") {
+    return {
+      ok: false,
+      status: 400,
+      error: "Target user is not an account manager",
+    };
+  }
+  if (m.status !== "active") {
+    return {
+      ok: false,
+      status: 400,
+      error: "Cannot assign to a non-active account manager",
+    };
+  }
+  return { ok: true };
+}
+
+/**
+ * PATCH /api/admin/employers/:id/assign
+ * Body: { accountManagerId: number | null }
+ * Super-admin only. Assigns or unassigns the employer's owning
+ * account manager. Pass `null` to unassign.
+ */
+router.patch("/admin/employers/:id/assign", async (req, res) => {
+  if (!isSuperAdmin(req.currentUser)) {
+    res.status(403).json({ error: "Only super-admins can reassign accounts" });
+    return;
+  }
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const raw = req.body?.accountManagerId;
+  const managerId: number | null =
+    raw === null || raw === undefined ? null : Number(raw);
+
+  const check = await validateManagerAssignment(managerId);
+  if (!check.ok) {
+    res.status(check.status).json({ error: check.error });
+    return;
+  }
+
+  const [updated] = await db
+    .update(employersTable)
+    .set({ accountManagerId: managerId })
+    .where(eq(employersTable.id, id))
+    .returning();
+  if (!updated) {
+    res.status(404).json({ error: "Employer not found" });
+    return;
+  }
+  res.json({ ok: true, accountManagerId: updated.accountManagerId });
+});
+
+/**
+ * PATCH /api/admin/institutions/:id/assign
+ * Same shape and rules as the employer counterpart above.
+ */
+router.patch("/admin/institutions/:id/assign", async (req, res) => {
+  if (!isSuperAdmin(req.currentUser)) {
+    res.status(403).json({ error: "Only super-admins can reassign accounts" });
+    return;
+  }
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const raw = req.body?.accountManagerId;
+  const managerId: number | null =
+    raw === null || raw === undefined ? null : Number(raw);
+
+  const check = await validateManagerAssignment(managerId);
+  if (!check.ok) {
+    res.status(check.status).json({ error: check.error });
+    return;
+  }
+
+  const [updated] = await db
+    .update(institutionsTable)
+    .set({ accountManagerId: managerId })
+    .where(eq(institutionsTable.id, id))
+    .returning();
+  if (!updated) {
+    res.status(404).json({ error: "Institution not found" });
+    return;
+  }
+  res.json({ ok: true, accountManagerId: updated.accountManagerId });
 });
 
 /**

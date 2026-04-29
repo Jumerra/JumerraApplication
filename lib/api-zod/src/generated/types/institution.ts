@@ -17,4 +17,8 @@ export interface Institution {
   studentCount: number;
   placementRate: number;
   createdAt: Date;
+  /** Owning account-manager admin user id (admin-only field) */
+  accountManagerId?: number | null;
+  /** Owning account-manager display name (admin-only field) */
+  accountManagerName?: string | null;
 }

@@ -484,6 +484,10 @@ export interface Employer {
   verified: boolean;
   openJobs: number;
   createdAt: string;
+  /** Owning account-manager admin user id (admin-only field) */
+  accountManagerId?: number | null;
+  /** Owning account-manager display name (admin-only field) */
+  accountManagerName?: string | null;
 }
 
 export type JobType = (typeof JobType)[keyof typeof JobType];
@@ -563,6 +567,10 @@ export interface Institution {
   studentCount: number;
   placementRate: number;
   createdAt: string;
+  /** Owning account-manager admin user id (admin-only field) */
+  accountManagerId?: number | null;
+  /** Owning account-manager display name (admin-only field) */
+  accountManagerName?: string | null;
 }
 
 export type InstitutionDetail = Institution & {
@@ -918,6 +926,48 @@ export interface InviteStaffResponse {
   emailSent: boolean;
 }
 
+export interface UpdateStaffRoleRequest {
+  orgRole: string;
+}
+
+export interface StaffMemberResponse {
+  member: StaffMember;
+}
+
+export type AccountManagerSummaryStatus =
+  (typeof AccountManagerSummaryStatus)[keyof typeof AccountManagerSummaryStatus];
+
+export const AccountManagerSummaryStatus = {
+  pending: "pending",
+  active: "active",
+  rejected: "rejected",
+  invited: "invited",
+} as const;
+
+export interface AccountManagerSummary {
+  id: number;
+  email: string;
+  fullName: string;
+  status: AccountManagerSummaryStatus;
+  assignedEmployerCount: number;
+  assignedInstitutionCount: number;
+  createdAt: string;
+}
+
+export interface AdminAccountManagersResponse {
+  accountManagers: AccountManagerSummary[];
+}
+
+export interface AssignAccountManagerRequest {
+  /** User id of an active account_manager admin, or null to unassign. */
+  accountManagerId: number | null;
+}
+
+export interface AssignAccountManagerResponse {
+  ok: boolean;
+  accountManagerId: number | null;
+}
+
 export type ListCandidatesParams = {
   search?: string;
   location?: string;
@@ -928,7 +978,32 @@ export type ListCandidatesParams = {
 
 export type ListEmployersParams = {
   search?: string;
+  /**
+   * When 1, account_manager admins see only employers assigned to them
+   */
+  mine?: ListEmployersMine;
 };
+
+export type ListEmployersMine =
+  (typeof ListEmployersMine)[keyof typeof ListEmployersMine];
+
+export const ListEmployersMine = {
+  NUMBER_1: "1",
+} as const;
+
+export type ListInstitutionsParams = {
+  /**
+   * When 1, account_manager admins see only institutions assigned to them
+   */
+  mine?: ListInstitutionsMine;
+};
+
+export type ListInstitutionsMine =
+  (typeof ListInstitutionsMine)[keyof typeof ListInstitutionsMine];
+
+export const ListInstitutionsMine = {
+  NUMBER_1: "1",
+} as const;
 
 export type ListJobsParams = {
   search?: string;

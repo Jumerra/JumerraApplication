@@ -234,6 +234,12 @@ export const UpdateCandidateResponse = zod.object({
 
 export const ListEmployersQueryParams = zod.object({
   search: zod.coerce.string().optional(),
+  mine: zod
+    .enum(["1"])
+    .optional()
+    .describe(
+      "When 1, account_manager admins see only employers assigned to them",
+    ),
 });
 
 export const ListEmployersResponseItem = zod.object({
@@ -250,6 +256,14 @@ export const ListEmployersResponseItem = zod.object({
   verified: zod.boolean(),
   openJobs: zod.number(),
   createdAt: zod.coerce.date(),
+  accountManagerId: zod
+    .number()
+    .nullish()
+    .describe("Owning account-manager admin user id (admin-only field)"),
+  accountManagerName: zod
+    .string()
+    .nullish()
+    .describe("Owning account-manager display name (admin-only field)"),
 });
 export const ListEmployersResponse = zod.array(ListEmployersResponseItem);
 
@@ -284,6 +298,14 @@ export const GetEmployerResponse = zod
     verified: zod.boolean(),
     openJobs: zod.number(),
     createdAt: zod.coerce.date(),
+    accountManagerId: zod
+      .number()
+      .nullish()
+      .describe("Owning account-manager admin user id (admin-only field)"),
+    accountManagerName: zod
+      .string()
+      .nullish()
+      .describe("Owning account-manager display name (admin-only field)"),
   })
   .and(
     zod.object({
@@ -316,6 +338,15 @@ export const GetEmployerResponse = zod
     }),
   );
 
+export const ListInstitutionsQueryParams = zod.object({
+  mine: zod
+    .enum(["1"])
+    .optional()
+    .describe(
+      "When 1, account_manager admins see only institutions assigned to them",
+    ),
+});
+
 export const ListInstitutionsResponseItem = zod.object({
   id: zod.number(),
   name: zod.string(),
@@ -326,6 +357,14 @@ export const ListInstitutionsResponseItem = zod.object({
   studentCount: zod.number(),
   placementRate: zod.number(),
   createdAt: zod.coerce.date(),
+  accountManagerId: zod
+    .number()
+    .nullish()
+    .describe("Owning account-manager admin user id (admin-only field)"),
+  accountManagerName: zod
+    .string()
+    .nullish()
+    .describe("Owning account-manager display name (admin-only field)"),
 });
 export const ListInstitutionsResponse = zod.array(ListInstitutionsResponseItem);
 
@@ -359,6 +398,14 @@ export const GetInstitutionResponse = zod
     studentCount: zod.number(),
     placementRate: zod.number(),
     createdAt: zod.coerce.date(),
+    accountManagerId: zod
+      .number()
+      .nullish()
+      .describe("Owning account-manager admin user id (admin-only field)"),
+    accountManagerName: zod
+      .string()
+      .nullish()
+      .describe("Owning account-manager display name (admin-only field)"),
   })
   .and(
     zod.object({
@@ -384,6 +431,16 @@ export const GetInstitutionResponse = zod
           verified: zod.boolean(),
           openJobs: zod.number(),
           createdAt: zod.coerce.date(),
+          accountManagerId: zod
+            .number()
+            .nullish()
+            .describe(
+              "Owning account-manager admin user id (admin-only field)",
+            ),
+          accountManagerName: zod
+            .string()
+            .nullish()
+            .describe("Owning account-manager display name (admin-only field)"),
         }),
       ),
     }),
@@ -1187,6 +1244,65 @@ export const AdminSetEmployerVerifiedResponse = zod.object({
 });
 
 /**
+ * @summary List admins with the account_manager org role and their assigned-account counts (admin only)
+ */
+export const AdminListAccountManagersResponse = zod.object({
+  accountManagers: zod.array(
+    zod.object({
+      id: zod.number(),
+      email: zod.string(),
+      fullName: zod.string(),
+      status: zod.enum(["pending", "active", "rejected", "invited"]),
+      assignedEmployerCount: zod.number(),
+      assignedInstitutionCount: zod.number(),
+      createdAt: zod.coerce.date(),
+    }),
+  ),
+});
+
+/**
+ * @summary Assign or unassign an employer's owning account manager (super_admin only)
+ */
+export const AdminAssignEmployerManagerParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AdminAssignEmployerManagerBody = zod.object({
+  accountManagerId: zod
+    .number()
+    .nullable()
+    .describe(
+      "User id of an active account_manager admin, or null to unassign.",
+    ),
+});
+
+export const AdminAssignEmployerManagerResponse = zod.object({
+  ok: zod.boolean(),
+  accountManagerId: zod.number().nullable(),
+});
+
+/**
+ * @summary Assign or unassign an institution's owning account manager (super_admin only)
+ */
+export const AdminAssignInstitutionManagerParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AdminAssignInstitutionManagerBody = zod.object({
+  accountManagerId: zod
+    .number()
+    .nullable()
+    .describe(
+      "User id of an active account_manager admin, or null to unassign.",
+    ),
+});
+
+export const AdminAssignInstitutionManagerResponse = zod.object({
+  ok: zod.boolean(),
+  accountManagerId: zod.number().nullable(),
+});
+
+/**
  * @summary Permanently remove an institution and unlink its members (admin only)
  */
 export const AdminDeleteInstitutionParams = zod.object({
@@ -1480,4 +1596,29 @@ export const RemoveStaffParams = zod.object({
 
 export const RemoveStaffResponse = zod.object({
   ok: zod.boolean(),
+});
+
+/**
+ * @summary Change a teammate's org role (owner / super_admin only)
+ */
+export const UpdateStaffRoleParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateStaffRoleBody = zod.object({
+  orgRole: zod.string(),
+});
+
+export const UpdateStaffRoleResponse = zod.object({
+  member: zod.object({
+    id: zod.number(),
+    email: zod.string(),
+    fullName: zod.string(),
+    role: zod.enum(["employer", "institution", "admin"]),
+    orgRole: zod.string().nullable(),
+    status: zod.enum(["pending", "active", "rejected", "invited"]),
+    employerId: zod.number().nullable(),
+    institutionId: zod.number().nullable(),
+    createdAt: zod.coerce.date(),
+  }),
 });

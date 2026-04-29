@@ -1,22 +1,27 @@
 import { Router, type IRouter } from "express";
-import { eq, sql, desc } from "drizzle-orm";
+import { eq, sql, desc, and, inArray } from "drizzle-orm";
 import {
   db,
   employersTable,
   jobsTable,
   applicationsTable,
+  usersTable,
 } from "@workspace/db";
 import {
   ListEmployersQueryParams,
   CreateEmployerBody,
   GetEmployerParams,
 } from "@workspace/api-zod";
-import { requireAdmin } from "../middleware/require-auth";
+import { requireAdmin, attachUser } from "../middleware/require-auth";
 
 const router: IRouter = Router();
 
-function serializeEmployer(e: typeof employersTable.$inferSelect, openJobs: number) {
-  return {
+function serializeEmployer(
+  e: typeof employersTable.$inferSelect,
+  openJobs: number,
+  opts: { managerName?: string | null; includeManager?: boolean } = {},
+) {
+  const base = {
     id: e.id,
     name: e.name,
     tagline: e.tagline,
@@ -31,6 +36,16 @@ function serializeEmployer(e: typeof employersTable.$inferSelect, openJobs: numb
     openJobs,
     createdAt: e.createdAt.toISOString(),
   };
+  // Account-manager attribution is admin-only metadata; we never expose it
+  // on the public employer browse pages.
+  if (opts.includeManager) {
+    return {
+      ...base,
+      accountManagerId: e.accountManagerId,
+      accountManagerName: opts.managerName ?? null,
+    };
+  }
+  return base;
 }
 
 function serializeJob(j: typeof jobsTable.$inferSelect, employer: typeof employersTable.$inferSelect, applicationsCount: number) {
@@ -54,12 +69,24 @@ function serializeJob(j: typeof jobsTable.$inferSelect, employer: typeof employe
   };
 }
 
-router.get("/employers", async (req, res): Promise<void> => {
+router.get("/employers", attachUser, async (req, res): Promise<void> => {
   const params = ListEmployersQueryParams.safeParse(req.query);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
+
+  const viewer = req.currentUser ?? null;
+  const isAdmin = viewer?.role === "admin";
+  const mine = req.query.mine === "1" || req.query.mine === "true";
+
+  // `mine=1` is honored only for account-manager admins. For everyone else
+  // (super_admin/support, or non-admin viewers) it's a no-op so the UI can
+  // safely send the flag without leaking other managers' books.
+  const filterByManager =
+    isAdmin && mine && viewer?.orgRole === "account_manager"
+      ? viewer.id
+      : null;
 
   const rows = await db
     .select({
@@ -68,10 +95,43 @@ router.get("/employers", async (req, res): Promise<void> => {
     })
     .from(employersTable)
     .leftJoin(jobsTable, eq(jobsTable.employerId, employersTable.id))
+    .where(
+      filterByManager !== null
+        ? eq(employersTable.accountManagerId, filterByManager)
+        : undefined,
+    )
     .groupBy(employersTable.id)
     .orderBy(desc(employersTable.verified), employersTable.name);
 
-  let result = rows.map(({ employer, openJobs }) => serializeEmployer(employer, Number(openJobs)));
+  // Resolve manager names in one batched query so we don't N+1 the user
+  // table just to render attribution badges.
+  const managerNameById = new Map<number, string>();
+  if (isAdmin) {
+    const managerIds = Array.from(
+      new Set(
+        rows
+          .map((r) => r.employer.accountManagerId)
+          .filter((v): v is number => v != null),
+      ),
+    );
+    if (managerIds.length > 0) {
+      const managers = await db
+        .select({ id: usersTable.id, fullName: usersTable.fullName })
+        .from(usersTable)
+        .where(inArray(usersTable.id, managerIds));
+      for (const m of managers) managerNameById.set(m.id, m.fullName);
+    }
+  }
+
+  let result = rows.map(({ employer, openJobs }) =>
+    serializeEmployer(employer, Number(openJobs), {
+      includeManager: isAdmin,
+      managerName:
+        employer.accountManagerId != null
+          ? managerNameById.get(employer.accountManagerId) ?? null
+          : null,
+    }),
+  );
 
   if (params.data.search) {
     const q = params.data.search.toLowerCase();

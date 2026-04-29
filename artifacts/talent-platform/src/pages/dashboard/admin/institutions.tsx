@@ -23,6 +23,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { AdminAccountActions } from "@/components/admin-account-actions";
+import { AccountManagerSelect } from "@/components/account-manager-select";
+import { useAuth } from "@/lib/auth";
 import {
   Search,
   Trash2,
@@ -32,8 +34,15 @@ import {
 } from "lucide-react";
 
 export default function AdminInstitutionsPage() {
+  const { sessionUser } = useAuth();
+  const isAccountManager =
+    sessionUser?.role === "admin" &&
+    sessionUser.orgRole === "account_manager";
+  const [mineOnly, setMineOnly] = useState(isAccountManager);
   const [search, setSearch] = useState("");
-  const { data: institutions, isLoading } = useListInstitutions();
+  const { data: institutions, isLoading } = useListInstitutions(
+    mineOnly && isAccountManager ? { mine: "1" as const } : undefined,
+  );
   const deleteInstitution = useAdminDeleteInstitution();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -83,7 +92,7 @@ export default function AdminInstitutionsPage() {
       </div>
 
       <Card>
-        <CardHeader className="pb-4">
+        <CardHeader className="pb-4 space-y-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
@@ -93,6 +102,24 @@ export default function AdminInstitutionsPage() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
+          {isAccountManager && (
+            <div className="flex gap-2">
+              <Button
+                variant={mineOnly ? "default" : "outline"}
+                size="sm"
+                onClick={() => setMineOnly(true)}
+              >
+                My accounts
+              </Button>
+              <Button
+                variant={!mineOnly ? "default" : "outline"}
+                size="sm"
+                onClick={() => setMineOnly(false)}
+              >
+                All institutions
+              </Button>
+            </div>
+          )}
         </CardHeader>
         <CardContent className="p-0">
           {isLoading ? (
@@ -128,6 +155,14 @@ export default function AdminInstitutionsPage() {
                       <MapPin className="w-3 h-3" />
                       {i.location}
                     </span>
+                  </div>
+                  <div className="hidden xl:block shrink-0">
+                    <AccountManagerSelect
+                      entityKind="institution"
+                      entityId={i.id}
+                      currentManagerId={i.accountManagerId ?? null}
+                      currentManagerName={i.accountManagerName ?? null}
+                    />
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <AdminAccountActions

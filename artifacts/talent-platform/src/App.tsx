@@ -25,6 +25,7 @@ import AdminDashboard from "@/pages/dashboard/admin";
 import AdminRegistrationsPage from "@/pages/dashboard/admin/registrations";
 import AdminOnboardPage from "@/pages/dashboard/admin/onboard";
 import AdminSiteContentPage from "@/pages/dashboard/admin/site-content";
+import AdminAccountManagersPage from "@/pages/dashboard/admin/account-managers";
 import AdminCandidatesPage from "@/pages/dashboard/admin/candidates";
 import AdminEmployersPage from "@/pages/dashboard/admin/employers";
 import AdminInstitutionsPage from "@/pages/dashboard/admin/institutions";
@@ -96,6 +97,9 @@ function Router() {
         </Route>
         <Route path="/dashboard/admin/staff">
           <AdminLayout><StaffPage /></AdminLayout>
+        </Route>
+        <Route path="/dashboard/admin/account-managers">
+          <AdminLayout><AdminAccountManagersPage /></AdminLayout>
         </Route>
         <Route path="/dashboard/employer/staff" component={StaffPage} />
         <Route path="/dashboard/institution/staff" component={StaffPage} />

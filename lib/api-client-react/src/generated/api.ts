@@ -18,6 +18,7 @@ import type {
 
 import type {
   ActivityItem,
+  AdminAccountManagersResponse,
   AdminAccountsResponse,
   AdminApplicationListResponse,
   AdminGetHiresAnalyticsParams,
@@ -27,6 +28,8 @@ import type {
   AdminSetUserStatus200,
   AdminUserStatusUpdate,
   Application,
+  AssignAccountManagerRequest,
+  AssignAccountManagerResponse,
   AuthSession,
   Candidate,
   CandidateDashboard,
@@ -58,6 +61,7 @@ import type {
   ListApplicationsParams,
   ListCandidatesParams,
   ListEmployersParams,
+  ListInstitutionsParams,
   ListJobsParams,
   ListOnboardedUsers200,
   ListRegistrations200,
@@ -79,9 +83,11 @@ import type {
   SiteContentResponse,
   Skill,
   StaffListResponse,
+  StaffMemberResponse,
   UpdateApplication,
   UpdateCandidate,
   UpdateSiteContentRequest,
+  UpdateStaffRoleRequest,
   VerifyStudentResponse,
 } from "./api.schemas";
 
@@ -757,41 +763,60 @@ export function useGetEmployer<
   return { ...query, queryKey: queryOptions.queryKey };
 }
 
-export const getListInstitutionsUrl = () => {
-  return `/api/institutions`;
+export const getListInstitutionsUrl = (params?: ListInstitutionsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/institutions?${stringifiedParams}`
+    : `/api/institutions`;
 };
 
 export const listInstitutions = async (
+  params?: ListInstitutionsParams,
   options?: RequestInit,
 ): Promise<Institution[]> => {
-  return customFetch<Institution[]>(getListInstitutionsUrl(), {
+  return customFetch<Institution[]>(getListInstitutionsUrl(params), {
     ...options,
     method: "GET",
   });
 };
 
-export const getListInstitutionsQueryKey = () => {
-  return [`/api/institutions`] as const;
+export const getListInstitutionsQueryKey = (
+  params?: ListInstitutionsParams,
+) => {
+  return [`/api/institutions`, ...(params ? [params] : [])] as const;
 };
 
 export const getListInstitutionsQueryOptions = <
   TData = Awaited<ReturnType<typeof listInstitutions>>,
   TError = ErrorType<unknown>,
->(options?: {
-  query?: UseQueryOptions<
-    Awaited<ReturnType<typeof listInstitutions>>,
-    TError,
-    TData
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}) => {
+>(
+  params?: ListInstitutionsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listInstitutions>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getListInstitutionsQueryKey();
+  const queryKey =
+    queryOptions?.queryKey ?? getListInstitutionsQueryKey(params);
 
   const queryFn: QueryFunction<
     Awaited<ReturnType<typeof listInstitutions>>
-  > = ({ signal }) => listInstitutions({ signal, ...requestOptions });
+  > = ({ signal }) => listInstitutions(params, { signal, ...requestOptions });
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof listInstitutions>>,
@@ -808,15 +833,18 @@ export type ListInstitutionsQueryError = ErrorType<unknown>;
 export function useListInstitutions<
   TData = Awaited<ReturnType<typeof listInstitutions>>,
   TError = ErrorType<unknown>,
->(options?: {
-  query?: UseQueryOptions<
-    Awaited<ReturnType<typeof listInstitutions>>,
-    TError,
-    TData
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-  const queryOptions = getListInstitutionsQueryOptions(options);
+>(
+  params?: ListInstitutionsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listInstitutions>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListInstitutionsQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;
@@ -3743,6 +3771,267 @@ export const useAdminSetEmployerVerified = <
 };
 
 /**
+ * @summary List admins with the account_manager org role and their assigned-account counts (admin only)
+ */
+export const getAdminListAccountManagersUrl = () => {
+  return `/api/admin/account-managers`;
+};
+
+export const adminListAccountManagers = async (
+  options?: RequestInit,
+): Promise<AdminAccountManagersResponse> => {
+  return customFetch<AdminAccountManagersResponse>(
+    getAdminListAccountManagersUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getAdminListAccountManagersQueryKey = () => {
+  return [`/api/admin/account-managers`] as const;
+};
+
+export const getAdminListAccountManagersQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminListAccountManagers>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof adminListAccountManagers>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getAdminListAccountManagersQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof adminListAccountManagers>>
+  > = ({ signal }) => adminListAccountManagers({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminListAccountManagers>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type AdminListAccountManagersQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminListAccountManagers>>
+>;
+export type AdminListAccountManagersQueryError = ErrorType<void>;
+
+/**
+ * @summary List admins with the account_manager org role and their assigned-account counts (admin only)
+ */
+
+export function useAdminListAccountManagers<
+  TData = Awaited<ReturnType<typeof adminListAccountManagers>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof adminListAccountManagers>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getAdminListAccountManagersQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Assign or unassign an employer's owning account manager (super_admin only)
+ */
+export const getAdminAssignEmployerManagerUrl = (id: number) => {
+  return `/api/admin/employers/${id}/assign`;
+};
+
+export const adminAssignEmployerManager = async (
+  id: number,
+  assignAccountManagerRequest: AssignAccountManagerRequest,
+  options?: RequestInit,
+): Promise<AssignAccountManagerResponse> => {
+  return customFetch<AssignAccountManagerResponse>(
+    getAdminAssignEmployerManagerUrl(id),
+    {
+      ...options,
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(assignAccountManagerRequest),
+    },
+  );
+};
+
+export const getAdminAssignEmployerManagerMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminAssignEmployerManager>>,
+    TError,
+    { id: number; data: BodyType<AssignAccountManagerRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminAssignEmployerManager>>,
+  TError,
+  { id: number; data: BodyType<AssignAccountManagerRequest> },
+  TContext
+> => {
+  const mutationKey = ["adminAssignEmployerManager"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminAssignEmployerManager>>,
+    { id: number; data: BodyType<AssignAccountManagerRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return adminAssignEmployerManager(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminAssignEmployerManagerMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminAssignEmployerManager>>
+>;
+export type AdminAssignEmployerManagerMutationBody =
+  BodyType<AssignAccountManagerRequest>;
+export type AdminAssignEmployerManagerMutationError = ErrorType<void>;
+
+/**
+ * @summary Assign or unassign an employer's owning account manager (super_admin only)
+ */
+export const useAdminAssignEmployerManager = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminAssignEmployerManager>>,
+    TError,
+    { id: number; data: BodyType<AssignAccountManagerRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof adminAssignEmployerManager>>,
+  TError,
+  { id: number; data: BodyType<AssignAccountManagerRequest> },
+  TContext
+> => {
+  return useMutation(getAdminAssignEmployerManagerMutationOptions(options));
+};
+
+/**
+ * @summary Assign or unassign an institution's owning account manager (super_admin only)
+ */
+export const getAdminAssignInstitutionManagerUrl = (id: number) => {
+  return `/api/admin/institutions/${id}/assign`;
+};
+
+export const adminAssignInstitutionManager = async (
+  id: number,
+  assignAccountManagerRequest: AssignAccountManagerRequest,
+  options?: RequestInit,
+): Promise<AssignAccountManagerResponse> => {
+  return customFetch<AssignAccountManagerResponse>(
+    getAdminAssignInstitutionManagerUrl(id),
+    {
+      ...options,
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(assignAccountManagerRequest),
+    },
+  );
+};
+
+export const getAdminAssignInstitutionManagerMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminAssignInstitutionManager>>,
+    TError,
+    { id: number; data: BodyType<AssignAccountManagerRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminAssignInstitutionManager>>,
+  TError,
+  { id: number; data: BodyType<AssignAccountManagerRequest> },
+  TContext
+> => {
+  const mutationKey = ["adminAssignInstitutionManager"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminAssignInstitutionManager>>,
+    { id: number; data: BodyType<AssignAccountManagerRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return adminAssignInstitutionManager(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminAssignInstitutionManagerMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminAssignInstitutionManager>>
+>;
+export type AdminAssignInstitutionManagerMutationBody =
+  BodyType<AssignAccountManagerRequest>;
+export type AdminAssignInstitutionManagerMutationError = ErrorType<void>;
+
+/**
+ * @summary Assign or unassign an institution's owning account manager (super_admin only)
+ */
+export const useAdminAssignInstitutionManager = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminAssignInstitutionManager>>,
+    TError,
+    { id: number; data: BodyType<AssignAccountManagerRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof adminAssignInstitutionManager>>,
+  TError,
+  { id: number; data: BodyType<AssignAccountManagerRequest> },
+  TContext
+> => {
+  return useMutation(getAdminAssignInstitutionManagerMutationOptions(options));
+};
+
+/**
  * @summary Permanently remove an institution and unlink its members (admin only)
  */
 export const getAdminDeleteInstitutionUrl = (id: number) => {
@@ -4942,4 +5231,91 @@ export const useRemoveStaff = <
   TContext
 > => {
   return useMutation(getRemoveStaffMutationOptions(options));
+};
+
+/**
+ * @summary Change a teammate's org role (owner / super_admin only)
+ */
+export const getUpdateStaffRoleUrl = (id: number) => {
+  return `/api/staff/${id}/role`;
+};
+
+export const updateStaffRole = async (
+  id: number,
+  updateStaffRoleRequest: UpdateStaffRoleRequest,
+  options?: RequestInit,
+): Promise<StaffMemberResponse> => {
+  return customFetch<StaffMemberResponse>(getUpdateStaffRoleUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateStaffRoleRequest),
+  });
+};
+
+export const getUpdateStaffRoleMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateStaffRole>>,
+    TError,
+    { id: number; data: BodyType<UpdateStaffRoleRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateStaffRole>>,
+  TError,
+  { id: number; data: BodyType<UpdateStaffRoleRequest> },
+  TContext
+> => {
+  const mutationKey = ["updateStaffRole"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateStaffRole>>,
+    { id: number; data: BodyType<UpdateStaffRoleRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateStaffRole(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateStaffRoleMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateStaffRole>>
+>;
+export type UpdateStaffRoleMutationBody = BodyType<UpdateStaffRoleRequest>;
+export type UpdateStaffRoleMutationError = ErrorType<void>;
+
+/**
+ * @summary Change a teammate's org role (owner / super_admin only)
+ */
+export const useUpdateStaffRole = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateStaffRole>>,
+    TError,
+    { id: number; data: BodyType<UpdateStaffRoleRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateStaffRole>>,
+  TError,
+  { id: number; data: BodyType<UpdateStaffRoleRequest> },
+  TContext
+> => {
+  return useMutation(getUpdateStaffRoleMutationOptions(options));
 };

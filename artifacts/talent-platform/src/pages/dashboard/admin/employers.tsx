@@ -24,6 +24,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { AdminAccountActions } from "@/components/admin-account-actions";
+import { AccountManagerSelect } from "@/components/account-manager-select";
+import { useAuth } from "@/lib/auth";
 import {
   Search,
   Trash2,
@@ -36,9 +38,15 @@ import {
 } from "lucide-react";
 
 export default function AdminEmployersPage() {
+  const { sessionUser } = useAuth();
+  const isAccountManager =
+    sessionUser?.role === "admin" &&
+    sessionUser.orgRole === "account_manager";
+  const [mineOnly, setMineOnly] = useState(isAccountManager);
   const [search, setSearch] = useState("");
   const { data: employers, isLoading } = useListEmployers({
     search: search || undefined,
+    ...(mineOnly && isAccountManager ? { mine: "1" as const } : {}),
   });
   const deleteEmployer = useAdminDeleteEmployer();
   const setVerified = useAdminSetEmployerVerified();
@@ -99,7 +107,7 @@ export default function AdminEmployersPage() {
       </div>
 
       <Card>
-        <CardHeader className="pb-4">
+        <CardHeader className="pb-4 space-y-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
@@ -109,6 +117,24 @@ export default function AdminEmployersPage() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
+          {isAccountManager && (
+            <div className="flex gap-2">
+              <Button
+                variant={mineOnly ? "default" : "outline"}
+                size="sm"
+                onClick={() => setMineOnly(true)}
+              >
+                My accounts
+              </Button>
+              <Button
+                variant={!mineOnly ? "default" : "outline"}
+                size="sm"
+                onClick={() => setMineOnly(false)}
+              >
+                All employers
+              </Button>
+            </div>
+          )}
         </CardHeader>
         <CardContent className="p-0">
           {isLoading ? (
@@ -154,6 +180,14 @@ export default function AdminEmployersPage() {
                       {e.openJobs}
                     </span>
                     <span className="text-muted-foreground">open jobs</span>
+                  </div>
+                  <div className="hidden xl:block shrink-0">
+                    <AccountManagerSelect
+                      entityKind="employer"
+                      entityId={e.id}
+                      currentManagerId={e.accountManagerId ?? null}
+                      currentManagerName={e.accountManagerName ?? null}
+                    />
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     <Button

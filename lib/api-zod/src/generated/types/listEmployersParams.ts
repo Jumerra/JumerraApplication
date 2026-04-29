@@ -5,7 +5,12 @@
  * Talent Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { ListEmployersMine } from "./listEmployersMine";
 
 export type ListEmployersParams = {
   search?: string;
+  /**
+   * When 1, account_manager admins see only employers assigned to them
+   */
+  mine?: ListEmployersMine;
 };

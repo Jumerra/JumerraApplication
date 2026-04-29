@@ -31,6 +31,7 @@ import {
   LogIn,
   KeyRound,
   Users,
+  UserCog,
 } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import {
@@ -178,6 +179,19 @@ export function Layout({ children }: { children: React.ReactNode }) {
                       <DropdownMenuItem asChild>
                         <Link href="/dashboard/admin" className="gap-2 cursor-pointer">
                           <ShieldAlert className="w-4 h-4" /> Admin console
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link href="/dashboard/admin/staff" className="gap-2 cursor-pointer">
+                          <Users className="w-4 h-4" /> Team
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link
+                          href="/dashboard/admin/account-managers"
+                          className="gap-2 cursor-pointer"
+                        >
+                          <UserCog className="w-4 h-4" /> Account managers
                         </Link>
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />

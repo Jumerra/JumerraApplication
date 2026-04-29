@@ -129,6 +129,11 @@ paths:
         - in: query
           name: search
           schema: { type: string }
+        - in: query
+          name: mine
+          required: false
+          description: When 1, account_manager admins see only employers assigned to them
+          schema: { type: string, enum: ["1"] }
       responses:
         "200":
           description: Employers
@@ -171,6 +176,12 @@ paths:
     get:
       operationId: listInstitutions
       tags: [institutions]
+      parameters:
+        - in: query
+          name: mine
+          required: false
+          description: When 1, account_manager admins see only institutions assigned to them
+          schema: { type: string, enum: ["1"] }
       responses:
         "200":
           description: Institutions
@@ -832,6 +843,69 @@ paths:
         "403": { description: Admin only }
         "404": { description: Employer not found }
 
+  /admin/account-managers:
+    get:
+      operationId: adminListAccountManagers
+      tags: [admin]
+      summary: List admins with the account_manager org role and their assigned-account counts (admin only)
+      responses:
+        "200":
+          description: Account managers
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminAccountManagersResponse" }
+        "403": { description: Admin only }
+
+  /admin/employers/{id}/assign:
+    patch:
+      operationId: adminAssignEmployerManager
+      tags: [admin]
+      summary: Assign or unassign an employer's owning account manager (super_admin only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AssignAccountManagerRequest" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AssignAccountManagerResponse" }
+        "400": { description: Invalid input }
+        "403": { description: Super-admin only }
+        "404": { description: Employer not found }
+
+  /admin/institutions/{id}/assign:
+    patch:
+      operationId: adminAssignInstitutionManager
+      tags: [admin]
+      summary: Assign or unassign an institution's owning account manager (super_admin only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AssignAccountManagerRequest" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AssignAccountManagerResponse" }
+        "400": { description: Invalid input }
+        "403": { description: Super-admin only }
+        "404": { description: Institution not found }
+
   /admin/institutions/{id}:
     delete:
       operationId: adminDeleteInstitution
@@ -1122,6 +1196,31 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/OkResponse" }
+        "400": { description: Invalid input }
+        "403": { description: Owner access required }
+        "404": { description: Member not found }
+
+  /staff/{id}/role:
+    patch:
+      operationId: updateStaffRole
+      tags: [staff]
+      summary: Change a teammate's org role (owner / super_admin only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateStaffRoleRequest" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StaffMemberResponse" }
         "400": { description: Invalid input }
         "403": { description: Owner access required }
         "404": { description: Member not found }
@@ -1646,6 +1745,14 @@ components:
         verified: { type: boolean }
         openJobs: { type: integer }
         createdAt: { type: string, format: date-time }
+        accountManagerId:
+          type: integer
+          nullable: true
+          description: Owning account-manager admin user id (admin-only field)
+        accountManagerName:
+          type: string
+          nullable: true
+          description: Owning account-manager display name (admin-only field)
       required:
         - id
         - name
@@ -1710,6 +1817,14 @@ components:
         studentCount: { type: integer }
         placementRate: { type: number }
         createdAt: { type: string, format: date-time }
+        accountManagerId:
+          type: integer
+          nullable: true
+          description: Owning account-manager admin user id (admin-only field)
+        accountManagerName:
+          type: string
+          nullable: true
+          description: Owning account-manager display name (admin-only field)
       required:
         - id
         - name
@@ -2252,3 +2367,55 @@ components:
           type: boolean
           description: True if the setup link was delivered by the email provider; false if email is not configured.
       required: [member, expiresAt, emailSent]
+
+    UpdateStaffRoleRequest:
+      type: object
+      properties:
+        orgRole: { type: string }
+      required: [orgRole]
+
+    StaffMemberResponse:
+      type: object
+      properties:
+        member: { $ref: "#/components/schemas/StaffMember" }
+      required: [member]
+
+    AccountManagerSummary:
+      type: object
+      properties:
+        id: { type: integer }
+        email: { type: string }
+        fullName: { type: string }
+        status:
+          type: string
+          enum: [pending, active, rejected, invited]
+        assignedEmployerCount: { type: integer }
+        assignedInstitutionCount: { type: integer }
+        createdAt: { type: string, format: date-time }
+      required: [id, email, fullName, status, assignedEmployerCount, assignedInstitutionCount, createdAt]
+
+    AdminAccountManagersResponse:
+      type: object
+      properties:
+        accountManagers:
+          type: array
+          items: { $ref: "#/components/schemas/AccountManagerSummary" }
+      required: [accountManagers]
+
+    AssignAccountManagerRequest:
+      type: object
+      properties:
+        accountManagerId:
+          type: integer
+          nullable: true
+          description: User id of an active account_manager admin, or null to unassign.
+      required: [accountManagerId]
+
+    AssignAccountManagerResponse:
+      type: object
+      properties:
+        ok: { type: boolean }
+        accountManagerId:
+          type: integer
+          nullable: true
+      required: [ok, accountManagerId]

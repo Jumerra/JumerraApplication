@@ -31,6 +31,28 @@ export async function requireAuth(
   next();
 }
 
+/**
+ * Best-effort `currentUser` populator for routes that are accessible to
+ * anonymous viewers but want to behave differently when an admin is
+ * logged in (e.g. surface admin-only fields). Never rejects the request.
+ */
+export async function attachUser(
+  req: Request,
+  _res: Response,
+  next: NextFunction,
+): Promise<void> {
+  const userId = req.session?.userId;
+  if (!userId) {
+    next();
+    return;
+  }
+  const user = await findUserById(userId);
+  if (user && user.status === "active") {
+    req.currentUser = user;
+  }
+  next();
+}
+
 export async function requireAdmin(
   req: Request,
   res: Response,
@@ -51,7 +73,12 @@ export async function requireAdmin(
  */
 export function isOrgOwner(user: User | undefined | null): boolean {
   if (!user) return false;
-  if (user.role === "admin") return user.orgRole === "super_admin";
+  // Legacy admin accounts (created before the org_role column existed)
+  // are treated as super_admin so they retain owner-level privileges.
+  // This mirrors `isSuperAdmin` in routes/admin.ts.
+  if (user.role === "admin") {
+    return user.orgRole === "super_admin" || user.orgRole === null;
+  }
   return user.orgRole === "owner";
 }
 

@@ -21,4 +21,8 @@ export interface Employer {
   verified: boolean;
   openJobs: number;
   createdAt: Date;
+  /** Owning account-manager admin user id (admin-only field) */
+  accountManagerId?: number | null;
+  /** Owning account-manager display name (admin-only field) */
+  accountManagerName?: string | null;
 }

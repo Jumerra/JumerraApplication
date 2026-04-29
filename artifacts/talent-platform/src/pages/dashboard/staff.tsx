@@ -5,6 +5,7 @@ import {
   useListStaff,
   useInviteStaff,
   useRemoveStaff,
+  useUpdateStaffRole,
   getListStaffQueryKey,
   type InviteStaffResponse,
   type StaffMember,
@@ -32,6 +33,11 @@ const ROLE_OPTIONS: Record<string, { value: string; label: string; desc: string 
   admin: [
     { value: "super_admin", label: "Super Admin", desc: "Full access to everything." },
     { value: "support", label: "Support", desc: "Read-only support access." },
+    {
+      value: "account_manager",
+      label: "Account Manager",
+      desc: "Owns assigned employer/institution accounts; can onboard new ones.",
+    },
   ],
   employer: [
     { value: "owner", label: "Owner", desc: "Can invite/remove teammates and manage everything." },
@@ -48,6 +54,7 @@ const ROLE_OPTIONS: Record<string, { value: string; label: string; desc: string 
 const ROLE_LABELS: Record<string, string> = {
   super_admin: "Super Admin",
   support: "Support",
+  account_manager: "Account Manager",
   owner: "Owner",
   recruiter: "Recruiter",
   viewer: "Viewer",
@@ -58,10 +65,15 @@ export default function StaffPage() {
   const { sessionUser } = useAuth();
   const queryClient = useQueryClient();
 
-  const enabled = !!sessionUser && sessionUser.orgRole !== null;
+  // Admins with a null orgRole are legacy super_admin accounts; let
+  // them in (the backend treats them the same as super_admin).
+  const enabled =
+    !!sessionUser &&
+    (sessionUser.orgRole !== null || sessionUser.role === "admin");
   const { data, isLoading } = useListStaff({ query: { enabled } });
   const invite = useInviteStaff();
   const remove = useRemoveStaff();
+  const updateRole = useUpdateStaffRole();
 
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
@@ -125,6 +137,19 @@ export default function StaffPage() {
       setError(err?.data?.error ?? "Remove failed");
     } finally {
       setRemoving(null);
+    }
+  }
+
+  async function onChangeRole(member: StaffMember, nextRole: string) {
+    setError(null);
+    try {
+      await updateRole.mutateAsync({
+        id: member.id,
+        data: { orgRole: nextRole },
+      });
+      await queryClient.invalidateQueries({ queryKey: getListStaffQueryKey() });
+    } catch (err: any) {
+      setError(err?.data?.error ?? "Role update failed");
     }
   }
 
@@ -298,15 +323,34 @@ export default function StaffPage() {
                     </div>
                     <p className="text-xs text-muted-foreground truncate">{m.email}</p>
                   </div>
-                  <Badge
-                    variant={m.orgRole === "owner" || m.orgRole === "super_admin" ? "default" : "secondary"}
-                    className="gap-1"
-                  >
-                    {(m.orgRole === "owner" || m.orgRole === "super_admin") && (
-                      <Crown className="w-3 h-3" />
-                    )}
-                    {m.orgRole ? ROLE_LABELS[m.orgRole] ?? m.orgRole : "—"}
-                  </Badge>
+                  {isOwner && m.id !== sessionUser.id ? (
+                    <Select
+                      value={m.orgRole ?? ""}
+                      onValueChange={(v) => onChangeRole(m, v)}
+                      disabled={updateRole.isPending}
+                    >
+                      <SelectTrigger className="h-8 w-[170px] text-xs">
+                        <SelectValue placeholder="Set role" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {roleOptions.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Badge
+                      variant={m.orgRole === "owner" || m.orgRole === "super_admin" ? "default" : "secondary"}
+                      className="gap-1"
+                    >
+                      {(m.orgRole === "owner" || m.orgRole === "super_admin") && (
+                        <Crown className="w-3 h-3" />
+                      )}
+                      {m.orgRole ? ROLE_LABELS[m.orgRole] ?? m.orgRole : "—"}
+                    </Badge>
+                  )}
                   {m.status === "invited" && (
                     <Badge variant="outline" className="gap-1">
                       <Mail className="w-3 h-3" /> Invited

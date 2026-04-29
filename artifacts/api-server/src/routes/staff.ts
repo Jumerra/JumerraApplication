@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { and, eq, isNotNull, ne, desc } from "drizzle-orm";
-import { usersTable } from "@workspace/db";
+import { employersTable, institutionsTable, usersTable } from "@workspace/db";
 import {
   requireAuth,
   requireOrgMember,
@@ -17,7 +17,7 @@ const router: Router = Router();
  * and role updates.
  */
 const ROLE_OPTIONS: Record<string, ReadonlyArray<string>> = {
-  admin: ["super_admin", "support"],
+  admin: ["super_admin", "support", "account_manager"],
   employer: ["owner", "recruiter", "viewer"],
   institution: ["owner", "coordinator", "viewer"],
 };
@@ -251,6 +251,144 @@ router.delete("/staff/:id", requireOrgOwner, async (req, res) => {
   } catch (err) {
     req.log.error({ err }, "staff remove failed");
     res.status(500).json({ error: "Remove failed" });
+  }
+});
+
+/**
+ * PATCH /api/staff/:id/role
+ * Body: { orgRole: string }
+ * Owner / super_admin can change a teammate's org_role within the same
+ * top-level role (admin, employer, institution). Cannot change your own
+ * role and cannot demote the last owner of an org.
+ */
+router.patch("/staff/:id/role", requireOrgOwner, async (req, res) => {
+  try {
+    const me = req.currentUser!;
+    const targetId = Number(req.params.id);
+    const { orgRole } = req.body ?? {};
+    if (!Number.isFinite(targetId)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    if (typeof orgRole !== "string") {
+      res.status(400).json({ error: "orgRole is required" });
+      return;
+    }
+    if (targetId === me.id) {
+      res.status(400).json({ error: "You cannot change your own role" });
+      return;
+    }
+    const [target] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.id, targetId))
+      .limit(1);
+    if (!target) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+
+    // Same-org check (mirrors the delete handler)
+    if (me.role === "admin") {
+      if (target.role !== "admin") {
+        res
+          .status(403)
+          .json({ error: "Cannot change non-admin from here" });
+        return;
+      }
+    } else if (me.role === "employer") {
+      if (
+        target.role !== "employer" ||
+        target.employerId !== me.employerId
+      ) {
+        res.status(403).json({ error: "Member belongs to another org" });
+        return;
+      }
+    } else if (me.role === "institution") {
+      if (
+        target.role !== "institution" ||
+        target.institutionId !== me.institutionId
+      ) {
+        res.status(403).json({ error: "Member belongs to another org" });
+        return;
+      }
+    }
+
+    const allowed = ROLE_OPTIONS[target.role];
+    if (!allowed?.includes(orgRole)) {
+      res
+        .status(400)
+        .json({ error: `Invalid orgRole "${orgRole}" for ${target.role}` });
+      return;
+    }
+
+    // Last-owner protection: don't allow demoting the only owner of an
+    // employer/institution org (admins exempt).
+    if (
+      target.orgRole === "owner" &&
+      orgRole !== "owner" &&
+      me.role !== "admin"
+    ) {
+      const orgFilter =
+        me.role === "employer"
+          ? and(
+              eq(usersTable.role, "employer"),
+              eq(usersTable.employerId, me.employerId!),
+              eq(usersTable.orgRole, "owner"),
+              ne(usersTable.id, target.id),
+              isNotNull(usersTable.employerId),
+            )
+          : and(
+              eq(usersTable.role, "institution"),
+              eq(usersTable.institutionId, me.institutionId!),
+              eq(usersTable.orgRole, "owner"),
+              ne(usersTable.id, target.id),
+              isNotNull(usersTable.institutionId),
+            );
+      const remaining = await db
+        .select({ id: usersTable.id })
+        .from(usersTable)
+        .where(orgFilter);
+      if (remaining.length === 0) {
+        res
+          .status(400)
+          .json({ error: "Cannot demote the last owner of this organization" });
+        return;
+      }
+    }
+
+    // If we're demoting an account_manager into another admin role,
+    // their employer/institution assignments would otherwise become
+    // orphaned (the manager roster only counts users whose orgRole is
+    // still account_manager). Clear those assignments so super-admin
+    // can reassign them cleanly.
+    const isDemotingManager =
+      target.role === "admin" &&
+      target.orgRole === "account_manager" &&
+      orgRole !== "account_manager";
+
+    const updated = await db.transaction(async (tx) => {
+      if (isDemotingManager) {
+        await tx
+          .update(employersTable)
+          .set({ accountManagerId: null })
+          .where(eq(employersTable.accountManagerId, target.id));
+        await tx
+          .update(institutionsTable)
+          .set({ accountManagerId: null })
+          .where(eq(institutionsTable.accountManagerId, target.id));
+      }
+      const [row] = await tx
+        .update(usersTable)
+        .set({ orgRole })
+        .where(eq(usersTable.id, target.id))
+        .returning();
+      return row;
+    });
+    res.json({ member: toStaffRow(updated) });
+  } catch (err) {
+    req.log.error({ err }, "staff role update failed");
+    res.status(500).json({ error: "Update failed" });
   }
 });
 

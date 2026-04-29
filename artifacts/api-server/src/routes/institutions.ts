@@ -52,8 +52,9 @@ function serializeInstitution(
   i: typeof institutionsTable.$inferSelect,
   studentCount: number,
   placementRate: number,
+  opts: { managerName?: string | null; includeManager?: boolean } = {},
 ) {
-  return {
+  const base = {
     id: i.id,
     name: i.name,
     type: i.type,
@@ -64,14 +65,58 @@ function serializeInstitution(
     placementRate,
     createdAt: i.createdAt.toISOString(),
   };
+  // Account-manager attribution is admin-only.
+  if (opts.includeManager) {
+    return {
+      ...base,
+      accountManagerId: i.accountManagerId,
+      accountManagerName: opts.managerName ?? null,
+    };
+  }
+  return base;
 }
 
-router.get("/institutions", async (_req, res): Promise<void> => {
-  const all = await db.select().from(institutionsTable).orderBy(institutionsTable.name);
+// Note: a global `requireAuth` is mounted on `/institutions` in
+// `routes/index.ts`, so `req.currentUser` is always populated here.
+router.get("/institutions", async (req, res): Promise<void> => {
+  const viewer = req.currentUser ?? null;
+  const isAdmin = viewer?.role === "admin";
+  const mine = req.query.mine === "1" || req.query.mine === "true";
+  const filterByManager =
+    isAdmin && mine && viewer?.orgRole === "account_manager"
+      ? viewer.id
+      : null;
+
+  const all = await db
+    .select()
+    .from(institutionsTable)
+    .where(
+      filterByManager !== null
+        ? eq(institutionsTable.accountManagerId, filterByManager)
+        : undefined,
+    )
+    .orderBy(institutionsTable.name);
 
   if (all.length === 0) {
     res.json([]);
     return;
+  }
+
+  // Resolve manager names in one batched query (admin viewers only).
+  const managerNameById = new Map<number, string>();
+  if (isAdmin) {
+    const managerIds = Array.from(
+      new Set(
+        all.map((i) => i.accountManagerId).filter((v): v is number => v != null),
+      ),
+    );
+    if (managerIds.length > 0) {
+      const managers = await db
+        .select({ id: usersTable.id, fullName: usersTable.fullName })
+        .from(usersTable)
+        .where(inArray(usersTable.id, managerIds));
+      for (const m of managers) managerNameById.set(m.id, m.fullName);
+    }
   }
 
   // Compute per-institution student count + placement rate in TWO queries
@@ -125,7 +170,13 @@ router.get("/institutions", async (_req, res): Promise<void> => {
       }
     }
     const placementRate = studentCount === 0 ? 0 : placedCount / studentCount;
-    return serializeInstitution(i, studentCount, placementRate);
+    return serializeInstitution(i, studentCount, placementRate, {
+      includeManager: isAdmin,
+      managerName:
+        i.accountManagerId != null
+          ? managerNameById.get(i.accountManagerId) ?? null
+          : null,
+    });
   });
 
   res.json(result);

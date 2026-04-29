@@ -22,8 +22,17 @@ export default function LoginPage() {
     setError(null);
     try {
       const result = await login.mutateAsync({ data: { email, password } });
-      await queryClient.invalidateQueries({ queryKey: getGetCurrentUserQueryKey() });
       const user = result.user;
+      // Seed the cache synchronously with the freshly-authenticated user so
+      // the next render of any consumer of useGetCurrentUser sees the new
+      // identity immediately. Without this, AdminLayout (and other
+      // role-gated layouts) can briefly render with the *previous* session
+      // user while the background refetch is in flight, which surfaces as
+      // a spurious "Admin access required" card after switching accounts.
+      queryClient.setQueryData(getGetCurrentUserQueryKey(), { user });
+      // Still invalidate so any other user-scoped queries (notifications,
+      // dashboards keyed off identity) refetch with the new session.
+      queryClient.invalidateQueries({ queryKey: getGetCurrentUserQueryKey() });
       if (user?.role === "admin") setLocation("/dashboard/admin");
       else if (user?.role) setLocation(`/dashboard/${user.role}`);
       else setLocation("/");

@@ -1,21 +1,36 @@
 import { Router, type IRouter } from "express";
-import { eq, inArray, sql, desc, and } from "drizzle-orm";
+import { eq, inArray, sql, desc, and, asc } from "drizzle-orm";
 import {
   db,
   institutionsTable,
+  institutionDepartmentsTable,
+  institutionFacilitiesTable,
   candidatesTable,
   candidateInstitutionsTable,
   applicationsTable,
   jobsTable,
   employersTable,
+  type InstitutionDepartment,
+  type InstitutionFacility,
 } from "@workspace/db";
 import {
   CreateInstitutionBody,
   GetInstitutionParams,
   ListInstitutionStudentsParams,
+  UpdateMyInstitutionBody,
+  CreateMyInstitutionDepartmentBody,
+  UpdateMyInstitutionDepartmentBody,
+  UpdateMyInstitutionDepartmentParams,
+  CreateMyInstitutionFacilityBody,
+  UpdateMyInstitutionFacilityBody,
+  UpdateMyInstitutionFacilityParams,
 } from "@workspace/api-zod";
 import { getCandidateIdsForInstitution } from "../lib/candidate-institutions";
-import { requireAdmin, requireAuth } from "../middleware/require-auth";
+import {
+  requireAdmin,
+  requireAuth,
+  isOrgOwner,
+} from "../middleware/require-auth";
 import { requirePermission } from "../lib/permissions";
 import { usersTable, notificationsTable } from "@workspace/db";
 
@@ -88,6 +103,47 @@ async function getInstitutionStats(institutionId: number) {
     studentCount: studentIds.length,
     placementRate: placedIds.size / studentIds.length,
   };
+}
+
+function serializeDepartment(d: InstitutionDepartment) {
+  return {
+    id: d.id,
+    institutionId: d.institutionId,
+    name: d.name,
+    code: d.code,
+    headName: d.headName,
+    description: d.description,
+    createdAt: d.createdAt.toISOString(),
+    updatedAt: d.updatedAt.toISOString(),
+  };
+}
+
+function serializeFacility(f: InstitutionFacility) {
+  return {
+    id: f.id,
+    institutionId: f.institutionId,
+    name: f.name,
+    kind: f.kind,
+    location: f.location,
+    description: f.description,
+    capacity: f.capacity,
+    createdAt: f.createdAt.toISOString(),
+    updatedAt: f.updatedAt.toISOString(),
+  };
+}
+
+/**
+ * Resolve the institution id the caller can manage. Owners (and
+ * coordinators/viewers for reads) of an institution operate against
+ * their own institutionId; platform admins must pick one explicitly,
+ * which we don't support on the /me routes — they should use the
+ * id-scoped endpoints. Returns null when the caller has no institution.
+ */
+function resolveCallerInstitutionId(
+  user: { role: string; institutionId: number | null },
+): number | null {
+  if (user.role !== "institution") return null;
+  return user.institutionId;
 }
 
 function serializeInstitution(
@@ -291,10 +347,25 @@ router.get("/institutions/:id", async (req, res): Promise<void> => {
     createdAt: e.createdAt.toISOString(),
   }));
 
+  const [departments, facilities] = await Promise.all([
+    db
+      .select()
+      .from(institutionDepartmentsTable)
+      .where(eq(institutionDepartmentsTable.institutionId, institution.id))
+      .orderBy(asc(institutionDepartmentsTable.name)),
+    db
+      .select()
+      .from(institutionFacilitiesTable)
+      .where(eq(institutionFacilitiesTable.institutionId, institution.id))
+      .orderBy(asc(institutionFacilitiesTable.name)),
+  ]);
+
   res.json({
     ...serializeInstitution(institution, stats.studentCount, stats.placementRate),
     description: institution.description,
     partnerEmployers,
+    departments: departments.map(serializeDepartment),
+    facilities: facilities.map(serializeFacility),
   });
 });
 
@@ -508,6 +579,372 @@ router.post(
       false,
       req.log,
     );
+    res.json({ ok: true });
+  },
+);
+
+// ── Self-service institution management (caller's own institution) ──
+
+/**
+ * Owners of the caller's own institution can update its profile fields.
+ * Platform admins can use the admin-scoped routes; this endpoint is
+ * specifically for the institution owner managing their own org.
+ */
+router.patch(
+  "/institutions/me",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const me = req.currentUser!;
+    const institutionId = resolveCallerInstitutionId(me);
+    if (institutionId == null) {
+      res.status(403).json({ error: "Not associated with an institution" });
+      return;
+    }
+    if (!isOrgOwner(me)) {
+      res.status(403).json({ error: "Owner access required" });
+      return;
+    }
+    const parsed = UpdateMyInstitutionBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const updates = parsed.data;
+    if (Object.keys(updates).length === 0) {
+      res.status(400).json({ error: "No fields to update" });
+      return;
+    }
+    const [updated] = await db
+      .update(institutionsTable)
+      .set(updates)
+      .where(eq(institutionsTable.id, institutionId))
+      .returning();
+    if (!updated) {
+      res.status(404).json({ error: "Institution not found" });
+      return;
+    }
+    const stats = await getInstitutionStats(updated.id);
+    res.json(serializeInstitution(updated, stats.studentCount, stats.placementRate));
+  },
+);
+
+// ── Departments ──
+
+router.get(
+  "/institutions/me/departments",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const me = req.currentUser!;
+    const institutionId = resolveCallerInstitutionId(me);
+    if (institutionId == null) {
+      res.status(403).json({ error: "Not associated with an institution" });
+      return;
+    }
+    const rows = await db
+      .select()
+      .from(institutionDepartmentsTable)
+      .where(eq(institutionDepartmentsTable.institutionId, institutionId))
+      .orderBy(asc(institutionDepartmentsTable.name));
+    res.json(rows.map(serializeDepartment));
+  },
+);
+
+router.post(
+  "/institutions/me/departments",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const me = req.currentUser!;
+    const institutionId = resolveCallerInstitutionId(me);
+    if (institutionId == null) {
+      res.status(403).json({ error: "Not associated with an institution" });
+      return;
+    }
+    if (!isOrgOwner(me)) {
+      res.status(403).json({ error: "Owner access required" });
+      return;
+    }
+    const parsed = CreateMyInstitutionDepartmentBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    try {
+      const [created] = await db
+        .insert(institutionDepartmentsTable)
+        .values({
+          institutionId,
+          name: parsed.data.name,
+          code: parsed.data.code ?? null,
+          headName: parsed.data.headName ?? null,
+          description: parsed.data.description ?? null,
+        })
+        .returning();
+      res.status(201).json(serializeDepartment(created!));
+    } catch (err) {
+      // Unique violation (institution_id, name)
+      if (
+        err instanceof Error &&
+        /duplicate key|unique/i.test(err.message ?? "")
+      ) {
+        res.status(409).json({ error: "Department name already exists" });
+        return;
+      }
+      throw err;
+    }
+  },
+);
+
+router.patch(
+  "/institutions/me/departments/:id",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const me = req.currentUser!;
+    const institutionId = resolveCallerInstitutionId(me);
+    if (institutionId == null) {
+      res.status(403).json({ error: "Not associated with an institution" });
+      return;
+    }
+    if (!isOrgOwner(me)) {
+      res.status(403).json({ error: "Owner access required" });
+      return;
+    }
+    const params = UpdateMyInstitutionDepartmentParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: params.error.message });
+      return;
+    }
+    const parsed = UpdateMyInstitutionDepartmentBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const updates = parsed.data;
+    if (Object.keys(updates).length === 0) {
+      res.status(400).json({ error: "No fields to update" });
+      return;
+    }
+    try {
+      const [updated] = await db
+        .update(institutionDepartmentsTable)
+        .set({ ...updates, updatedAt: new Date() })
+        .where(
+          and(
+            eq(institutionDepartmentsTable.id, params.data.id),
+            // Crucial: institution scoping — owners can only modify their own.
+            eq(institutionDepartmentsTable.institutionId, institutionId),
+          ),
+        )
+        .returning();
+      if (!updated) {
+        res.status(404).json({ error: "Department not found" });
+        return;
+      }
+      res.json(serializeDepartment(updated));
+    } catch (err) {
+      if (
+        err instanceof Error &&
+        /duplicate key|unique/i.test(err.message ?? "")
+      ) {
+        res.status(409).json({ error: "Department name already exists" });
+        return;
+      }
+      throw err;
+    }
+  },
+);
+
+router.delete(
+  "/institutions/me/departments/:id",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const me = req.currentUser!;
+    const institutionId = resolveCallerInstitutionId(me);
+    if (institutionId == null) {
+      res.status(403).json({ error: "Not associated with an institution" });
+      return;
+    }
+    if (!isOrgOwner(me)) {
+      res.status(403).json({ error: "Owner access required" });
+      return;
+    }
+    const params = UpdateMyInstitutionDepartmentParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: params.error.message });
+      return;
+    }
+    const result = await db
+      .delete(institutionDepartmentsTable)
+      .where(
+        and(
+          eq(institutionDepartmentsTable.id, params.data.id),
+          eq(institutionDepartmentsTable.institutionId, institutionId),
+        ),
+      )
+      .returning({ id: institutionDepartmentsTable.id });
+    if (result.length === 0) {
+      res.status(404).json({ error: "Department not found" });
+      return;
+    }
+    res.json({ ok: true });
+  },
+);
+
+// ── Facilities ──
+
+router.get(
+  "/institutions/me/facilities",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const me = req.currentUser!;
+    const institutionId = resolveCallerInstitutionId(me);
+    if (institutionId == null) {
+      res.status(403).json({ error: "Not associated with an institution" });
+      return;
+    }
+    const rows = await db
+      .select()
+      .from(institutionFacilitiesTable)
+      .where(eq(institutionFacilitiesTable.institutionId, institutionId))
+      .orderBy(asc(institutionFacilitiesTable.name));
+    res.json(rows.map(serializeFacility));
+  },
+);
+
+router.post(
+  "/institutions/me/facilities",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const me = req.currentUser!;
+    const institutionId = resolveCallerInstitutionId(me);
+    if (institutionId == null) {
+      res.status(403).json({ error: "Not associated with an institution" });
+      return;
+    }
+    if (!isOrgOwner(me)) {
+      res.status(403).json({ error: "Owner access required" });
+      return;
+    }
+    const parsed = CreateMyInstitutionFacilityBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    try {
+      const [created] = await db
+        .insert(institutionFacilitiesTable)
+        .values({
+          institutionId,
+          name: parsed.data.name,
+          kind: parsed.data.kind,
+          location: parsed.data.location ?? null,
+          description: parsed.data.description ?? null,
+          capacity: parsed.data.capacity ?? null,
+        })
+        .returning();
+      res.status(201).json(serializeFacility(created!));
+    } catch (err) {
+      if (
+        err instanceof Error &&
+        /duplicate key|unique/i.test(err.message ?? "")
+      ) {
+        res.status(409).json({ error: "Facility name already exists" });
+        return;
+      }
+      throw err;
+    }
+  },
+);
+
+router.patch(
+  "/institutions/me/facilities/:id",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const me = req.currentUser!;
+    const institutionId = resolveCallerInstitutionId(me);
+    if (institutionId == null) {
+      res.status(403).json({ error: "Not associated with an institution" });
+      return;
+    }
+    if (!isOrgOwner(me)) {
+      res.status(403).json({ error: "Owner access required" });
+      return;
+    }
+    const params = UpdateMyInstitutionFacilityParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: params.error.message });
+      return;
+    }
+    const parsed = UpdateMyInstitutionFacilityBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const updates = parsed.data;
+    if (Object.keys(updates).length === 0) {
+      res.status(400).json({ error: "No fields to update" });
+      return;
+    }
+    try {
+      const [updated] = await db
+        .update(institutionFacilitiesTable)
+        .set({ ...updates, updatedAt: new Date() })
+        .where(
+          and(
+            eq(institutionFacilitiesTable.id, params.data.id),
+            eq(institutionFacilitiesTable.institutionId, institutionId),
+          ),
+        )
+        .returning();
+      if (!updated) {
+        res.status(404).json({ error: "Facility not found" });
+        return;
+      }
+      res.json(serializeFacility(updated));
+    } catch (err) {
+      if (
+        err instanceof Error &&
+        /duplicate key|unique/i.test(err.message ?? "")
+      ) {
+        res.status(409).json({ error: "Facility name already exists" });
+        return;
+      }
+      throw err;
+    }
+  },
+);
+
+router.delete(
+  "/institutions/me/facilities/:id",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const me = req.currentUser!;
+    const institutionId = resolveCallerInstitutionId(me);
+    if (institutionId == null) {
+      res.status(403).json({ error: "Not associated with an institution" });
+      return;
+    }
+    if (!isOrgOwner(me)) {
+      res.status(403).json({ error: "Owner access required" });
+      return;
+    }
+    const params = UpdateMyInstitutionFacilityParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: params.error.message });
+      return;
+    }
+    const result = await db
+      .delete(institutionFacilitiesTable)
+      .where(
+        and(
+          eq(institutionFacilitiesTable.id, params.data.id),
+          eq(institutionFacilitiesTable.institutionId, institutionId),
+        ),
+      )
+      .returning({ id: institutionFacilitiesTable.id });
+    if (result.length === 0) {
+      res.status(404).json({ error: "Facility not found" });
+      return;
+    }
     res.json({ ok: true });
   },
 );

@@ -21,6 +21,9 @@ import CandidateDetail from "@/pages/candidates/detail";
 import CandidateDashboard from "@/pages/dashboard/candidate";
 import EmployerDashboard from "@/pages/dashboard/employer";
 import InstitutionDashboard from "@/pages/dashboard/institution";
+import InstitutionEditPage from "@/pages/dashboard/institution-edit";
+import InstitutionDepartmentsPage from "@/pages/dashboard/institution-departments";
+import InstitutionFacilitiesPage from "@/pages/dashboard/institution-facilities";
 import AdminDashboard from "@/pages/dashboard/admin";
 import AdminRegistrationsPage from "@/pages/dashboard/admin/registrations";
 import AdminOnboardPage from "@/pages/dashboard/admin/onboard";
@@ -68,6 +71,9 @@ function Router() {
         <Route path="/dashboard/candidate" component={CandidateDashboard} />
         <Route path="/dashboard/employer" component={EmployerDashboard} />
         <Route path="/dashboard/institution" component={InstitutionDashboard} />
+        <Route path="/dashboard/institution/edit" component={InstitutionEditPage} />
+        <Route path="/dashboard/institution/departments" component={InstitutionDepartmentsPage} />
+        <Route path="/dashboard/institution/facilities" component={InstitutionFacilitiesPage} />
         <Route path="/dashboard/admin">
           <AdminLayout><AdminDashboard /></AdminLayout>
         </Route>

@@ -5,11 +5,11 @@
  * Talent Platform API
  * OpenAPI spec version: 0.1.0
  */
-import type { CreateInstitutionType } from "./createInstitutionType";
+import type { InstitutionKind } from "./institutionKind";
 
 export interface CreateInstitution {
   name: string;
-  type: CreateInstitutionType;
+  type: InstitutionKind;
   location: string;
   logoUrl: string;
   websiteUrl: string;

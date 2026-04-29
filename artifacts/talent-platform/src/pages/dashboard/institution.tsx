@@ -12,8 +12,17 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import { Users, GraduationCap, Building2, Banknote, Briefcase, Link2, ShieldCheck, ShieldAlert, Loader2 } from "lucide-react";
+import { Users, GraduationCap, Building2, Banknote, Briefcase, Link2, ShieldCheck, ShieldAlert, Loader2, BookOpen, Building, Pencil, ArrowRight } from "lucide-react";
 import { Link } from "wouter";
+import { institutionKindLabel } from "@/lib/institution-kinds";
+import {
+  useGetInstitution,
+  useListMyInstitutionDepartments,
+  useListMyInstitutionFacilities,
+  getGetInstitutionQueryKey,
+  getListMyInstitutionDepartmentsQueryKey,
+  getListMyInstitutionFacilitiesQueryKey,
+} from "@workspace/api-client-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from "recharts";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -24,6 +33,32 @@ export default function InstitutionDashboard() {
   const { data: dashboard, isLoading } = useGetInstitutionDashboard(id);
   const { data: students = [], isLoading: studentsLoading } =
     useListInstitutionStudents(id);
+  // Pull the institution record for the kind badge. Only fetch when we
+  // have an actual institutionId, otherwise we'd hit /institutions/0.
+  const institutionId =
+    sessionUser?.role === "institution" ? sessionUser.institutionId : null;
+  const { data: institution } = useGetInstitution(institutionId ?? 0, {
+    query: {
+      queryKey: getGetInstitutionQueryKey(institutionId ?? 0),
+      enabled: institutionId != null,
+    },
+  });
+  // Owners get the management cards. We also need the lists' counts to
+  // make the cards informative; viewers can still navigate to read them.
+  const isOwner =
+    sessionUser?.role === "institution" && sessionUser.orgRole === "owner";
+  const { data: departments = [] } = useListMyInstitutionDepartments({
+    query: {
+      queryKey: getListMyInstitutionDepartmentsQueryKey(),
+      enabled: sessionUser?.role === "institution",
+    },
+  });
+  const { data: facilities = [] } = useListMyInstitutionFacilities({
+    query: {
+      queryKey: getListMyInstitutionFacilitiesQueryKey(),
+      enabled: sessionUser?.role === "institution",
+    },
+  });
   const queryClient = useQueryClient();
 
   // Only institution owners/coordinators (and platform admins) can change
@@ -75,10 +110,73 @@ export default function InstitutionDashboard() {
           </div>
           <div>
             <h1 className="text-3xl font-bold tracking-tight">{dashboard.institutionName} Dashboard</h1>
-            <p className="text-muted-foreground mt-1">Track your students' success in the job market.</p>
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
+              <p className="text-muted-foreground">Track your students' success in the job market.</p>
+              {institution ? (
+                <Badge variant="secondary" className="capitalize">
+                  {institutionKindLabel(institution.type)}
+                </Badge>
+              ) : null}
+            </div>
           </div>
         </div>
+        {isOwner ? (
+          <Button asChild variant="outline" size="sm" className="gap-2">
+            <Link href="/dashboard/institution/edit">
+              <Pencil className="w-4 h-4" /> Edit institution
+            </Link>
+          </Button>
+        ) : null}
       </div>
+
+      {sessionUser?.role === "institution" ? (
+        <div className="grid sm:grid-cols-2 gap-4">
+          <Card className="shadow-sm hover:shadow-md transition-shadow">
+            <Link
+              href="/dashboard/institution/departments"
+              className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-xl"
+            >
+              <CardContent className="p-6 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-11 h-11 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                    <BookOpen className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="font-semibold">Departments</p>
+                    <p className="text-sm text-muted-foreground">
+                      {departments.length} listed
+                      {isOwner ? " · manage" : ""}
+                    </p>
+                  </div>
+                </div>
+                <ArrowRight className="w-4 h-4 text-muted-foreground" />
+              </CardContent>
+            </Link>
+          </Card>
+          <Card className="shadow-sm hover:shadow-md transition-shadow">
+            <Link
+              href="/dashboard/institution/facilities"
+              className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-xl"
+            >
+              <CardContent className="p-6 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-11 h-11 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                    <Building className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="font-semibold">Facilities</p>
+                    <p className="text-sm text-muted-foreground">
+                      {facilities.length} listed
+                      {isOwner ? " · manage" : ""}
+                    </p>
+                  </div>
+                </div>
+                <ArrowRight className="w-4 h-4 text-muted-foreground" />
+              </CardContent>
+            </Link>
+          </Card>
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card className="shadow-sm">

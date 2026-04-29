@@ -595,13 +595,19 @@ export interface CreateEmployer {
   size: CreateEmployerSize;
 }
 
-export type InstitutionType =
-  (typeof InstitutionType)[keyof typeof InstitutionType];
+/**
+ * Standardized institution kind. New values are added to the end so existing data stays valid.
+ */
+export type InstitutionKind =
+  (typeof InstitutionKind)[keyof typeof InstitutionKind];
 
-export const InstitutionType = {
+export const InstitutionKind = {
   university: "university",
   college: "college",
+  polytechnic: "polytechnic",
+  nursing_training: "nursing_training",
   bootcamp: "bootcamp",
+  shs: "shs",
   vocational: "vocational",
   other: "other",
 } as const;
@@ -609,7 +615,7 @@ export const InstitutionType = {
 export interface Institution {
   id: number;
   name: string;
-  type: InstitutionType;
+  type: InstitutionKind;
   location: string;
   logoUrl: string;
   websiteUrl: string;
@@ -622,10 +628,130 @@ export interface Institution {
   accountManagerName?: string | null;
 }
 
+export interface InstitutionDepartment {
+  id: number;
+  institutionId: number;
+  name: string;
+  code: string | null;
+  headName: string | null;
+  description: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InstitutionFacility {
+  id: number;
+  institutionId: number;
+  name: string;
+  kind: string;
+  location: string | null;
+  description: string | null;
+  capacity: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type InstitutionDetail = Institution & {
   description: string;
   partnerEmployers: Employer[];
+  departments: InstitutionDepartment[];
+  facilities: InstitutionFacility[];
 };
+
+export interface CreateInstitutionDepartment {
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  name: string;
+  /** @maxLength 30 */
+  code?: string | null;
+  /** @maxLength 200 */
+  headName?: string | null;
+  /** @maxLength 2000 */
+  description?: string | null;
+}
+
+/**
+ * All fields optional. Send null on nullable fields to clear them.
+ */
+export interface UpdateInstitutionDepartment {
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  name?: string;
+  /** @maxLength 30 */
+  code?: string | null;
+  /** @maxLength 200 */
+  headName?: string | null;
+  /** @maxLength 2000 */
+  description?: string | null;
+}
+
+export interface CreateInstitutionFacility {
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  name: string;
+  /**
+   * @minLength 1
+   * @maxLength 80
+   */
+  kind: string;
+  /** @maxLength 200 */
+  location?: string | null;
+  /** @maxLength 2000 */
+  description?: string | null;
+  /** @minimum 0 */
+  capacity?: number | null;
+}
+
+/**
+ * All fields optional. Send null on nullable fields to clear them.
+ */
+export interface UpdateInstitutionFacility {
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  name?: string;
+  /**
+   * @minLength 1
+   * @maxLength 80
+   */
+  kind?: string;
+  /** @maxLength 200 */
+  location?: string | null;
+  /** @maxLength 2000 */
+  description?: string | null;
+  /** @minimum 0 */
+  capacity?: number | null;
+}
+
+/**
+ * All fields optional. Owner-only.
+ */
+export interface UpdateInstitutionRequest {
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  name?: string;
+  type?: InstitutionKind;
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  location?: string;
+  /** @maxLength 1000 */
+  logoUrl?: string;
+  /** @maxLength 1000 */
+  websiteUrl?: string;
+  /** @maxLength 5000 */
+  description?: string;
+}
 
 export type InstitutionStudentStatus =
   (typeof InstitutionStudentStatus)[keyof typeof InstitutionStudentStatus];
@@ -657,20 +783,9 @@ export interface InstitutionStudent {
   verifiedByName?: string | null;
 }
 
-export type CreateInstitutionType =
-  (typeof CreateInstitutionType)[keyof typeof CreateInstitutionType];
-
-export const CreateInstitutionType = {
-  university: "university",
-  college: "college",
-  bootcamp: "bootcamp",
-  vocational: "vocational",
-  other: "other",
-} as const;
-
 export interface CreateInstitution {
   name: string;
-  type: CreateInstitutionType;
+  type: InstitutionKind;
   location: string;
   logoUrl: string;
   websiteUrl: string;

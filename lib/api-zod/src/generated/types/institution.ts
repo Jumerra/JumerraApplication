@@ -5,12 +5,12 @@
  * Talent Platform API
  * OpenAPI spec version: 0.1.0
  */
-import type { InstitutionType } from "./institutionType";
+import type { InstitutionKind } from "./institutionKind";
 
 export interface Institution {
   id: number;
   name: string;
-  type: InstitutionType;
+  type: InstitutionKind;
   location: string;
   logoUrl: string;
   websiteUrl: string;

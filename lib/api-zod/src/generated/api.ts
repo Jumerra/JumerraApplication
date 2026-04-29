@@ -350,7 +350,20 @@ export const ListInstitutionsQueryParams = zod.object({
 export const ListInstitutionsResponseItem = zod.object({
   id: zod.number(),
   name: zod.string(),
-  type: zod.enum(["university", "college", "bootcamp", "vocational", "other"]),
+  type: zod
+    .enum([
+      "university",
+      "college",
+      "polytechnic",
+      "nursing_training",
+      "bootcamp",
+      "shs",
+      "vocational",
+      "other",
+    ])
+    .describe(
+      "Standardized institution kind. New values are added to the end so existing data stays valid.",
+    ),
   location: zod.string(),
   logoUrl: zod.string(),
   websiteUrl: zod.string(),
@@ -370,11 +383,317 @@ export const ListInstitutionsResponse = zod.array(ListInstitutionsResponseItem);
 
 export const CreateInstitutionBody = zod.object({
   name: zod.string(),
-  type: zod.enum(["university", "college", "bootcamp", "vocational", "other"]),
+  type: zod
+    .enum([
+      "university",
+      "college",
+      "polytechnic",
+      "nursing_training",
+      "bootcamp",
+      "shs",
+      "vocational",
+      "other",
+    ])
+    .describe(
+      "Standardized institution kind. New values are added to the end so existing data stays valid.",
+    ),
   location: zod.string(),
   logoUrl: zod.string(),
   websiteUrl: zod.string(),
   description: zod.string(),
+});
+
+/**
+ * @summary Update the caller's institution profile (owner only).
+ */
+export const updateMyInstitutionBodyNameMax = 200;
+
+export const updateMyInstitutionBodyLocationMax = 200;
+
+export const updateMyInstitutionBodyLogoUrlMax = 1000;
+
+export const updateMyInstitutionBodyWebsiteUrlMax = 1000;
+
+export const updateMyInstitutionBodyDescriptionMax = 5000;
+
+export const UpdateMyInstitutionBody = zod
+  .object({
+    name: zod.string().min(1).max(updateMyInstitutionBodyNameMax).optional(),
+    type: zod
+      .enum([
+        "university",
+        "college",
+        "polytechnic",
+        "nursing_training",
+        "bootcamp",
+        "shs",
+        "vocational",
+        "other",
+      ])
+      .optional()
+      .describe(
+        "Standardized institution kind. New values are added to the end so existing data stays valid.",
+      ),
+    location: zod
+      .string()
+      .min(1)
+      .max(updateMyInstitutionBodyLocationMax)
+      .optional(),
+    logoUrl: zod.string().max(updateMyInstitutionBodyLogoUrlMax).optional(),
+    websiteUrl: zod
+      .string()
+      .max(updateMyInstitutionBodyWebsiteUrlMax)
+      .optional(),
+    description: zod
+      .string()
+      .max(updateMyInstitutionBodyDescriptionMax)
+      .optional(),
+  })
+  .describe("All fields optional. Owner-only.");
+
+export const UpdateMyInstitutionResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  type: zod
+    .enum([
+      "university",
+      "college",
+      "polytechnic",
+      "nursing_training",
+      "bootcamp",
+      "shs",
+      "vocational",
+      "other",
+    ])
+    .describe(
+      "Standardized institution kind. New values are added to the end so existing data stays valid.",
+    ),
+  location: zod.string(),
+  logoUrl: zod.string(),
+  websiteUrl: zod.string(),
+  studentCount: zod.number(),
+  placementRate: zod.number(),
+  createdAt: zod.coerce.date(),
+  accountManagerId: zod
+    .number()
+    .nullish()
+    .describe("Owning account-manager admin user id (admin-only field)"),
+  accountManagerName: zod
+    .string()
+    .nullish()
+    .describe("Owning account-manager display name (admin-only field)"),
+});
+
+/**
+ * @summary List departments for the caller's institution.
+ */
+export const ListMyInstitutionDepartmentsResponseItem = zod.object({
+  id: zod.number(),
+  institutionId: zod.number(),
+  name: zod.string(),
+  code: zod.string().nullable(),
+  headName: zod.string().nullable(),
+  description: zod.string().nullable(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+export const ListMyInstitutionDepartmentsResponse = zod.array(
+  ListMyInstitutionDepartmentsResponseItem,
+);
+
+/**
+ * @summary Create a department on the caller's institution (owner only).
+ */
+export const createMyInstitutionDepartmentBodyNameMax = 200;
+
+export const createMyInstitutionDepartmentBodyCodeMax = 30;
+
+export const createMyInstitutionDepartmentBodyHeadNameMax = 200;
+
+export const createMyInstitutionDepartmentBodyDescriptionMax = 2000;
+
+export const CreateMyInstitutionDepartmentBody = zod.object({
+  name: zod.string().min(1).max(createMyInstitutionDepartmentBodyNameMax),
+  code: zod.string().max(createMyInstitutionDepartmentBodyCodeMax).nullish(),
+  headName: zod
+    .string()
+    .max(createMyInstitutionDepartmentBodyHeadNameMax)
+    .nullish(),
+  description: zod
+    .string()
+    .max(createMyInstitutionDepartmentBodyDescriptionMax)
+    .nullish(),
+});
+
+/**
+ * @summary Update a department on the caller's institution (owner only).
+ */
+export const UpdateMyInstitutionDepartmentParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const updateMyInstitutionDepartmentBodyNameMax = 200;
+
+export const updateMyInstitutionDepartmentBodyCodeMax = 30;
+
+export const updateMyInstitutionDepartmentBodyHeadNameMax = 200;
+
+export const updateMyInstitutionDepartmentBodyDescriptionMax = 2000;
+
+export const UpdateMyInstitutionDepartmentBody = zod
+  .object({
+    name: zod
+      .string()
+      .min(1)
+      .max(updateMyInstitutionDepartmentBodyNameMax)
+      .optional(),
+    code: zod.string().max(updateMyInstitutionDepartmentBodyCodeMax).nullish(),
+    headName: zod
+      .string()
+      .max(updateMyInstitutionDepartmentBodyHeadNameMax)
+      .nullish(),
+    description: zod
+      .string()
+      .max(updateMyInstitutionDepartmentBodyDescriptionMax)
+      .nullish(),
+  })
+  .describe("All fields optional. Send null on nullable fields to clear them.");
+
+export const UpdateMyInstitutionDepartmentResponse = zod.object({
+  id: zod.number(),
+  institutionId: zod.number(),
+  name: zod.string(),
+  code: zod.string().nullable(),
+  headName: zod.string().nullable(),
+  description: zod.string().nullable(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Delete a department on the caller's institution (owner only).
+ */
+export const DeleteMyInstitutionDepartmentParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const DeleteMyInstitutionDepartmentResponse = zod.object({
+  ok: zod.boolean(),
+});
+
+/**
+ * @summary List facilities for the caller's institution.
+ */
+export const ListMyInstitutionFacilitiesResponseItem = zod.object({
+  id: zod.number(),
+  institutionId: zod.number(),
+  name: zod.string(),
+  kind: zod.string(),
+  location: zod.string().nullable(),
+  description: zod.string().nullable(),
+  capacity: zod.number().nullable(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+export const ListMyInstitutionFacilitiesResponse = zod.array(
+  ListMyInstitutionFacilitiesResponseItem,
+);
+
+/**
+ * @summary Create a facility on the caller's institution (owner only).
+ */
+export const createMyInstitutionFacilityBodyNameMax = 200;
+
+export const createMyInstitutionFacilityBodyKindMax = 80;
+
+export const createMyInstitutionFacilityBodyLocationMax = 200;
+
+export const createMyInstitutionFacilityBodyDescriptionMax = 2000;
+
+export const createMyInstitutionFacilityBodyCapacityMin = 0;
+
+export const CreateMyInstitutionFacilityBody = zod.object({
+  name: zod.string().min(1).max(createMyInstitutionFacilityBodyNameMax),
+  kind: zod.string().min(1).max(createMyInstitutionFacilityBodyKindMax),
+  location: zod
+    .string()
+    .max(createMyInstitutionFacilityBodyLocationMax)
+    .nullish(),
+  description: zod
+    .string()
+    .max(createMyInstitutionFacilityBodyDescriptionMax)
+    .nullish(),
+  capacity: zod
+    .number()
+    .min(createMyInstitutionFacilityBodyCapacityMin)
+    .nullish(),
+});
+
+/**
+ * @summary Update a facility on the caller's institution (owner only).
+ */
+export const UpdateMyInstitutionFacilityParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const updateMyInstitutionFacilityBodyNameMax = 200;
+
+export const updateMyInstitutionFacilityBodyKindMax = 80;
+
+export const updateMyInstitutionFacilityBodyLocationMax = 200;
+
+export const updateMyInstitutionFacilityBodyDescriptionMax = 2000;
+
+export const updateMyInstitutionFacilityBodyCapacityMin = 0;
+
+export const UpdateMyInstitutionFacilityBody = zod
+  .object({
+    name: zod
+      .string()
+      .min(1)
+      .max(updateMyInstitutionFacilityBodyNameMax)
+      .optional(),
+    kind: zod
+      .string()
+      .min(1)
+      .max(updateMyInstitutionFacilityBodyKindMax)
+      .optional(),
+    location: zod
+      .string()
+      .max(updateMyInstitutionFacilityBodyLocationMax)
+      .nullish(),
+    description: zod
+      .string()
+      .max(updateMyInstitutionFacilityBodyDescriptionMax)
+      .nullish(),
+    capacity: zod
+      .number()
+      .min(updateMyInstitutionFacilityBodyCapacityMin)
+      .nullish(),
+  })
+  .describe("All fields optional. Send null on nullable fields to clear them.");
+
+export const UpdateMyInstitutionFacilityResponse = zod.object({
+  id: zod.number(),
+  institutionId: zod.number(),
+  name: zod.string(),
+  kind: zod.string(),
+  location: zod.string().nullable(),
+  description: zod.string().nullable(),
+  capacity: zod.number().nullable(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Delete a facility on the caller's institution (owner only).
+ */
+export const DeleteMyInstitutionFacilityParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const DeleteMyInstitutionFacilityResponse = zod.object({
+  ok: zod.boolean(),
 });
 
 export const GetInstitutionParams = zod.object({
@@ -385,13 +704,20 @@ export const GetInstitutionResponse = zod
   .object({
     id: zod.number(),
     name: zod.string(),
-    type: zod.enum([
-      "university",
-      "college",
-      "bootcamp",
-      "vocational",
-      "other",
-    ]),
+    type: zod
+      .enum([
+        "university",
+        "college",
+        "polytechnic",
+        "nursing_training",
+        "bootcamp",
+        "shs",
+        "vocational",
+        "other",
+      ])
+      .describe(
+        "Standardized institution kind. New values are added to the end so existing data stays valid.",
+      ),
     location: zod.string(),
     logoUrl: zod.string(),
     websiteUrl: zod.string(),
@@ -441,6 +767,31 @@ export const GetInstitutionResponse = zod
             .string()
             .nullish()
             .describe("Owning account-manager display name (admin-only field)"),
+        }),
+      ),
+      departments: zod.array(
+        zod.object({
+          id: zod.number(),
+          institutionId: zod.number(),
+          name: zod.string(),
+          code: zod.string().nullable(),
+          headName: zod.string().nullable(),
+          description: zod.string().nullable(),
+          createdAt: zod.coerce.date(),
+          updatedAt: zod.coerce.date(),
+        }),
+      ),
+      facilities: zod.array(
+        zod.object({
+          id: zod.number(),
+          institutionId: zod.number(),
+          name: zod.string(),
+          kind: zod.string(),
+          location: zod.string().nullable(),
+          description: zod.string().nullable(),
+          capacity: zod.number().nullable(),
+          createdAt: zod.coerce.date(),
+          updatedAt: zod.coerce.date(),
         }),
       ),
     }),

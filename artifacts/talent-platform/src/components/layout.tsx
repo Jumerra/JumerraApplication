@@ -34,6 +34,9 @@ import {
   UserCog,
   ShieldCheck,
   User,
+  BookOpen,
+  Building,
+  Pencil,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { NotificationBell } from "@/components/notification-bell";
@@ -250,6 +253,36 @@ export function Layout({ children }: { children: React.ReactNode }) {
                               <ShieldCheck className="w-4 h-4" /> Roles & permissions
                             </Link>
                           </DropdownMenuItem>
+                        )}
+                        {sessionUser.role === "institution" && (
+                          <>
+                            <DropdownMenuItem asChild>
+                              <Link
+                                href="/dashboard/institution/departments"
+                                className="gap-2 cursor-pointer"
+                              >
+                                <BookOpen className="w-4 h-4" /> Departments
+                              </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem asChild>
+                              <Link
+                                href="/dashboard/institution/facilities"
+                                className="gap-2 cursor-pointer"
+                              >
+                                <Building className="w-4 h-4" /> Facilities
+                              </Link>
+                            </DropdownMenuItem>
+                            {sessionUser.orgRole === "owner" && (
+                              <DropdownMenuItem asChild>
+                                <Link
+                                  href="/dashboard/institution/edit"
+                                  className="gap-2 cursor-pointer"
+                                >
+                                  <Pencil className="w-4 h-4" /> Edit institution
+                                </Link>
+                              </DropdownMenuItem>
+                            )}
+                          </>
                         )}
                         <DropdownMenuSeparator />
                       </>

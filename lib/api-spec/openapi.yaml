@@ -206,6 +206,150 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Institution" }
+  /institutions/me:
+    patch:
+      operationId: updateMyInstitution
+      tags: [institutions]
+      summary: Update the caller's institution profile (owner only).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateInstitutionRequest" }
+      responses:
+        "200":
+          description: Updated institution
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Institution" }
+  /institutions/me/departments:
+    get:
+      operationId: listMyInstitutionDepartments
+      tags: [institutions]
+      summary: List departments for the caller's institution.
+      responses:
+        "200":
+          description: Departments
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/InstitutionDepartment" }
+    post:
+      operationId: createMyInstitutionDepartment
+      tags: [institutions]
+      summary: Create a department on the caller's institution (owner only).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateInstitutionDepartment" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InstitutionDepartment" }
+  /institutions/me/departments/{id}:
+    patch:
+      operationId: updateMyInstitutionDepartment
+      tags: [institutions]
+      summary: Update a department on the caller's institution (owner only).
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateInstitutionDepartment" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InstitutionDepartment" }
+    delete:
+      operationId: deleteMyInstitutionDepartment
+      tags: [institutions]
+      summary: Delete a department on the caller's institution (owner only).
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
+  /institutions/me/facilities:
+    get:
+      operationId: listMyInstitutionFacilities
+      tags: [institutions]
+      summary: List facilities for the caller's institution.
+      responses:
+        "200":
+          description: Facilities
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/InstitutionFacility" }
+    post:
+      operationId: createMyInstitutionFacility
+      tags: [institutions]
+      summary: Create a facility on the caller's institution (owner only).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateInstitutionFacility" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InstitutionFacility" }
+  /institutions/me/facilities/{id}:
+    patch:
+      operationId: updateMyInstitutionFacility
+      tags: [institutions]
+      summary: Update a facility on the caller's institution (owner only).
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateInstitutionFacility" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InstitutionFacility" }
+    delete:
+      operationId: deleteMyInstitutionFacility
+      tags: [institutions]
+      summary: Delete a facility on the caller's institution (owner only).
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
   /institutions/{id}:
     get:
       operationId: getInstitution
@@ -1893,14 +2037,25 @@ components:
         - websiteUrl
         - size
 
+    InstitutionKind:
+      type: string
+      description: Standardized institution kind. New values are added to the end so existing data stays valid.
+      enum:
+        - university
+        - college
+        - polytechnic
+        - nursing_training
+        - bootcamp
+        - shs
+        - vocational
+        - other
+
     Institution:
       type: object
       properties:
         id: { type: integer }
         name: { type: string }
-        type:
-          type: string
-          enum: [university, college, bootcamp, vocational, other]
+        type: { $ref: "#/components/schemas/InstitutionKind" }
         location: { type: string }
         logoUrl: { type: string }
         websiteUrl: { type: string }
@@ -1935,7 +2090,89 @@ components:
             partnerEmployers:
               type: array
               items: { $ref: "#/components/schemas/Employer" }
-          required: [description, partnerEmployers]
+            departments:
+              type: array
+              items: { $ref: "#/components/schemas/InstitutionDepartment" }
+            facilities:
+              type: array
+              items: { $ref: "#/components/schemas/InstitutionFacility" }
+          required: [description, partnerEmployers, departments, facilities]
+
+    InstitutionDepartment:
+      type: object
+      properties:
+        id: { type: integer }
+        institutionId: { type: integer }
+        name: { type: string }
+        code: { type: string, nullable: true }
+        headName: { type: string, nullable: true }
+        description: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      required: [id, institutionId, name, code, headName, description, createdAt, updatedAt]
+
+    CreateInstitutionDepartment:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200 }
+        code: { type: string, maxLength: 30, nullable: true }
+        headName: { type: string, maxLength: 200, nullable: true }
+        description: { type: string, maxLength: 2000, nullable: true }
+      required: [name]
+
+    UpdateInstitutionDepartment:
+      type: object
+      description: All fields optional. Send null on nullable fields to clear them.
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200 }
+        code: { type: string, maxLength: 30, nullable: true }
+        headName: { type: string, maxLength: 200, nullable: true }
+        description: { type: string, maxLength: 2000, nullable: true }
+
+    InstitutionFacility:
+      type: object
+      properties:
+        id: { type: integer }
+        institutionId: { type: integer }
+        name: { type: string }
+        kind: { type: string }
+        location: { type: string, nullable: true }
+        description: { type: string, nullable: true }
+        capacity: { type: integer, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      required: [id, institutionId, name, kind, location, description, capacity, createdAt, updatedAt]
+
+    CreateInstitutionFacility:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200 }
+        kind: { type: string, minLength: 1, maxLength: 80 }
+        location: { type: string, maxLength: 200, nullable: true }
+        description: { type: string, maxLength: 2000, nullable: true }
+        capacity: { type: integer, minimum: 0, nullable: true }
+      required: [name, kind]
+
+    UpdateInstitutionFacility:
+      type: object
+      description: All fields optional. Send null on nullable fields to clear them.
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200 }
+        kind: { type: string, minLength: 1, maxLength: 80 }
+        location: { type: string, maxLength: 200, nullable: true }
+        description: { type: string, maxLength: 2000, nullable: true }
+        capacity: { type: integer, minimum: 0, nullable: true }
+
+    UpdateInstitutionRequest:
+      type: object
+      description: All fields optional. Owner-only.
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200 }
+        type: { $ref: "#/components/schemas/InstitutionKind" }
+        location: { type: string, minLength: 1, maxLength: 200 }
+        logoUrl: { type: string, maxLength: 1000 }
+        websiteUrl: { type: string, maxLength: 1000 }
+        description: { type: string, maxLength: 5000 }
 
     InstitutionStudent:
       type: object
@@ -1981,9 +2218,7 @@ components:
       type: object
       properties:
         name: { type: string }
-        type:
-          type: string
-          enum: [university, college, bootcamp, vocational, other]
+        type: { $ref: "#/components/schemas/InstitutionKind" }
         location: { type: string }
         logoUrl: { type: string }
         websiteUrl: { type: string }

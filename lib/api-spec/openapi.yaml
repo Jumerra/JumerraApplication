@@ -1249,7 +1249,12 @@ components:
         candidateId: { type: integer, nullable: true }
         employerId: { type: integer, nullable: true }
         institutionId: { type: integer, nullable: true }
-      required: [id, email, fullName, role, status, orgRole, candidateId, employerId, institutionId]
+        permissions:
+          type: array
+          items: { type: string }
+          description: Effective admin permission keys; empty for non-admins.
+      required:
+        [id, email, fullName, role, status, orgRole, candidateId, employerId, institutionId, permissions]
 
     AuthSession:
       type: object

@@ -58,23 +58,32 @@ router.post("/auth/register", async (req, res) => {
       return;
     }
     const passwordHash = await hashPassword(password);
+    // Candidates self-onboard: account is active immediately and no
+    // pending_registrations row is created. Their attendance claims
+    // are validated later by the institution(s) they listed. Employers
+    // and institutions still go through admin review.
+    const isCandidate = normalizedRole === "candidate";
     const [user] = await db
       .insert(usersTable)
       .values({
         email: normalizedEmail,
         passwordHash,
         role: normalizedRole,
-        status: "pending",
+        status: isCandidate ? "active" : "pending",
+        approvedAt: isCandidate ? new Date() : null,
         fullName,
       })
       .returning();
-    await db.insert(pendingRegistrationsTable).values({
-      userId: user.id,
-      submittedData: submittedData ?? {},
-    });
+    if (!isCandidate) {
+      await db.insert(pendingRegistrationsTable).values({
+        userId: user.id,
+        submittedData: submittedData ?? {},
+      });
+    }
     res.status(201).json({
-      message:
-        "Registration received. An administrator will review your application shortly.",
+      message: isCandidate
+        ? "Welcome! You can sign in now. Your institution will verify your attendance separately."
+        : "Registration received. An administrator will review your application shortly.",
     });
   } catch (err) {
     req.log.error({ err }, "register failed");
@@ -121,7 +130,7 @@ router.post("/auth/login", async (req, res) => {
       return;
     }
     req.session.userId = user.id;
-    res.json({ user: toPublicUser(user) });
+    res.json({ user: await toPublicUser(user) });
   } catch (err) {
     req.log.error({ err }, "login failed");
     res.status(500).json({ error: "Login failed" });
@@ -149,7 +158,7 @@ router.get("/auth/me", async (req, res) => {
     res.status(200).json({ user: null });
     return;
   }
-  res.json({ user: toPublicUser(user) });
+  res.json({ user: await toPublicUser(user) });
 });
 
 /**
@@ -237,7 +246,7 @@ router.post("/auth/setup-password", async (req, res) => {
       return;
     }
     req.session.userId = refreshed.id;
-    res.json({ user: toPublicUser(refreshed) });
+    res.json({ user: await toPublicUser(refreshed) });
   } catch (err) {
     if (err instanceof Error && err.message === "ROLLBACK_USER_MISSING") {
       res.status(400).json({ error: "Invalid token" });

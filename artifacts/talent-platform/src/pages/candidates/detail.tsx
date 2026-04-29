@@ -3,7 +3,7 @@ import { Link, useParams } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MapPin, Mail, Phone, ExternalLink, Video, Star, Award, Briefcase, GraduationCap, Sparkles, Link2 } from "lucide-react";
+import { MapPin, Mail, Phone, ExternalLink, Video, Star, Award, Briefcase, GraduationCap, Sparkles, Link2, BadgeCheck } from "lucide-react";
 
 export default function CandidateDetail() {
   const { id } = useParams();
@@ -73,6 +73,11 @@ export default function CandidateDetail() {
                           ? "bg-primary text-primary-foreground border-primary"
                           : "bg-muted text-foreground border-border"
                       }`}
+                      title={
+                        inst.isVerified
+                          ? `Verified by ${inst.name}`
+                          : "Awaiting verification by the institution"
+                      }
                     >
                       {inst.isPrimary ? (
                         <GraduationCap className="w-3.5 h-3.5" />
@@ -80,13 +85,25 @@ export default function CandidateDetail() {
                         <Link2 className="w-3.5 h-3.5" />
                       )}
                       <span className="font-medium">{inst.name}</span>
-                      <span
-                        className={`text-[10px] uppercase tracking-wider font-semibold ${
-                          inst.isPrimary ? "opacity-80" : "text-muted-foreground"
-                        }`}
-                      >
-                        {inst.isPrimary ? "Primary" : "Affiliated"}
-                      </span>
+                      {inst.isVerified ? (
+                        <span
+                          className={`inline-flex items-center gap-1 text-[10px] uppercase tracking-wider font-semibold rounded-full px-1.5 py-0.5 ${
+                            inst.isPrimary
+                              ? "bg-background/20 text-primary-foreground"
+                              : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                          }`}
+                        >
+                          <BadgeCheck className="w-3 h-3" /> Verified
+                        </span>
+                      ) : (
+                        <span
+                          className={`text-[10px] uppercase tracking-wider font-semibold ${
+                            inst.isPrimary ? "opacity-80" : "text-muted-foreground"
+                          }`}
+                        >
+                          {inst.isPrimary ? "Primary" : "Unverified"}
+                        </span>
+                      )}
                     </div>
                   ))}
                 </div>

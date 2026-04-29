@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { useRegisterUser } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  useRegisterUser,
+  getGetCurrentUserQueryKey,
+} from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,10 +19,16 @@ type RoleTab = "candidate" | "employer" | "institution";
 
 export default function SignupPage() {
   const [, setLocation] = useLocation();
+  const queryClient = useQueryClient();
   const register = useRegisterUser();
   const [role, setRole] = useState<RoleTab>("candidate");
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  // Candidates self-onboard with no admin approval, so we land them
+  // straight on their dashboard once register returns. Employers and
+  // institutions still go through the original "application received"
+  // flow because admins manually approve those.
+  const [autoActivated, setAutoActivated] = useState(false);
 
   // Shared
   const [email, setEmail] = useState("");
@@ -85,10 +95,36 @@ export default function SignupPage() {
           submittedData,
         },
       });
+      // For candidates the API auto-activates the account and creates a
+      // session, so refresh /auth/me and bounce them into the app.
+      if (role === "candidate") {
+        setAutoActivated(true);
+        await queryClient.invalidateQueries({
+          queryKey: getGetCurrentUserQueryKey(),
+        });
+        setLocation("/dashboard/candidate");
+        return;
+      }
       setSuccessMessage(result.message);
     } catch (err: any) {
       setError(err?.data?.error ?? "Registration failed");
     }
+  }
+
+  if (autoActivated) {
+    return (
+      <div className="container max-w-md py-16 px-4">
+        <Card className="shadow-md">
+          <CardHeader className="text-center">
+            <div className="mx-auto w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary mb-3">
+              <CheckCircle2 className="w-6 h-6" />
+            </div>
+            <CardTitle className="text-2xl">Welcome to TalentLink</CardTitle>
+            <CardDescription>Taking you to your dashboard…</CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    );
   }
 
   if (successMessage) {

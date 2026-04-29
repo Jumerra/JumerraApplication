@@ -18,4 +18,6 @@ export interface AuthUser {
   candidateId: number | null;
   employerId: number | null;
   institutionId: number | null;
+  /** Effective admin permission keys; empty for non-admins. */
+  permissions: string[];
 }

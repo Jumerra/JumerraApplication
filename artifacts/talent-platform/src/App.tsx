@@ -32,6 +32,7 @@ import AdminInstitutionsPage from "@/pages/dashboard/admin/institutions";
 import AdminApplicationsPage from "@/pages/dashboard/admin/applications";
 import AdminHiresPage from "@/pages/dashboard/admin/hires";
 import AdminPartnerAnalyticsPage from "@/pages/dashboard/admin/partner-analytics";
+import AdminRolesPage from "@/pages/dashboard/admin/roles";
 import StaffPage from "@/pages/dashboard/staff";
 import { AdminLayout } from "@/components/admin-layout";
 import LoginPage from "@/pages/auth/login";
@@ -100,6 +101,9 @@ function Router() {
         </Route>
         <Route path="/dashboard/admin/account-managers">
           <AdminLayout><AdminAccountManagersPage /></AdminLayout>
+        </Route>
+        <Route path="/dashboard/admin/roles">
+          <AdminLayout><AdminRolesPage /></AdminLayout>
         </Route>
         <Route path="/dashboard/employer/staff" component={StaffPage} />
         <Route path="/dashboard/institution/staff" component={StaffPage} />

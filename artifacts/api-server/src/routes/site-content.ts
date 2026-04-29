@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { siteContentTable } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { requireAdmin } from "../middleware/require-auth";
+import { requirePermission } from "../lib/permissions";
 
 const router: Router = Router();
 
@@ -30,7 +31,7 @@ router.get("/site-content", async (_req, res) => {
  * PUT /api/site-content
  * Admin only. Bulk upsert. Body: { items: [{ key, type, value }, ...] }
  */
-router.put("/site-content", requireAdmin, async (req, res) => {
+router.put("/site-content", requireAdmin, requirePermission("site-content:edit"), async (req, res) => {
   try {
     const items = (req.body?.items ?? []) as Array<{
       key?: unknown;

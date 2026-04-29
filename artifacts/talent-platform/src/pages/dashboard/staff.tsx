@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   useListStaff,
   useInviteStaff,
@@ -29,16 +29,9 @@ import {
   Crown,
 } from "lucide-react";
 
-const ROLE_OPTIONS: Record<string, { value: string; label: string; desc: string }[]> = {
-  admin: [
-    { value: "super_admin", label: "Super Admin", desc: "Full access to everything." },
-    { value: "support", label: "Support", desc: "Read-only support access." },
-    {
-      value: "account_manager",
-      label: "Account Manager",
-      desc: "Owns assigned employer/institution accounts; can onboard new ones.",
-    },
-  ],
+type RoleOption = { value: string; label: string; desc: string };
+
+const STATIC_ROLE_OPTIONS: Record<string, RoleOption[]> = {
   employer: [
     { value: "owner", label: "Owner", desc: "Can invite/remove teammates and manage everything." },
     { value: "recruiter", label: "Recruiter", desc: "Can post jobs and review applications." },
@@ -51,7 +44,7 @@ const ROLE_OPTIONS: Record<string, { value: string; label: string; desc: string 
   ],
 };
 
-const ROLE_LABELS: Record<string, string> = {
+const STATIC_ROLE_LABELS: Record<string, string> = {
   super_admin: "Super Admin",
   support: "Support",
   account_manager: "Account Manager",
@@ -59,6 +52,20 @@ const ROLE_LABELS: Record<string, string> = {
   recruiter: "Recruiter",
   viewer: "Viewer",
   coordinator: "Coordinator",
+};
+
+function humanize(name: string): string {
+  return name
+    .split("_")
+    .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
+    .join(" ");
+}
+
+type AdminRoleRow = {
+  id: number;
+  name: string;
+  description: string | null;
+  isSystem: boolean;
 };
 
 export default function StaffPage() {
@@ -101,7 +108,38 @@ export default function StaffPage() {
 
   const isOwner =
     sessionUser.orgRole === "owner" || sessionUser.orgRole === "super_admin";
-  const roleOptions = ROLE_OPTIONS[sessionUser.role] ?? [];
+
+  // Admins see whatever roles are currently defined in admin_roles, so
+  // custom roles created in the role-management page show up here. Org
+  // members keep using the small fixed set.
+  const isSuperAdminUser =
+    sessionUser.role === "admin" &&
+    (sessionUser.orgRole === "super_admin" || sessionUser.orgRole === null);
+  const { data: adminRolesData } = useQuery({
+    queryKey: ["admin", "roles", "for-staff-page"],
+    queryFn: async () => {
+      const r = await fetch("/api/admin/roles", { credentials: "include" });
+      if (!r.ok) throw new Error(`${r.status}`);
+      return (await r.json()) as { roles: AdminRoleRow[] };
+    },
+    enabled: isSuperAdminUser,
+  });
+  const roleOptions: RoleOption[] =
+    sessionUser.role === "admin"
+      ? (adminRolesData?.roles ?? []).map((r) => ({
+          value: r.name,
+          label: humanize(r.name),
+          desc: r.description ?? "",
+        }))
+      : STATIC_ROLE_OPTIONS[sessionUser.role] ?? [];
+
+  function labelForRole(name: string): string {
+    return (
+      roleOptions.find((o) => o.value === name)?.label ??
+      STATIC_ROLE_LABELS[name] ??
+      humanize(name)
+    );
+  }
 
   async function onInvite(e: React.FormEvent) {
     e.preventDefault();
@@ -348,7 +386,7 @@ export default function StaffPage() {
                       {(m.orgRole === "owner" || m.orgRole === "super_admin") && (
                         <Crown className="w-3 h-3" />
                       )}
-                      {m.orgRole ? ROLE_LABELS[m.orgRole] ?? m.orgRole : "—"}
+                      {m.orgRole ? labelForRole(m.orgRole) : "—"}
                     </Badge>
                   )}
                   {m.status === "invited" && (

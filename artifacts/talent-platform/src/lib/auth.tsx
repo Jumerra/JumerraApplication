@@ -20,6 +20,12 @@ interface AuthState {
   setDemoRole: (role: Role) => void;
   /** Refetch current session — call after login/logout/setup. */
   refresh: () => Promise<unknown>;
+  /**
+   * True if the signed-in user has the given admin permission key.
+   * Demo (non-session) admin role is treated as full super-admin so
+   * the existing "View as Admin" workflow keeps working.
+   */
+  hasPermission: (key: string) => boolean;
 }
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
@@ -55,6 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         sessionUser.employerId ??
         sessionUser.institutionId ??
         null;
+      const permsSet = new Set(sessionUser.permissions ?? []);
       return {
         role: sessionUser.role as Role,
         userId: linkedId,
@@ -63,6 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         demoRole,
         setDemoRole,
         refresh: refetch,
+        hasPermission: (key: string) => permsSet.has(key),
       };
     }
     // While the initial /auth/me check is in flight, do NOT fall back to
@@ -78,6 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         demoRole,
         setDemoRole,
         refresh: refetch,
+        hasPermission: () => false,
       };
     }
     return {
@@ -88,6 +97,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       demoRole,
       setDemoRole,
       refresh: refetch,
+      // Demo admin (View as Admin without a real session) is treated as
+      // a super-admin so the demo experience still shows everything.
+      hasPermission: () => demoRole === "admin",
     };
   }, [sessionUser, isLoading, demoRole, refetch]);
 

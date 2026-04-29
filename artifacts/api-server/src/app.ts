@@ -4,6 +4,13 @@ import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
 import { buildSessionMiddleware } from "./lib/session";
+import { seedSystemRoles } from "./lib/permissions";
+
+// Fire-and-forget on boot; logs but doesn't block startup. Safe because
+// it's idempotent (no-op when system rows already exist).
+seedSystemRoles().catch((err) => {
+  logger.error({ err }, "seedSystemRoles failed");
+});
 
 const app: Express = express();
 app.set("trust proxy", 1);

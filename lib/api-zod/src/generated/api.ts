@@ -1054,6 +1054,9 @@ export const LoginUserResponse = zod.object({
       candidateId: zod.number().nullable(),
       employerId: zod.number().nullable(),
       institutionId: zod.number().nullable(),
+      permissions: zod
+        .array(zod.string())
+        .describe("Effective admin permission keys; empty for non-admins."),
     }),
     zod.null(),
   ]),
@@ -1075,6 +1078,9 @@ export const GetCurrentUserResponse = zod.object({
       candidateId: zod.number().nullable(),
       employerId: zod.number().nullable(),
       institutionId: zod.number().nullable(),
+      permissions: zod
+        .array(zod.string())
+        .describe("Effective admin permission keys; empty for non-admins."),
     }),
     zod.null(),
   ]),
@@ -1097,6 +1103,9 @@ export const SetupPasswordResponse = zod.object({
       candidateId: zod.number().nullable(),
       employerId: zod.number().nullable(),
       institutionId: zod.number().nullable(),
+      permissions: zod
+        .array(zod.string())
+        .describe("Effective admin permission keys; empty for non-admins."),
     }),
     zod.null(),
   ]),

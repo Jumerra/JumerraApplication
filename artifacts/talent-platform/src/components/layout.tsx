@@ -32,7 +32,9 @@ import {
   KeyRound,
   Users,
   UserCog,
+  ShieldCheck,
 } from "lucide-react";
+import { NotificationBell } from "@/components/notification-bell";
 import { useTheme } from "@/components/theme-provider";
 import {
   useLogoutUser,
@@ -116,6 +118,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </div>
             )}
 
+            <NotificationBell />
+
             <Button
               variant="ghost"
               size="icon"
@@ -186,6 +190,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
                           <Users className="w-4 h-4" /> Team
                         </Link>
                       </DropdownMenuItem>
+                      {(sessionUser.orgRole === "super_admin" ||
+                        sessionUser.orgRole === null) && (
+                        <DropdownMenuItem asChild>
+                          <Link href="/dashboard/admin/roles" className="gap-2 cursor-pointer">
+                            <ShieldCheck className="w-4 h-4" /> Roles & permissions
+                          </Link>
+                        </DropdownMenuItem>
+                      )}
                       <DropdownMenuItem asChild>
                         <Link
                           href="/dashboard/admin/account-managers"

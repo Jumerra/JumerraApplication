@@ -1,7 +1,12 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { and, eq, isNotNull, ne, desc } from "drizzle-orm";
-import { employersTable, institutionsTable, usersTable } from "@workspace/db";
+import {
+  adminRolesTable,
+  employersTable,
+  institutionsTable,
+  usersTable,
+} from "@workspace/db";
 import {
   requireAuth,
   requireOrgMember,
@@ -13,14 +18,29 @@ import { sendAuthLinkEmail, originFromReq } from "../lib/email";
 const router: Router = Router();
 
 /**
- * Allowed orgRole values per top-level role. Used for invite validation
- * and role updates.
+ * Allowed orgRole values per top-level role. For admins this is loaded
+ * dynamically from `admin_roles` so super-admin can introduce new roles
+ * at runtime; for org-scoped roles it's a fixed set.
  */
-const ROLE_OPTIONS: Record<string, ReadonlyArray<string>> = {
-  admin: ["super_admin", "support", "account_manager"],
+const STATIC_ROLE_OPTIONS: Record<string, ReadonlyArray<string>> = {
   employer: ["owner", "recruiter", "viewer"],
   institution: ["owner", "coordinator", "viewer"],
 };
+
+async function isValidOrgRole(
+  topLevelRole: string,
+  orgRole: string,
+): Promise<boolean> {
+  if (topLevelRole === "admin") {
+    const [row] = await db
+      .select({ id: adminRolesTable.id })
+      .from(adminRolesTable)
+      .where(eq(adminRolesTable.name, orgRole))
+      .limit(1);
+    return !!row;
+  }
+  return STATIC_ROLE_OPTIONS[topLevelRole]?.includes(orgRole) ?? false;
+}
 
 /**
  * Public summary of a staff member used by the team page.
@@ -102,8 +122,7 @@ router.post("/staff/invite", requireOrgOwner, async (req, res) => {
         .json({ error: "email, fullName, and orgRole are required" });
       return;
     }
-    const allowed = ROLE_OPTIONS[me.role];
-    if (!allowed?.includes(orgRole)) {
+    if (!(await isValidOrgRole(me.role, orgRole))) {
       res.status(400).json({
         error: `Invalid orgRole "${orgRole}" for ${me.role}`,
       });
@@ -314,8 +333,7 @@ router.patch("/staff/:id/role", requireOrgOwner, async (req, res) => {
       }
     }
 
-    const allowed = ROLE_OPTIONS[target.role];
-    if (!allowed?.includes(orgRole)) {
+    if (!(await isValidOrgRole(target.role, orgRole))) {
       res
         .status(400)
         .json({ error: `Invalid orgRole "${orgRole}" for ${target.role}` });

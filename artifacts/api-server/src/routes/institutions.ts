@@ -16,7 +16,48 @@ import {
 } from "@workspace/api-zod";
 import { getCandidateIdsForInstitution } from "../lib/candidate-institutions";
 import { requireAdmin, requireAuth } from "../middleware/require-auth";
-import { usersTable } from "@workspace/db";
+import { usersTable, notificationsTable } from "@workspace/db";
+
+/**
+ * Best-effort: drop a notification on the candidate's user account so
+ * they see institution-verification activity in their bell. Failure is
+ * logged but never fails the parent request — verification succeeded
+ * regardless.
+ */
+async function notifyCandidateAboutVerification(
+  candidateId: number,
+  institutionName: string,
+  verified: boolean,
+  log: { error: (...args: unknown[]) => void },
+): Promise<void> {
+  try {
+    const [u] = await db
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(eq(usersTable.candidateId, candidateId))
+      .limit(1);
+    if (!u) return;
+    if (verified) {
+      await db.insert(notificationsTable).values({
+        userId: u.id,
+        kind: "institution_verified",
+        title: `${institutionName} verified your attendance`,
+        body: `Your profile now shows a "Verified" badge for ${institutionName}.`,
+        link: "/profile",
+      });
+    } else {
+      await db.insert(notificationsTable).values({
+        userId: u.id,
+        kind: "institution_unverified",
+        title: `${institutionName} removed your verification`,
+        body: `Your "Verified" badge for ${institutionName} has been removed. Please contact the institution if this was a mistake.`,
+        link: "/profile",
+      });
+    }
+  } catch (err) {
+    log.error({ err }, "notifyCandidateAboutVerification failed");
+  }
+}
 
 const router: IRouter = Router();
 
@@ -409,6 +450,17 @@ router.post(
       res.status(404).json({ error: "Student is not linked to this institution" });
       return;
     }
+    const [inst] = await db
+      .select({ name: institutionsTable.name })
+      .from(institutionsTable)
+      .where(eq(institutionsTable.id, institutionId))
+      .limit(1);
+    await notifyCandidateAboutVerification(
+      candidateId,
+      inst?.name ?? "Your institution",
+      true,
+      req.log,
+    );
     res.json({ ok: true, verifiedAt: result[0]!.verifiedAt!.toISOString() });
   },
 );
@@ -442,6 +494,17 @@ router.post(
       res.status(404).json({ error: "Student is not linked to this institution" });
       return;
     }
+    const [inst] = await db
+      .select({ name: institutionsTable.name })
+      .from(institutionsTable)
+      .where(eq(institutionsTable.id, institutionId))
+      .limit(1);
+    await notifyCandidateAboutVerification(
+      candidateId,
+      inst?.name ?? "Your institution",
+      false,
+      req.log,
+    );
     res.json({ ok: true });
   },
 );

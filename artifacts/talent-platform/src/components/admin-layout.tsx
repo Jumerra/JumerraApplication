@@ -31,6 +31,7 @@ import {
   Briefcase,
   Trophy,
   Network,
+  ShieldCheck,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 
@@ -49,6 +50,13 @@ type AdminNavItem = {
   href: string;
   label: string;
   icon: typeof LayoutDashboard;
+  /**
+   * Permission key required to see this nav item. Items with no
+   * `permission` are always visible (e.g. the dashboard landing page).
+   */
+  permission?: string;
+  /** Only super-admins ever see items flagged with this. */
+  superAdminOnly?: boolean;
 };
 
 type AdminNavGroup = {
@@ -66,30 +74,38 @@ const ADMIN_NAV: AdminNavGroup[] = [
   {
     label: "Manage",
     items: [
-      { href: "/dashboard/admin/candidates", label: "Candidates", icon: Users },
-      { href: "/dashboard/admin/employers", label: "Employers", icon: Building2 },
-      { href: "/dashboard/admin/institutions", label: "Institutions", icon: GraduationCap },
-      { href: "/dashboard/admin/applications", label: "Applications", icon: Briefcase },
+      { href: "/dashboard/admin/candidates", label: "Candidates", icon: Users, permission: "candidates:view" },
+      { href: "/dashboard/admin/employers", label: "Employers", icon: Building2, permission: "employers:view" },
+      { href: "/dashboard/admin/institutions", label: "Institutions", icon: GraduationCap, permission: "institutions:view" },
+      { href: "/dashboard/admin/applications", label: "Applications", icon: Briefcase, permission: "applications:view" },
     ],
   },
   {
     label: "Insights",
     items: [
-      { href: "/dashboard/admin/hires", label: "Hires analytics", icon: Trophy },
+      { href: "/dashboard/admin/hires", label: "Hires analytics", icon: Trophy, permission: "hires:view" },
       {
         href: "/dashboard/admin/partner-analytics",
         label: "Partner analytics",
         icon: Network,
+        permission: "partner-analytics:view",
+      },
+      {
+        href: "/dashboard/admin/account-managers",
+        label: "Account managers",
+        icon: UsersRound,
+        permission: "account-managers:view",
       },
     ],
   },
   {
     label: "Operations",
     items: [
-      { href: "/dashboard/admin/registrations", label: "Registrations", icon: ShieldAlert },
-      { href: "/dashboard/admin/onboard", label: "Onboard partner", icon: UserPlus },
-      { href: "/dashboard/admin/site-content", label: "Site content", icon: Sparkles },
-      { href: "/dashboard/admin/staff", label: "Admin team", icon: UsersRound },
+      { href: "/dashboard/admin/registrations", label: "Registrations", icon: ShieldAlert, permission: "registrations:view" },
+      { href: "/dashboard/admin/onboard", label: "Onboard partner", icon: UserPlus, permission: "onboard:create" },
+      { href: "/dashboard/admin/site-content", label: "Site content", icon: Sparkles, permission: "site-content:edit" },
+      { href: "/dashboard/admin/staff", label: "Admin team", icon: UsersRound, permission: "staff:view" },
+      { href: "/dashboard/admin/roles", label: "Roles & permissions", icon: ShieldCheck, superAdminOnly: true },
     ],
   },
 ];
@@ -101,12 +117,29 @@ function isActive(current: string, href: string): boolean {
 
 export function AdminLayout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
-  const { sessionUser, role } = useAuth();
+  const { sessionUser, role, hasPermission } = useAuth();
 
   // Centralized admin guard so every page wrapped in AdminLayout is
   // protected without each page repeating the check. The underlying API
   // middleware also enforces admin-only on every action endpoint.
   const isAdmin = sessionUser?.role === "admin" || role === "admin";
+  const isSuperAdmin =
+    (sessionUser?.role === "admin" &&
+      (sessionUser.orgRole === "super_admin" || sessionUser.orgRole === null)) ||
+    (!sessionUser && role === "admin");
+
+  // Filter nav items by what this admin can access. Super-admin sees
+  // everything; demo "View as Admin" also sees everything (hasPermission
+  // returns true for it). Other admins only see permitted items.
+  const visibleNav = ADMIN_NAV.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => {
+      if (item.superAdminOnly) return isSuperAdmin;
+      if (!item.permission) return true;
+      return hasPermission(item.permission);
+    }),
+  })).filter((group) => group.items.length > 0);
+
   if (!isAdmin) {
     return (
       <div className="container max-w-md py-16">
@@ -141,7 +174,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
           </Link>
         </SidebarHeader>
         <SidebarContent>
-          {ADMIN_NAV.map((group) => (
+          {visibleNav.map((group) => (
             <SidebarGroup key={group.label}>
               <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
               <SidebarGroupContent>

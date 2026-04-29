@@ -12,6 +12,7 @@ import {
   ilike,
   inArray,
   isNull,
+  isNotNull,
 } from "drizzle-orm";
 import {
   passwordSetupTokensTable,
@@ -25,9 +26,19 @@ import {
   jobsTable,
   applicationsTable,
 } from "@workspace/db";
+import {
+  adminRolesTable,
+  adminRolePermissionsTable,
+} from "@workspace/db";
 import { requireAdmin } from "../middleware/require-auth";
+import { requirePermission } from "../lib/permissions";
 import { createSetupToken, findUserByEmail } from "../lib/auth";
 import { sendAuthLinkEmail, originFromReq } from "../lib/email";
+import {
+  PERMISSIONS,
+  PERMISSION_KEYS,
+  isSuperAdminUser,
+} from "../lib/permissions";
 
 const router: Router = Router();
 
@@ -39,7 +50,7 @@ router.use("/admin", requireAdmin);
  * GET /api/admin/registrations?status=pending|active|rejected|all
  * Returns sign-up applications with their submitted data.
  */
-router.get("/admin/registrations", async (req, res) => {
+router.get("/admin/registrations", requirePermission("registrations:view"), async (req, res) => {
   const status = (req.query.status as string | undefined) ?? "pending";
   const rows = await db
     .select({
@@ -73,7 +84,7 @@ router.get("/admin/registrations", async (req, res) => {
  * the data the user submitted at sign-up, links it back to the user,
  * and marks the user active.
  */
-router.post("/admin/registrations/:id/approve", async (req, res) => {
+router.post("/admin/registrations/:id/approve", requirePermission("registrations:view"), async (req, res) => {
   try {
     const regId = Number(req.params.id);
     if (!Number.isFinite(regId)) {
@@ -207,7 +218,7 @@ router.post("/admin/registrations/:id/approve", async (req, res) => {
 });
 
 /** POST /api/admin/registrations/:id/reject */
-router.post("/admin/registrations/:id/reject", async (req, res) => {
+router.post("/admin/registrations/:id/reject", requirePermission("registrations:view"), async (req, res) => {
   try {
     const regId = Number(req.params.id);
     const [reg] = await db
@@ -247,7 +258,7 @@ router.post("/admin/registrations/:id/reject", async (req, res) => {
  * Body shape:
  *   { role: 'institution'|'employer', email, fullName, entity: {...} }
  */
-router.post("/admin/onboard", async (req, res) => {
+router.post("/admin/onboard", requirePermission("onboard:create"), async (req, res) => {
   try {
     const { role, email, fullName, entity } = req.body ?? {};
     if (
@@ -377,7 +388,7 @@ router.post("/admin/onboard", async (req, res) => {
  * Lists invited users (admin-onboarded) so admins can re-share setup
  * links if needed.
  */
-router.get("/admin/onboarded", async (_req, res) => {
+router.get("/admin/onboarded", requirePermission("onboard:create"), async (_req, res) => {
   const rows = await db
     .select({
       id: usersTable.id,
@@ -401,7 +412,7 @@ router.get("/admin/onboarded", async (_req, res) => {
  * and unlinks the auth user. Wrapped in a transaction so the operation
  * is atomic.
  */
-router.delete("/admin/candidates/:id", async (req, res) => {
+router.delete("/admin/candidates/:id", requirePermission("candidates:manage"), async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) {
     res.status(400).json({ error: "Invalid id" });
@@ -443,7 +454,7 @@ router.delete("/admin/candidates/:id", async (req, res) => {
  * Removes an employer, all their jobs, all applications to those jobs,
  * and unlinks any users tied to the employer.
  */
-router.delete("/admin/employers/:id", async (req, res) => {
+router.delete("/admin/employers/:id", requirePermission("employers:manage"), async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) {
     res.status(400).json({ error: "Invalid id" });
@@ -497,7 +508,7 @@ router.delete("/admin/employers/:id", async (req, res) => {
  * PATCH /api/admin/employers/:id/verify
  * Toggles the employer's verified flag. Body: { verified: boolean }.
  */
-router.patch("/admin/employers/:id/verify", async (req, res) => {
+router.patch("/admin/employers/:id/verify", requirePermission("employers:manage"), async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) {
     res.status(400).json({ error: "Invalid id" });
@@ -528,7 +539,7 @@ router.patch("/admin/employers/:id/verify", async (req, res) => {
  * "Account Managers" admin page and by the reassign dropdowns on the
  * employers/institutions admin lists.
  */
-router.get("/admin/account-managers", async (_req, res) => {
+router.get("/admin/account-managers", requirePermission("account-managers:view"), async (_req, res) => {
   const managers = await db
     .select({
       id: usersTable.id,
@@ -644,7 +655,7 @@ async function validateManagerAssignment(
  * Super-admin only. Assigns or unassigns the employer's owning
  * account manager. Pass `null` to unassign.
  */
-router.patch("/admin/employers/:id/assign", async (req, res) => {
+router.patch("/admin/employers/:id/assign", requirePermission("employers:manage"), async (req, res) => {
   if (!isSuperAdmin(req.currentUser)) {
     res.status(403).json({ error: "Only super-admins can reassign accounts" });
     return;
@@ -680,7 +691,7 @@ router.patch("/admin/employers/:id/assign", async (req, res) => {
  * PATCH /api/admin/institutions/:id/assign
  * Same shape and rules as the employer counterpart above.
  */
-router.patch("/admin/institutions/:id/assign", async (req, res) => {
+router.patch("/admin/institutions/:id/assign", requirePermission("institutions:manage"), async (req, res) => {
   if (!isSuperAdmin(req.currentUser)) {
     res.status(403).json({ error: "Only super-admins can reassign accounts" });
     return;
@@ -717,7 +728,7 @@ router.patch("/admin/institutions/:id/assign", async (req, res) => {
  * Removes an institution, all candidate-institution affiliations
  * tied to it, and unlinks any users belonging to it.
  */
-router.delete("/admin/institutions/:id", async (req, res) => {
+router.delete("/admin/institutions/:id", requirePermission("institutions:manage"), async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) {
     res.status(400).json({ error: "Invalid id" });
@@ -761,7 +772,7 @@ router.delete("/admin/institutions/:id", async (req, res) => {
  * GET /api/admin/applications
  * Cross-platform application list with optional status / date / text filters.
  */
-router.get("/admin/applications", async (req, res) => {
+router.get("/admin/applications", requirePermission("applications:view"), async (req, res) => {
   const status = (req.query.status as string | undefined) ?? "all";
   const fromRaw = req.query.from as string | undefined;
   const toRaw = req.query.to as string | undefined;
@@ -834,7 +845,7 @@ router.get("/admin/applications", async (req, res) => {
 /**
  * DELETE /api/admin/applications/:id
  */
-router.delete("/admin/applications/:id", async (req, res) => {
+router.delete("/admin/applications/:id", requirePermission("applications:view"), async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) {
     res.status(400).json({ error: "Invalid id" });
@@ -858,7 +869,7 @@ router.delete("/admin/applications/:id", async (req, res) => {
  * activation status. Used by the manage pages to surface
  * activate/deactivate + reset-password actions per row.
  */
-router.get("/admin/accounts", async (req, res) => {
+router.get("/admin/accounts", requirePermission("staff:view"), async (req, res) => {
   const role = typeof req.query.role === "string" ? req.query.role : undefined;
   const allowedRoles = ["candidate", "employer", "institution"] as const;
   type AllowedRole = (typeof allowedRoles)[number];
@@ -898,7 +909,7 @@ router.get("/admin/accounts", async (req, res) => {
  * change another admin's status from this endpoint to keep the admin
  * pool managed via the dedicated admin-team flow.
  */
-router.patch("/admin/users/:id/status", async (req, res) => {
+router.patch("/admin/users/:id/status", requirePermission("staff:manage"), async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) {
     res.status(400).json({ error: "Invalid id" });
@@ -969,7 +980,7 @@ router.patch("/admin/users/:id/status", async (req, res) => {
  * not configured, the setupUrl is returned in the response so the admin
  * can hand it to the user out of band.
  */
-router.post("/admin/users/:id/reset-password", async (req, res) => {
+router.post("/admin/users/:id/reset-password", requirePermission("staff:manage"), async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) {
     res.status(400).json({ error: "Invalid id" });
@@ -1069,7 +1080,7 @@ router.post("/admin/users/:id/reset-password", async (req, res) => {
  * Application/hire counts are application-level (one hire per application
  * with status='hired'), matching the existing hires analytics semantics.
  */
-router.get("/admin/analytics/institutions", async (_req, res) => {
+router.get("/admin/analytics/institutions", requirePermission("partner-analytics:view"), async (_req, res) => {
   const rows = await db.execute<{
     institution_id: number;
     institution_name: string;
@@ -1109,7 +1120,7 @@ router.get("/admin/analytics/institutions", async (_req, res) => {
  * Per-employer activity roll-up: number of jobs posted, applications
  * received, hires made, and unique candidates hired.
  */
-router.get("/admin/analytics/employers", async (_req, res) => {
+router.get("/admin/analytics/employers", requirePermission("partner-analytics:view"), async (_req, res) => {
   const rows = await db.execute<{
     employer_id: number;
     employer_name: string;
@@ -1174,7 +1185,7 @@ function sendCsv(
   res.send(lines.join("\n"));
 }
 
-router.get("/admin/analytics/institutions.csv", async (_req, res) => {
+router.get("/admin/analytics/institutions.csv", requirePermission("partner-analytics:view"), async (_req, res) => {
   const result = await db.execute<{
     institution_id: number;
     institution_name: string;
@@ -1221,7 +1232,7 @@ router.get("/admin/analytics/institutions.csv", async (_req, res) => {
   );
 });
 
-router.get("/admin/analytics/employers.csv", async (_req, res) => {
+router.get("/admin/analytics/employers.csv", requirePermission("partner-analytics:view"), async (_req, res) => {
   const result = await db.execute<{
     employer_id: number;
     employer_name: string;
@@ -1363,7 +1374,7 @@ async function loadHireBuckets(bucket: string, from: Date, to: Date) {
   return { points, total };
 }
 
-router.get("/admin/hires/analytics", async (req, res) => {
+router.get("/admin/hires/analytics", requirePermission("hires:view"), async (req, res) => {
   const bucket = (() => {
     const b = (req.query.bucket as string | undefined) ?? "day";
     return ["day", "week", "month", "year"].includes(b) ? b : "day";
@@ -1393,7 +1404,7 @@ router.get("/admin/hires/analytics", async (req, res) => {
  * Streams the same data as the analytics endpoint, plus a row-per-hire
  * CSV download. Not in the OpenAPI spec because it returns text/csv.
  */
-router.get("/admin/hires/export.csv", async (req, res) => {
+router.get("/admin/hires/export.csv", requirePermission("hires:view"), async (req, res) => {
   const bucket = (() => {
     const b = (req.query.bucket as string | undefined) ?? "day";
     return ["day", "week", "month", "year"].includes(b) ? b : "day";
@@ -1435,6 +1446,235 @@ router.get("/admin/hires/export.csv", async (req, res) => {
   res.setHeader("Content-Type", "text/csv; charset=utf-8");
   res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
   res.send(lines.join("\n"));
+});
+
+// =====================================================================
+// Role management — super-admin only.
+// Lets super-admins author custom admin sub-roles and edit which
+// permissions each grants.
+// =====================================================================
+
+function requireSuperAdmin(
+  req: { currentUser: { role: string; orgRole: string | null } | null | undefined },
+  res: { status: (n: number) => { json: (b: unknown) => void } },
+): boolean {
+  if (!isSuperAdminUser(req.currentUser)) {
+    res.status(403).json({ error: "Only super-admins can manage roles" });
+    return false;
+  }
+  return true;
+}
+
+/**
+ * GET /api/admin/permissions
+ * Returns the static catalog used to render the role-management UI.
+ */
+router.get("/admin/permissions", (req, res) => {
+  if (!requireSuperAdmin(req, res)) return;
+  res.json({ permissions: PERMISSIONS });
+});
+
+/**
+ * GET /api/admin/roles
+ * Lists every admin role with its current permission set and how many
+ * users hold it. Super-admin only.
+ */
+router.get("/admin/roles", async (req, res) => {
+  if (!requireSuperAdmin(req, res)) return;
+  const roles = await db
+    .select()
+    .from(adminRolesTable)
+    .orderBy(desc(adminRolesTable.isSystem), adminRolesTable.name);
+  const perms = await db.select().from(adminRolePermissionsTable);
+  const counts = await db
+    .select({
+      orgRole: usersTable.orgRole,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(usersTable)
+    .where(and(eq(usersTable.role, "admin"), isNotNull(usersTable.orgRole)))
+    .groupBy(usersTable.orgRole);
+  const countByName = new Map<string, number>();
+  for (const c of counts) {
+    if (c.orgRole) countByName.set(c.orgRole, Number(c.count ?? 0));
+  }
+  res.json({
+    roles: roles.map((r) => ({
+      id: r.id,
+      name: r.name,
+      description: r.description,
+      isSystem: r.isSystem,
+      createdAt: r.createdAt.toISOString(),
+      permissions: perms
+        .filter((p) => p.roleId === r.id)
+        .map((p) => p.permission),
+      memberCount: countByName.get(r.name) ?? 0,
+    })),
+  });
+});
+
+const ROLE_NAME_RE = /^[a-z][a-z0-9_]{1,30}$/;
+
+function validatePermissionList(input: unknown): string[] | null {
+  if (!Array.isArray(input)) return null;
+  const out = new Set<string>();
+  for (const k of input) {
+    if (typeof k !== "string" || !PERMISSION_KEYS.has(k)) return null;
+    out.add(k);
+  }
+  return Array.from(out);
+}
+
+/**
+ * POST /api/admin/roles
+ * Body: { name, description?, permissions: string[] }
+ * Creates a custom (non-system) admin role.
+ */
+router.post("/admin/roles", async (req, res) => {
+  if (!requireSuperAdmin(req, res)) return;
+  const { name, description, permissions } = req.body ?? {};
+  if (typeof name !== "string" || !ROLE_NAME_RE.test(name)) {
+    res.status(400).json({
+      error:
+        "name must be lowercase letters, digits, or underscores (2-31 chars)",
+    });
+    return;
+  }
+  const perms = validatePermissionList(permissions);
+  if (perms === null) {
+    res.status(400).json({ error: "permissions must be an array of valid keys" });
+    return;
+  }
+  // Wrap insert + permission rows in one transaction so a partial
+  // failure can't leave a role with no permission rows. Catch the
+  // unique-name violation as 409 (instead of bubbling as 500) to make
+  // concurrent same-name creates race-safe.
+  try {
+    const created = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(adminRolesTable)
+        .values({
+          name,
+          description: typeof description === "string" ? description : null,
+          isSystem: false,
+        })
+        .returning();
+      if (perms.length > 0) {
+        await tx
+          .insert(adminRolePermissionsTable)
+          .values(
+            perms.map((permission) => ({ roleId: row.id, permission })),
+          );
+      }
+      return row;
+    });
+    res.status(201).json({ id: created.id, name: created.name });
+  } catch (err: any) {
+    // 23505 = unique_violation in Postgres (admin_roles_name_unique)
+    if (err?.code === "23505") {
+      res.status(409).json({ error: "A role with that name already exists" });
+      return;
+    }
+    throw err;
+  }
+});
+
+/**
+ * PATCH /api/admin/roles/:id
+ * Body: { description?, permissions? }
+ * Edits description and/or permission set. System role names cannot
+ * change. Permissions for super_admin cannot be edited (always all).
+ */
+router.patch("/admin/roles/:id", async (req, res) => {
+  if (!requireSuperAdmin(req, res)) return;
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const [role] = await db
+    .select()
+    .from(adminRolesTable)
+    .where(eq(adminRolesTable.id, id))
+    .limit(1);
+  if (!role) {
+    res.status(404).json({ error: "Role not found" });
+    return;
+  }
+  if (role.name === "super_admin") {
+    res.status(400).json({ error: "super_admin permissions cannot be edited" });
+    return;
+  }
+  const { description, permissions } = req.body ?? {};
+  if (description !== undefined && description !== null && typeof description !== "string") {
+    res.status(400).json({ error: "description must be a string or null" });
+    return;
+  }
+  let perms: string[] | null = null;
+  if (permissions !== undefined) {
+    perms = validatePermissionList(permissions);
+    if (perms === null) {
+      res.status(400).json({ error: "permissions must be an array of valid keys" });
+      return;
+    }
+  }
+  await db.transaction(async (tx) => {
+    if (description !== undefined) {
+      await tx
+        .update(adminRolesTable)
+        .set({ description: description ?? null, updatedAt: new Date() })
+        .where(eq(adminRolesTable.id, id));
+    }
+    if (perms !== null) {
+      await tx
+        .delete(adminRolePermissionsTable)
+        .where(eq(adminRolePermissionsTable.roleId, id));
+      if (perms.length > 0) {
+        await tx
+          .insert(adminRolePermissionsTable)
+          .values(perms.map((permission) => ({ roleId: id, permission })));
+      }
+    }
+  });
+  res.json({ ok: true });
+});
+
+/**
+ * DELETE /api/admin/roles/:id
+ * Refuses if the role is a system role or if any user currently holds it.
+ */
+router.delete("/admin/roles/:id", async (req, res) => {
+  if (!requireSuperAdmin(req, res)) return;
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const [role] = await db
+    .select()
+    .from(adminRolesTable)
+    .where(eq(adminRolesTable.id, id))
+    .limit(1);
+  if (!role) {
+    res.status(404).json({ error: "Role not found" });
+    return;
+  }
+  if (role.isSystem) {
+    res.status(400).json({ error: "System roles cannot be deleted" });
+    return;
+  }
+  const [{ count }] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(usersTable)
+    .where(and(eq(usersTable.role, "admin"), eq(usersTable.orgRole, role.name)));
+  if (Number(count ?? 0) > 0) {
+    res
+      .status(400)
+      .json({ error: `Cannot delete: ${count} user(s) still have this role` });
+    return;
+  }
+  await db.delete(adminRolesTable).where(eq(adminRolesTable.id, id));
+  res.json({ ok: true });
 });
 
 export default router;

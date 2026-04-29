@@ -417,8 +417,18 @@ export async function customFetch<T = unknown>(
     }
   }
 
+  // Cookie credentials policy:
+  //   * Web (no manual jar): "include" so the browser attaches its
+  //     session cookies automatically across origins.
+  //   * Native (manual jar registered): "omit" so iOS's NSURLSession
+  //     HTTPCookieStorage doesn't clobber or merge with the Cookie
+  //     header we set from the jar. iOS otherwise tends to either
+  //     overwrite our manual Cookie header, or append its own
+  //     (potentially stale) value, producing duplicate cookies that
+  //     express-session resolves to the wrong session — yielding 401s
+  //     on authenticated requests immediately after login.
   const response = await fetch(input, {
-    credentials: "include",
+    credentials: _cookieJar ? "omit" : "include",
     ...init,
     method,
     headers,

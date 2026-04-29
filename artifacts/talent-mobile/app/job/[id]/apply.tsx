@@ -46,6 +46,10 @@ export default function ApplyScreen() {
 
   const handleSubmit = () => {
     if (!isValid || createMutation.isPending) return;
+    // The server derives `candidateId` from the authenticated session for
+    // non-admin users, so we can leave it off the payload. The generated
+    // type still requires it; cast to satisfy TS without lying about a
+    // value the server will overwrite anyway.
     createMutation.mutate(
       {
         data: {

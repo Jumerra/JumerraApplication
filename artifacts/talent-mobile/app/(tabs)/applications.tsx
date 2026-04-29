@@ -1,4 +1,6 @@
 import {
+  getGetCandidateDashboardQueryKey,
+  getListApplicationsQueryKey,
   ListApplicationsStatus,
   useGetCandidateDashboard,
   useListApplications,
@@ -22,6 +24,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { FilterChip } from "@/components/FilterChip";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { StatCard } from "@/components/StatCard";
+import { useAuth } from "@/hooks/useAuth";
 import { useColors } from "@/hooks/useColors";
 
 const WEB_TOP_INSET = Platform.OS === "web" ? 67 : 0;
@@ -41,18 +44,35 @@ const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
 export default function ApplicationsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
   const [filter, setFilter] = useState<StatusFilter>("all");
 
-  const dashboardQuery = useGetCandidateDashboard(0);
+  // Gate the candidate-scoped queries — non-candidates briefly hit this
+  // tab before AuthGate reroutes, and we don't want spurious 404s.
+  const candidateId = user?.candidateId ?? 0;
+  const hasCandidateRecord =
+    user?.role === "candidate" && user.candidateId != null;
+
+  const dashboardQuery = useGetCandidateDashboard(candidateId, {
+    query: {
+      queryKey: getGetCandidateDashboardQueryKey(candidateId),
+      enabled: hasCandidateRecord,
+    },
+  });
   const params = useMemo(
     () => ({
-      candidateId: 0,
+      candidateId,
       status: filter === "all" ? undefined : filter,
     }),
-    [filter],
+    [candidateId, filter],
   );
 
-  const { data: applications, isLoading } = useListApplications(params);
+  const { data: applications, isLoading } = useListApplications(params, {
+    query: {
+      queryKey: getListApplicationsQueryKey(params),
+      enabled: hasCandidateRecord,
+    },
+  });
 
   const goToJob = useCallback((id: number) => {
     router.push(`/job/${id}` as never);

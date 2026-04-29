@@ -1,5 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import {
+  getListApplicationsQueryKey,
   useGetJob,
   useListApplications,
 } from "@workspace/api-client-react";
@@ -22,19 +23,36 @@ import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { MatchScoreBadge } from "@/components/MatchScoreBadge";
 import { SkillChip } from "@/components/SkillChip";
 import { StatusPill } from "@/components/StatusPill";
+import { useAuth } from "@/hooks/useAuth";
 import { useColors } from "@/hooks/useColors";
 import { formatSalary } from "@/lib/format";
 
 export default function JobDetailScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
   const params = useLocalSearchParams<{ id: string }>();
   const jobId = Number(params.id);
 
   const { data: job, isLoading, error } = useGetJob(jobId);
-  const { data: applications } = useListApplications({
-    candidateId: 0,
-    jobId: Number.isFinite(jobId) ? jobId : undefined,
+  // Look up the candidate's existing application (if any) so we can show
+  // the "applied" state instead of an Apply button. Only candidates have
+  // applications, so gate the lookup on role + linked candidate record.
+  const candidateId = user?.candidateId ?? 0;
+  const isCandidate =
+    user?.role === "candidate" && user.candidateId != null;
+  const applicationsParams = useMemo(
+    () => ({
+      candidateId,
+      jobId: Number.isFinite(jobId) ? jobId : undefined,
+    }),
+    [candidateId, jobId],
+  );
+  const { data: applications } = useListApplications(applicationsParams, {
+    query: {
+      queryKey: getListApplicationsQueryKey(applicationsParams),
+      enabled: isCandidate && Number.isFinite(jobId),
+    },
   });
 
   const existingApplication = useMemo(

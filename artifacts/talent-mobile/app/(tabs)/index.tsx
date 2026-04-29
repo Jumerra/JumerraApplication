@@ -1,5 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import {
+  getGetCandidateQueryKey,
+  getGetCandidateRecommendationsQueryKey,
   useGetCandidate,
   useGetCandidateRecommendations,
   useListJobs,
@@ -24,6 +26,7 @@ import { JobCard } from "@/components/JobCard";
 import { JobRow } from "@/components/JobRow";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { SectionHeader } from "@/components/SectionHeader";
+import { useAuth } from "@/hooks/useAuth";
 import { useColors } from "@/hooks/useColors";
 
 const WEB_TOP_INSET = Platform.OS === "web" ? 67 : 0;
@@ -31,10 +34,28 @@ const WEB_TOP_INSET = Platform.OS === "web" ? 67 : 0;
 export default function DiscoverScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
 
-  const candidateQuery = useGetCandidate(0);
-  const recommendationsQuery = useGetCandidateRecommendations(0);
+  // Discover only makes sense for candidates with a linked candidate
+  // record. Non-candidate users still land here briefly before AuthGate
+  // bounces them, so we gate the queries to avoid 404 storms.
+  const candidateId = user?.candidateId ?? 0;
+  const hasCandidateRecord =
+    user?.role === "candidate" && user.candidateId != null;
+
+  const candidateQuery = useGetCandidate(candidateId, {
+    query: {
+      queryKey: getGetCandidateQueryKey(candidateId),
+      enabled: hasCandidateRecord,
+    },
+  });
+  const recommendationsQuery = useGetCandidateRecommendations(candidateId, {
+    query: {
+      queryKey: getGetCandidateRecommendationsQueryKey(candidateId),
+      enabled: hasCandidateRecord,
+    },
+  });
   const trendingQuery = useListJobs({ featured: true });
 
   const candidate = candidateQuery.data;
@@ -44,15 +65,25 @@ export default function DiscoverScreen() {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
+      // Manual refetch() bypasses the `enabled` flag in react-query, so we
+      // must guard the candidate-scoped queries on `hasCandidateRecord` to
+      // avoid firing requests for /api/candidates/0/* when the user is not
+      // a candidate (or hasn't loaded yet).
       await Promise.all([
-        candidateQuery.refetch(),
-        recommendationsQuery.refetch(),
+        ...(hasCandidateRecord
+          ? [candidateQuery.refetch(), recommendationsQuery.refetch()]
+          : []),
         trendingQuery.refetch(),
       ]);
     } finally {
       setRefreshing(false);
     }
-  }, [candidateQuery, recommendationsQuery, trendingQuery]);
+  }, [
+    hasCandidateRecord,
+    candidateQuery,
+    recommendationsQuery,
+    trendingQuery,
+  ]);
 
   const firstName = candidate?.fullName?.split(" ")[0] ?? "there";
 

@@ -4,7 +4,7 @@ import {
   getGetCurrentUserQueryKey,
   useLoginUser,
 } from "@workspace/api-client-react";
-import { Link, useLocalSearchParams, useRouter } from "expo-router";
+import { Link, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -24,7 +24,6 @@ import { useColors } from "@/hooks/useColors";
 export default function SignInScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const router = useRouter();
   const queryClient = useQueryClient();
   const params = useLocalSearchParams<{ email?: string }>();
   const prefillEmail =
@@ -49,11 +48,20 @@ export default function SignInScreen() {
 
   const login = useLoginUser({
     mutation: {
-      onSuccess: async () => {
-        await queryClient.invalidateQueries({
-          queryKey: getGetCurrentUserQueryKey(),
-        });
-        router.replace("/(tabs)");
+      onSuccess: (response) => {
+        // Seed the getCurrentUser cache synchronously from the login
+        // response (same AuthSession shape) and let AuthGate handle the
+        // navigation when `user` becomes truthy.
+        //
+        // Why not `await invalidateQueries(...)` + `router.replace(...)`:
+        // on iOS the cache update from the background refetch can land
+        // *after* the navigation completes, so AuthGate runs its effect
+        // for one render with `user === null` on a non-(auth) route and
+        // immediately redirects back to /sign-in (the "auth bounce").
+        // Setting the cache directly removes the race entirely — React
+        // re-renders AuthGate with the user populated *before* any
+        // navigation happens, so the gate routes us into (tabs) cleanly.
+        queryClient.setQueryData(getGetCurrentUserQueryKey(), response);
       },
       onError: (err: unknown) => {
         const data = (err as { data?: { error?: string } | null } | null)

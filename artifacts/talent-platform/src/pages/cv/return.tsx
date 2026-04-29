@@ -5,29 +5,9 @@ import { useVerifyCvCheckout } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { FileText, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { sanitizeMobileRedirect } from "@/lib/mobile-redirect";
 
 type Phase = "loading" | "paid" | "pending" | "failed" | "missing";
-
-// Only allow bouncing back to the mobile app via known native-app
-// deep-link schemes. This blocks open-redirect / javascript: / data:
-// abuse via a crafted ?mobile_redirect= query param.
-const MOBILE_REDIRECT_SCHEMES = new Set([
-  "talent-mobile:",
-  "exp:",
-  "exps:",
-]);
-
-function sanitizeMobileRedirect(raw: string | null): string | null {
-  if (!raw) return null;
-  let parsed: URL;
-  try {
-    parsed = new URL(raw);
-  } catch {
-    return null;
-  }
-  if (!MOBILE_REDIRECT_SCHEMES.has(parsed.protocol)) return null;
-  return raw;
-}
 
 export default function CvReturnPage() {
   const verify = useVerifyCvCheckout();

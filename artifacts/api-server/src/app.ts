@@ -3,7 +3,7 @@ import cors from "cors";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
-import { buildSessionMiddleware } from "./lib/session";
+import { buildSessionMiddleware, sessionPartitionedCookiePatch } from "./lib/session";
 import { seedSystemRoles } from "./lib/permissions";
 
 // Fire-and-forget on boot; logs but doesn't block startup. Safe because
@@ -118,6 +118,9 @@ app.use(
 );
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+// Patch must run BEFORE express-session so it wraps res.setHeader
+// in time to intercept the session cookie that express-session writes.
+app.use(sessionPartitionedCookiePatch());
 app.use(buildSessionMiddleware());
 
 app.use("/api", router);

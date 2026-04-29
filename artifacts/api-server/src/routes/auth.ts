@@ -20,6 +20,28 @@ import { sendAuthLinkEmail, originFromReq } from "../lib/email";
 
 const router: Router = Router();
 
+// Auth endpoints must never be HTTP-cached.  iOS NSURLSession (which
+// React Native fetch uses inside Expo Go on iPhone) caches GET responses
+// by URL and adds `If-None-Match` to subsequent calls.  The first
+// `/auth/me` after app launch returns `{user: null}` (no session yet),
+// gets cached with its ETag, and a *post-login* `/auth/me` then re-uses
+// the same `If-None-Match`.  Express compares it to the freshly-computed
+// ETag for `{user: null}` (the login cookie did not always make the
+// round-trip on the first refetch in time) and replies `304 Not Modified`
+// with no body.  Our shared `customFetch` returns `null` for any 304, so
+// `useAuth` sees no user and `AuthGate` bounces the user straight back
+// to sign-in — they perceive this as "wrong credentials".
+//
+// `Cache-Control: no-store` instructs every well-behaved client to skip
+// caching entirely, which means no `If-None-Match` is ever sent and the
+// server always returns a fresh 200 with the correct session-aware body.
+router.use((_req, res, next) => {
+  res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
+  res.set("Pragma", "no-cache");
+  res.set("Expires", "0");
+  next();
+});
+
 /**
  * POST /api/auth/register
  * Public sign-up. Creates a pending user + a registration record

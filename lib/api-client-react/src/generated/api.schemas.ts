@@ -465,6 +465,40 @@ export type CandidateDetail = Candidate & {
   badges: Badge[];
 };
 
+/**
+ * Input shape for replacing a candidate's self-reported education
+entries via PATCH /candidates/{id}. The id field is omitted; the
+server replaces all entries.
+
+ */
+export interface EducationEntryInput {
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  institution: string;
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  degree: string;
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  fieldOfStudy: string;
+  /**
+   * @minimum 1900
+   * @maximum 2100
+   */
+  startYear: number;
+  /**
+   * @minimum 1900
+   * @maximum 2100
+   */
+  endYear?: number | null;
+}
+
 export type CreateCandidateAvailability =
   (typeof CreateCandidateAvailability)[keyof typeof CreateCandidateAvailability];
 
@@ -520,6 +554,12 @@ departmentId is validated to belong to the same institution.
 Affiliations not listed here keep their current departmentId.
  */
   affiliations?: CandidateAffiliationInput[];
+  /** Optional full replacement of the candidate's self-reported
+education entries. When provided, the existing entries are
+deleted and replaced with this list. Omit the field to leave
+entries untouched. Pass an empty array to clear all entries.
+ */
+  education?: EducationEntryInput[];
   skills?: string[];
   availability?: UpdateCandidateAvailability;
   isBoosted?: boolean;

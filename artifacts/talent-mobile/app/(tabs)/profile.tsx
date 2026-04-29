@@ -340,6 +340,10 @@ export default function ProfileScreen() {
         </View>
       </View>
 
+      {candidate.education && candidate.education.length > 0 ? (
+        <EducationSection entries={candidate.education} />
+      ) : null}
+
       <SignOutButton onPress={onSignOut} pending={signOutPending} />
     </ScrollView>
   );
@@ -429,6 +433,7 @@ function InstitutionsRow({
     type: string;
     logoUrl: string;
     isPrimary: boolean;
+    departmentName?: string | null;
   }>;
 }) {
   const colors = useColors();
@@ -447,51 +452,143 @@ function InstitutionsRow({
         <Text style={[styles.infoLabel, { color: colors.mutedForeground }]}>
           {label}
         </Text>
-        <View style={{ gap: 6 }}>
+        <View style={{ gap: 8 }}>
           {institutions.map((inst) => (
-            <View
-              key={inst.id}
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 8,
-                flexWrap: "wrap",
-              }}
-            >
-              <Text
-                style={[styles.infoValue, { color: colors.foreground }]}
-                numberOfLines={1}
-              >
-                {inst.name}
-              </Text>
+            <View key={inst.id} style={{ gap: 2 }}>
               <View
                 style={{
-                  paddingHorizontal: 8,
-                  paddingVertical: 2,
-                  borderRadius: 999,
-                  backgroundColor: inst.isPrimary
-                    ? colors.primary
-                    : colors.secondary,
-                  borderWidth: inst.isPrimary ? 0 : 1,
-                  borderColor: colors.border,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 8,
+                  flexWrap: "wrap",
                 }}
               >
                 <Text
+                  style={[styles.infoValue, { color: colors.foreground }]}
+                  numberOfLines={1}
+                >
+                  {inst.name}
+                </Text>
+                <View
                   style={{
-                    fontFamily: "Inter_600SemiBold",
-                    fontSize: 10,
-                    color: inst.isPrimary
-                      ? colors.primaryForeground
-                      : colors.mutedForeground,
-                    letterSpacing: 0.3,
+                    paddingHorizontal: 8,
+                    paddingVertical: 2,
+                    borderRadius: 999,
+                    backgroundColor: inst.isPrimary
+                      ? colors.primary
+                      : colors.secondary,
+                    borderWidth: inst.isPrimary ? 0 : 1,
+                    borderColor: colors.border,
                   }}
                 >
-                  {inst.isPrimary ? "PRIMARY" : "AFFILIATED"}
-                </Text>
+                  <Text
+                    style={{
+                      fontFamily: "Inter_600SemiBold",
+                      fontSize: 10,
+                      color: inst.isPrimary
+                        ? colors.primaryForeground
+                        : colors.mutedForeground,
+                      letterSpacing: 0.3,
+                    }}
+                  >
+                    {inst.isPrimary ? "PRIMARY" : "AFFILIATED"}
+                  </Text>
+                </View>
               </View>
+              {inst.departmentName ? (
+                <Text
+                  style={{
+                    fontFamily: "Inter_400Regular",
+                    fontSize: 12,
+                    color: colors.mutedForeground,
+                  }}
+                  numberOfLines={1}
+                >
+                  {inst.departmentName}
+                </Text>
+              ) : null}
             </View>
           ))}
         </View>
+      </View>
+    </View>
+  );
+}
+
+function EducationSection({
+  entries,
+}: {
+  entries: Array<{
+    id: number;
+    institution: string;
+    degree: string;
+    fieldOfStudy: string;
+    startYear: number;
+    endYear?: number | null;
+  }>;
+}) {
+  const colors = useColors();
+  return (
+    <View style={styles.section}>
+      <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
+        Education
+      </Text>
+      <View
+        style={[
+          styles.infoCard,
+          {
+            backgroundColor: colors.card,
+            borderColor: colors.border,
+            borderRadius: colors.radius * 1.5,
+          },
+        ]}
+      >
+        {entries.map((e, idx) => (
+          <React.Fragment key={e.id}>
+            {idx > 0 ? <Divider /> : null}
+            <View style={styles.infoRow}>
+              <View
+                style={[
+                  styles.infoIcon,
+                  {
+                    backgroundColor: colors.secondary,
+                    borderRadius: colors.radius,
+                  },
+                ]}
+              >
+                <Feather name="award" size={14} color={colors.foreground} />
+              </View>
+              <View style={[styles.infoText, { gap: 2 }]}>
+                <Text
+                  style={[styles.infoValue, { color: colors.foreground }]}
+                  numberOfLines={2}
+                >
+                  {e.degree} in {e.fieldOfStudy}
+                </Text>
+                <Text
+                  style={{
+                    fontFamily: "Inter_500Medium",
+                    fontSize: 12,
+                    color: colors.mutedForeground,
+                  }}
+                  numberOfLines={1}
+                >
+                  {e.institution}
+                </Text>
+                <Text
+                  style={{
+                    fontFamily: "Inter_400Regular",
+                    fontSize: 11,
+                    color: colors.mutedForeground,
+                    marginTop: 2,
+                  }}
+                >
+                  {e.startYear} — {e.endYear ?? "Present"}
+                </Text>
+              </View>
+            </View>
+          </React.Fragment>
+        ))}
       </View>
     </View>
   );

@@ -194,6 +194,18 @@ export const UpdateCandidateParams = zod.object({
   id: zod.coerce.number(),
 });
 
+export const updateCandidateBodyEducationItemInstitutionMax = 200;
+
+export const updateCandidateBodyEducationItemDegreeMax = 200;
+
+export const updateCandidateBodyEducationItemFieldOfStudyMax = 200;
+
+export const updateCandidateBodyEducationItemStartYearMin = 1900;
+export const updateCandidateBodyEducationItemStartYearMax = 2100;
+
+export const updateCandidateBodyEducationItemEndYearMin = 1900;
+export const updateCandidateBodyEducationItemEndYearMax = 2100;
+
 export const UpdateCandidateBody = zod.object({
   fullName: zod.string().optional(),
   headline: zod.string().optional(),
@@ -225,60 +237,137 @@ export const UpdateCandidateBody = zod.object({
     .describe(
       "Optional full replacement of the candidate's per-institution\ndepartment assignments. When provided, every entry's\ndepartmentId is validated to belong to the same institution.\nAffiliations not listed here keep their current departmentId.\n",
     ),
+  education: zod
+    .array(
+      zod
+        .object({
+          institution: zod
+            .string()
+            .min(1)
+            .max(updateCandidateBodyEducationItemInstitutionMax),
+          degree: zod
+            .string()
+            .min(1)
+            .max(updateCandidateBodyEducationItemDegreeMax),
+          fieldOfStudy: zod
+            .string()
+            .min(1)
+            .max(updateCandidateBodyEducationItemFieldOfStudyMax),
+          startYear: zod
+            .number()
+            .min(updateCandidateBodyEducationItemStartYearMin)
+            .max(updateCandidateBodyEducationItemStartYearMax),
+          endYear: zod
+            .number()
+            .min(updateCandidateBodyEducationItemEndYearMin)
+            .max(updateCandidateBodyEducationItemEndYearMax)
+            .nullish(),
+        })
+        .describe(
+          "Input shape for replacing a candidate's self-reported education\nentries via PATCH \/candidates\/{id}. The id field is omitted; the\nserver replaces all entries.\n",
+        ),
+    )
+    .optional()
+    .describe(
+      "Optional full replacement of the candidate's self-reported\neducation entries. When provided, the existing entries are\ndeleted and replaced with this list. Omit the field to leave\nentries untouched. Pass an empty array to clear all entries.\n",
+    ),
   skills: zod.array(zod.string()).optional(),
   availability: zod.enum(["open", "employed", "not_looking"]).optional(),
   isBoosted: zod.boolean().optional(),
 });
 
-export const UpdateCandidateResponse = zod.object({
-  id: zod.number(),
-  fullName: zod.string(),
-  headline: zod.string(),
-  bio: zod.string(),
-  location: zod.string(),
-  avatarUrl: zod.string(),
-  email: zod.string(),
-  phone: zod.string(),
-  portfolioUrl: zod.string().nullish(),
-  videoIntroUrl: zod.string().nullish(),
-  availability: zod.enum(["open", "employed", "not_looking"]),
-  yearsExperience: zod.number(),
-  talentScore: zod.number(),
-  isBoosted: zod.boolean(),
-  institutionId: zod.number().nullish(),
-  institutionName: zod.string().nullish(),
-  institutions: zod
-    .array(
-      zod.object({
-        id: zod.number().describe("Institution id"),
-        name: zod.string(),
-        type: zod.string(),
-        logoUrl: zod.string(),
-        isPrimary: zod.boolean(),
-        isVerified: zod
-          .boolean()
-          .describe(
-            "True if this institution has explicitly verified the candidate as a real student.",
-          ),
-        verifiedAt: zod.coerce.date().nullish(),
-        departmentId: zod
-          .number()
-          .nullish()
-          .describe(
-            "Department\/program\/faculty within this institution. Null when unassigned.",
-          ),
-        departmentName: zod
-          .string()
-          .nullish()
-          .describe("Resolved department\/program name. Null when unassigned."),
-      }),
-    )
-    .describe(
-      "All institutions this candidate is affiliated with (primary first).",
-    ),
-  skills: zod.array(zod.string()),
-  createdAt: zod.coerce.date(),
-});
+export const UpdateCandidateResponse = zod
+  .object({
+    id: zod.number(),
+    fullName: zod.string(),
+    headline: zod.string(),
+    bio: zod.string(),
+    location: zod.string(),
+    avatarUrl: zod.string(),
+    email: zod.string(),
+    phone: zod.string(),
+    portfolioUrl: zod.string().nullish(),
+    videoIntroUrl: zod.string().nullish(),
+    availability: zod.enum(["open", "employed", "not_looking"]),
+    yearsExperience: zod.number(),
+    talentScore: zod.number(),
+    isBoosted: zod.boolean(),
+    institutionId: zod.number().nullish(),
+    institutionName: zod.string().nullish(),
+    institutions: zod
+      .array(
+        zod.object({
+          id: zod.number().describe("Institution id"),
+          name: zod.string(),
+          type: zod.string(),
+          logoUrl: zod.string(),
+          isPrimary: zod.boolean(),
+          isVerified: zod
+            .boolean()
+            .describe(
+              "True if this institution has explicitly verified the candidate as a real student.",
+            ),
+          verifiedAt: zod.coerce.date().nullish(),
+          departmentId: zod
+            .number()
+            .nullish()
+            .describe(
+              "Department\/program\/faculty within this institution. Null when unassigned.",
+            ),
+          departmentName: zod
+            .string()
+            .nullish()
+            .describe(
+              "Resolved department\/program name. Null when unassigned.",
+            ),
+        }),
+      )
+      .describe(
+        "All institutions this candidate is affiliated with (primary first).",
+      ),
+    skills: zod.array(zod.string()),
+    createdAt: zod.coerce.date(),
+  })
+  .and(
+    zod.object({
+      education: zod.array(
+        zod.object({
+          id: zod.number(),
+          institution: zod.string(),
+          degree: zod.string(),
+          fieldOfStudy: zod.string(),
+          startYear: zod.number(),
+          endYear: zod.number().nullish(),
+        }),
+      ),
+      experience: zod.array(
+        zod.object({
+          id: zod.number(),
+          company: zod.string(),
+          title: zod.string(),
+          description: zod.string(),
+          startDate: zod.coerce.date(),
+          endDate: zod.coerce.date().nullish(),
+        }),
+      ),
+      certifications: zod.array(
+        zod.object({
+          id: zod.number(),
+          name: zod.string(),
+          issuer: zod.string(),
+          issuedAt: zod.coerce.date(),
+        }),
+      ),
+      badges: zod.array(
+        zod.object({
+          id: zod.number(),
+          name: zod.string(),
+          description: zod.string(),
+          tier: zod.enum(["bronze", "silver", "gold", "platinum"]),
+        }),
+      ),
+    }),
+  );
 
 export const ListEmployersQueryParams = zod.object({
   search: zod.coerce.string().optional(),

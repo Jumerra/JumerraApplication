@@ -245,6 +245,46 @@ router.patch("/candidates/:id", requireAuth, async (req, res): Promise<void> => 
   // candidates UPDATE so drizzle doesn't see an unknown column.
   const affiliationsInput = parsed.data.affiliations;
   delete (updateData as Record<string, unknown>).affiliations;
+  // `education` lives in education_entries; strip it before the candidates
+  // UPDATE for the same reason. `undefined` means "leave entries alone";
+  // an empty array means "clear all entries".
+  const educationInput = parsed.data.education;
+  delete (updateData as Record<string, unknown>).education;
+
+  // Cross-field validation for education:
+  //   - Cap entry count to keep payloads bounded (must mirror the mobile cap).
+  //   - Reject text fields that are whitespace-only (Zod's minLength alone
+  //     can't see post-trim emptiness).
+  //   - endYear (when present) must be >= startYear. Per-year bounds
+  //     [1900, 2100] are already enforced by the Zod schema.
+  const EDUCATION_MAX_ENTRIES = 50;
+  if (educationInput) {
+    if (educationInput.length > EDUCATION_MAX_ENTRIES) {
+      res.status(400).json({
+        error: `Too many education entries (max ${EDUCATION_MAX_ENTRIES}).`,
+      });
+      return;
+    }
+    for (const e of educationInput) {
+      if (
+        e.institution.trim().length === 0 ||
+        e.degree.trim().length === 0 ||
+        e.fieldOfStudy.trim().length === 0
+      ) {
+        res.status(400).json({
+          error:
+            "Education entries require non-empty institution, degree, and field of study.",
+        });
+        return;
+      }
+      if (e.endYear != null && e.endYear < e.startYear) {
+        res.status(400).json({
+          error: `End year (${e.endYear}) cannot be earlier than start year (${e.startYear}) for "${e.institution}".`,
+        });
+        return;
+      }
+    }
+  }
 
   // If the request only updates per-affiliation departments (no top-level
   // candidate fields), skip the candidates UPDATE — drizzle would otherwise
@@ -311,8 +351,84 @@ router.patch("/candidates/:id", requireAuth, async (req, res): Promise<void> => 
     }
   }
 
-  const linkMap = await getInstitutionLinksByCandidate([updated.id]);
-  res.json(serializeCandidate(updated, linkMap.get(updated.id) ?? []));
+  // Self-reported education entries: full replacement when the field is
+  // present. We delete-then-insert atomically so a partial failure can't
+  // leave the candidate with a half-rewritten history.
+  if (educationInput) {
+    await db.transaction(async (tx) => {
+      await tx
+        .delete(educationTable)
+        .where(eq(educationTable.candidateId, updated.id));
+      if (educationInput.length > 0) {
+        await tx.insert(educationTable).values(
+          educationInput.map((e) => ({
+            candidateId: updated.id,
+            institution: e.institution.trim(),
+            degree: e.degree.trim(),
+            fieldOfStudy: e.fieldOfStudy.trim(),
+            startYear: e.startYear,
+            endYear: e.endYear ?? null,
+          })),
+        );
+      }
+    });
+  }
+
+  // Re-read the full detail so clients seeding the cache from this
+  // response see the updated education/affiliations without an extra
+  // round-trip. Mirrors the GET /candidates/:id serializer above.
+  const [education, experience, certifications, badges, linkMap] =
+    await Promise.all([
+      db
+        .select()
+        .from(educationTable)
+        .where(eq(educationTable.candidateId, updated.id)),
+      db
+        .select()
+        .from(experienceTable)
+        .where(eq(experienceTable.candidateId, updated.id)),
+      db
+        .select()
+        .from(certificationsTable)
+        .where(eq(certificationsTable.candidateId, updated.id)),
+      db
+        .select()
+        .from(badgesTable)
+        .where(eq(badgesTable.candidateId, updated.id)),
+      getInstitutionLinksByCandidate([updated.id]),
+    ]);
+
+  res.json({
+    ...serializeCandidate(updated, linkMap.get(updated.id) ?? []),
+    education: education.map((e) => ({
+      id: e.id,
+      institution: e.institution,
+      degree: e.degree,
+      fieldOfStudy: e.fieldOfStudy,
+      startYear: e.startYear,
+      endYear: e.endYear,
+    })),
+    experience: experience.map((e) => ({
+      id: e.id,
+      company: e.company,
+      title: e.title,
+      description: e.description,
+      startDate: e.startDate,
+      endDate: e.endDate,
+    })),
+    certifications: certifications.map((c) => ({
+      id: c.id,
+      name: c.name,
+      issuer: c.issuer,
+      issuedAt: c.issuedAt,
+    })),
+    badges: badges.map((b) => ({
+      id: b.id,
+      name: b.name,
+      description: b.description,
+      tier: b.tier,
+    })),
+  });
 });
 
 router.get("/candidates/:id/recommendations", async (req, res): Promise<void> => {

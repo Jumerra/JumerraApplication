@@ -118,10 +118,10 @@ paths:
             schema: { $ref: "#/components/schemas/UpdateCandidate" }
       responses:
         "200":
-          description: Updated
+          description: Updated candidate detail
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/Candidate" }
+              schema: { $ref: "#/components/schemas/CandidateDetail" }
 
   /employers:
     get:
@@ -1904,6 +1904,20 @@ components:
         endYear: { type: integer, nullable: true }
       required: [id, institution, degree, fieldOfStudy, startYear]
 
+    EducationEntryInput:
+      type: object
+      description: |
+        Input shape for replacing a candidate's self-reported education
+        entries via PATCH /candidates/{id}. The id field is omitted; the
+        server replaces all entries.
+      properties:
+        institution: { type: string, minLength: 1, maxLength: 200 }
+        degree: { type: string, minLength: 1, maxLength: 200 }
+        fieldOfStudy: { type: string, minLength: 1, maxLength: 200 }
+        startYear: { type: integer, minimum: 1900, maximum: 2100 }
+        endYear: { type: integer, minimum: 1900, maximum: 2100, nullable: true }
+      required: [institution, degree, fieldOfStudy, startYear]
+
     ExperienceEntry:
       type: object
       properties:
@@ -1987,6 +2001,14 @@ components:
             departmentId is validated to belong to the same institution.
             Affiliations not listed here keep their current departmentId.
           items: { $ref: "#/components/schemas/CandidateAffiliationInput" }
+        education:
+          type: array
+          description: |
+            Optional full replacement of the candidate's self-reported
+            education entries. When provided, the existing entries are
+            deleted and replaced with this list. Omit the field to leave
+            entries untouched. Pass an empty array to clear all entries.
+          items: { $ref: "#/components/schemas/EducationEntryInput" }
         skills:
           type: array
           items: { type: string }

@@ -5,6 +5,7 @@ import {
   getGetCurrentUserQueryKey,
   requestUploadUrl,
   useGetCandidate,
+  useGetInstitution,
   useUpdateCandidate,
 } from "@workspace/api-client-react";
 import * as Haptics from "expo-haptics";
@@ -15,7 +16,9 @@ import React from "react";
 import {
   ActivityIndicator,
   Alert,
+  FlatList,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   StyleSheet,
@@ -44,6 +47,39 @@ const HEADLINE_MAX = 120;
 const BIO_MAX = 1000;
 const SKILL_MAX = 30;
 const SKILLS_MAX_COUNT = 30;
+const EDUCATION_TEXT_MAX = 200;
+const YEAR_MIN = 1900;
+const YEAR_MAX = 2100;
+const EDUCATION_MAX_COUNT = 20;
+
+// Local-only stable id for education drafts. Existing entries keep the
+// server id; new ones get a "new-<n>" key so React lists stay stable
+// even before the row is persisted.
+let nextEduKey = 1;
+const makeEduKey = () => `new-${nextEduKey++}`;
+
+type EduDraft = {
+  key: string;
+  institution: string;
+  degree: string;
+  fieldOfStudy: string;
+  startYearText: string;
+  endYearText: string; // empty string means "Present"
+};
+
+function eduDraftValid(d: EduDraft): boolean {
+  if (d.institution.trim().length === 0) return false;
+  if (d.degree.trim().length === 0) return false;
+  if (d.fieldOfStudy.trim().length === 0) return false;
+  const sy = Number(d.startYearText);
+  if (!Number.isInteger(sy) || sy < YEAR_MIN || sy > YEAR_MAX) return false;
+  if (d.endYearText.length > 0) {
+    const ey = Number(d.endYearText);
+    if (!Number.isInteger(ey) || ey < YEAR_MIN || ey > YEAR_MAX) return false;
+    if (ey < sy) return false;
+  }
+  return true;
+}
 
 export default function ProfileEditScreen() {
   const colors = useColors();
@@ -78,6 +114,11 @@ export default function ProfileEditScreen() {
   const [skills, setSkills] = React.useState<string[]>([]);
   const [skillDraft, setSkillDraft] = React.useState("");
   const [avatarUrl, setAvatarUrl] = React.useState<string>("");
+  // institutionId -> selected departmentId (null = "Not assigned")
+  const [deptByInst, setDeptByInst] = React.useState<
+    Record<number, number | null>
+  >({});
+  const [educationDrafts, setEducationDrafts] = React.useState<EduDraft[]>([]);
   const [avatarUploading, setAvatarUploading] = React.useState(false);
   const [hydrated, setHydrated] = React.useState(false);
   // Synchronous in-flight guard. State updates are async, so a fast
@@ -99,6 +140,21 @@ export default function ProfileEditScreen() {
     setBio(candidate.bio ?? "");
     setSkills(Array.isArray(candidate.skills) ? [...candidate.skills] : []);
     setAvatarUrl(candidate.avatarUrl ?? "");
+    const initialDept: Record<number, number | null> = {};
+    for (const inst of candidate.institutions ?? []) {
+      initialDept[inst.id] = inst.departmentId ?? null;
+    }
+    setDeptByInst(initialDept);
+    setEducationDrafts(
+      (candidate.education ?? []).map((e) => ({
+        key: `srv-${e.id}`,
+        institution: e.institution,
+        degree: e.degree,
+        fieldOfStudy: e.fieldOfStudy,
+        startYearText: String(e.startYear),
+        endYearText: e.endYear != null ? String(e.endYear) : "",
+      })),
+    );
     setHydrated(true);
   }, [candidate, hydrated]);
 
@@ -109,12 +165,79 @@ export default function ProfileEditScreen() {
     yearsExperienceNum >= 0 &&
     yearsExperienceNum <= 80;
 
+  const educationValid = educationDrafts.every(eduDraftValid);
+
   const canSave =
     hasCandidateRecord &&
     trimmedFullName.length > 0 &&
     yearsExperienceValid &&
+    educationValid &&
     !updateMutation.isPending &&
     !avatarUploading;
+
+  const updateEducationDraft = React.useCallback(
+    (key: string, patch: Partial<EduDraft>) => {
+      setEducationDrafts((prev) =>
+        prev.map((d) => (d.key === key ? { ...d, ...patch } : d)),
+      );
+    },
+    [],
+  );
+
+  const addEducationDraft = React.useCallback(() => {
+    setEducationDrafts((prev) => {
+      if (prev.length >= EDUCATION_MAX_COUNT) {
+        Alert.alert(
+          "Education limit reached",
+          `You can add up to ${EDUCATION_MAX_COUNT} education entries.`,
+        );
+        return prev;
+      }
+      return [
+        ...prev,
+        {
+          key: makeEduKey(),
+          institution: "",
+          degree: "",
+          fieldOfStudy: "",
+          startYearText: "",
+          endYearText: "",
+        },
+      ];
+    });
+  }, []);
+
+  const removeEducationDraft = React.useCallback((key: string) => {
+    const doRemove = () =>
+      setEducationDrafts((prev) => prev.filter((d) => d.key !== key));
+    // Alert.alert with multiple buttons is unreliable on Expo Web. Use the
+    // browser's native confirm there and Alert.alert on native platforms.
+    if (Platform.OS === "web") {
+      const ok =
+        typeof window !== "undefined" && typeof window.confirm === "function"
+          ? window.confirm(
+              "Remove this education entry? It will be removed from your profile when you save.",
+            )
+          : true;
+      if (ok) doRemove();
+      return;
+    }
+    Alert.alert(
+      "Remove education entry?",
+      "This entry will be removed from your profile when you save.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Remove", style: "destructive", onPress: doRemove },
+      ],
+    );
+  }, []);
+
+  const setDepartmentForInstitution = React.useCallback(
+    (institutionId: number, departmentId: number | null) => {
+      setDeptByInst((prev) => ({ ...prev, [institutionId]: departmentId }));
+    },
+    [],
+  );
 
   const addSkill = React.useCallback(() => {
     const next = skillDraft.trim();
@@ -252,6 +375,30 @@ export default function ProfileEditScreen() {
   const handleSave = React.useCallback(() => {
     if (!canSave || !hasCandidateRecord) return;
 
+    // Affiliations: only send rows whose departmentId actually changed,
+    // so the request stays a no-op on the junction table when the user
+    // didn't touch the department picker.
+    const affiliations = (candidate?.institutions ?? [])
+      .filter((inst) => {
+        const original = inst.departmentId ?? null;
+        const current = deptByInst[inst.id] ?? null;
+        return original !== current;
+      })
+      .map((inst) => ({
+        institutionId: inst.id,
+        departmentId: deptByInst[inst.id] ?? null,
+      }));
+
+    // Education: full replacement. We always send the array (even when
+    // empty) so a user clearing all entries persists correctly.
+    const education = educationDrafts.map((d) => ({
+      institution: d.institution.trim(),
+      degree: d.degree.trim(),
+      fieldOfStudy: d.fieldOfStudy.trim(),
+      startYear: Number(d.startYearText),
+      endYear: d.endYearText.length > 0 ? Number(d.endYearText) : null,
+    }));
+
     updateMutation.mutate(
       {
         id: candidateId,
@@ -265,6 +412,8 @@ export default function ProfileEditScreen() {
           availability,
           skills,
           avatarUrl,
+          ...(affiliations.length > 0 ? { affiliations } : {}),
+          education,
         },
       },
       {
@@ -316,6 +465,9 @@ export default function ProfileEditScreen() {
     availability,
     skills,
     avatarUrl,
+    candidate,
+    deptByInst,
+    educationDrafts,
     queryClient,
   ]);
 
@@ -637,6 +789,95 @@ export default function ProfileEditScreen() {
             </Text>
           )}
         </View>
+
+        {candidate.institutions && candidate.institutions.length > 0 ? (
+          <View style={styles.fieldGroup}>
+            <Text style={[styles.label, { color: colors.foreground }]}>
+              Affiliated institutions
+            </Text>
+            <Text style={[styles.helper, { color: colors.mutedForeground }]}>
+              Pick the department or program you&apos;re enrolled in at each
+              institution.
+            </Text>
+            <View style={{ gap: 12, marginTop: 4 }}>
+              {candidate.institutions.map((inst) => (
+                <InstitutionAffiliationRow
+                  key={inst.id}
+                  institutionId={inst.id}
+                  institutionName={inst.name}
+                  institutionType={inst.type}
+                  isPrimary={inst.isPrimary}
+                  selectedDepartmentId={deptByInst[inst.id] ?? null}
+                  onChange={(deptId) =>
+                    setDepartmentForInstitution(inst.id, deptId)
+                  }
+                />
+              ))}
+            </View>
+          </View>
+        ) : null}
+
+        <View style={styles.fieldGroup}>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <Text style={[styles.label, { color: colors.foreground }]}>
+              Education
+            </Text>
+            <Pressable
+              onPress={addEducationDraft}
+              accessibilityLabel="Add education entry"
+              style={({ pressed }) => [
+                styles.addEduButton,
+                {
+                  backgroundColor: colors.secondary,
+                  borderColor: colors.border,
+                  borderRadius: colors.radius * 1.25,
+                  opacity: pressed ? 0.85 : 1,
+                },
+              ]}
+            >
+              <Feather name="plus" size={14} color={colors.foreground} />
+              <Text
+                style={{
+                  fontFamily: "Inter_600SemiBold",
+                  fontSize: 12,
+                  color: colors.foreground,
+                }}
+              >
+                Add
+              </Text>
+            </Pressable>
+          </View>
+          <Text style={[styles.helper, { color: colors.mutedForeground }]}>
+            Self-reported degrees, diplomas, and programs.
+          </Text>
+          {educationDrafts.length === 0 ? (
+            <Text
+              style={[
+                styles.helper,
+                { color: colors.mutedForeground, marginTop: 6 },
+              ]}
+            >
+              No entries yet. Tap Add to share your education history.
+            </Text>
+          ) : (
+            <View style={{ gap: 14, marginTop: 4 }}>
+              {educationDrafts.map((d) => (
+                <EducationDraftCard
+                  key={d.key}
+                  draft={d}
+                  onChange={(patch) => updateEducationDraft(d.key, patch)}
+                  onRemove={() => removeEducationDraft(d.key)}
+                />
+              ))}
+            </View>
+          )}
+        </View>
       </KeyboardAwareScrollViewCompat>
 
       <View
@@ -771,6 +1012,413 @@ function Field({
   );
 }
 
+// Renders a single affiliated-institution row with a department picker.
+// Each instance owns its own `useGetInstitution` query so we don't have
+// to use `useQueries` (which is awkward here because hooks must be called
+// at top level and the institution count comes from server data).
+function InstitutionAffiliationRow({
+  institutionId,
+  institutionName,
+  institutionType,
+  isPrimary,
+  selectedDepartmentId,
+  onChange,
+}: {
+  institutionId: number;
+  institutionName: string;
+  institutionType: string;
+  isPrimary: boolean;
+  selectedDepartmentId: number | null;
+  onChange: (departmentId: number | null) => void;
+}) {
+  const colors = useColors();
+  const [pickerOpen, setPickerOpen] = React.useState(false);
+  const { data: detail, isLoading } = useGetInstitution(institutionId);
+  const departments = detail?.departments ?? [];
+  // SHS schools are organized by "Programs"; everything else by "Departments".
+  // We accept the broader institution `type` string and only branch on "shs".
+  const singularLabel = institutionType === "shs" ? "Program" : "Department";
+
+  const selectedName =
+    selectedDepartmentId != null
+      ? (departments.find((d) => d.id === selectedDepartmentId)?.name ??
+        `${singularLabel} #${selectedDepartmentId}`)
+      : null;
+
+  const options: Array<{ id: number | null; label: string }> = [
+    { id: null, label: "Not assigned" },
+    ...departments.map((d) => ({ id: d.id as number | null, label: d.name })),
+  ];
+
+  return (
+    <View
+      style={{
+        borderWidth: 1,
+        borderColor: colors.border,
+        borderRadius: colors.radius * 1.25,
+        backgroundColor: colors.card,
+        padding: 12,
+        gap: 8,
+      }}
+    >
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 8,
+          flexWrap: "wrap",
+        }}
+      >
+        <Text
+          style={{
+            fontFamily: "Inter_600SemiBold",
+            fontSize: 14,
+            color: colors.foreground,
+            flexShrink: 1,
+          }}
+          numberOfLines={1}
+        >
+          {institutionName}
+        </Text>
+        {isPrimary ? (
+          <View
+            style={{
+              paddingHorizontal: 8,
+              paddingVertical: 2,
+              borderRadius: 999,
+              backgroundColor: colors.primary,
+            }}
+          >
+            <Text
+              style={{
+                fontFamily: "Inter_600SemiBold",
+                fontSize: 10,
+                color: colors.primaryForeground,
+                letterSpacing: 0.3,
+              }}
+            >
+              PRIMARY
+            </Text>
+          </View>
+        ) : null}
+      </View>
+
+      <Pressable
+        onPress={() => setPickerOpen(true)}
+        disabled={isLoading || departments.length === 0}
+        style={({ pressed }) => [
+          styles.input,
+          {
+            backgroundColor: colors.background,
+            borderColor: colors.border,
+            borderRadius: colors.radius * 1.25,
+            opacity:
+              pressed || isLoading || departments.length === 0 ? 0.7 : 1,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            paddingVertical: 10,
+          },
+        ]}
+        accessibilityRole="button"
+        accessibilityLabel={`Choose ${singularLabel.toLowerCase()} for ${institutionName}`}
+      >
+        <Text
+          style={{
+            fontFamily: "Inter_500Medium",
+            fontSize: 14,
+            color: selectedName ? colors.foreground : colors.mutedForeground,
+            flex: 1,
+          }}
+          numberOfLines={1}
+        >
+          {isLoading
+            ? `Loading ${singularLabel.toLowerCase()}s...`
+            : departments.length === 0
+              ? `No ${singularLabel.toLowerCase()}s available`
+              : (selectedName ?? `Choose a ${singularLabel.toLowerCase()}`)}
+        </Text>
+        <Feather name="chevron-down" size={16} color={colors.mutedForeground} />
+      </Pressable>
+
+      <PickerModal
+        visible={pickerOpen}
+        title={`Choose ${singularLabel.toLowerCase()}`}
+        options={options}
+        selectedId={selectedDepartmentId}
+        onClose={() => setPickerOpen(false)}
+        onSelect={(id) => {
+          onChange(id);
+          setPickerOpen(false);
+        }}
+      />
+    </View>
+  );
+}
+
+// Inline editor for a single self-reported education entry. Validation
+// is handled at the parent (canSave); we surface inline errors per field
+// so the user knows which row blocks the save.
+function EducationDraftCard({
+  draft,
+  onChange,
+  onRemove,
+}: {
+  draft: EduDraft;
+  onChange: (patch: Partial<EduDraft>) => void;
+  onRemove: () => void;
+}) {
+  const colors = useColors();
+  const startNum = Number(draft.startYearText);
+  const startYearError =
+    draft.startYearText.length === 0
+      ? undefined
+      : Number.isInteger(startNum) && startNum >= YEAR_MIN && startNum <= YEAR_MAX
+        ? undefined
+        : `Enter a year between ${YEAR_MIN} and ${YEAR_MAX}`;
+  const endNum = Number(draft.endYearText);
+  const endYearError =
+    draft.endYearText.length === 0
+      ? undefined
+      : !Number.isInteger(endNum) || endNum < YEAR_MIN || endNum > YEAR_MAX
+        ? `Enter a year between ${YEAR_MIN} and ${YEAR_MAX}`
+        : Number.isInteger(startNum) && endNum < startNum
+          ? "End year is before start year"
+          : undefined;
+
+  return (
+    <View
+      style={{
+        borderWidth: 1,
+        borderColor: colors.border,
+        borderRadius: colors.radius * 1.25,
+        backgroundColor: colors.card,
+        padding: 12,
+        gap: 10,
+      }}
+    >
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <Text
+          style={{
+            fontFamily: "Inter_600SemiBold",
+            fontSize: 12,
+            color: colors.mutedForeground,
+            letterSpacing: 0.3,
+          }}
+        >
+          EDUCATION ENTRY
+        </Text>
+        <Pressable
+          onPress={onRemove}
+          accessibilityLabel="Remove education entry"
+          hitSlop={8}
+          style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+        >
+          <Feather name="trash-2" size={16} color={colors.mutedForeground} />
+        </Pressable>
+      </View>
+      <Field
+        label="Institution"
+        value={draft.institution}
+        onChangeText={(t) => onChange({ institution: t })}
+        placeholder="e.g. Northstar University"
+        autoCapitalize="words"
+        maxLength={EDUCATION_TEXT_MAX}
+      />
+      <Field
+        label="Degree"
+        value={draft.degree}
+        onChangeText={(t) => onChange({ degree: t })}
+        placeholder="e.g. BSc, Diploma, Certificate"
+        autoCapitalize="words"
+        maxLength={EDUCATION_TEXT_MAX}
+      />
+      <Field
+        label="Field of study"
+        value={draft.fieldOfStudy}
+        onChangeText={(t) => onChange({ fieldOfStudy: t })}
+        placeholder="e.g. Computer Science"
+        autoCapitalize="words"
+        maxLength={EDUCATION_TEXT_MAX}
+      />
+      <View style={{ flexDirection: "row", gap: 12 }}>
+        <View style={{ flex: 1 }}>
+          <Field
+            label="Start year"
+            value={draft.startYearText}
+            onChangeText={(t) =>
+              onChange({ startYearText: t.replace(/[^0-9]/g, "").slice(0, 4) })
+            }
+            placeholder="2021"
+            keyboardType="number-pad"
+            maxLength={4}
+            error={startYearError}
+          />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Field
+            label="End year"
+            value={draft.endYearText}
+            onChangeText={(t) =>
+              onChange({ endYearText: t.replace(/[^0-9]/g, "").slice(0, 4) })
+            }
+            placeholder="Present"
+            keyboardType="number-pad"
+            maxLength={4}
+            error={endYearError}
+            helper={
+              draft.endYearText.length === 0 && !endYearError
+                ? "Leave blank if ongoing"
+                : undefined
+            }
+          />
+        </View>
+      </View>
+    </View>
+  );
+}
+
+// Reusable bottom-sheet style picker. Keeps native UX consistent across
+// affiliations (and any future single-select fields) without pulling in
+// a picker library.
+function PickerModal({
+  visible,
+  title,
+  options,
+  selectedId,
+  onSelect,
+  onClose,
+}: {
+  visible: boolean;
+  title: string;
+  options: Array<{ id: number | null; label: string }>;
+  selectedId: number | null;
+  onSelect: (id: number | null) => void;
+  onClose: () => void;
+}) {
+  const colors = useColors();
+  const insets = useSafeAreaInsets();
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent
+      onRequestClose={onClose}
+    >
+      <Pressable
+        onPress={onClose}
+        style={{
+          flex: 1,
+          backgroundColor: "rgba(0,0,0,0.4)",
+          justifyContent: "flex-end",
+        }}
+      >
+        <Pressable
+          onPress={(e) => e.stopPropagation()}
+          style={{
+            backgroundColor: colors.background,
+            borderTopLeftRadius: 20,
+            borderTopRightRadius: 20,
+            paddingTop: 8,
+            paddingBottom: insets.bottom + 12,
+            maxHeight: "70%",
+          }}
+        >
+          <View
+            style={{
+              alignSelf: "center",
+              width: 40,
+              height: 4,
+              borderRadius: 2,
+              backgroundColor: colors.border,
+              marginBottom: 8,
+            }}
+          />
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              paddingHorizontal: 20,
+              paddingVertical: 12,
+            }}
+          >
+            <Text
+              style={{
+                fontFamily: "Inter_700Bold",
+                fontSize: 16,
+                color: colors.foreground,
+              }}
+            >
+              {title}
+            </Text>
+            <Pressable
+              onPress={onClose}
+              hitSlop={8}
+              accessibilityLabel="Close picker"
+            >
+              <Feather name="x" size={20} color={colors.mutedForeground} />
+            </Pressable>
+          </View>
+          <FlatList
+            data={options}
+            keyExtractor={(item) => `${item.id ?? "none"}`}
+            renderItem={({ item }) => {
+              const active = item.id === selectedId;
+              return (
+                <Pressable
+                  onPress={() => onSelect(item.id)}
+                  style={({ pressed }) => ({
+                    paddingHorizontal: 20,
+                    paddingVertical: 14,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    backgroundColor: pressed ? colors.secondary : "transparent",
+                  })}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                >
+                  <Text
+                    style={{
+                      fontFamily: active
+                        ? "Inter_600SemiBold"
+                        : "Inter_500Medium",
+                      fontSize: 15,
+                      color: colors.foreground,
+                      flex: 1,
+                    }}
+                  >
+                    {item.label}
+                  </Text>
+                  {active ? (
+                    <Feather name="check" size={18} color={colors.primary} />
+                  ) : null}
+                </Pressable>
+              );
+            }}
+            ItemSeparatorComponent={() => (
+              <View
+                style={{
+                  height: 1,
+                  backgroundColor: colors.border,
+                  marginHorizontal: 20,
+                }}
+              />
+            )}
+          />
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   avatarSection: {
@@ -864,6 +1512,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
     paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: 1,
+  },
+  addEduButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
     paddingVertical: 6,
     borderWidth: 1,
   },

@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { CandidateAffiliationInput } from "./candidateAffiliationInput";
+import type { EducationEntryInput } from "./educationEntryInput";
 import type { UpdateCandidateAvailability } from "./updateCandidateAvailability";
 
 export interface UpdateCandidate {
@@ -25,6 +26,12 @@ departmentId is validated to belong to the same institution.
 Affiliations not listed here keep their current departmentId.
  */
   affiliations?: CandidateAffiliationInput[];
+  /** Optional full replacement of the candidate's self-reported
+education entries. When provided, the existing entries are
+deleted and replaced with this list. Omit the field to leave
+entries untouched. Pass an empty array to clear all entries.
+ */
+  education?: EducationEntryInput[];
   skills?: string[];
   availability?: UpdateCandidateAvailability;
   isBoosted?: boolean;

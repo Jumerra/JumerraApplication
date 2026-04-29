@@ -57,6 +57,7 @@ export * from "./createInstitutionFacility";
 export * from "./createJob";
 export * from "./createJobType";
 export * from "./educationEntry";
+export * from "./educationEntryInput";
 export * from "./employer";
 export * from "./employerAnalyticsResponse";
 export * from "./employerAnalyticsRow";

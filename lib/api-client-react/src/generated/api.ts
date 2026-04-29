@@ -455,8 +455,8 @@ export const updateCandidate = async (
   id: number,
   updateCandidate: UpdateCandidate,
   options?: RequestInit,
-): Promise<Candidate> => {
-  return customFetch<Candidate>(getUpdateCandidateUrl(id), {
+): Promise<CandidateDetail> => {
+  return customFetch<CandidateDetail>(getUpdateCandidateUrl(id), {
     ...options,
     method: "PATCH",
     headers: { "Content-Type": "application/json", ...options?.headers },

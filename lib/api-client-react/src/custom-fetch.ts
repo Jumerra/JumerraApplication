@@ -8,6 +8,14 @@ export type BodyType<T> = T;
 
 export type AuthTokenGetter = () => Promise<string | null> | string | null;
 
+export type CookieJar = {
+  getCookieHeader: (url: string) => Promise<string | null> | string | null;
+  setCookies: (
+    url: string,
+    setCookieHeaders: string[],
+  ) => Promise<void> | void;
+};
+
 const NO_BODY_STATUS = new Set([204, 205, 304]);
 const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
 
@@ -17,6 +25,7 @@ const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
 
 let _baseUrl: string | null = null;
 let _authTokenGetter: AuthTokenGetter | null = null;
+let _cookieJar: CookieJar | null = null;
 
 /**
  * Set a base URL that is prepended to every relative request URL
@@ -42,6 +51,44 @@ export function setBaseUrl(url: string | null): void {
  */
 export function setAuthTokenGetter(getter: AuthTokenGetter | null): void {
   _authTokenGetter = getter;
+}
+
+/**
+ * Register a cookie jar so the client manually persists cookies across
+ * requests.  Useful for React Native runtimes where the default `fetch` does
+ * not maintain a cookie store between calls (notably Android Expo Go).
+ *
+ * The jar is asked for a `Cookie` header before every request and is told
+ * about every `Set-Cookie` response header after each response.  Pass `null`
+ * to clear the jar.
+ *
+ * NOTE: Do not configure this in browser environments — browsers already
+ * handle cookies via `credentials: "include"`.
+ */
+export function setCookieJar(jar: CookieJar | null): void {
+  _cookieJar = jar;
+}
+
+function extractSetCookies(response: Response): string[] {
+  const headers = response.headers as Headers & {
+    getSetCookie?: () => string[];
+    map?: Record<string, string | string[]>;
+  };
+
+  if (typeof headers.getSetCookie === "function") {
+    const values = headers.getSetCookie();
+    if (Array.isArray(values) && values.length > 0) return values;
+  }
+
+  // React Native's fetch exposes raw headers via `headers.map`.
+  if (headers.map && typeof headers.map === "object") {
+    const raw = headers.map["set-cookie"] ?? headers.map["Set-Cookie"];
+    if (Array.isArray(raw)) return raw.filter((s) => typeof s === "string" && s.length > 0);
+    if (typeof raw === "string" && raw.length > 0) return [raw];
+  }
+
+  const value = headers.get("set-cookie");
+  return value ? [value] : [];
 }
 
 function isRequest(input: RequestInfo | URL): input is Request {
@@ -360,12 +407,29 @@ export async function customFetch<T = unknown>(
 
   const requestInfo = { method, url: resolveUrl(input) };
 
+  // Attach persisted cookies when a manual jar is configured and no
+  // Cookie header has been explicitly provided.  Used by React Native to
+  // emulate a browser cookie store.
+  if (_cookieJar && !headers.has("cookie")) {
+    const cookieHeader = await _cookieJar.getCookieHeader(requestInfo.url);
+    if (cookieHeader) {
+      headers.set("cookie", cookieHeader);
+    }
+  }
+
   const response = await fetch(input, {
     credentials: "include",
     ...init,
     method,
     headers,
   });
+
+  if (_cookieJar) {
+    const setCookies = extractSetCookies(response);
+    if (setCookies.length > 0) {
+      await _cookieJar.setCookies(requestInfo.url, setCookies);
+    }
+  }
 
   if (!response.ok) {
     const errorData = await parseErrorBody(response, method);

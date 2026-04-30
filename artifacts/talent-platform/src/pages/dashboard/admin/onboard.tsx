@@ -43,7 +43,10 @@ export default function AdminOnboardPage() {
 
   const onboard = useOnboardEntity();
   const { data: invitedData } = useListOnboardedUsers({
-    query: { enabled: sessionUser?.role === "admin" },
+    query: {
+      queryKey: getListOnboardedUsersQueryKey(),
+      enabled: sessionUser?.role === "admin",
+    },
   });
 
   if (!sessionUser || sessionUser.role !== "admin") {

@@ -30,6 +30,7 @@ import {
   adminRolesTable,
   adminRolePermissionsTable,
 } from "@workspace/db";
+import type { User } from "@workspace/db";
 import { requireAdmin } from "../middleware/require-auth";
 import { requirePermission } from "../lib/permissions";
 import { createSetupToken, findUserByEmail } from "../lib/auth";
@@ -1455,7 +1456,7 @@ router.get("/admin/hires/export.csv", requirePermission("hires:view"), async (re
 // =====================================================================
 
 function requireSuperAdmin(
-  req: { currentUser: { role: string; orgRole: string | null } | null | undefined },
+  req: { currentUser?: User | null },
   res: { status: (n: number) => { json: (b: unknown) => void } },
 ): boolean {
   if (!isSuperAdminUser(req.currentUser)) {
@@ -1563,7 +1564,7 @@ router.post("/admin/roles", async (req, res) => {
         .insert(adminRolesTable)
         .values({
           name,
-          description: typeof description === "string" ? description : null,
+          description: typeof description === "string" ? description : "",
           isSystem: false,
         })
         .returning();

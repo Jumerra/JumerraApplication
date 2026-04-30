@@ -37,7 +37,12 @@ export default function AdminRegistrationsPage() {
   const queryClient = useQueryClient();
   const { data, isLoading: isLoadingList } = useListRegistrations(
     { status: statusFilter },
-    { query: { enabled: sessionUser?.role === "admin" } },
+    {
+      query: {
+        queryKey: getListRegistrationsQueryKey({ status: statusFilter }),
+        enabled: sessionUser?.role === "admin",
+      },
+    },
   );
   const approve = useApproveRegistration();
   const reject = useRejectRegistration();

@@ -1,4 +1,4 @@
-import { useGetJob, useGetJobMatches } from "@workspace/api-client-react";
+import { useGetJob, useGetJobMatches, getGetJobMatchesQueryKey } from "@workspace/api-client-react";
 import { Link, useParams } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,8 +11,11 @@ export default function JobDetail() {
   const { role } = useAuth();
   
   const { data: job, isLoading } = useGetJob(Number(id));
-  const { data: matches } = useGetJobMatches(Number(id), { 
-    query: { enabled: role === "employer" && !!id } 
+  const { data: matches } = useGetJobMatches(Number(id), {
+    query: {
+      queryKey: getGetJobMatchesQueryKey(Number(id)),
+      enabled: role === "employer" && !!id,
+    },
   });
 
   if (isLoading) {

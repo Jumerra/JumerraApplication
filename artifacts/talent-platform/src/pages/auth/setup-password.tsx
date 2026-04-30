@@ -4,6 +4,7 @@ import {
   useGetSetupTokenInfo,
   useSetupPassword,
   getGetCurrentUserQueryKey,
+  getGetSetupTokenInfoQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -21,7 +22,11 @@ export default function SetupPasswordPage() {
   const token = params.get("token") ?? "";
 
   const { data: info, isLoading, error: tokenError } = useGetSetupTokenInfo(token, {
-    query: { enabled: token.length > 0, retry: false },
+    query: {
+      queryKey: getGetSetupTokenInfoQueryKey(token),
+      enabled: token.length > 0,
+      retry: false,
+    },
   });
 
   const setup = useSetupPassword();

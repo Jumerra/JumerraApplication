@@ -5,6 +5,7 @@ import {
   adminRolePermissionsTable,
   usersTable,
   type RoleScope,
+  type User,
 } from "@workspace/db";
 import { and, eq, desc, isNull, sql, inArray } from "drizzle-orm";
 import { requireAuth } from "../middleware/require-auth";
@@ -34,12 +35,7 @@ type CallerCtx =
   | { scope: "institution"; institutionId: number };
 
 function callerCtx(req: {
-  currentUser: {
-    role: string;
-    orgRole: string | null;
-    employerId: number | null;
-    institutionId: number | null;
-  } | null | undefined;
+  currentUser?: User | null;
 }): CallerCtx | null {
   const scope = scopeForUser(req.currentUser as never);
   if (!scope) return null;
@@ -74,9 +70,7 @@ function scopeFilters(ctx: CallerCtx) {
 }
 
 function requireOwnerForScope(
-  req: {
-    currentUser: { role: string; orgRole: string | null } | null | undefined;
-  },
+  req: { currentUser?: User | null },
   res: { status: (n: number) => { json: (b: unknown) => void } },
 ): boolean {
   if (!isImplicitAllUser(req.currentUser as never)) {

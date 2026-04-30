@@ -51,7 +51,10 @@ export function AccountManagerSelect({
   // Only fetch the list when the user can actually pick a value, otherwise
   // skip the request entirely.
   const { data } = useAdminListAccountManagers({
-    query: { enabled: isSuperAdmin },
+    query: {
+      queryKey: getAdminListAccountManagersQueryKey(),
+      enabled: isSuperAdmin,
+    },
   });
 
   const assignEmployer = useAdminAssignEmployerManager();

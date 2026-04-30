@@ -1,6 +1,7 @@
 import { createContext, useContext, ReactNode, useMemo, useState } from "react";
 import {
   useGetCurrentUser,
+  getGetCurrentUserQueryKey,
   type AuthUser,
 } from "@workspace/api-client-react";
 
@@ -49,7 +50,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const { data, isLoading, refetch } = useGetCurrentUser({
-    query: { staleTime: 30_000, retry: false },
+    query: {
+      queryKey: getGetCurrentUserQueryKey(),
+      staleTime: 30_000,
+      retry: false,
+    },
   });
 
   const sessionUser = (data?.user ?? null) as AuthUser | null;

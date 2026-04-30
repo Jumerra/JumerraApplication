@@ -5,9 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ArrowRight, Building2, GraduationCap, MapPin, Sparkles, TrendingUp, UserCircle2, CheckCircle2, Users, Briefcase } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, type Variants } from "framer-motion";
 
-const container = {
+const container: Variants = {
   hidden: { opacity: 0 },
   show: {
     opacity: 1,
@@ -15,7 +15,7 @@ const container = {
   }
 };
 
-const item = {
+const item: Variants = {
   hidden: { opacity: 0, y: 20 },
   show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
 };
@@ -346,14 +346,14 @@ export default function Home() {
                   viewport={{ once: true }}
                   className="space-y-4 relative before:absolute before:inset-y-0 before:left-5 before:w-px before:bg-border"
                 >
-                  {activity?.slice(0, 5).map((item) => (
-                    <motion.div key={item.id} variants={item} className="flex gap-4 items-center relative z-10 p-3 rounded-xl hover:bg-muted/50 transition-colors">
-                      <img src={item.avatarUrl} alt="" className="w-10 h-10 rounded-full object-cover bg-muted border-2 border-background ring-2 ring-primary/10 shadow-sm" />
+                  {activity?.slice(0, 5).map((entry) => (
+                    <motion.div key={entry.id} variants={item} className="flex gap-4 items-center relative z-10 p-3 rounded-xl hover:bg-muted/50 transition-colors">
+                      <img src={entry.avatarUrl} alt="" className="w-10 h-10 rounded-full object-cover bg-muted border-2 border-background ring-2 ring-primary/10 shadow-sm" />
                       <div className="flex-1">
                         <p className="text-sm">
-                          <span className="font-medium text-foreground">{item.title}</span>
+                          <span className="font-medium text-foreground">{entry.title}</span>
                         </p>
-                        <p className="text-xs text-muted-foreground">{item.subtitle} • {new Date(item.timestamp).toLocaleDateString()}</p>
+                        <p className="text-xs text-muted-foreground">{entry.subtitle} • {new Date(entry.timestamp).toLocaleDateString()}</p>
                       </div>
                     </motion.div>
                   ))}

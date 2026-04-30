@@ -20,6 +20,7 @@ import CandidatesList from "@/pages/candidates/index";
 import CandidateDetail from "@/pages/candidates/detail";
 import CandidateDashboard from "@/pages/dashboard/candidate";
 import EmployerDashboard from "@/pages/dashboard/employer";
+import InterviewInvitePage from "@/pages/interviews/invite";
 import InstitutionDashboard from "@/pages/dashboard/institution";
 import InstitutionEditPage from "@/pages/dashboard/institution-edit";
 import InstitutionDepartmentsPage from "@/pages/dashboard/institution-departments";
@@ -83,6 +84,7 @@ function Router() {
         <Route path="/candidates/:id" component={CandidateDetail} />
         
         <Route path="/dashboard/candidate" component={CandidateDashboard} />
+        <Route path="/interviews/:id" component={InterviewInvitePage} />
         <Route path="/dashboard/employer">
           <EmployerLayout><EmployerDashboard /></EmployerLayout>
         </Route>

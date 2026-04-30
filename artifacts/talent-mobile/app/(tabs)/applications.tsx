@@ -23,6 +23,7 @@ import { ApplicationCard } from "@/components/ApplicationCard";
 import { EmptyState } from "@/components/EmptyState";
 import { FilterChip } from "@/components/FilterChip";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { PendingInterviewsCard } from "@/components/PendingInterviewsCard";
 import { StatCard } from "@/components/StatCard";
 import { useAuth } from "@/hooks/useAuth";
 import { useColors } from "@/hooks/useColors";
@@ -127,6 +128,10 @@ export default function ApplicationsScreen() {
             icon="award"
           />
         </View>
+
+        {hasCandidateRecord ? (
+          <PendingInterviewsCard candidateId={candidateId} />
+        ) : null}
 
         <ScrollView
           horizontal

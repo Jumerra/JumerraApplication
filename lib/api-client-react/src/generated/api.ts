@@ -17,6 +17,7 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  AcceptInterviewInviteRequest,
   ActivityItem,
   AdminAccountManagersResponse,
   AdminAccountsResponse,
@@ -46,9 +47,11 @@ import type {
   CreateInstitution,
   CreateInstitutionDepartment,
   CreateInstitutionFacility,
+  CreateInterviewInviteRequest,
   CreateJob,
   CreatePartnerRequest,
   CvSettings,
+  DeclineInterviewInviteRequest,
   Employer,
   EmployerAnalyticsResponse,
   EmployerDashboard,
@@ -68,6 +71,7 @@ import type {
   InstitutionStudent,
   InstitutionSubscriptionSettings,
   InstitutionSubscriptionStatus,
+  InterviewInvite,
   InviteStaffRequest,
   InviteStaffResponse,
   Job,
@@ -78,6 +82,7 @@ import type {
   ListEmployersParams,
   ListInstitutionStudentsParams,
   ListInstitutionsParams,
+  ListInterviewInvitesForCandidateParams,
   ListJobsParams,
   ListOnboardedUsers200,
   ListRegistrations200,
@@ -2776,6 +2781,657 @@ export const useUpdateApplicationStatus = <
   TContext
 > => {
   return useMutation(getUpdateApplicationStatusMutationOptions(options));
+};
+
+/**
+ * @summary List all interview invites attached to an application
+ */
+export const getListInterviewInvitesForApplicationUrl = (id: number) => {
+  return `/api/applications/${id}/interview-invites`;
+};
+
+export const listInterviewInvitesForApplication = async (
+  id: number,
+  options?: RequestInit,
+): Promise<InterviewInvite[]> => {
+  return customFetch<InterviewInvite[]>(
+    getListInterviewInvitesForApplicationUrl(id),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListInterviewInvitesForApplicationQueryKey = (id: number) => {
+  return [`/api/applications/${id}/interview-invites`] as const;
+};
+
+export const getListInterviewInvitesForApplicationQueryOptions = <
+  TData = Awaited<ReturnType<typeof listInterviewInvitesForApplication>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listInterviewInvitesForApplication>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListInterviewInvitesForApplicationQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listInterviewInvitesForApplication>>
+  > = ({ signal }) =>
+    listInterviewInvitesForApplication(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listInterviewInvitesForApplication>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListInterviewInvitesForApplicationQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listInterviewInvitesForApplication>>
+>;
+export type ListInterviewInvitesForApplicationQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all interview invites attached to an application
+ */
+
+export function useListInterviewInvitesForApplication<
+  TData = Awaited<ReturnType<typeof listInterviewInvitesForApplication>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listInterviewInvitesForApplication>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListInterviewInvitesForApplicationQueryOptions(
+    id,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Employer schedules an interview by proposing 1-N time slots
+ */
+export const getCreateInterviewInviteUrl = (id: number) => {
+  return `/api/applications/${id}/interview-invites`;
+};
+
+export const createInterviewInvite = async (
+  id: number,
+  createInterviewInviteRequest: CreateInterviewInviteRequest,
+  options?: RequestInit,
+): Promise<InterviewInvite> => {
+  return customFetch<InterviewInvite>(getCreateInterviewInviteUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createInterviewInviteRequest),
+  });
+};
+
+export const getCreateInterviewInviteMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createInterviewInvite>>,
+    TError,
+    { id: number; data: BodyType<CreateInterviewInviteRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createInterviewInvite>>,
+  TError,
+  { id: number; data: BodyType<CreateInterviewInviteRequest> },
+  TContext
+> => {
+  const mutationKey = ["createInterviewInvite"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createInterviewInvite>>,
+    { id: number; data: BodyType<CreateInterviewInviteRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return createInterviewInvite(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateInterviewInviteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createInterviewInvite>>
+>;
+export type CreateInterviewInviteMutationBody =
+  BodyType<CreateInterviewInviteRequest>;
+export type CreateInterviewInviteMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Employer schedules an interview by proposing 1-N time slots
+ */
+export const useCreateInterviewInvite = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createInterviewInvite>>,
+    TError,
+    { id: number; data: BodyType<CreateInterviewInviteRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createInterviewInvite>>,
+  TError,
+  { id: number; data: BodyType<CreateInterviewInviteRequest> },
+  TContext
+> => {
+  return useMutation(getCreateInterviewInviteMutationOptions(options));
+};
+
+/**
+ * @summary All interview invites for a candidate (newest first)
+ */
+export const getListInterviewInvitesForCandidateUrl = (
+  id: number,
+  params?: ListInterviewInvitesForCandidateParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/candidates/${id}/interview-invites?${stringifiedParams}`
+    : `/api/candidates/${id}/interview-invites`;
+};
+
+export const listInterviewInvitesForCandidate = async (
+  id: number,
+  params?: ListInterviewInvitesForCandidateParams,
+  options?: RequestInit,
+): Promise<InterviewInvite[]> => {
+  return customFetch<InterviewInvite[]>(
+    getListInterviewInvitesForCandidateUrl(id, params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListInterviewInvitesForCandidateQueryKey = (
+  id: number,
+  params?: ListInterviewInvitesForCandidateParams,
+) => {
+  return [
+    `/api/candidates/${id}/interview-invites`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getListInterviewInvitesForCandidateQueryOptions = <
+  TData = Awaited<ReturnType<typeof listInterviewInvitesForCandidate>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  params?: ListInterviewInvitesForCandidateParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listInterviewInvitesForCandidate>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getListInterviewInvitesForCandidateQueryKey(id, params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listInterviewInvitesForCandidate>>
+  > = ({ signal }) =>
+    listInterviewInvitesForCandidate(id, params, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listInterviewInvitesForCandidate>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListInterviewInvitesForCandidateQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listInterviewInvitesForCandidate>>
+>;
+export type ListInterviewInvitesForCandidateQueryError = ErrorType<unknown>;
+
+/**
+ * @summary All interview invites for a candidate (newest first)
+ */
+
+export function useListInterviewInvitesForCandidate<
+  TData = Awaited<ReturnType<typeof listInterviewInvitesForCandidate>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  params?: ListInterviewInvitesForCandidateParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listInterviewInvitesForCandidate>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListInterviewInvitesForCandidateQueryOptions(
+    id,
+    params,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Fetch a single interview invite (employer or owning candidate)
+ */
+export const getGetInterviewInviteUrl = (id: number) => {
+  return `/api/interview-invites/${id}`;
+};
+
+export const getInterviewInvite = async (
+  id: number,
+  options?: RequestInit,
+): Promise<InterviewInvite> => {
+  return customFetch<InterviewInvite>(getGetInterviewInviteUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetInterviewInviteQueryKey = (id: number) => {
+  return [`/api/interview-invites/${id}`] as const;
+};
+
+export const getGetInterviewInviteQueryOptions = <
+  TData = Awaited<ReturnType<typeof getInterviewInvite>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getInterviewInvite>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetInterviewInviteQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getInterviewInvite>>
+  > = ({ signal }) => getInterviewInvite(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getInterviewInvite>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetInterviewInviteQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getInterviewInvite>>
+>;
+export type GetInterviewInviteQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Fetch a single interview invite (employer or owning candidate)
+ */
+
+export function useGetInterviewInvite<
+  TData = Awaited<ReturnType<typeof getInterviewInvite>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getInterviewInvite>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetInterviewInviteQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Candidate accepts the invite by selecting one of the proposed slots
+ */
+export const getAcceptInterviewInviteUrl = (id: number) => {
+  return `/api/interview-invites/${id}/accept`;
+};
+
+export const acceptInterviewInvite = async (
+  id: number,
+  acceptInterviewInviteRequest: AcceptInterviewInviteRequest,
+  options?: RequestInit,
+): Promise<InterviewInvite> => {
+  return customFetch<InterviewInvite>(getAcceptInterviewInviteUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(acceptInterviewInviteRequest),
+  });
+};
+
+export const getAcceptInterviewInviteMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof acceptInterviewInvite>>,
+    TError,
+    { id: number; data: BodyType<AcceptInterviewInviteRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof acceptInterviewInvite>>,
+  TError,
+  { id: number; data: BodyType<AcceptInterviewInviteRequest> },
+  TContext
+> => {
+  const mutationKey = ["acceptInterviewInvite"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof acceptInterviewInvite>>,
+    { id: number; data: BodyType<AcceptInterviewInviteRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return acceptInterviewInvite(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AcceptInterviewInviteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof acceptInterviewInvite>>
+>;
+export type AcceptInterviewInviteMutationBody =
+  BodyType<AcceptInterviewInviteRequest>;
+export type AcceptInterviewInviteMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Candidate accepts the invite by selecting one of the proposed slots
+ */
+export const useAcceptInterviewInvite = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof acceptInterviewInvite>>,
+    TError,
+    { id: number; data: BodyType<AcceptInterviewInviteRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof acceptInterviewInvite>>,
+  TError,
+  { id: number; data: BodyType<AcceptInterviewInviteRequest> },
+  TContext
+> => {
+  return useMutation(getAcceptInterviewInviteMutationOptions(options));
+};
+
+/**
+ * @summary Candidate declines the invite (optionally with a reason)
+ */
+export const getDeclineInterviewInviteUrl = (id: number) => {
+  return `/api/interview-invites/${id}/decline`;
+};
+
+export const declineInterviewInvite = async (
+  id: number,
+  declineInterviewInviteRequest: DeclineInterviewInviteRequest,
+  options?: RequestInit,
+): Promise<InterviewInvite> => {
+  return customFetch<InterviewInvite>(getDeclineInterviewInviteUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(declineInterviewInviteRequest),
+  });
+};
+
+export const getDeclineInterviewInviteMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof declineInterviewInvite>>,
+    TError,
+    { id: number; data: BodyType<DeclineInterviewInviteRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof declineInterviewInvite>>,
+  TError,
+  { id: number; data: BodyType<DeclineInterviewInviteRequest> },
+  TContext
+> => {
+  const mutationKey = ["declineInterviewInvite"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof declineInterviewInvite>>,
+    { id: number; data: BodyType<DeclineInterviewInviteRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return declineInterviewInvite(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeclineInterviewInviteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof declineInterviewInvite>>
+>;
+export type DeclineInterviewInviteMutationBody =
+  BodyType<DeclineInterviewInviteRequest>;
+export type DeclineInterviewInviteMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Candidate declines the invite (optionally with a reason)
+ */
+export const useDeclineInterviewInvite = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof declineInterviewInvite>>,
+    TError,
+    { id: number; data: BodyType<DeclineInterviewInviteRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof declineInterviewInvite>>,
+  TError,
+  { id: number; data: BodyType<DeclineInterviewInviteRequest> },
+  TContext
+> => {
+  return useMutation(getDeclineInterviewInviteMutationOptions(options));
+};
+
+/**
+ * @summary Employer cancels a pending interview invite
+ */
+export const getCancelInterviewInviteUrl = (id: number) => {
+  return `/api/interview-invites/${id}/cancel`;
+};
+
+export const cancelInterviewInvite = async (
+  id: number,
+  options?: RequestInit,
+): Promise<InterviewInvite> => {
+  return customFetch<InterviewInvite>(getCancelInterviewInviteUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getCancelInterviewInviteMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof cancelInterviewInvite>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof cancelInterviewInvite>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["cancelInterviewInvite"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof cancelInterviewInvite>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return cancelInterviewInvite(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CancelInterviewInviteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof cancelInterviewInvite>>
+>;
+
+export type CancelInterviewInviteMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Employer cancels a pending interview invite
+ */
+export const useCancelInterviewInvite = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof cancelInterviewInvite>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof cancelInterviewInvite>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getCancelInterviewInviteMutationOptions(options));
 };
 
 export const getListSkillsUrl = () => {

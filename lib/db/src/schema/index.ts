@@ -13,3 +13,4 @@ export * from "./cv";
 export * from "./institution-subscription";
 export * from "./employer-subscription";
 export * from "./partners";
+export * from "./interviews";

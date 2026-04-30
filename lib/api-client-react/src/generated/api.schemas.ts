@@ -1013,6 +1013,68 @@ export interface UpdateApplication {
   status: UpdateApplicationStatus;
 }
 
+export interface InterviewTimeSlot {
+  id: number;
+  inviteId: number;
+  startsAt: string;
+  endsAt: string;
+}
+
+export type InterviewInviteStatus =
+  (typeof InterviewInviteStatus)[keyof typeof InterviewInviteStatus];
+
+export const InterviewInviteStatus = {
+  proposed: "proposed",
+  accepted: "accepted",
+  declined: "declined",
+  cancelled: "cancelled",
+} as const;
+
+export interface InterviewInvite {
+  id: number;
+  applicationId: number;
+  jobId: number;
+  jobTitle: string;
+  employerId: number;
+  employerName: string;
+  candidateId: number;
+  candidateName: string;
+  status: InterviewInviteStatus;
+  location: string;
+  meetingLink: string;
+  notes: string;
+  declineReason: string;
+  selectedSlotId: number | null;
+  respondedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  timeSlots: InterviewTimeSlot[];
+}
+
+export interface CreateInterviewInviteSlot {
+  startsAt: string;
+  endsAt: string;
+}
+
+export interface CreateInterviewInviteRequest {
+  location?: string;
+  meetingLink?: string;
+  notes?: string;
+  /**
+   * @minItems 1
+   * @maxItems 5
+   */
+  slots: CreateInterviewInviteSlot[];
+}
+
+export interface AcceptInterviewInviteRequest {
+  slotId: number;
+}
+
+export interface DeclineInterviewInviteRequest {
+  reason?: string;
+}
+
 export interface CandidateMatch {
   candidateId: number;
   fullName: string;
@@ -1721,6 +1783,20 @@ export const ListApplicationsStatus = {
   hired: "hired",
   rejected: "rejected",
   withdrawn: "withdrawn",
+} as const;
+
+export type ListInterviewInvitesForCandidateParams = {
+  status?: ListInterviewInvitesForCandidateStatus;
+};
+
+export type ListInterviewInvitesForCandidateStatus =
+  (typeof ListInterviewInvitesForCandidateStatus)[keyof typeof ListInterviewInvitesForCandidateStatus];
+
+export const ListInterviewInvitesForCandidateStatus = {
+  proposed: "proposed",
+  accepted: "accepted",
+  declined: "declined",
+  cancelled: "cancelled",
 } as const;
 
 export type RegisterUser409 = {

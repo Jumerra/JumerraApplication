@@ -124,6 +124,10 @@ function RootLayoutNav() {
         name="profile-edit"
         options={{ presentation: "modal", headerTitle: "Edit profile" }}
       />
+      <Stack.Screen
+        name="interview/[id]"
+        options={{ headerTitle: "Interview" }}
+      />
     </Stack>
   );
 }

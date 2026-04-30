@@ -1359,6 +1359,260 @@ export const UpdateApplicationStatusResponse = zod.object({
   updatedAt: zod.coerce.date(),
 });
 
+/**
+ * @summary List all interview invites attached to an application
+ */
+export const ListInterviewInvitesForApplicationParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ListInterviewInvitesForApplicationResponseItem = zod.object({
+  id: zod.number(),
+  applicationId: zod.number(),
+  jobId: zod.number(),
+  jobTitle: zod.string(),
+  employerId: zod.number(),
+  employerName: zod.string(),
+  candidateId: zod.number(),
+  candidateName: zod.string(),
+  status: zod.enum(["proposed", "accepted", "declined", "cancelled"]),
+  location: zod.string(),
+  meetingLink: zod.string(),
+  notes: zod.string(),
+  declineReason: zod.string(),
+  selectedSlotId: zod.number().nullable(),
+  respondedAt: zod.coerce.date().nullable(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+  timeSlots: zod.array(
+    zod.object({
+      id: zod.number(),
+      inviteId: zod.number(),
+      startsAt: zod.coerce.date(),
+      endsAt: zod.coerce.date(),
+    }),
+  ),
+});
+export const ListInterviewInvitesForApplicationResponse = zod.array(
+  ListInterviewInvitesForApplicationResponseItem,
+);
+
+/**
+ * @summary Employer schedules an interview by proposing 1-N time slots
+ */
+export const CreateInterviewInviteParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const createInterviewInviteBodySlotsMax = 5;
+
+export const CreateInterviewInviteBody = zod.object({
+  location: zod.string().optional(),
+  meetingLink: zod.string().optional(),
+  notes: zod.string().optional(),
+  slots: zod
+    .array(
+      zod.object({
+        startsAt: zod.coerce.date(),
+        endsAt: zod.coerce.date(),
+      }),
+    )
+    .min(1)
+    .max(createInterviewInviteBodySlotsMax),
+});
+
+/**
+ * @summary All interview invites for a candidate (newest first)
+ */
+export const ListInterviewInvitesForCandidateParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ListInterviewInvitesForCandidateQueryParams = zod.object({
+  status: zod
+    .enum(["proposed", "accepted", "declined", "cancelled"])
+    .optional(),
+});
+
+export const ListInterviewInvitesForCandidateResponseItem = zod.object({
+  id: zod.number(),
+  applicationId: zod.number(),
+  jobId: zod.number(),
+  jobTitle: zod.string(),
+  employerId: zod.number(),
+  employerName: zod.string(),
+  candidateId: zod.number(),
+  candidateName: zod.string(),
+  status: zod.enum(["proposed", "accepted", "declined", "cancelled"]),
+  location: zod.string(),
+  meetingLink: zod.string(),
+  notes: zod.string(),
+  declineReason: zod.string(),
+  selectedSlotId: zod.number().nullable(),
+  respondedAt: zod.coerce.date().nullable(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+  timeSlots: zod.array(
+    zod.object({
+      id: zod.number(),
+      inviteId: zod.number(),
+      startsAt: zod.coerce.date(),
+      endsAt: zod.coerce.date(),
+    }),
+  ),
+});
+export const ListInterviewInvitesForCandidateResponse = zod.array(
+  ListInterviewInvitesForCandidateResponseItem,
+);
+
+/**
+ * @summary Fetch a single interview invite (employer or owning candidate)
+ */
+export const GetInterviewInviteParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetInterviewInviteResponse = zod.object({
+  id: zod.number(),
+  applicationId: zod.number(),
+  jobId: zod.number(),
+  jobTitle: zod.string(),
+  employerId: zod.number(),
+  employerName: zod.string(),
+  candidateId: zod.number(),
+  candidateName: zod.string(),
+  status: zod.enum(["proposed", "accepted", "declined", "cancelled"]),
+  location: zod.string(),
+  meetingLink: zod.string(),
+  notes: zod.string(),
+  declineReason: zod.string(),
+  selectedSlotId: zod.number().nullable(),
+  respondedAt: zod.coerce.date().nullable(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+  timeSlots: zod.array(
+    zod.object({
+      id: zod.number(),
+      inviteId: zod.number(),
+      startsAt: zod.coerce.date(),
+      endsAt: zod.coerce.date(),
+    }),
+  ),
+});
+
+/**
+ * @summary Candidate accepts the invite by selecting one of the proposed slots
+ */
+export const AcceptInterviewInviteParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AcceptInterviewInviteBody = zod.object({
+  slotId: zod.number(),
+});
+
+export const AcceptInterviewInviteResponse = zod.object({
+  id: zod.number(),
+  applicationId: zod.number(),
+  jobId: zod.number(),
+  jobTitle: zod.string(),
+  employerId: zod.number(),
+  employerName: zod.string(),
+  candidateId: zod.number(),
+  candidateName: zod.string(),
+  status: zod.enum(["proposed", "accepted", "declined", "cancelled"]),
+  location: zod.string(),
+  meetingLink: zod.string(),
+  notes: zod.string(),
+  declineReason: zod.string(),
+  selectedSlotId: zod.number().nullable(),
+  respondedAt: zod.coerce.date().nullable(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+  timeSlots: zod.array(
+    zod.object({
+      id: zod.number(),
+      inviteId: zod.number(),
+      startsAt: zod.coerce.date(),
+      endsAt: zod.coerce.date(),
+    }),
+  ),
+});
+
+/**
+ * @summary Candidate declines the invite (optionally with a reason)
+ */
+export const DeclineInterviewInviteParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const DeclineInterviewInviteBody = zod.object({
+  reason: zod.string().optional(),
+});
+
+export const DeclineInterviewInviteResponse = zod.object({
+  id: zod.number(),
+  applicationId: zod.number(),
+  jobId: zod.number(),
+  jobTitle: zod.string(),
+  employerId: zod.number(),
+  employerName: zod.string(),
+  candidateId: zod.number(),
+  candidateName: zod.string(),
+  status: zod.enum(["proposed", "accepted", "declined", "cancelled"]),
+  location: zod.string(),
+  meetingLink: zod.string(),
+  notes: zod.string(),
+  declineReason: zod.string(),
+  selectedSlotId: zod.number().nullable(),
+  respondedAt: zod.coerce.date().nullable(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+  timeSlots: zod.array(
+    zod.object({
+      id: zod.number(),
+      inviteId: zod.number(),
+      startsAt: zod.coerce.date(),
+      endsAt: zod.coerce.date(),
+    }),
+  ),
+});
+
+/**
+ * @summary Employer cancels a pending interview invite
+ */
+export const CancelInterviewInviteParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const CancelInterviewInviteResponse = zod.object({
+  id: zod.number(),
+  applicationId: zod.number(),
+  jobId: zod.number(),
+  jobTitle: zod.string(),
+  employerId: zod.number(),
+  employerName: zod.string(),
+  candidateId: zod.number(),
+  candidateName: zod.string(),
+  status: zod.enum(["proposed", "accepted", "declined", "cancelled"]),
+  location: zod.string(),
+  meetingLink: zod.string(),
+  notes: zod.string(),
+  declineReason: zod.string(),
+  selectedSlotId: zod.number().nullable(),
+  respondedAt: zod.coerce.date().nullable(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+  timeSlots: zod.array(
+    zod.object({
+      id: zod.number(),
+      inviteId: zod.number(),
+      startsAt: zod.coerce.date(),
+      endsAt: zod.coerce.date(),
+    }),
+  ),
+});
+
 export const ListSkillsResponseItem = zod.object({
   id: zod.number(),
   name: zod.string(),

@@ -9,6 +9,7 @@ import { Link } from "wouter";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { BoostCard } from "@/components/boost-card";
 import { CvCard } from "@/components/cv-card";
+import { PendingInterviewInvitesCard } from "@/components/pending-interview-invites-card";
 
 export default function CandidateDashboard() {
   const { userId } = useAuth();
@@ -96,6 +97,8 @@ export default function CandidateDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      <PendingInterviewInvitesCard candidateId={id} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <BoostCard candidateId={id} />

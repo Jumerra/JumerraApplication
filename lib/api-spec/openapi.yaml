@@ -40,6 +40,8 @@ tags:
     description: Premium AI CV Builder configuration, checkout, and generation
   - name: partners
     description: Admin-managed "Our Partners" landing-page section
+  - name: interviews
+    description: Interview scheduling between employer and candidate
 paths:
   /healthz:
     get:
@@ -606,6 +608,148 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Application" }
+
+  /applications/{id}/interview-invites:
+    get:
+      operationId: listInterviewInvitesForApplication
+      tags: [interviews]
+      summary: List all interview invites attached to an application
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Invites
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/InterviewInvite" }
+    post:
+      operationId: createInterviewInvite
+      tags: [interviews]
+      summary: Employer schedules an interview by proposing 1-N time slots
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateInterviewInviteRequest" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InterviewInvite" }
+
+  /candidates/{id}/interview-invites:
+    get:
+      operationId: listInterviewInvitesForCandidate
+      tags: [interviews]
+      summary: All interview invites for a candidate (newest first)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+        - in: query
+          name: status
+          required: false
+          schema:
+            type: string
+            enum: [proposed, accepted, declined, cancelled]
+      responses:
+        "200":
+          description: Invites
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/InterviewInvite" }
+
+  /interview-invites/{id}:
+    get:
+      operationId: getInterviewInvite
+      tags: [interviews]
+      summary: Fetch a single interview invite (employer or owning candidate)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Invite
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InterviewInvite" }
+
+  /interview-invites/{id}/accept:
+    post:
+      operationId: acceptInterviewInvite
+      tags: [interviews]
+      summary: Candidate accepts the invite by selecting one of the proposed slots
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AcceptInterviewInviteRequest" }
+      responses:
+        "200":
+          description: Accepted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InterviewInvite" }
+
+  /interview-invites/{id}/decline:
+    post:
+      operationId: declineInterviewInvite
+      tags: [interviews]
+      summary: Candidate declines the invite (optionally with a reason)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DeclineInterviewInviteRequest" }
+      responses:
+        "200":
+          description: Declined
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InterviewInvite" }
+
+  /interview-invites/{id}/cancel:
+    post:
+      operationId: cancelInterviewInvite
+      tags: [interviews]
+      summary: Employer cancels a pending interview invite
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Cancelled
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InterviewInvite" }
 
   /skills:
     get:
@@ -3045,6 +3189,96 @@ components:
           type: string
           enum: [applied, screening, interview, offer, hired, rejected, withdrawn]
       required: [status]
+
+    InterviewTimeSlot:
+      type: object
+      properties:
+        id: { type: integer }
+        inviteId: { type: integer }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+      required: [id, inviteId, startsAt, endsAt]
+
+    InterviewInvite:
+      type: object
+      properties:
+        id: { type: integer }
+        applicationId: { type: integer }
+        jobId: { type: integer }
+        jobTitle: { type: string }
+        employerId: { type: integer }
+        employerName: { type: string }
+        candidateId: { type: integer }
+        candidateName: { type: string }
+        status:
+          type: string
+          enum: [proposed, accepted, declined, cancelled]
+        location: { type: string }
+        meetingLink: { type: string }
+        notes: { type: string }
+        declineReason: { type: string }
+        selectedSlotId:
+          type: integer
+          nullable: true
+        respondedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        timeSlots:
+          type: array
+          items: { $ref: "#/components/schemas/InterviewTimeSlot" }
+      required:
+        - id
+        - applicationId
+        - jobId
+        - jobTitle
+        - employerId
+        - employerName
+        - candidateId
+        - candidateName
+        - status
+        - location
+        - meetingLink
+        - notes
+        - declineReason
+        - selectedSlotId
+        - respondedAt
+        - createdAt
+        - updatedAt
+        - timeSlots
+
+    CreateInterviewInviteSlot:
+      type: object
+      properties:
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+      required: [startsAt, endsAt]
+
+    CreateInterviewInviteRequest:
+      type: object
+      properties:
+        location: { type: string }
+        meetingLink: { type: string }
+        notes: { type: string }
+        slots:
+          type: array
+          minItems: 1
+          maxItems: 5
+          items: { $ref: "#/components/schemas/CreateInterviewInviteSlot" }
+      required: [slots]
+
+    AcceptInterviewInviteRequest:
+      type: object
+      properties:
+        slotId: { type: integer }
+      required: [slotId]
+
+    DeclineInterviewInviteRequest:
+      type: object
+      properties:
+        reason: { type: string }
 
     CandidateMatch:
       type: object

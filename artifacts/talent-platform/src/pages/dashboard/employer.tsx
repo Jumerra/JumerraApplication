@@ -10,6 +10,7 @@ import { Briefcase, CheckCircle2, Clock, Users, Users2, Sparkles, Building2, Eye
 import { Link } from "wouter";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { toast } from "sonner";
+import { InterviewScheduleDialog } from "@/components/interview-schedule-dialog";
 
 export default function EmployerDashboard() {
   const { userId } = useAuth();
@@ -109,12 +110,13 @@ export default function EmployerDashboard() {
                     <TableHead className="pl-6">Candidate</TableHead>
                     <TableHead>Role</TableHead>
                     <TableHead className="w-32">Match</TableHead>
-                    <TableHead className="w-[160px] pr-6">Status</TableHead>
+                    <TableHead className="w-[160px]">Status</TableHead>
+                    <TableHead className="w-[140px] pr-6">Interview</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {dashboard.recentApplications.length === 0 ? (
-                    <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">No applications yet.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No applications yet.</TableCell></TableRow>
                   ) : dashboard.recentApplications.map(app => (
                     <TableRow key={app.id}>
                       <TableCell className="pl-6">
@@ -136,7 +138,7 @@ export default function EmployerDashboard() {
                           {app.matchScore}% Match
                         </Badge>
                       </TableCell>
-                      <TableCell className="pr-6">
+                      <TableCell>
                         <Select 
                           value={app.status} 
                           onValueChange={(val) => handleStatusChange(app.id, val)}
@@ -154,6 +156,13 @@ export default function EmployerDashboard() {
                             <SelectItem value="rejected">Rejected</SelectItem>
                           </SelectContent>
                         </Select>
+                      </TableCell>
+                      <TableCell className="pr-6">
+                        <InterviewScheduleDialog
+                          applicationId={app.id}
+                          employerUserId={id}
+                          candidateName={app.candidateName}
+                        />
                       </TableCell>
                     </TableRow>
                   ))}

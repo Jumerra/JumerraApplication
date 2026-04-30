@@ -46,6 +46,7 @@ import {
   X,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { CandidateExperienceEditor } from "@/components/candidate-experience-editor";
 
 const ROLE_LABEL: Record<string, string> = {
   candidate: "Candidate",
@@ -456,6 +457,13 @@ export default function ProfilePage() {
           </form>
         </CardContent>
       </Card>
+
+      {isCandidate && candidate ? (
+        <CandidateExperienceEditor
+          candidateId={candidateId}
+          experience={candidate.experience}
+        />
+      ) : null}
 
       {isCandidate && institutionLinks.length > 0 ? (
         <Card className="shadow-md">

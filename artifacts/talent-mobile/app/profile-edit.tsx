@@ -3,10 +3,14 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   getGetCandidateQueryKey,
   getGetCurrentUserQueryKey,
+  getListEmployersQueryKey,
   requestUploadUrl,
   useGetCandidate,
   useGetInstitution,
+  useListEmployers,
   useUpdateCandidate,
+  type Employer,
+  type ExperienceEntry,
 } from "@workspace/api-client-react";
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
@@ -81,6 +85,130 @@ function eduDraftValid(d: EduDraft): boolean {
   return true;
 }
 
+// Work-experience constants. Limits mirror the server's validation in
+// artifacts/api-server/src/routes/candidates.ts so the UX guards before
+// the API rejects.
+const EXPERIENCE_MAX_COUNT = 50;
+const EXPERIENCE_TITLE_MAX = 200;
+const EXPERIENCE_LOCATION_MAX = 200;
+const EXPERIENCE_DESCRIPTION_MAX = 4000;
+const EXPERIENCE_COMPANY_MAX = 200;
+
+const EMPLOYMENT_TYPE_LABELS: Record<string, string> = {
+  full_time: "Full-time",
+  part_time: "Part-time",
+  self_employed: "Self-employed",
+  freelance: "Freelance",
+  contract: "Contract",
+  internship: "Internship",
+  apprenticeship: "Apprenticeship",
+  seasonal: "Seasonal",
+};
+const EMPLOYMENT_TYPE_OPTIONS: Array<{ id: string | null; label: string }> = [
+  { id: null, label: "Not specified" },
+  ...Object.entries(EMPLOYMENT_TYPE_LABELS).map(([id, label]) => ({
+    id,
+    label,
+  })),
+];
+
+const LOCATION_TYPE_LABELS: Record<string, string> = {
+  on_site: "On-site",
+  hybrid: "Hybrid",
+  remote: "Remote",
+};
+const LOCATION_TYPE_OPTIONS: Array<{ id: string | null; label: string }> = [
+  { id: null, label: "Not specified" },
+  ...Object.entries(LOCATION_TYPE_LABELS).map(([id, label]) => ({
+    id,
+    label,
+  })),
+];
+
+const MONTH_NAMES = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+const MONTH_OPTIONS: Array<{ id: number | null; label: string }> = [
+  { id: null, label: "Month" },
+  ...MONTH_NAMES.map((name, idx) => ({ id: idx + 1, label: name })),
+];
+const CURRENT_YEAR_FOR_EXP = new Date().getFullYear();
+const YEAR_OPTIONS_FOR_EXP: Array<{ id: number | null; label: string }> = [
+  { id: null, label: "Year" },
+];
+for (let y = CURRENT_YEAR_FOR_EXP + 5; y >= CURRENT_YEAR_FOR_EXP - 80; y--) {
+  YEAR_OPTIONS_FOR_EXP.push({ id: y, label: String(y) });
+}
+
+let nextExpKey = 1;
+const makeExpKey = () => `new-exp-${nextExpKey++}`;
+
+type ExpDraft = {
+  key: string;
+  // null when the candidate's company isn't on the platform; the entry
+  // is then a free-text-only row.
+  employerId: number | null;
+  employerLogoUrl: string | null;
+  company: string;
+  title: string;
+  employmentType: string | null;
+  location: string;
+  locationType: string | null;
+  description: string;
+  startMonth: number | null;
+  startYear: number | null;
+  endMonth: number | null;
+  endYear: number | null;
+  isCurrent: boolean;
+};
+
+function expDraftValid(d: ExpDraft): boolean {
+  if (d.title.trim().length === 0) return false;
+  if (d.employerId == null && d.company.trim().length === 0) return false;
+  if (d.startMonth == null || d.startYear == null) return false;
+  if (!d.isCurrent) {
+    if (d.endMonth == null || d.endYear == null) return false;
+    const start = d.startYear * 100 + d.startMonth;
+    const end = d.endYear * 100 + d.endMonth;
+    if (end < start) return false;
+  }
+  return true;
+}
+
+function entryToExpDraft(e: ExperienceEntry): ExpDraft {
+  // YYYY-MM-DD; we only care about the year/month components.
+  const [sy, sm] = (e.startDate as unknown as string).split("-");
+  const endStr = (e.endDate as unknown as string) ?? null;
+  const [ey, em] = endStr ? endStr.split("-") : ["", ""];
+  return {
+    key: `srv-exp-${e.id}`,
+    employerId: e.employerId ?? null,
+    employerLogoUrl: e.employerLogoUrl ?? null,
+    company: e.company,
+    title: e.title,
+    employmentType: e.employmentType ?? null,
+    location: e.location ?? "",
+    locationType: e.locationType ?? null,
+    description: e.description ?? "",
+    startMonth: Number(sm) || null,
+    startYear: Number(sy) || null,
+    endMonth: em ? Number(em) || null : null,
+    endYear: ey ? Number(ey) || null : null,
+    isCurrent: endStr == null,
+  };
+}
+
 export default function ProfileEditScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -119,6 +247,9 @@ export default function ProfileEditScreen() {
     Record<number, number | null>
   >({});
   const [educationDrafts, setEducationDrafts] = React.useState<EduDraft[]>([]);
+  const [experienceDrafts, setExperienceDrafts] = React.useState<ExpDraft[]>(
+    [],
+  );
   const [avatarUploading, setAvatarUploading] = React.useState(false);
   const [hydrated, setHydrated] = React.useState(false);
   // Synchronous in-flight guard. State updates are async, so a fast
@@ -155,6 +286,9 @@ export default function ProfileEditScreen() {
         endYearText: e.endYear != null ? String(e.endYear) : "",
       })),
     );
+    setExperienceDrafts(
+      (candidate.experience ?? []).map((e) => entryToExpDraft(e)),
+    );
     setHydrated(true);
   }, [candidate, hydrated]);
 
@@ -166,12 +300,14 @@ export default function ProfileEditScreen() {
     yearsExperienceNum <= 80;
 
   const educationValid = educationDrafts.every(eduDraftValid);
+  const experienceValid = experienceDrafts.every(expDraftValid);
 
   const canSave =
     hasCandidateRecord &&
     trimmedFullName.length > 0 &&
     yearsExperienceValid &&
     educationValid &&
+    experienceValid &&
     !updateMutation.isPending &&
     !avatarUploading;
 
@@ -238,6 +374,71 @@ export default function ProfileEditScreen() {
     },
     [],
   );
+
+  const updateExperienceDraft = React.useCallback(
+    (key: string, patch: Partial<ExpDraft>) => {
+      setExperienceDrafts((prev) =>
+        prev.map((d) => (d.key === key ? { ...d, ...patch } : d)),
+      );
+    },
+    [],
+  );
+
+  const addExperienceDraft = React.useCallback(() => {
+    setExperienceDrafts((prev) => {
+      if (prev.length >= EXPERIENCE_MAX_COUNT) {
+        Alert.alert(
+          "Experience limit reached",
+          `You can add up to ${EXPERIENCE_MAX_COUNT} experience entries.`,
+        );
+        return prev;
+      }
+      return [
+        ...prev,
+        {
+          key: makeExpKey(),
+          employerId: null,
+          employerLogoUrl: null,
+          company: "",
+          title: "",
+          employmentType: null,
+          location: "",
+          locationType: null,
+          description: "",
+          startMonth: null,
+          startYear: null,
+          endMonth: null,
+          endYear: null,
+          isCurrent: false,
+        },
+      ];
+    });
+  }, []);
+
+  const removeExperienceDraft = React.useCallback((key: string) => {
+    const doRemove = () =>
+      setExperienceDrafts((prev) => prev.filter((d) => d.key !== key));
+    // Same web/native confirm dance used for education entries: native
+    // multi-button Alerts are unreliable on Expo Web.
+    if (Platform.OS === "web") {
+      const ok =
+        typeof window !== "undefined" && typeof window.confirm === "function"
+          ? window.confirm(
+              "Remove this experience entry? It will be removed from your profile when you save.",
+            )
+          : true;
+      if (ok) doRemove();
+      return;
+    }
+    Alert.alert(
+      "Remove experience entry?",
+      "This entry will be removed from your profile when you save.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Remove", style: "destructive", onPress: doRemove },
+      ],
+    );
+  }, []);
 
   const addSkill = React.useCallback(() => {
     const next = skillDraft.trim();
@@ -399,6 +600,28 @@ export default function ProfileEditScreen() {
       endYear: d.endYearText.length > 0 ? Number(d.endYearText) : null,
     }));
 
+    // Experience: same full-replacement contract as education. Server
+    // snapshots the company string from the linked employer, so we just
+    // pass whatever the user typed/picked and let the server canonicalize.
+    const experience = experienceDrafts.map((d) => {
+      const startDate = `${d.startYear}-${String(d.startMonth).padStart(2, "0")}-01`;
+      const endDate =
+        d.isCurrent || d.endMonth == null || d.endYear == null
+          ? null
+          : `${d.endYear}-${String(d.endMonth).padStart(2, "0")}-01`;
+      return {
+        employerId: d.employerId,
+        company: d.company.trim(),
+        title: d.title.trim(),
+        employmentType: d.employmentType,
+        location: d.location.trim() === "" ? null : d.location.trim(),
+        locationType: d.locationType,
+        description: d.description,
+        startDate,
+        endDate,
+      };
+    });
+
     updateMutation.mutate(
       {
         id: candidateId,
@@ -414,6 +637,10 @@ export default function ProfileEditScreen() {
           avatarUrl,
           ...(affiliations.length > 0 ? { affiliations } : {}),
           education,
+          // Cast at the API boundary: the orval-generated input type is
+          // strict about enum values, but our state already enforces the
+          // same set so the runtime shape matches.
+          experience: experience as never,
         },
       },
       {
@@ -468,6 +695,7 @@ export default function ProfileEditScreen() {
     candidate,
     deptByInst,
     educationDrafts,
+    experienceDrafts,
     queryClient,
   ]);
 
@@ -816,6 +1044,69 @@ export default function ProfileEditScreen() {
             </View>
           </View>
         ) : null}
+
+        <View style={styles.fieldGroup}>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <Text style={[styles.label, { color: colors.foreground }]}>
+              Work experience
+            </Text>
+            <Pressable
+              onPress={addExperienceDraft}
+              accessibilityLabel="Add work experience entry"
+              style={({ pressed }) => [
+                styles.addEduButton,
+                {
+                  backgroundColor: colors.secondary,
+                  borderColor: colors.border,
+                  borderRadius: colors.radius * 1.25,
+                  opacity: pressed ? 0.85 : 1,
+                },
+              ]}
+            >
+              <Feather name="plus" size={14} color={colors.foreground} />
+              <Text
+                style={{
+                  fontFamily: "Inter_600SemiBold",
+                  fontSize: 12,
+                  color: colors.foreground,
+                }}
+              >
+                Add
+              </Text>
+            </Pressable>
+          </View>
+          <Text style={[styles.helper, { color: colors.mutedForeground }]}>
+            Add the roles you've held. Pick a company on the platform to link
+            to its profile.
+          </Text>
+          {experienceDrafts.length === 0 ? (
+            <Text
+              style={[
+                styles.helper,
+                { color: colors.mutedForeground, marginTop: 6 },
+              ]}
+            >
+              No entries yet. Tap Add to share your work history.
+            </Text>
+          ) : (
+            <View style={{ gap: 14, marginTop: 4 }}>
+              {experienceDrafts.map((d) => (
+                <ExperienceDraftCard
+                  key={d.key}
+                  draft={d}
+                  onChange={(patch) => updateExperienceDraft(d.key, patch)}
+                  onRemove={() => removeExperienceDraft(d.key)}
+                />
+              ))}
+            </View>
+          )}
+        </View>
 
         <View style={styles.fieldGroup}>
           <View
@@ -1281,6 +1572,887 @@ function EducationDraftCard({
         </View>
       </View>
     </View>
+  );
+}
+
+// LinkedIn-style work experience editor card. Validation flows through
+// the parent (canSave); inline errors show only when the user interacts
+// so the row doesn't shout at them on first render.
+function ExperienceDraftCard({
+  draft,
+  onChange,
+  onRemove,
+}: {
+  draft: ExpDraft;
+  onChange: (patch: Partial<ExpDraft>) => void;
+  onRemove: () => void;
+}) {
+  const colors = useColors();
+  const [companyPickerOpen, setCompanyPickerOpen] = React.useState(false);
+
+  const titleError =
+    draft.title.length > 0 && draft.title.trim().length === 0
+      ? "Title is required"
+      : undefined;
+  const companyMissing =
+    draft.employerId == null && draft.company.trim().length === 0;
+  const startMissing = draft.startMonth == null || draft.startYear == null;
+  const endMissing =
+    !draft.isCurrent && (draft.endMonth == null || draft.endYear == null);
+  const dateOrderError =
+    !draft.isCurrent &&
+    draft.startMonth != null &&
+    draft.startYear != null &&
+    draft.endMonth != null &&
+    draft.endYear != null &&
+    draft.endYear * 100 + draft.endMonth <
+      draft.startYear * 100 + draft.startMonth
+      ? "End date is before start date"
+      : undefined;
+
+  return (
+    <View
+      style={{
+        borderWidth: 1,
+        borderColor: colors.border,
+        borderRadius: colors.radius * 1.25,
+        backgroundColor: colors.card,
+        padding: 12,
+        gap: 10,
+      }}
+    >
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <Text
+          style={{
+            fontFamily: "Inter_600SemiBold",
+            fontSize: 12,
+            color: colors.mutedForeground,
+            letterSpacing: 0.3,
+          }}
+        >
+          EXPERIENCE ENTRY
+        </Text>
+        <Pressable
+          onPress={onRemove}
+          accessibilityLabel="Remove experience entry"
+          hitSlop={8}
+          style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+        >
+          <Feather name="trash-2" size={16} color={colors.mutedForeground} />
+        </Pressable>
+      </View>
+
+      <Field
+        label="Title"
+        value={draft.title}
+        onChangeText={(t) => onChange({ title: t })}
+        placeholder="e.g. Software Engineer"
+        autoCapitalize="words"
+        maxLength={EXPERIENCE_TITLE_MAX}
+        error={titleError}
+      />
+
+      <View style={styles.fieldGroup}>
+        <Text style={[styles.label, { color: colors.foreground }]}>
+          Company
+        </Text>
+        <Pressable
+          onPress={() => setCompanyPickerOpen(true)}
+          style={({ pressed }) => [
+            styles.input,
+            {
+              backgroundColor: colors.background,
+              borderColor: companyMissing ? colors.destructive : colors.border,
+              borderRadius: colors.radius * 1.25,
+              opacity: pressed ? 0.7 : 1,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 10,
+            },
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel="Choose company"
+        >
+          {draft.employerId != null && draft.employerLogoUrl ? (
+            <Image
+              source={{ uri: draft.employerLogoUrl }}
+              style={{ width: 24, height: 24, borderRadius: 4 }}
+              contentFit="cover"
+            />
+          ) : (
+            <Feather
+              name="briefcase"
+              size={16}
+              color={colors.mutedForeground}
+            />
+          )}
+          <Text
+            style={{
+              fontFamily: "Inter_500Medium",
+              fontSize: 14,
+              color: draft.company
+                ? colors.foreground
+                : colors.mutedForeground,
+              flex: 1,
+            }}
+            numberOfLines={1}
+          >
+            {draft.company.trim().length > 0
+              ? draft.company
+              : "Tap to search or type"}
+          </Text>
+          <Feather
+            name="chevron-down"
+            size={16}
+            color={colors.mutedForeground}
+          />
+        </Pressable>
+        {companyMissing ? (
+          <Text style={[styles.helper, { color: colors.destructive }]}>
+            Pick a company or type a name.
+          </Text>
+        ) : draft.employerId != null ? (
+          <Text style={[styles.helper, { color: colors.mutedForeground }]}>
+            Linked to platform employer · logo will appear on your profile.
+          </Text>
+        ) : null}
+      </View>
+
+      <EnumPickerField
+        label="Employment type"
+        value={draft.employmentType}
+        options={EMPLOYMENT_TYPE_OPTIONS}
+        onChange={(v) => onChange({ employmentType: v })}
+      />
+
+      <Field
+        label="Location"
+        value={draft.location}
+        onChangeText={(t) => onChange({ location: t })}
+        placeholder="e.g. Accra, Ghana"
+        autoCapitalize="words"
+        maxLength={EXPERIENCE_LOCATION_MAX}
+      />
+
+      <EnumPickerField
+        label="Location type"
+        value={draft.locationType}
+        options={LOCATION_TYPE_OPTIONS}
+        onChange={(v) => onChange({ locationType: v })}
+      />
+
+      <Pressable
+        onPress={() =>
+          onChange({
+            isCurrent: !draft.isCurrent,
+            endMonth: !draft.isCurrent ? null : draft.endMonth,
+            endYear: !draft.isCurrent ? null : draft.endYear,
+          })
+        }
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 10,
+          paddingVertical: 4,
+        }}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: draft.isCurrent }}
+      >
+        <View
+          style={{
+            width: 20,
+            height: 20,
+            borderRadius: 4,
+            borderWidth: 1.5,
+            borderColor: draft.isCurrent ? colors.primary : colors.border,
+            backgroundColor: draft.isCurrent ? colors.primary : "transparent",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          {draft.isCurrent ? (
+            <Feather
+              name="check"
+              size={14}
+              color={colors.primaryForeground}
+            />
+          ) : null}
+        </View>
+        <Text
+          style={{
+            fontFamily: "Inter_500Medium",
+            fontSize: 14,
+            color: colors.foreground,
+          }}
+        >
+          I currently work here
+        </Text>
+      </Pressable>
+
+      <View style={{ flexDirection: "row", gap: 12 }}>
+        <View style={{ flex: 1, gap: 8 }}>
+          <Text style={[styles.label, { color: colors.foreground }]}>
+            Start date
+          </Text>
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <View style={{ flex: 1.4 }}>
+              <NumberOptionPicker
+                placeholder="Month"
+                value={draft.startMonth}
+                options={MONTH_OPTIONS}
+                onChange={(v) => onChange({ startMonth: v })}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <NumberOptionPicker
+                placeholder="Year"
+                value={draft.startYear}
+                options={YEAR_OPTIONS_FOR_EXP}
+                onChange={(v) => onChange({ startYear: v })}
+              />
+            </View>
+          </View>
+          {startMissing ? (
+            <Text style={[styles.helper, { color: colors.destructive }]}>
+              Start date is required
+            </Text>
+          ) : null}
+        </View>
+        <View style={{ flex: 1, gap: 8 }}>
+          <Text style={[styles.label, { color: colors.foreground }]}>
+            End date
+          </Text>
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <View style={{ flex: 1.4 }}>
+              <NumberOptionPicker
+                placeholder="Month"
+                value={draft.endMonth}
+                options={MONTH_OPTIONS}
+                onChange={(v) => onChange({ endMonth: v })}
+                disabled={draft.isCurrent}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <NumberOptionPicker
+                placeholder="Year"
+                value={draft.endYear}
+                options={YEAR_OPTIONS_FOR_EXP}
+                onChange={(v) => onChange({ endYear: v })}
+                disabled={draft.isCurrent}
+              />
+            </View>
+          </View>
+          {endMissing ? (
+            <Text style={[styles.helper, { color: colors.destructive }]}>
+              End date or "currently working"
+            </Text>
+          ) : dateOrderError ? (
+            <Text style={[styles.helper, { color: colors.destructive }]}>
+              {dateOrderError}
+            </Text>
+          ) : null}
+        </View>
+      </View>
+
+      <View style={styles.fieldGroup}>
+        <Text style={[styles.label, { color: colors.foreground }]}>
+          Description
+        </Text>
+        <TextInput
+          value={draft.description}
+          onChangeText={(t) => onChange({ description: t })}
+          placeholder="What did you do in this role?"
+          placeholderTextColor={colors.mutedForeground}
+          autoCapitalize="sentences"
+          maxLength={EXPERIENCE_DESCRIPTION_MAX}
+          multiline
+          textAlignVertical="top"
+          style={[
+            styles.input,
+            styles.multiline,
+            {
+              color: colors.foreground,
+              backgroundColor: colors.background,
+              borderColor: colors.border,
+              borderRadius: colors.radius * 1.25,
+            },
+          ]}
+        />
+      </View>
+
+      <CompanyPickerModal
+        visible={companyPickerOpen}
+        initialQuery={draft.company}
+        onClose={() => setCompanyPickerOpen(false)}
+        onPick={(picked) => {
+          onChange({
+            employerId: picked.id,
+            employerLogoUrl: picked.logoUrl,
+            company: picked.name,
+          });
+          setCompanyPickerOpen(false);
+        }}
+        onSubmitFreeText={(name) => {
+          onChange({
+            employerId: null,
+            employerLogoUrl: null,
+            company: name,
+          });
+          setCompanyPickerOpen(false);
+        }}
+      />
+    </View>
+  );
+}
+
+// Pressable that opens the existing PickerModal but for string-keyed
+// enum values (employment type / location type). Falls back to "Not
+// specified" when value is null.
+function EnumPickerField({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string | null;
+  options: Array<{ id: string | null; label: string }>;
+  onChange: (next: string | null) => void;
+}) {
+  const colors = useColors();
+  const [open, setOpen] = React.useState(false);
+  const selected = options.find((o) => o.id === value);
+  return (
+    <View style={styles.fieldGroup}>
+      <Text style={[styles.label, { color: colors.foreground }]}>{label}</Text>
+      <Pressable
+        onPress={() => setOpen(true)}
+        style={({ pressed }) => [
+          styles.input,
+          {
+            backgroundColor: colors.background,
+            borderColor: colors.border,
+            borderRadius: colors.radius * 1.25,
+            opacity: pressed ? 0.7 : 1,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            paddingVertical: 10,
+          },
+        ]}
+        accessibilityRole="button"
+        accessibilityLabel={`Choose ${label.toLowerCase()}`}
+      >
+        <Text
+          style={{
+            fontFamily: "Inter_500Medium",
+            fontSize: 14,
+            color: selected ? colors.foreground : colors.mutedForeground,
+            flex: 1,
+          }}
+          numberOfLines={1}
+        >
+          {selected?.label ?? "Not specified"}
+        </Text>
+        <Feather
+          name="chevron-down"
+          size={16}
+          color={colors.mutedForeground}
+        />
+      </Pressable>
+      <StringPickerModal
+        visible={open}
+        title={`Choose ${label.toLowerCase()}`}
+        options={options}
+        selectedId={value}
+        onClose={() => setOpen(false)}
+        onSelect={(id) => {
+          onChange(id);
+          setOpen(false);
+        }}
+      />
+    </View>
+  );
+}
+
+// Variant of PickerModal keyed on number | null. Pulled out to avoid
+// re-implementing the bottom-sheet chrome for each picker.
+function NumberOptionPicker({
+  placeholder,
+  value,
+  options,
+  onChange,
+  disabled,
+}: {
+  placeholder: string;
+  value: number | null;
+  options: Array<{ id: number | null; label: string }>;
+  onChange: (next: number | null) => void;
+  disabled?: boolean;
+}) {
+  const colors = useColors();
+  const [open, setOpen] = React.useState(false);
+  const selected = options.find((o) => o.id === value);
+  return (
+    <>
+      <Pressable
+        onPress={() => !disabled && setOpen(true)}
+        disabled={disabled}
+        style={({ pressed }) => [
+          styles.input,
+          {
+            backgroundColor: colors.background,
+            borderColor: colors.border,
+            borderRadius: colors.radius * 1.25,
+            opacity: disabled ? 0.5 : pressed ? 0.7 : 1,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            paddingVertical: 10,
+          },
+        ]}
+      >
+        <Text
+          style={{
+            fontFamily: "Inter_500Medium",
+            fontSize: 14,
+            color: selected && selected.id != null
+              ? colors.foreground
+              : colors.mutedForeground,
+            flex: 1,
+          }}
+          numberOfLines={1}
+        >
+          {selected && selected.id != null ? selected.label : placeholder}
+        </Text>
+        <Feather
+          name="chevron-down"
+          size={14}
+          color={colors.mutedForeground}
+        />
+      </Pressable>
+      <PickerModal
+        visible={open}
+        title={`Choose ${placeholder.toLowerCase()}`}
+        options={options}
+        selectedId={value}
+        onClose={() => setOpen(false)}
+        onSelect={(id) => {
+          onChange(id);
+          setOpen(false);
+        }}
+      />
+    </>
+  );
+}
+
+// String-keyed counterpart to PickerModal. Same chrome, different id type.
+function StringPickerModal({
+  visible,
+  title,
+  options,
+  selectedId,
+  onSelect,
+  onClose,
+}: {
+  visible: boolean;
+  title: string;
+  options: Array<{ id: string | null; label: string }>;
+  selectedId: string | null;
+  onSelect: (id: string | null) => void;
+  onClose: () => void;
+}) {
+  const colors = useColors();
+  const insets = useSafeAreaInsets();
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent
+      onRequestClose={onClose}
+    >
+      <Pressable
+        onPress={onClose}
+        style={{
+          flex: 1,
+          backgroundColor: "rgba(0,0,0,0.4)",
+          justifyContent: "flex-end",
+        }}
+      >
+        <Pressable
+          onPress={(e) => e.stopPropagation()}
+          style={{
+            backgroundColor: colors.background,
+            borderTopLeftRadius: 20,
+            borderTopRightRadius: 20,
+            paddingTop: 8,
+            paddingBottom: insets.bottom + 12,
+            maxHeight: "70%",
+          }}
+        >
+          <View
+            style={{
+              alignSelf: "center",
+              width: 40,
+              height: 4,
+              borderRadius: 2,
+              backgroundColor: colors.border,
+              marginBottom: 8,
+            }}
+          />
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              paddingHorizontal: 20,
+              paddingVertical: 12,
+            }}
+          >
+            <Text
+              style={{
+                fontFamily: "Inter_700Bold",
+                fontSize: 16,
+                color: colors.foreground,
+              }}
+            >
+              {title}
+            </Text>
+            <Pressable
+              onPress={onClose}
+              hitSlop={8}
+              accessibilityLabel="Close picker"
+            >
+              <Feather name="x" size={20} color={colors.mutedForeground} />
+            </Pressable>
+          </View>
+          <FlatList
+            data={options}
+            keyExtractor={(item) => `${item.id ?? "none"}`}
+            renderItem={({ item }) => {
+              const active = item.id === selectedId;
+              return (
+                <Pressable
+                  onPress={() => onSelect(item.id)}
+                  style={({ pressed }) => ({
+                    paddingHorizontal: 20,
+                    paddingVertical: 14,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    backgroundColor: pressed ? colors.secondary : "transparent",
+                  })}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                >
+                  <Text
+                    style={{
+                      fontFamily: active
+                        ? "Inter_600SemiBold"
+                        : "Inter_500Medium",
+                      fontSize: 15,
+                      color: colors.foreground,
+                      flex: 1,
+                    }}
+                  >
+                    {item.label}
+                  </Text>
+                  {active ? (
+                    <Feather name="check" size={18} color={colors.primary} />
+                  ) : null}
+                </Pressable>
+              );
+            }}
+            ItemSeparatorComponent={() => (
+              <View
+                style={{
+                  height: 1,
+                  backgroundColor: colors.border,
+                  marginHorizontal: 20,
+                }}
+              />
+            )}
+          />
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+// Bottom-sheet typeahead for choosing a platform employer. Falls back
+// to a "Use as typed" action so off-platform companies can still be
+// recorded as free text.
+function CompanyPickerModal({
+  visible,
+  initialQuery,
+  onClose,
+  onPick,
+  onSubmitFreeText,
+}: {
+  visible: boolean;
+  initialQuery: string;
+  onClose: () => void;
+  onPick: (e: { id: number; name: string; logoUrl: string }) => void;
+  onSubmitFreeText: (name: string) => void;
+}) {
+  const colors = useColors();
+  const insets = useSafeAreaInsets();
+  const [query, setQuery] = React.useState(initialQuery);
+  const [debounced, setDebounced] = React.useState(initialQuery);
+
+  // Reset when reopened so the prior session's leftovers don't leak.
+  React.useEffect(() => {
+    if (visible) {
+      setQuery(initialQuery);
+      setDebounced(initialQuery);
+    }
+  }, [visible, initialQuery]);
+
+  React.useEffect(() => {
+    const id = setTimeout(() => setDebounced(query), 200);
+    return () => clearTimeout(id);
+  }, [query]);
+
+  const params =
+    debounced.trim().length >= 2 ? { search: debounced.trim() } : undefined;
+  const employersQuery = useListEmployers(params, {
+    query: {
+      queryKey: getListEmployersQueryKey(params),
+      enabled: visible && debounced.trim().length >= 2,
+      staleTime: 60_000,
+    },
+  });
+  const results: Employer[] = ((employersQuery.data ?? []) as Employer[]).slice(
+    0,
+    20,
+  );
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent
+      onRequestClose={onClose}
+    >
+      <Pressable
+        onPress={onClose}
+        style={{
+          flex: 1,
+          backgroundColor: "rgba(0,0,0,0.4)",
+          justifyContent: "flex-end",
+        }}
+      >
+        <Pressable
+          onPress={(e) => e.stopPropagation()}
+          style={{
+            backgroundColor: colors.background,
+            borderTopLeftRadius: 20,
+            borderTopRightRadius: 20,
+            paddingTop: 8,
+            paddingBottom: insets.bottom + 12,
+            maxHeight: "85%",
+          }}
+        >
+          <View
+            style={{
+              alignSelf: "center",
+              width: 40,
+              height: 4,
+              borderRadius: 2,
+              backgroundColor: colors.border,
+              marginBottom: 8,
+            }}
+          />
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              paddingHorizontal: 20,
+              paddingTop: 8,
+              paddingBottom: 4,
+            }}
+          >
+            <Text
+              style={{
+                fontFamily: "Inter_700Bold",
+                fontSize: 16,
+                color: colors.foreground,
+              }}
+            >
+              Choose company
+            </Text>
+            <Pressable
+              onPress={onClose}
+              hitSlop={8}
+              accessibilityLabel="Close picker"
+            >
+              <Feather name="x" size={20} color={colors.mutedForeground} />
+            </Pressable>
+          </View>
+          <View style={{ paddingHorizontal: 20, paddingTop: 8 }}>
+            <TextInput
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Search platform employers"
+              placeholderTextColor={colors.mutedForeground}
+              autoFocus
+              autoCapitalize="words"
+              maxLength={EXPERIENCE_COMPANY_MAX}
+              style={[
+                styles.input,
+                {
+                  color: colors.foreground,
+                  backgroundColor: colors.background,
+                  borderColor: colors.border,
+                  borderRadius: colors.radius * 1.25,
+                },
+              ]}
+            />
+            <Text
+              style={[
+                styles.helper,
+                { color: colors.mutedForeground, marginTop: 6 },
+              ]}
+            >
+              Type at least 2 characters to search. Can't find your company?
+              Use it as typed.
+            </Text>
+          </View>
+          <FlatList
+            style={{ marginTop: 8, maxHeight: 320 }}
+            data={results}
+            keyExtractor={(item) => `${item.id}`}
+            ListEmptyComponent={
+              debounced.trim().length < 2 ? null : employersQuery.isLoading ? (
+                <Text
+                  style={{
+                    paddingHorizontal: 20,
+                    paddingVertical: 12,
+                    color: colors.mutedForeground,
+                    fontFamily: "Inter_500Medium",
+                    fontSize: 13,
+                  }}
+                >
+                  Searching…
+                </Text>
+              ) : (
+                <Text
+                  style={{
+                    paddingHorizontal: 20,
+                    paddingVertical: 12,
+                    color: colors.mutedForeground,
+                    fontFamily: "Inter_500Medium",
+                    fontSize: 13,
+                  }}
+                >
+                  No platform matches.
+                </Text>
+              )
+            }
+            renderItem={({ item }) => (
+              <Pressable
+                onPress={() =>
+                  onPick({
+                    id: item.id,
+                    name: item.name,
+                    logoUrl: item.logoUrl,
+                  })
+                }
+                style={({ pressed }) => ({
+                  paddingHorizontal: 20,
+                  paddingVertical: 12,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 10,
+                  backgroundColor: pressed ? colors.secondary : "transparent",
+                })}
+                accessibilityRole="button"
+              >
+                <View
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 6,
+                    backgroundColor: colors.secondary,
+                    overflow: "hidden",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  {item.logoUrl ? (
+                    <Image
+                      source={{ uri: item.logoUrl }}
+                      style={{ width: 36, height: 36 }}
+                      contentFit="cover"
+                    />
+                  ) : (
+                    <Feather
+                      name="briefcase"
+                      size={16}
+                      color={colors.mutedForeground}
+                    />
+                  )}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={{
+                      fontFamily: "Inter_600SemiBold",
+                      fontSize: 14,
+                      color: colors.foreground,
+                    }}
+                    numberOfLines={1}
+                  >
+                    {item.name}
+                  </Text>
+                  {item.industry ? (
+                    <Text
+                      style={{
+                        fontFamily: "Inter_500Medium",
+                        fontSize: 12,
+                        color: colors.mutedForeground,
+                      }}
+                      numberOfLines={1}
+                    >
+                      {item.industry}
+                    </Text>
+                  ) : null}
+                </View>
+              </Pressable>
+            )}
+          />
+          {query.trim().length > 0 ? (
+            <Pressable
+              onPress={() => onSubmitFreeText(query.trim())}
+              style={({ pressed }) => ({
+                marginHorizontal: 20,
+                marginTop: 12,
+                paddingVertical: 12,
+                borderRadius: colors.radius * 1.25,
+                backgroundColor: pressed ? colors.secondary : colors.primary,
+                alignItems: "center",
+              })}
+            >
+              <Text
+                style={{
+                  color: colors.primaryForeground,
+                  fontFamily: "Inter_600SemiBold",
+                  fontSize: 14,
+                }}
+              >
+                Use "{query.trim()}" as typed
+              </Text>
+            </Pressable>
+          ) : null}
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 

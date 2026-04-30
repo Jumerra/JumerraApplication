@@ -3,6 +3,7 @@ import {
   useUpdateCandidate,
   useListEmployers,
   getGetCandidateQueryKey,
+  getListEmployersQueryKey,
   type ExperienceEntry,
   type Employer,
 } from "@workspace/api-client-react";
@@ -706,15 +707,14 @@ function CompanyPicker({
     return () => clearTimeout(id);
   }, [query]);
 
-  const employersQuery = useListEmployers(
-    debounced.length >= 2 ? { search: debounced } : undefined,
-    {
-      query: {
-        enabled: open && debounced.length >= 2,
-        staleTime: 60_000,
-      },
+  const params = debounced.length >= 2 ? { search: debounced } : undefined;
+  const employersQuery = useListEmployers(params, {
+    query: {
+      queryKey: getListEmployersQueryKey(params),
+      enabled: open && debounced.length >= 2,
+      staleTime: 60_000,
     },
-  );
+  });
   const results: Employer[] = (employersQuery.data ?? []) as Employer[];
 
   return (

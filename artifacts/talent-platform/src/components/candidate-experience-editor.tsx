@@ -35,7 +35,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Briefcase, Pencil, Plus, Trash2 } from "lucide-react";
+import { Briefcase, Pencil, Plus, Trash2, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   EMPLOYMENT_TYPE_LABELS,
@@ -722,102 +722,125 @@ function CompanyPicker({
   });
   const results: Employer[] = (employersQuery.data ?? []) as Employer[];
 
+  // The input is ALWAYS editable, even when an employer is linked, so
+  // the candidate can simply start typing to override their selection.
+  // The currently linked employer (if any) is shown as inline metadata
+  // below the input rather than replacing it.
+  const linkedPicked = employerId != null;
+  // Display value: while typing we show the live query; otherwise show
+  // the saved company text. This way typing is never blocked by the
+  // controlled value being out of sync.
+  const inputValue = query.length > 0 ? query : company;
+
   return (
     <div className="space-y-1.5">
       <Label htmlFor="exp-company">Company *</Label>
-      {employerId != null ? (
-        <div className="flex items-center gap-2 p-2 rounded-md border bg-muted/40">
-          <Briefcase className="w-4 h-4 text-muted-foreground shrink-0" />
-          <span className="text-sm truncate flex-1">{company}</span>
-          <Button
+      <div className="relative">
+        <Input
+          id="exp-company"
+          value={inputValue}
+          onChange={(e) => {
+            const v = e.target.value;
+            setQuery(v);
+            // Typing always switches the entry to free-text mode; the
+            // user can re-link by picking a suggestion below.
+            onTypeFreeText(v);
+            setOpen(true);
+          }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => {
+            // Delay so the click on a suggestion can register first.
+            setTimeout(() => setOpen(false), 150);
+          }}
+          placeholder="Browse or search platform companies…"
+          maxLength={200}
+          autoComplete="off"
+          className={linkedPicked ? "pr-9" : undefined}
+        />
+        {linkedPicked ? (
+          <button
             type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => onPick(null)}
+            aria-label="Clear linked company"
+            onMouseDown={(e) => {
+              // onMouseDown so the click registers before the input's
+              // onBlur fires; clearing both the link AND the typed
+              // text so the user can type a fresh name from scratch.
+              e.preventDefault();
+              onTypeFreeText("");
+              setQuery("");
+            }}
+            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-accent text-muted-foreground"
           >
-            Change
-          </Button>
+            <X className="w-3.5 h-3.5" />
+          </button>
+        ) : null}
+        {open ? (
+          <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-md max-h-56 overflow-y-auto">
+            {employersQuery.isLoading ? (
+              <p className="px-3 py-2 text-xs text-muted-foreground">
+                {debounced.trim().length > 0
+                  ? "Searching…"
+                  : "Loading companies…"}
+              </p>
+            ) : results.length === 0 ? (
+              <p className="px-3 py-2 text-xs text-muted-foreground">
+                {debounced.trim().length > 0
+                  ? "No matches. You can keep typing to add it as free text."
+                  : "No companies on the platform yet — type to add yours as free text."}
+              </p>
+            ) : (
+              results.slice(0, 8).map((emp) => (
+                <button
+                  type="button"
+                  key={emp.id}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent"
+                  onMouseDown={(e) => {
+                    // onMouseDown so we win the race against the
+                    // input's onBlur which closes the panel.
+                    e.preventDefault();
+                    onPick({
+                      id: emp.id,
+                      name: emp.name,
+                      logoUrl: emp.logoUrl,
+                    });
+                    setQuery("");
+                    setOpen(false);
+                  }}
+                >
+                  <div className="w-7 h-7 rounded bg-muted overflow-hidden shrink-0">
+                    {emp.logoUrl ? (
+                      <img
+                        src={emp.logoUrl}
+                        alt=""
+                        className="w-full h-full object-cover"
+                      />
+                    ) : null}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate">{emp.name}</p>
+                    {emp.industry ? (
+                      <p className="text-xs text-muted-foreground truncate">
+                        {emp.industry}
+                      </p>
+                    ) : null}
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        ) : null}
+      </div>
+      {linkedPicked ? (
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Briefcase className="w-3 h-3" />
+          <span>Linked to platform employer · logo will show on profile.</span>
         </div>
       ) : (
-        <div className="relative">
-          <Input
-            id="exp-company"
-            value={query.length > 0 ? query : company}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              onTypeFreeText(e.target.value);
-              setOpen(true);
-            }}
-            onFocus={() => setOpen(true)}
-            onBlur={() => {
-              // Delay so the click on a suggestion can register first.
-              setTimeout(() => setOpen(false), 150);
-            }}
-            placeholder="Browse or search platform companies…"
-            maxLength={200}
-            autoComplete="off"
-          />
-          {open ? (
-            <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-md max-h-56 overflow-y-auto">
-              {employersQuery.isLoading ? (
-                <p className="px-3 py-2 text-xs text-muted-foreground">
-                  {debounced.trim().length > 0
-                    ? "Searching…"
-                    : "Loading companies…"}
-                </p>
-              ) : results.length === 0 ? (
-                <p className="px-3 py-2 text-xs text-muted-foreground">
-                  {debounced.trim().length > 0
-                    ? "No matches. You can keep typing to add it as free text."
-                    : "No companies on the platform yet — type to add yours as free text."}
-                </p>
-              ) : (
-                results.slice(0, 8).map((emp) => (
-                  <button
-                    type="button"
-                    key={emp.id}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent"
-                    onMouseDown={(e) => {
-                      // onMouseDown so we win the race against the
-                      // input's onBlur which closes the panel.
-                      e.preventDefault();
-                      onPick({
-                        id: emp.id,
-                        name: emp.name,
-                        logoUrl: emp.logoUrl,
-                      });
-                      setQuery("");
-                      setOpen(false);
-                    }}
-                  >
-                    <div className="w-7 h-7 rounded bg-muted overflow-hidden shrink-0">
-                      {emp.logoUrl ? (
-                        <img
-                          src={emp.logoUrl}
-                          alt=""
-                          className="w-full h-full object-cover"
-                        />
-                      ) : null}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="truncate">{emp.name}</p>
-                      {emp.industry ? (
-                        <p className="text-xs text-muted-foreground truncate">
-                          {emp.industry}
-                        </p>
-                      ) : null}
-                    </div>
-                  </button>
-                ))
-              )}
-            </div>
-          ) : null}
-        </div>
+        <p className="text-xs text-muted-foreground">
+          Pick a suggestion to link to a platform employer, or just type a
+          name for an off-platform role.
+        </p>
       )}
-      <p className="text-xs text-muted-foreground">
-        Pick a company on the platform to link your entry to its profile, or
-        type a name for an off-platform role.
-      </p>
     </div>
   );
 }

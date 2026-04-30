@@ -142,3 +142,15 @@ export function installWebSessionAuth(): void {
     }
   });
 }
+
+// Vite HMR safety: this module installs the global `window.fetch`
+// wrapper, but the wrapper is only installed inside the boot-time
+// `installWebSessionAuth()` call from `main.tsx`.  A hot-update of
+// THIS file would replace the exported functions but leave the OLD
+// fetch wrapper attached to `window.fetch`, silently keeping the
+// previous (potentially buggy) behavior.  Force a full page reload
+// instead so the wrapper always matches the source on disk.
+if (import.meta.hot) {
+  import.meta.hot.invalidate();
+}
+

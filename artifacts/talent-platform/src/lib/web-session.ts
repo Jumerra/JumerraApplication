@@ -148,9 +148,15 @@ export function installWebSessionAuth(): void {
 // `installWebSessionAuth()` call from `main.tsx`.  A hot-update of
 // THIS file would replace the exported functions but leave the OLD
 // fetch wrapper attached to `window.fetch`, silently keeping the
-// previous (potentially buggy) behavior.  Force a full page reload
-// instead so the wrapper always matches the source on disk.
+// previous (potentially buggy) behavior.  Self-accept the module so
+// Vite delivers an HMR update at all, then immediately force a full
+// page reload from inside the accept handler.  `invalidate()` alone
+// is NOT enough — without `accept()` Vite considers the module
+// non-self-accepting and propagates upward; if no parent accepts
+// either, the dev server may simply log the update without reloading.
 if (import.meta.hot) {
-  import.meta.hot.invalidate();
+  import.meta.hot.accept(() => {
+    window.location.reload();
+  });
 }
 

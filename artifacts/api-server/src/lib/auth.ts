@@ -87,6 +87,18 @@ export type PublicUser = {
   candidateId: number | null;
   employerId: number | null;
   institutionId: number | null;
+  /**
+   * For institution staffers: the department they are scoped to.
+   * Null for org-wide roles (owner, registrar) and for non-institution
+   * users. Surfaced on /auth/me so the frontend can build sidebar
+   * filters without an extra round-trip.
+   */
+  assignedDepartmentId: number | null;
+  /**
+   * For institution staffers: the faculty they are scoped to. Used by
+   * Dean roles. Null for org-wide roles and HoD roles.
+   */
+  assignedFacultyId: number | null;
   avatarUrl: string | null;
   phone: string | null;
   title: string | null;
@@ -112,6 +124,8 @@ export async function toPublicUser(user: User): Promise<PublicUser> {
     candidateId: user.candidateId,
     employerId: user.employerId,
     institutionId: user.institutionId,
+    assignedDepartmentId: user.assignedDepartmentId ?? null,
+    assignedFacultyId: user.assignedFacultyId ?? null,
     avatarUrl: user.avatarUrl,
     phone: user.phone,
     title: user.title,

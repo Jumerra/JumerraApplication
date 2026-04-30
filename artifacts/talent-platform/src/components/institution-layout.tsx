@@ -59,7 +59,9 @@ type InstitutionNavItem = {
    */
   permission?: string;
   /** Restrict to specific org roles. If absent, visible to any member. */
-  orgRoles?: ReadonlyArray<"owner" | "coordinator" | "staff">;
+  orgRoles?: ReadonlyArray<
+    "owner" | "registrar" | "dean" | "hod" | "coordinator" | "staff"
+  >;
 };
 
 type InstitutionNavGroup = {
@@ -118,6 +120,9 @@ export function InstitutionLayout({ children }: { children: ReactNode }) {
     sessionUser?.role === "institution" || role === "institution";
   const orgRole = sessionUser?.orgRole ?? null;
   const isOwner = orgRole === "owner";
+  // Registrars are owner-equivalent for institution operations and should
+  // see the same nav items as owners.
+  const isOwnerOrRegistrar = isOwner || orgRole === "registrar";
 
   // Read the institution kind so the "Programs" vs "Departments" label
   // stays in sync with whatever the institution type is.
@@ -145,6 +150,17 @@ export function InstitutionLayout({ children }: { children: ReactNode }) {
     {
       label: "Manage",
       items: [
+        // Faculties live above departments in the academic hierarchy, so
+        // we surface them first when the institution actually uses them.
+        ...(academicTerms.hasFaculties
+          ? [
+              {
+                href: "/dashboard/institution/faculties",
+                label: academicTerms.facultyPlural,
+                icon: Building,
+              } satisfies InstitutionNavItem,
+            ]
+          : []),
         {
           href: "/dashboard/institution/departments",
           label: academicTerms.plural,
@@ -165,13 +181,13 @@ export function InstitutionLayout({ children }: { children: ReactNode }) {
           label: "Team",
           icon: Users,
           permission: "staff:manage",
-          orgRoles: ["owner"],
+          orgRoles: ["owner", "registrar"],
         },
         {
           href: "/dashboard/institution/roles",
           label: "Roles & permissions",
           icon: ShieldCheck,
-          orgRoles: ["owner"],
+          orgRoles: ["owner", "registrar"],
         },
       ],
     },
@@ -182,12 +198,14 @@ export function InstitutionLayout({ children }: { children: ReactNode }) {
           href: "/dashboard/institution/edit",
           label: "Edit institution",
           icon: Pencil,
-          orgRoles: ["owner"],
+          orgRoles: ["owner", "registrar"],
         },
         {
           href: "/dashboard/institution/subscription",
           label: "Subscription",
           icon: Crown,
+          // Subscription/billing is owner-only — registrars manage academic
+          // ops but not commercial concerns.
           orgRoles: ["owner"],
         },
       ],
@@ -206,11 +224,20 @@ export function InstitutionLayout({ children }: { children: ReactNode }) {
       const allowedByRole =
         item.orgRoles &&
         orgRole &&
-        item.orgRoles.includes(orgRole as "owner" | "coordinator" | "staff");
+        item.orgRoles.includes(
+          orgRole as
+            | "owner"
+            | "registrar"
+            | "dean"
+            | "hod"
+            | "coordinator"
+            | "staff",
+        );
       const allowedByPermission =
         item.permission && hasPermission(item.permission);
-      // Owners see every nav item regardless of explicit permission.
-      if (isOwner) return true;
+      // Owners (and registrars, who are owner-equivalent) see every nav
+      // item regardless of explicit permission.
+      if (isOwnerOrRegistrar) return true;
       return Boolean(allowedByRole || allowedByPermission);
     }),
   })).filter((group) => group.items.length > 0);

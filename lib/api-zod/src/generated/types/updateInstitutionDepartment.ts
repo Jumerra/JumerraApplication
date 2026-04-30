@@ -21,4 +21,5 @@ export interface UpdateInstitutionDepartment {
   headName?: string | null;
   /** @maxLength 2000 */
   description?: string | null;
+  facultyId?: number | null;
 }

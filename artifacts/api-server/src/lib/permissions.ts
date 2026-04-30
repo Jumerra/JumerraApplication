@@ -370,6 +370,41 @@ export const SYSTEM_ROLES: ReadonlyArray<SystemRoleSpec> = [
   },
   {
     scope: "institution",
+    name: "registrar",
+    description:
+      "Owner-equivalent for academic operations: manages faculties, departments, and staff.",
+    permissions: INSTITUTION_PERMISSIONS.map((p) => p.key),
+  },
+  {
+    scope: "institution",
+    name: "dean",
+    description:
+      "Manages and verifies students within their assigned faculty.",
+    permissions: [
+      "students:view",
+      "students:invite",
+      "students:verify",
+      "placements:view",
+      "analytics:view",
+      "staff:view",
+    ],
+  },
+  {
+    scope: "institution",
+    name: "hod",
+    description:
+      "Head of Department — manages and verifies students in their department.",
+    permissions: [
+      "students:view",
+      "students:invite",
+      "students:verify",
+      "placements:view",
+      "analytics:view",
+      "staff:view",
+    ],
+  },
+  {
+    scope: "institution",
     name: "coordinator",
     description: "Manages students, verifies attendance, sees outcomes.",
     permissions: [
@@ -418,8 +453,12 @@ export function isImplicitAllUser(
   if (user.role === "admin") {
     return user.orgRole === "super_admin" || user.orgRole === null;
   }
-  if (user.role === "employer" || user.role === "institution") {
+  if (user.role === "employer") {
     return user.orgRole === "owner";
+  }
+  if (user.role === "institution") {
+    // Registrars are explicitly owner-equivalent for academic ops.
+    return user.orgRole === "owner" || user.orgRole === "registrar";
   }
   return false;
 }

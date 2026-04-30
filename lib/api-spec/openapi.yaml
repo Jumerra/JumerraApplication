@@ -222,7 +222,7 @@ paths:
     patch:
       operationId: updateMyInstitution
       tags: [institutions]
-      summary: Update the caller's institution profile (owner only).
+      summary: Update the caller's institution profile (owner or registrar).
       requestBody:
         required: true
         content:
@@ -234,6 +234,70 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Institution" }
+  /institutions/me/faculties:
+    get:
+      operationId: listMyInstitutionFaculties
+      tags: [institutions]
+      summary: List faculties for the caller's institution.
+      responses:
+        "200":
+          description: Faculties
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/InstitutionFaculty" }
+    post:
+      operationId: createMyInstitutionFaculty
+      tags: [institutions]
+      summary: Create a faculty on the caller's institution (owner / registrar).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateInstitutionFaculty" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InstitutionFaculty" }
+  /institutions/me/faculties/{id}:
+    patch:
+      operationId: updateMyInstitutionFaculty
+      tags: [institutions]
+      summary: Update a faculty on the caller's institution (owner / registrar).
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateInstitutionFaculty" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InstitutionFaculty" }
+    delete:
+      operationId: deleteMyInstitutionFaculty
+      tags: [institutions]
+      summary: Delete a faculty on the caller's institution (owner / registrar).
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
   /institutions/me/departments:
     get:
       operationId: listMyInstitutionDepartments
@@ -250,7 +314,7 @@ paths:
     post:
       operationId: createMyInstitutionDepartment
       tags: [institutions]
-      summary: Create a department on the caller's institution (owner only).
+      summary: Create a department on the caller's institution (owner or registrar).
       requestBody:
         required: true
         content:
@@ -266,7 +330,7 @@ paths:
     patch:
       operationId: updateMyInstitutionDepartment
       tags: [institutions]
-      summary: Update a department on the caller's institution (owner only).
+      summary: Update a department on the caller's institution (owner or registrar).
       parameters:
         - in: path
           name: id
@@ -286,7 +350,7 @@ paths:
     delete:
       operationId: deleteMyInstitutionDepartment
       tags: [institutions]
-      summary: Delete a department on the caller's institution (owner only).
+      summary: Delete a department on the caller's institution (owner or registrar).
       parameters:
         - in: path
           name: id
@@ -314,7 +378,7 @@ paths:
     post:
       operationId: createMyInstitutionFacility
       tags: [institutions]
-      summary: Create a facility on the caller's institution (owner only).
+      summary: Create a facility on the caller's institution (owner or registrar).
       requestBody:
         required: true
         content:
@@ -330,7 +394,7 @@ paths:
     patch:
       operationId: updateMyInstitutionFacility
       tags: [institutions]
-      summary: Update a facility on the caller's institution (owner only).
+      summary: Update a facility on the caller's institution (owner or registrar).
       parameters:
         - in: path
           name: id
@@ -350,7 +414,7 @@ paths:
     delete:
       operationId: deleteMyInstitutionFacility
       tags: [institutions]
-      summary: Delete a facility on the caller's institution (owner only).
+      summary: Delete a facility on the caller's institution (owner or registrar).
       parameters:
         - in: path
           name: id
@@ -2104,6 +2168,14 @@ components:
         candidateId: { type: integer, nullable: true }
         employerId: { type: integer, nullable: true }
         institutionId: { type: integer, nullable: true }
+        assignedDepartmentId:
+          type: integer
+          nullable: true
+          description: Department scope for institution staff (e.g. HoD). Null when org-wide.
+        assignedFacultyId:
+          type: integer
+          nullable: true
+          description: Faculty scope for institution staff (typically Dean). Null when not faculty-scoped.
         avatarUrl:
           type: string
           nullable: true
@@ -2535,11 +2607,22 @@ components:
         departmentId:
           type: integer
           nullable: true
-          description: Department/program/faculty within this institution. Null when unassigned.
+          description: Department/program within this institution. Null when unassigned.
         departmentName:
           type: string
           nullable: true
           description: Resolved department/program name. Null when unassigned.
+        facultyId:
+          type: integer
+          nullable: true
+          description: |
+            Parent faculty of the assigned department, derived from the
+            department row. Null if the institution doesn't use faculties
+            or the candidate has no department selected.
+        facultyName:
+          type: string
+          nullable: true
+          description: Resolved faculty name. Null when no faculty.
       required: [id, name, type, logoUrl, isPrimary, isVerified]
 
     CandidateDetail:
@@ -2898,26 +2981,64 @@ components:
             partnerEmployers:
               type: array
               items: { $ref: "#/components/schemas/Employer" }
+            faculties:
+              type: array
+              items: { $ref: "#/components/schemas/InstitutionFaculty" }
             departments:
               type: array
               items: { $ref: "#/components/schemas/InstitutionDepartment" }
             facilities:
               type: array
               items: { $ref: "#/components/schemas/InstitutionFacility" }
-          required: [description, partnerEmployers, departments, facilities]
+          required:
+            [description, partnerEmployers, faculties, departments, facilities]
 
-    InstitutionDepartment:
+    InstitutionFaculty:
       type: object
       properties:
         id: { type: integer }
         institutionId: { type: integer }
         name: { type: string }
         code: { type: string, nullable: true }
+        deanName: { type: string, nullable: true }
+        description: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      required:
+        [id, institutionId, name, code, deanName, description, createdAt, updatedAt]
+
+    CreateInstitutionFaculty:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200 }
+        code: { type: string, maxLength: 30, nullable: true }
+        deanName: { type: string, maxLength: 200, nullable: true }
+        description: { type: string, maxLength: 2000, nullable: true }
+      required: [name]
+
+    UpdateInstitutionFaculty:
+      type: object
+      description: All fields optional. Send null on nullable fields to clear them.
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200 }
+        code: { type: string, maxLength: 30, nullable: true }
+        deanName: { type: string, maxLength: 200, nullable: true }
+        description: { type: string, maxLength: 2000, nullable: true }
+
+    InstitutionDepartment:
+      type: object
+      properties:
+        id: { type: integer }
+        institutionId: { type: integer }
+        facultyId: { type: integer, nullable: true }
+        name: { type: string }
+        code: { type: string, nullable: true }
         headName: { type: string, nullable: true }
         description: { type: string, nullable: true }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
-      required: [id, institutionId, name, code, headName, description, createdAt, updatedAt]
+      required:
+        [id, institutionId, facultyId, name, code, headName, description, createdAt, updatedAt]
 
     CreateInstitutionDepartment:
       type: object
@@ -2926,6 +3047,7 @@ components:
         code: { type: string, maxLength: 30, nullable: true }
         headName: { type: string, maxLength: 200, nullable: true }
         description: { type: string, maxLength: 2000, nullable: true }
+        facultyId: { type: integer, nullable: true }
       required: [name]
 
     UpdateInstitutionDepartment:
@@ -2936,6 +3058,7 @@ components:
         code: { type: string, maxLength: 30, nullable: true }
         headName: { type: string, maxLength: 200, nullable: true }
         description: { type: string, maxLength: 2000, nullable: true }
+        facultyId: { type: integer, nullable: true }
 
     InstitutionFacility:
       type: object
@@ -2973,7 +3096,7 @@ components:
 
     UpdateInstitutionRequest:
       type: object
-      description: All fields optional. Owner-only.
+      description: All fields optional. Owner or registrar only.
       properties:
         name: { type: string, minLength: 1, maxLength: 200 }
         type: { $ref: "#/components/schemas/InstitutionKind" }
@@ -3013,11 +3136,19 @@ components:
         departmentId:
           type: integer
           nullable: true
-          description: Department/program/faculty the student belongs to within this institution. Null if unassigned.
+          description: Department/program the student belongs to within this institution. Null if unassigned.
         departmentName:
           type: string
           nullable: true
           description: Resolved name of the assigned department/program. Null if unassigned.
+        facultyId:
+          type: integer
+          nullable: true
+          description: Faculty (parent of department) the student belongs to. Derived from the department. Null if the institution doesn't use faculties or the student has no department.
+        facultyName:
+          type: string
+          nullable: true
+          description: Resolved name of the parent faculty. Null when no faculty.
       required:
         - candidateId
         - fullName
@@ -3880,12 +4011,23 @@ components:
           nullable: true
           description: |
             Optional department/program scope for non-owner institution
-            staff. Null means org-wide. Owners always operate org-wide and
-            ignore this field.
+            staff (e.g. Head of Department). Null means org-wide.
+            Owners/registrars always operate org-wide and ignore this field.
         assignedDepartmentName:
           type: string
           nullable: true
           description: Resolved name of the assigned department/program. Null when org-wide.
+        assignedFacultyId:
+          type: integer
+          nullable: true
+          description: |
+            Optional faculty scope for institution staff (typically Deans).
+            When set, the user can see all departments under that faculty.
+            Null means no faculty scope. Ignored for owner / registrar roles.
+        assignedFacultyName:
+          type: string
+          nullable: true
+          description: Resolved name of the assigned faculty. Null when not faculty-scoped.
         createdAt: { type: string, format: date-time }
       required: [id, email, fullName, role, orgRole, status, employerId, institutionId, createdAt]
 
@@ -3908,8 +4050,16 @@ components:
           nullable: true
           description: |
             Optional department/program scope (institution staff only,
-            non-owner roles). Must reference a department of the inviter's
-            institution. Ignored for owner roles and for non-institution orgs.
+            non-owner roles). Required for `hod` (head of department).
+            Must reference a department of the inviter's institution.
+            Ignored for owner / registrar roles and for non-institution orgs.
+        assignedFacultyId:
+          type: integer
+          nullable: true
+          description: |
+            Optional faculty scope (institution staff only). Required for
+            `dean`. Must reference a faculty of the inviter's institution.
+            Ignored for owner / registrar roles.
       required: [email, fullName, orgRole]
 
     InviteStaffResponse:
@@ -3934,10 +4084,17 @@ components:
           type: integer
           nullable: true
           description: |
-            Optional department/program scope (institution staff only,
-            non-owner roles). Set to null to clear and grant org-wide
+            Optional department/program scope (institution staff only).
+            Required for `hod`. Set to null to clear and grant org-wide
             access. Omit to leave the existing scope unchanged. Ignored
-            for owner roles and for non-institution orgs.
+            for owner / registrar roles and for non-institution orgs.
+        assignedFacultyId:
+          type: integer
+          nullable: true
+          description: |
+            Optional faculty scope. Required for `dean`. Set to null to
+            clear. Omit to leave unchanged. Ignored for owner / registrar
+            roles.
       required: [orgRole]
 
     StaffMemberResponse:

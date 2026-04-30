@@ -5,13 +5,14 @@ import {
   adminRolesTable,
   employersTable,
   institutionDepartmentsTable,
+  institutionFacultiesTable,
   institutionsTable,
   usersTable,
 } from "@workspace/db";
 import {
   requireAuth,
   requireOrgMember,
-  requireOrgOwner,
+  requireOrgOwnerOrRegistrar,
 } from "../middleware/require-auth";
 import { createSetupToken, findUserByEmail } from "../lib/auth";
 import { sendAuthLinkEmail, originFromReq } from "../lib/email";
@@ -98,6 +99,47 @@ async function departmentBelongsToInstitution(
 }
 
 /**
+ * Validates that a faculty id belongs to the given institution.
+ * Mirrors `departmentBelongsToInstitution` so dean assignments can't
+ * be hijacked across orgs by guessing ids.
+ */
+async function facultyBelongsToInstitution(
+  facultyId: number,
+  institutionId: number,
+): Promise<boolean> {
+  const [row] = await db
+    .select({ id: institutionFacultiesTable.id })
+    .from(institutionFacultiesTable)
+    .where(
+      and(
+        eq(institutionFacultiesTable.id, facultyId),
+        eq(institutionFacultiesTable.institutionId, institutionId),
+      ),
+    )
+    .limit(1);
+  return !!row;
+}
+
+/**
+ * Resolves the human-readable name for a set of faculty ids in one
+ * round-trip. Sister to `resolveDepartmentNames` for dean staffers.
+ */
+async function resolveFacultyNames(
+  facultyIds: number[],
+): Promise<Map<number, string>> {
+  const ids = Array.from(new Set(facultyIds.filter((n) => Number.isFinite(n))));
+  if (ids.length === 0) return new Map();
+  const rows = await db
+    .select({
+      id: institutionFacultiesTable.id,
+      name: institutionFacultiesTable.name,
+    })
+    .from(institutionFacultiesTable)
+    .where(inArray(institutionFacultiesTable.id, ids));
+  return new Map(rows.map((r) => [r.id, r.name]));
+}
+
+/**
  * Public summary of a staff member used by the team page. Department
  * name is supplied separately so the call can batch the lookups across
  * a list of staffers.
@@ -105,6 +147,7 @@ async function departmentBelongsToInstitution(
 function toStaffRow(
   u: typeof usersTable.$inferSelect,
   departmentName: string | null = null,
+  facultyName: string | null = null,
 ) {
   return {
     id: u.id,
@@ -117,6 +160,8 @@ function toStaffRow(
     institutionId: u.institutionId,
     assignedDepartmentId: u.assignedDepartmentId ?? null,
     assignedDepartmentName: departmentName,
+    assignedFacultyId: u.assignedFacultyId ?? null,
+    assignedFacultyName: facultyName,
     createdAt: u.createdAt.toISOString(),
   };
 }
@@ -166,6 +211,11 @@ router.get("/staff", requireOrgMember, async (req, res) => {
       .map((r) => r.assignedDepartmentId)
       .filter((id): id is number => typeof id === "number"),
   );
+  const facultyNames = await resolveFacultyNames(
+    rows
+      .map((r) => r.assignedFacultyId)
+      .filter((id): id is number => typeof id === "number"),
+  );
   res.json({
     members: rows.map((r) =>
       toStaffRow(
@@ -173,21 +223,130 @@ router.get("/staff", requireOrgMember, async (req, res) => {
         r.assignedDepartmentId != null
           ? deptNames.get(r.assignedDepartmentId) ?? null
           : null,
+        r.assignedFacultyId != null
+          ? facultyNames.get(r.assignedFacultyId) ?? null
+          : null,
       ),
     ),
   });
 });
 
 /**
- * POST /api/staff/invite
- * Body: { email, fullName, orgRole }
- * Owner/super_admin invites a new teammate to their own org. Creates
- * an "invited" user with a one-time setup token and emails the link.
+ * Resolves and validates a (departmentId, facultyId) pair against the
+ * caller's role rules:
+ *   * owner/registrar → both must be null (org-wide)
+ *   * dean            → facultyId required, departmentId must be null
+ *   * hod             → departmentId required, facultyId must be null
+ *   * coordinator     → optional departmentId, no facultyId
+ *   * viewer          → both must be null
+ * Returns either `{ ok: true, deptId, facultyId }` for the resolved
+ * values or `{ ok: false, error }` describing the validation failure.
  */
-router.post("/staff/invite", requireOrgOwner, async (req, res) => {
+async function resolveInstitutionScope(
+  orgRole: string,
+  institutionId: number,
+  rawDeptId: unknown,
+  rawFacultyId: unknown,
+): Promise<
+  | { ok: true; deptId: number | null; facultyId: number | null }
+  | { ok: false; error: string }
+> {
+  const isInt = (v: unknown): v is number =>
+    typeof v === "number" && Number.isInteger(v);
+  const deptProvided = rawDeptId !== undefined && rawDeptId !== null;
+  const facultyProvided = rawFacultyId !== undefined && rawFacultyId !== null;
+  if (deptProvided && !isInt(rawDeptId)) {
+    return { ok: false, error: "assignedDepartmentId must be an integer" };
+  }
+  if (facultyProvided && !isInt(rawFacultyId)) {
+    return { ok: false, error: "assignedFacultyId must be an integer" };
+  }
+  switch (orgRole) {
+    case "owner":
+    case "registrar":
+    case "viewer":
+      return { ok: true, deptId: null, facultyId: null };
+    case "dean": {
+      if (!facultyProvided) {
+        return {
+          ok: false,
+          error: "Dean requires assignedFacultyId",
+        };
+      }
+      if (deptProvided) {
+        return {
+          ok: false,
+          error: "Dean cannot also have assignedDepartmentId",
+        };
+      }
+      const facultyId = rawFacultyId as number;
+      if (!(await facultyBelongsToInstitution(facultyId, institutionId))) {
+        return {
+          ok: false,
+          error: "Faculty does not belong to your institution",
+        };
+      }
+      return { ok: true, deptId: null, facultyId };
+    }
+    case "hod": {
+      if (!deptProvided) {
+        return {
+          ok: false,
+          error: "Head of Department requires assignedDepartmentId",
+        };
+      }
+      if (facultyProvided) {
+        return {
+          ok: false,
+          error: "Head of Department cannot also have assignedFacultyId",
+        };
+      }
+      const deptId = rawDeptId as number;
+      if (!(await departmentBelongsToInstitution(deptId, institutionId))) {
+        return {
+          ok: false,
+          error: "Department does not belong to your institution",
+        };
+      }
+      return { ok: true, deptId, facultyId: null };
+    }
+    case "coordinator": {
+      if (facultyProvided) {
+        return {
+          ok: false,
+          error: "Coordinator cannot have assignedFacultyId",
+        };
+      }
+      if (deptProvided) {
+        const deptId = rawDeptId as number;
+        if (!(await departmentBelongsToInstitution(deptId, institutionId))) {
+          return {
+            ok: false,
+            error: "Department does not belong to your institution",
+          };
+        }
+        return { ok: true, deptId, facultyId: null };
+      }
+      return { ok: true, deptId: null, facultyId: null };
+    }
+    default:
+      // For unknown roles (admin, custom org roles) leave scope cleared.
+      return { ok: true, deptId: null, facultyId: null };
+  }
+}
+
+/**
+ * POST /api/staff/invite
+ * Body: { email, fullName, orgRole, assignedDepartmentId?, assignedFacultyId? }
+ * Owner / Registrar / super_admin invites a new teammate to their own
+ * org. Creates an "invited" user with a one-time setup token and emails
+ * the link.
+ */
+router.post("/staff/invite", requireOrgOwnerOrRegistrar, async (req, res) => {
   try {
     const me = req.currentUser!;
-    const { email, fullName, orgRole, assignedDepartmentId } = req.body ?? {};
+    const { email, fullName, orgRole, assignedDepartmentId, assignedFacultyId } =
+      req.body ?? {};
     if (
       typeof email !== "string" ||
       typeof fullName !== "string" ||
@@ -211,34 +370,25 @@ router.post("/staff/invite", requireOrgOwner, async (req, res) => {
       return;
     }
 
-    // Department scoping is only meaningful for institution staff and
-    // never for owners (owners are intentionally org-wide). Silently
-    // drop the value for non-institution invites or owner invites.
+    // Department/faculty scoping is only meaningful for institution
+    // staff. For employer/admin invites the values are silently
+    // dropped. For institution invites the role determines whether
+    // dept or faculty (or neither) is required.
     let resolvedDeptId: number | null = null;
-    if (
-      me.role === "institution" &&
-      orgRole !== "owner" &&
-      assignedDepartmentId != null
-    ) {
-      if (
-        typeof assignedDepartmentId !== "number" ||
-        !Number.isInteger(assignedDepartmentId)
-      ) {
-        res.status(400).json({ error: "assignedDepartmentId must be an integer" });
+    let resolvedFacultyId: number | null = null;
+    if (me.role === "institution") {
+      const scope = await resolveInstitutionScope(
+        orgRole,
+        me.institutionId!,
+        assignedDepartmentId,
+        assignedFacultyId,
+      );
+      if (!scope.ok) {
+        res.status(400).json({ error: scope.error });
         return;
       }
-      if (
-        !(await departmentBelongsToInstitution(
-          assignedDepartmentId,
-          me.institutionId!,
-        ))
-      ) {
-        res
-          .status(400)
-          .json({ error: "Department does not belong to your institution" });
-        return;
-      }
-      resolvedDeptId = assignedDepartmentId;
+      resolvedDeptId = scope.deptId;
+      resolvedFacultyId = scope.facultyId;
     }
 
     const normalizedEmail = email.toLowerCase().trim();
@@ -261,6 +411,7 @@ router.post("/staff/invite", requireOrgOwner, async (req, res) => {
       employerId: me.role === "employer" ? me.employerId : null,
       institutionId: me.role === "institution" ? me.institutionId : null,
       assignedDepartmentId: resolvedDeptId,
+      assignedFacultyId: resolvedFacultyId,
     };
 
     const [created] = await db
@@ -282,6 +433,9 @@ router.post("/staff/invite", requireOrgOwner, async (req, res) => {
     const deptNames = await resolveDepartmentNames(
       resolvedDeptId != null ? [resolvedDeptId] : [],
     );
+    const facultyNames = await resolveFacultyNames(
+      resolvedFacultyId != null ? [resolvedFacultyId] : [],
+    );
 
     // SECURITY: only expose the setup URL to the inviter when email
     // delivery is NOT configured. Once a real provider is wired up the
@@ -292,6 +446,9 @@ router.post("/staff/invite", requireOrgOwner, async (req, res) => {
       member: toStaffRow(
         created,
         resolvedDeptId != null ? deptNames.get(resolvedDeptId) ?? null : null,
+        resolvedFacultyId != null
+          ? facultyNames.get(resolvedFacultyId) ?? null
+          : null,
       ),
       setupUrl: emailResult.sent ? null : setupUrl,
       expiresAt: expiresAt.toISOString(),
@@ -309,7 +466,7 @@ router.post("/staff/invite", requireOrgOwner, async (req, res) => {
  * remove yourself. Cannot remove the last owner of an employer or
  * institution org.
  */
-router.delete("/staff/:id", requireOrgOwner, async (req, res) => {
+router.delete("/staff/:id", requireOrgOwnerOrRegistrar, async (req, res) => {
   try {
     const me = req.currentUser!;
     const targetId = Number(req.params.id);
@@ -400,18 +557,23 @@ router.delete("/staff/:id", requireOrgOwner, async (req, res) => {
  * top-level role (admin, employer, institution). Cannot change your own
  * role and cannot demote the last owner of an org.
  */
-router.patch("/staff/:id/role", requireOrgOwner, async (req, res) => {
+router.patch("/staff/:id/role", requireOrgOwnerOrRegistrar, async (req, res) => {
   try {
     const me = req.currentUser!;
     const targetId = Number(req.params.id);
-    const { orgRole, assignedDepartmentId } = req.body ?? {};
-    // `assignedDepartmentId` participates in three modes:
+    const { orgRole, assignedDepartmentId, assignedFacultyId } = req.body ?? {};
+    // `assignedDepartmentId` and `assignedFacultyId` participate in
+    // three modes each:
     //   - omitted (`undefined`) → leave the existing value unchanged
     //   - `null`                → clear the assignment (org-wide access)
-    //   - integer               → assign to that department
+    //   - integer               → assign to that scope
     const hasDeptUpdate = Object.prototype.hasOwnProperty.call(
       req.body ?? {},
       "assignedDepartmentId",
+    );
+    const hasFacultyUpdate = Object.prototype.hasOwnProperty.call(
+      req.body ?? {},
+      "assignedFacultyId",
     );
     if (!Number.isFinite(targetId)) {
       res.status(400).json({ error: "Invalid id" });
@@ -519,35 +681,43 @@ router.patch("/staff/:id/role", requireOrgOwner, async (req, res) => {
       target.orgRole === "account_manager" &&
       orgRole !== "account_manager";
 
-    // Resolve the department change. Owners are always org-wide so
-    // promoting someone to owner forces a clear, regardless of input.
-    // Demoting from owner inherits the requested value (or no-op).
+    // Resolve the (department, faculty) change for institution staff.
+    // For non-institution targets these stay unchanged. For institution
+    // targets we feed the *intended* values (request override OR
+    // current row value) into the role-aware validator.
     let nextDeptId: number | null | undefined = undefined;
-    if (orgRole === "owner") {
-      nextDeptId = null;
-    } else if (target.role === "institution" && hasDeptUpdate) {
-      if (assignedDepartmentId === null) {
-        nextDeptId = null;
-      } else if (
-        typeof assignedDepartmentId === "number" &&
-        Number.isInteger(assignedDepartmentId)
-      ) {
-        if (
-          target.institutionId == null ||
-          !(await departmentBelongsToInstitution(
-            assignedDepartmentId,
-            target.institutionId,
-          ))
-        ) {
-          res
-            .status(400)
-            .json({ error: "Department does not belong to this institution" });
-          return;
-        }
-        nextDeptId = assignedDepartmentId;
-      } else {
-        res.status(400).json({ error: "assignedDepartmentId must be an integer or null" });
+    let nextFacultyId: number | null | undefined = undefined;
+    if (target.role === "institution" && target.institutionId != null) {
+      // Treat undefined-but-no-update as "use existing value" so the
+      // validator can enforce role-specific requirements (e.g. dean
+      // must end up with a faculty even if the caller only updated
+      // orgRole and faculty was already set).
+      const intendedDept = hasDeptUpdate
+        ? assignedDepartmentId
+        : target.assignedDepartmentId;
+      const intendedFaculty = hasFacultyUpdate
+        ? assignedFacultyId
+        : target.assignedFacultyId;
+      const scope = await resolveInstitutionScope(
+        orgRole,
+        target.institutionId,
+        intendedDept,
+        intendedFaculty,
+      );
+      if (!scope.ok) {
+        res.status(400).json({ error: scope.error });
         return;
+      }
+      // Only include in the patch if the resolved value differs from
+      // current OR the caller explicitly attempted an update.
+      if (hasDeptUpdate || scope.deptId !== (target.assignedDepartmentId ?? null)) {
+        nextDeptId = scope.deptId;
+      }
+      if (
+        hasFacultyUpdate ||
+        scope.facultyId !== (target.assignedFacultyId ?? null)
+      ) {
+        nextFacultyId = scope.facultyId;
       }
     }
 
@@ -562,10 +732,15 @@ router.patch("/staff/:id/role", requireOrgOwner, async (req, res) => {
           .set({ accountManagerId: null })
           .where(eq(institutionsTable.accountManagerId, target.id));
       }
-      const patch: { orgRole: string; assignedDepartmentId?: number | null } = {
+      const patch: {
+        orgRole: string;
+        assignedDepartmentId?: number | null;
+        assignedFacultyId?: number | null;
+      } = {
         orgRole,
       };
       if (nextDeptId !== undefined) patch.assignedDepartmentId = nextDeptId;
+      if (nextFacultyId !== undefined) patch.assignedFacultyId = nextFacultyId;
       const [row] = await tx
         .update(usersTable)
         .set(patch)
@@ -574,13 +749,18 @@ router.patch("/staff/:id/role", requireOrgOwner, async (req, res) => {
       return row;
     });
     const finalDeptId = updated.assignedDepartmentId;
+    const finalFacultyId = updated.assignedFacultyId;
     const deptNames = await resolveDepartmentNames(
       finalDeptId != null ? [finalDeptId] : [],
+    );
+    const facultyNames = await resolveFacultyNames(
+      finalFacultyId != null ? [finalFacultyId] : [],
     );
     res.json({
       member: toStaffRow(
         updated,
         finalDeptId != null ? deptNames.get(finalDeptId) ?? null : null,
+        finalFacultyId != null ? facultyNames.get(finalFacultyId) ?? null : null,
       ),
     });
   } catch (err) {

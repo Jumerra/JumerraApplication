@@ -6,13 +6,12 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface InstitutionDepartment {
+export interface InstitutionFaculty {
   id: number;
   institutionId: number;
-  facultyId: number | null;
   name: string;
   code: string | null;
-  headName: string | null;
+  deanName: string | null;
   description: string | null;
   createdAt: Date;
   updatedAt: Date;

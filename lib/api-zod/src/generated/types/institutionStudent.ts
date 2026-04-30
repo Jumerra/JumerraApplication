@@ -24,8 +24,12 @@ export interface InstitutionStudent {
   verifiedAt?: Date | null;
   /** Name of the institution staff member who verified this student. */
   verifiedByName?: string | null;
-  /** Department/program/faculty the student belongs to within this institution. Null if unassigned. */
+  /** Department/program the student belongs to within this institution. Null if unassigned. */
   departmentId?: number | null;
   /** Resolved name of the assigned department/program. Null if unassigned. */
   departmentName?: string | null;
+  /** Faculty (parent of department) the student belongs to. Derived from the department. Null if the institution doesn't use faculties or the student has no department. */
+  facultyId?: number | null;
+  /** Resolved name of the parent faculty. Null when no faculty. */
+  facultyName?: string | null;
 }

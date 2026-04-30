@@ -8,10 +8,15 @@
 
 export interface UpdateStaffRoleRequest {
   orgRole: string;
-  /** Optional department/program scope (institution staff only,
-non-owner roles). Set to null to clear and grant org-wide
+  /** Optional department/program scope (institution staff only).
+Required for `hod`. Set to null to clear and grant org-wide
 access. Omit to leave the existing scope unchanged. Ignored
-for owner roles and for non-institution orgs.
+for owner / registrar roles and for non-institution orgs.
  */
   assignedDepartmentId?: number | null;
+  /** Optional faculty scope. Required for `dean`. Set to null to
+clear. Omit to leave unchanged. Ignored for owner / registrar
+roles.
+ */
+  assignedFacultyId?: number | null;
 }

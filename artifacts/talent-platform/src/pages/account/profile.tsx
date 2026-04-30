@@ -109,6 +109,14 @@ export default function ProfilePage() {
   // Per-affiliation department selection (string for Select compatibility;
   // "" = unassigned/null).
   const [deptByInst, setDeptByInst] = useState<Record<number, string>>({});
+  // Per-affiliation faculty selection. Cascades the department dropdown:
+  // when a faculty is picked, only departments belonging to that faculty
+  // are shown. "" = no faculty filter (all departments visible).
+  // Faculty isn't persisted directly — it's derived server-side from the
+  // chosen department — but the local picker drives the cascade UX.
+  const [facultyByInst, setFacultyByInst] = useState<Record<number, string>>(
+    {},
+  );
   const [savingInst, setSavingInst] = useState<number | null>(null);
 
   // Hydrate the form from the loaded session.
@@ -121,14 +129,19 @@ export default function ProfilePage() {
     setAvatarUrl(sessionUser.avatarUrl ?? null);
   }, [sessionUser]);
 
-  // Hydrate the dept picker map whenever the candidate record changes.
+  // Hydrate the dept + faculty picker maps whenever the candidate record
+  // changes. Faculty defaults to whatever the server derived from the
+  // current department (so users see the right cascade on first render).
   useEffect(() => {
     if (!candidate) return;
-    const next: Record<number, string> = {};
+    const nextDept: Record<number, string> = {};
+    const nextFac: Record<number, string> = {};
     for (const link of candidate.institutions) {
-      next[link.id] = link.departmentId ? String(link.departmentId) : "";
+      nextDept[link.id] = link.departmentId ? String(link.departmentId) : "";
+      nextFac[link.id] = link.facultyId ? String(link.facultyId) : "";
     }
-    setDeptByInst(next);
+    setDeptByInst(nextDept);
+    setFacultyByInst(nextFac);
   }, [candidate]);
 
   // Pull the department list for each institution the candidate is
@@ -487,8 +500,23 @@ export default function ProfilePage() {
               const detail = detailQuery?.data as
                 | InstitutionDetail
                 | undefined;
-              const departments = detail?.departments ?? [];
+              const allDepartments = detail?.departments ?? [];
+              const faculties = detail?.faculties ?? [];
               const terms = academicUnitTerms(detail?.type ?? link.type);
+              // Only show the faculty cascade when the institution kind
+              // uses faculties AND the institution has actually defined
+              // some. Otherwise the user goes straight to the dept picker.
+              const showFacultyPicker =
+                terms.hasFaculties && faculties.length > 0;
+              const facValue = facultyByInst[link.id] ?? "";
+              // Filter departments by the chosen faculty when applicable.
+              // If the user hasn't picked one, show all departments so
+              // they can still find theirs by name.
+              const departments = showFacultyPicker && facValue
+                ? allDepartments.filter(
+                    (d) => d.facultyId != null && String(d.facultyId) === facValue,
+                  )
+                : allDepartments;
               const value = deptByInst[link.id] ?? "";
               const original = link.departmentId
                 ? String(link.departmentId)
@@ -561,7 +589,57 @@ export default function ProfilePage() {
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0">
+                    {showFacultyPicker ? (
+                      <Select
+                        value={facValue === "" ? "none" : facValue}
+                        onValueChange={(v) => {
+                          const nextFac = v === "none" ? "" : v;
+                          setFacultyByInst((m) => ({
+                            ...m,
+                            [link.id]: nextFac,
+                          }));
+                          // If the currently-selected dept doesn't belong
+                          // to the new faculty, clear it so the user has
+                          // to pick again from the filtered list.
+                          const currentDeptId = deptByInst[link.id];
+                          if (currentDeptId && nextFac) {
+                            const currentDept = allDepartments.find(
+                              (d) => String(d.id) === currentDeptId,
+                            );
+                            if (
+                              !currentDept ||
+                              currentDept.facultyId == null ||
+                              String(currentDept.facultyId) !== nextFac
+                            ) {
+                              setDeptByInst((m) => ({
+                                ...m,
+                                [link.id]: "",
+                              }));
+                            }
+                          }
+                        }}
+                        disabled={
+                          savingInst === link.id || detailQuery?.isLoading
+                        }
+                      >
+                        <SelectTrigger className="w-[200px]">
+                          <SelectValue
+                            placeholder={`Choose a ${terms.facultySingular.toLowerCase()}`}
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">
+                            All {terms.facultyPlural.toLowerCase()}
+                          </SelectItem>
+                          {faculties.map((f) => (
+                            <SelectItem key={f.id} value={String(f.id)}>
+                              {f.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : null}
                     <Select
                       value={value === "" ? "none" : value}
                       onValueChange={(v) =>
@@ -571,20 +649,22 @@ export default function ProfilePage() {
                         }))
                       }
                       disabled={
-                        departments.length === 0 ||
+                        allDepartments.length === 0 ||
                         savingInst === link.id ||
                         detailQuery?.isLoading
                       }
                     >
                       <SelectTrigger className="w-[220px]">
                         <SelectValue
-                          placeholder={`Choose a ${terms.singular.toLowerCase()}`}
+                          placeholder={
+                            showFacultyPicker && facValue && departments.length === 0
+                              ? `No ${terms.plural.toLowerCase()} in this ${terms.facultySingular.toLowerCase()}`
+                              : `Choose a ${terms.singular.toLowerCase()}`
+                          }
                         />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="none">
-                          Not assigned
-                        </SelectItem>
+                        <SelectItem value="none">Not assigned</SelectItem>
                         {departments.map((d) => (
                           <SelectItem key={d.id} value={String(d.id)}>
                             {d.name}

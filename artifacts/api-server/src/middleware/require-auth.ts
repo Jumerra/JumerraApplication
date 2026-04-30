@@ -83,6 +83,21 @@ export function isOrgOwner(user: User | undefined | null): boolean {
 }
 
 /**
+ * True if the user has owner-equivalent privileges on an institution
+ * (institution owner, institution registrar, or platform super_admin).
+ * Registrars are operational owners for university workflows: they can
+ * manage faculties, departments, staff invites, and the full student
+ * roster across the whole institution.
+ */
+export function isOrgOwnerOrRegistrar(
+  user: User | undefined | null,
+): boolean {
+  if (!user) return false;
+  if (isOrgOwner(user)) return true;
+  return user.role === "institution" && user.orgRole === "registrar";
+}
+
+/**
  * Allow access only to org owners (or platform super admins). Used for
  * staff invite/remove and other write actions on team membership.
  */
@@ -94,6 +109,24 @@ export async function requireOrgOwner(
   await requireAuth(req, res, () => {
     if (!isOrgOwner(req.currentUser)) {
       res.status(403).json({ error: "Owner access required" });
+      return;
+    }
+    next();
+  });
+}
+
+/**
+ * Allow institution owners or registrars (and platform super admins).
+ * Use for institution-wide writes that registrars must perform too.
+ */
+export async function requireOrgOwnerOrRegistrar(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  await requireAuth(req, res, () => {
+    if (!isOrgOwnerOrRegistrar(req.currentUser)) {
+      res.status(403).json({ error: "Owner or registrar access required" });
       return;
     }
     next();

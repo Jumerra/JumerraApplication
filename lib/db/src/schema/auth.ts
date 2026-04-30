@@ -9,7 +9,10 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
-import { institutionDepartmentsTable } from "./institutions";
+import {
+  institutionDepartmentsTable,
+  institutionFacultiesTable,
+} from "./institutions";
 
 /**
  * Application users (real auth-backed accounts). Distinct from the
@@ -41,19 +44,41 @@ export const usersTable = pgTable(
      * candidates. Allowed values per top-level role:
      *   admin       -> 'super_admin' | 'support'
      *   employer    -> 'owner' | 'recruiter' | 'viewer'
-     *   institution -> 'owner' | 'coordinator' | 'viewer'
+     *   institution -> 'owner' | 'registrar' | 'dean' | 'hod'
+     *                  | 'coordinator' | 'viewer'
+     *
+     * For institutions:
+     *   - 'owner' / 'registrar' have full org-wide access (registrar is a
+     *     friendlier label for university operations staff).
+     *   - 'dean' is scoped to their `assignedFacultyId` and may view /
+     *     manage candidates and departments under that faculty.
+     *   - 'hod' (head of department) is scoped to their
+     *     `assignedDepartmentId` and may view / manage candidates in
+     *     that single department.
+     *   - 'coordinator' / 'viewer' keep their existing semantics (org
+     *     or department scope; viewer = read-only).
      */
     orgRole: text("org_role"),
     /**
      * Optional department/program scope for institution staff. When set,
      * the user can only see and manage candidates affiliated with that
-     * department. Null means org-wide (all departments). Owners always
-     * see all and ignore this column. The FK is set to NULL on cascade
-     * when the parent department is deleted, downgrading the staffer to
-     * org-wide rather than orphaning them.
+     * department. Null means org-wide (all departments). Owners /
+     * registrars always see all and ignore this column. The FK is set
+     * to NULL on cascade when the parent department is deleted,
+     * downgrading the staffer to org-wide rather than orphaning them.
      */
     assignedDepartmentId: integer("assigned_department_id").references(
       (): AnyPgColumn => institutionDepartmentsTable.id,
+      { onDelete: "set null" },
+    ),
+    /**
+     * Optional faculty scope for institution staff (typically Deans).
+     * When set, the user can see and manage candidates affiliated with
+     * any department under that faculty. Null means no faculty scope.
+     * Set to NULL on cascade when the parent faculty is deleted.
+     */
+    assignedFacultyId: integer("assigned_faculty_id").references(
+      (): AnyPgColumn => institutionFacultiesTable.id,
       { onDelete: "set null" },
     ),
     /**

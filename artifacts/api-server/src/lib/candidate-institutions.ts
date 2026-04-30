@@ -4,6 +4,7 @@ import {
   candidateInstitutionsTable,
   db,
   institutionDepartmentsTable,
+  institutionFacultiesTable,
   institutionsTable,
   usersTable,
 } from "@workspace/db";
@@ -19,6 +20,8 @@ export type InstitutionLink = {
   verifiedByName: string | null;
   departmentId: number | null;
   departmentName: string | null;
+  facultyId: number | null;
+  facultyName: string | null;
 };
 
 /**
@@ -42,6 +45,8 @@ export async function getInstitutionLinksByCandidate(
       verifiedByName: usersTable.fullName,
       departmentId: candidateInstitutionsTable.departmentId,
       departmentName: institutionDepartmentsTable.name,
+      facultyId: institutionDepartmentsTable.facultyId,
+      facultyName: institutionFacultiesTable.name,
       institution: institutionsTable,
     })
     .from(candidateInstitutionsTable)
@@ -55,6 +60,10 @@ export async function getInstitutionLinksByCandidate(
         institutionDepartmentsTable.id,
         candidateInstitutionsTable.departmentId,
       ),
+    )
+    .leftJoin(
+      institutionFacultiesTable,
+      eq(institutionFacultiesTable.id, institutionDepartmentsTable.facultyId),
     )
     .leftJoin(
       usersTable,
@@ -75,6 +84,8 @@ export async function getInstitutionLinksByCandidate(
       verifiedByName: row.verifiedByName,
       departmentId: row.departmentId,
       departmentName: row.departmentName,
+      facultyId: row.facultyId,
+      facultyName: row.facultyName,
     });
     map.set(row.candidateId, list);
   }

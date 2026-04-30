@@ -1324,21 +1324,62 @@ function InstitutionAffiliationRow({
 }) {
   const colors = useColors();
   const [pickerOpen, setPickerOpen] = React.useState(false);
+  const [facultyPickerOpen, setFacultyPickerOpen] = React.useState(false);
   const { data: detail, isLoading } = useGetInstitution(institutionId);
-  const departments = detail?.departments ?? [];
+  const allDepartments = detail?.departments ?? [];
+  const faculties = detail?.faculties ?? [];
   // SHS schools are organized by "Programs"; everything else by "Departments".
   // We accept the broader institution `type` string and only branch on "shs".
-  const singularLabel = institutionType === "shs" ? "Program" : "Department";
+  const isShs = institutionType === "shs";
+  const singularLabel = isShs ? "Program" : "Department";
+  // Faculty layer is only meaningful for non-SHS institutions that have
+  // actually defined faculties. Otherwise we render a single dept picker.
+  const showFacultyPicker = !isShs && faculties.length > 0;
+
+  // Local faculty selection. Drives the cascade — the server derives
+  // facultyId from the chosen department, so we don't persist it here.
+  // Initialize from the currently-selected department's facultyId once
+  // the institution detail loads.
+  const [selectedFacultyId, setSelectedFacultyId] = React.useState<
+    number | null
+  >(null);
+  const hydratedRef = React.useRef(false);
+  React.useEffect(() => {
+    if (hydratedRef.current) return;
+    if (allDepartments.length === 0 && faculties.length === 0) return;
+    if (selectedDepartmentId != null) {
+      const dept = allDepartments.find((d) => d.id === selectedDepartmentId);
+      setSelectedFacultyId(dept?.facultyId ?? null);
+    }
+    hydratedRef.current = true;
+  }, [allDepartments, faculties.length, selectedDepartmentId]);
+
+  // Filter departments by selected faculty when applicable. When no
+  // faculty is picked, show all so the user can still browse by name.
+  const departments = showFacultyPicker && selectedFacultyId != null
+    ? allDepartments.filter((d) => d.facultyId === selectedFacultyId)
+    : allDepartments;
 
   const selectedName =
     selectedDepartmentId != null
-      ? (departments.find((d) => d.id === selectedDepartmentId)?.name ??
+      ? (allDepartments.find((d) => d.id === selectedDepartmentId)?.name ??
         `${singularLabel} #${selectedDepartmentId}`)
+      : null;
+
+  const selectedFacultyName =
+    selectedFacultyId != null
+      ? (faculties.find((f) => f.id === selectedFacultyId)?.name ??
+        `Faculty #${selectedFacultyId}`)
       : null;
 
   const options: Array<{ id: number | null; label: string }> = [
     { id: null, label: "Not assigned" },
     ...departments.map((d) => ({ id: d.id as number | null, label: d.name })),
+  ];
+
+  const facultyOptions: Array<{ id: number | null; label: string }> = [
+    { id: null, label: "All faculties" },
+    ...faculties.map((f) => ({ id: f.id as number | null, label: f.name })),
   ];
 
   return (
@@ -1394,6 +1435,49 @@ function InstitutionAffiliationRow({
         ) : null}
       </View>
 
+      {showFacultyPicker ? (
+        <Pressable
+          onPress={() => setFacultyPickerOpen(true)}
+          disabled={isLoading}
+          style={({ pressed }) => [
+            styles.input,
+            {
+              backgroundColor: colors.background,
+              borderColor: colors.border,
+              borderRadius: colors.radius * 1.25,
+              opacity: pressed || isLoading ? 0.7 : 1,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              paddingVertical: 10,
+            },
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel={`Choose faculty for ${institutionName}`}
+        >
+          <Text
+            style={{
+              fontFamily: "Inter_500Medium",
+              fontSize: 14,
+              color: selectedFacultyName
+                ? colors.foreground
+                : colors.mutedForeground,
+              flex: 1,
+            }}
+            numberOfLines={1}
+          >
+            {isLoading
+              ? "Loading faculties..."
+              : (selectedFacultyName ?? "Choose a faculty (optional)")}
+          </Text>
+          <Feather
+            name="chevron-down"
+            size={16}
+            color={colors.mutedForeground}
+          />
+        </Pressable>
+      ) : null}
+
       <Pressable
         onPress={() => setPickerOpen(true)}
         disabled={isLoading || departments.length === 0}
@@ -1425,9 +1509,13 @@ function InstitutionAffiliationRow({
         >
           {isLoading
             ? `Loading ${singularLabel.toLowerCase()}s...`
-            : departments.length === 0
+            : allDepartments.length === 0
               ? `No ${singularLabel.toLowerCase()}s available`
-              : (selectedName ?? `Choose a ${singularLabel.toLowerCase()}`)}
+              : showFacultyPicker &&
+                  selectedFacultyId != null &&
+                  departments.length === 0
+                ? `No ${singularLabel.toLowerCase()}s in this faculty`
+                : (selectedName ?? `Choose a ${singularLabel.toLowerCase()}`)}
         </Text>
         <Feather name="chevron-down" size={16} color={colors.mutedForeground} />
       </Pressable>
@@ -1443,6 +1531,30 @@ function InstitutionAffiliationRow({
           setPickerOpen(false);
         }}
       />
+
+      {showFacultyPicker ? (
+        <PickerModal
+          visible={facultyPickerOpen}
+          title="Choose faculty"
+          options={facultyOptions}
+          selectedId={selectedFacultyId}
+          onClose={() => setFacultyPickerOpen(false)}
+          onSelect={(id) => {
+            setSelectedFacultyId(id);
+            // If the currently-selected dept doesn't belong to the new
+            // faculty, clear it so the user re-picks from the filtered list.
+            if (id != null && selectedDepartmentId != null) {
+              const dept = allDepartments.find(
+                (d) => d.id === selectedDepartmentId,
+              );
+              if (!dept || dept.facultyId !== id) {
+                onChange(null);
+              }
+            }
+            setFacultyPickerOpen(false);
+          }}
+        />
+      ) : null}
     </View>
   );
 }

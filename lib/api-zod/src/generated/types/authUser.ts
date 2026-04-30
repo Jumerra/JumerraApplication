@@ -18,6 +18,10 @@ export interface AuthUser {
   candidateId: number | null;
   employerId: number | null;
   institutionId: number | null;
+  /** Department scope for institution staff (e.g. HoD). Null when org-wide. */
+  assignedDepartmentId?: number | null;
+  /** Faculty scope for institution staff (typically Dean). Null when not faculty-scoped. */
+  assignedFacultyId?: number | null;
   /** Normalized object storage path (e.g. /objects/uploads/<id>) for the user's avatar image. */
   avatarUrl: string | null;
   phone: string | null;

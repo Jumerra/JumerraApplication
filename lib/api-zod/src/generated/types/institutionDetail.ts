@@ -9,10 +9,12 @@ import type { Employer } from "./employer";
 import type { Institution } from "./institution";
 import type { InstitutionDepartment } from "./institutionDepartment";
 import type { InstitutionFacility } from "./institutionFacility";
+import type { InstitutionFaculty } from "./institutionFaculty";
 
 export type InstitutionDetail = Institution & {
   description: string;
   partnerEmployers: Employer[];
+  faculties: InstitutionFaculty[];
   departments: InstitutionDepartment[];
   facilities: InstitutionFacility[];
 };

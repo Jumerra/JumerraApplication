@@ -24,6 +24,7 @@ import InterviewInvitePage from "@/pages/interviews/invite";
 import InstitutionDashboard from "@/pages/dashboard/institution";
 import InstitutionEditPage from "@/pages/dashboard/institution-edit";
 import InstitutionDepartmentsPage from "@/pages/dashboard/institution-departments";
+import InstitutionFacultiesPage from "@/pages/dashboard/institution-faculties";
 import InstitutionFacilitiesPage from "@/pages/dashboard/institution-facilities";
 import AdminDashboard from "@/pages/dashboard/admin";
 import AdminRegistrationsPage from "@/pages/dashboard/admin/registrations";
@@ -96,6 +97,9 @@ function Router() {
         </Route>
         <Route path="/dashboard/institution/departments">
           <InstitutionLayout><InstitutionDepartmentsPage /></InstitutionLayout>
+        </Route>
+        <Route path="/dashboard/institution/faculties">
+          <InstitutionLayout><InstitutionFacultiesPage /></InstitutionLayout>
         </Route>
         <Route path="/dashboard/institution/facilities">
           <InstitutionLayout><InstitutionFacilitiesPage /></InstitutionLayout>

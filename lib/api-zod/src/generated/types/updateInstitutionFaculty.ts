@@ -6,17 +6,19 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface CreateInstitutionDepartment {
+/**
+ * All fields optional. Send null on nullable fields to clear them.
+ */
+export interface UpdateInstitutionFaculty {
   /**
    * @minLength 1
    * @maxLength 200
    */
-  name: string;
+  name?: string;
   /** @maxLength 30 */
   code?: string | null;
   /** @maxLength 200 */
-  headName?: string | null;
+  deanName?: string | null;
   /** @maxLength 2000 */
   description?: string | null;
-  facultyId?: number | null;
 }

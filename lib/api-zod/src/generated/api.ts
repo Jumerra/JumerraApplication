@@ -64,12 +64,22 @@ export const ListCandidatesResponseItem = zod.object({
           .number()
           .nullish()
           .describe(
-            "Department\/program\/faculty within this institution. Null when unassigned.",
+            "Department\/program within this institution. Null when unassigned.",
           ),
         departmentName: zod
           .string()
           .nullish()
           .describe("Resolved department\/program name. Null when unassigned."),
+        facultyId: zod
+          .number()
+          .nullish()
+          .describe(
+            "Parent faculty of the assigned department, derived from the\ndepartment row. Null if the institution doesn't use faculties\nor the candidate has no department selected.\n",
+          ),
+        facultyName: zod
+          .string()
+          .nullish()
+          .describe("Resolved faculty name. Null when no faculty."),
       }),
     )
     .describe(
@@ -141,7 +151,7 @@ export const GetCandidateResponse = zod
             .number()
             .nullish()
             .describe(
-              "Department\/program\/faculty within this institution. Null when unassigned.",
+              "Department\/program within this institution. Null when unassigned.",
             ),
           departmentName: zod
             .string()
@@ -149,6 +159,16 @@ export const GetCandidateResponse = zod
             .describe(
               "Resolved department\/program name. Null when unassigned.",
             ),
+          facultyId: zod
+            .number()
+            .nullish()
+            .describe(
+              "Parent faculty of the assigned department, derived from the\ndepartment row. Null if the institution doesn't use faculties\nor the candidate has no department selected.\n",
+            ),
+          facultyName: zod
+            .string()
+            .nullish()
+            .describe("Resolved faculty name. Null when no faculty."),
         }),
       )
       .describe(
@@ -394,7 +414,7 @@ export const UpdateCandidateResponse = zod
             .number()
             .nullish()
             .describe(
-              "Department\/program\/faculty within this institution. Null when unassigned.",
+              "Department\/program within this institution. Null when unassigned.",
             ),
           departmentName: zod
             .string()
@@ -402,6 +422,16 @@ export const UpdateCandidateResponse = zod
             .describe(
               "Resolved department\/program name. Null when unassigned.",
             ),
+          facultyId: zod
+            .number()
+            .nullish()
+            .describe(
+              "Parent faculty of the assigned department, derived from the\ndepartment row. Null if the institution doesn't use faculties\nor the candidate has no department selected.\n",
+            ),
+          facultyName: zod
+            .string()
+            .nullish()
+            .describe("Resolved faculty name. Null when no faculty."),
         }),
       )
       .describe(
@@ -639,7 +669,7 @@ export const CreateInstitutionBody = zod.object({
 });
 
 /**
- * @summary Update the caller's institution profile (owner only).
+ * @summary Update the caller's institution profile (owner or registrar).
  */
 export const updateMyInstitutionBodyNameMax = 200;
 
@@ -684,7 +714,7 @@ export const UpdateMyInstitutionBody = zod
       .max(updateMyInstitutionBodyDescriptionMax)
       .optional(),
   })
-  .describe("All fields optional. Owner-only.");
+  .describe("All fields optional. Owner or registrar only.");
 
 export const UpdateMyInstitutionResponse = zod.object({
   id: zod.number(),
@@ -720,11 +750,109 @@ export const UpdateMyInstitutionResponse = zod.object({
 });
 
 /**
+ * @summary List faculties for the caller's institution.
+ */
+export const ListMyInstitutionFacultiesResponseItem = zod.object({
+  id: zod.number(),
+  institutionId: zod.number(),
+  name: zod.string(),
+  code: zod.string().nullable(),
+  deanName: zod.string().nullable(),
+  description: zod.string().nullable(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+export const ListMyInstitutionFacultiesResponse = zod.array(
+  ListMyInstitutionFacultiesResponseItem,
+);
+
+/**
+ * @summary Create a faculty on the caller's institution (owner / registrar).
+ */
+export const createMyInstitutionFacultyBodyNameMax = 200;
+
+export const createMyInstitutionFacultyBodyCodeMax = 30;
+
+export const createMyInstitutionFacultyBodyDeanNameMax = 200;
+
+export const createMyInstitutionFacultyBodyDescriptionMax = 2000;
+
+export const CreateMyInstitutionFacultyBody = zod.object({
+  name: zod.string().min(1).max(createMyInstitutionFacultyBodyNameMax),
+  code: zod.string().max(createMyInstitutionFacultyBodyCodeMax).nullish(),
+  deanName: zod
+    .string()
+    .max(createMyInstitutionFacultyBodyDeanNameMax)
+    .nullish(),
+  description: zod
+    .string()
+    .max(createMyInstitutionFacultyBodyDescriptionMax)
+    .nullish(),
+});
+
+/**
+ * @summary Update a faculty on the caller's institution (owner / registrar).
+ */
+export const UpdateMyInstitutionFacultyParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const updateMyInstitutionFacultyBodyNameMax = 200;
+
+export const updateMyInstitutionFacultyBodyCodeMax = 30;
+
+export const updateMyInstitutionFacultyBodyDeanNameMax = 200;
+
+export const updateMyInstitutionFacultyBodyDescriptionMax = 2000;
+
+export const UpdateMyInstitutionFacultyBody = zod
+  .object({
+    name: zod
+      .string()
+      .min(1)
+      .max(updateMyInstitutionFacultyBodyNameMax)
+      .optional(),
+    code: zod.string().max(updateMyInstitutionFacultyBodyCodeMax).nullish(),
+    deanName: zod
+      .string()
+      .max(updateMyInstitutionFacultyBodyDeanNameMax)
+      .nullish(),
+    description: zod
+      .string()
+      .max(updateMyInstitutionFacultyBodyDescriptionMax)
+      .nullish(),
+  })
+  .describe("All fields optional. Send null on nullable fields to clear them.");
+
+export const UpdateMyInstitutionFacultyResponse = zod.object({
+  id: zod.number(),
+  institutionId: zod.number(),
+  name: zod.string(),
+  code: zod.string().nullable(),
+  deanName: zod.string().nullable(),
+  description: zod.string().nullable(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Delete a faculty on the caller's institution (owner / registrar).
+ */
+export const DeleteMyInstitutionFacultyParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const DeleteMyInstitutionFacultyResponse = zod.object({
+  ok: zod.boolean(),
+});
+
+/**
  * @summary List departments for the caller's institution.
  */
 export const ListMyInstitutionDepartmentsResponseItem = zod.object({
   id: zod.number(),
   institutionId: zod.number(),
+  facultyId: zod.number().nullable(),
   name: zod.string(),
   code: zod.string().nullable(),
   headName: zod.string().nullable(),
@@ -737,7 +865,7 @@ export const ListMyInstitutionDepartmentsResponse = zod.array(
 );
 
 /**
- * @summary Create a department on the caller's institution (owner only).
+ * @summary Create a department on the caller's institution (owner or registrar).
  */
 export const createMyInstitutionDepartmentBodyNameMax = 200;
 
@@ -758,10 +886,11 @@ export const CreateMyInstitutionDepartmentBody = zod.object({
     .string()
     .max(createMyInstitutionDepartmentBodyDescriptionMax)
     .nullish(),
+  facultyId: zod.number().nullish(),
 });
 
 /**
- * @summary Update a department on the caller's institution (owner only).
+ * @summary Update a department on the caller's institution (owner or registrar).
  */
 export const UpdateMyInstitutionDepartmentParams = zod.object({
   id: zod.coerce.number(),
@@ -791,12 +920,14 @@ export const UpdateMyInstitutionDepartmentBody = zod
       .string()
       .max(updateMyInstitutionDepartmentBodyDescriptionMax)
       .nullish(),
+    facultyId: zod.number().nullish(),
   })
   .describe("All fields optional. Send null on nullable fields to clear them.");
 
 export const UpdateMyInstitutionDepartmentResponse = zod.object({
   id: zod.number(),
   institutionId: zod.number(),
+  facultyId: zod.number().nullable(),
   name: zod.string(),
   code: zod.string().nullable(),
   headName: zod.string().nullable(),
@@ -806,7 +937,7 @@ export const UpdateMyInstitutionDepartmentResponse = zod.object({
 });
 
 /**
- * @summary Delete a department on the caller's institution (owner only).
+ * @summary Delete a department on the caller's institution (owner or registrar).
  */
 export const DeleteMyInstitutionDepartmentParams = zod.object({
   id: zod.coerce.number(),
@@ -835,7 +966,7 @@ export const ListMyInstitutionFacilitiesResponse = zod.array(
 );
 
 /**
- * @summary Create a facility on the caller's institution (owner only).
+ * @summary Create a facility on the caller's institution (owner or registrar).
  */
 export const createMyInstitutionFacilityBodyNameMax = 200;
 
@@ -865,7 +996,7 @@ export const CreateMyInstitutionFacilityBody = zod.object({
 });
 
 /**
- * @summary Update a facility on the caller's institution (owner only).
+ * @summary Update a facility on the caller's institution (owner or registrar).
  */
 export const UpdateMyInstitutionFacilityParams = zod.object({
   id: zod.coerce.number(),
@@ -921,7 +1052,7 @@ export const UpdateMyInstitutionFacilityResponse = zod.object({
 });
 
 /**
- * @summary Delete a facility on the caller's institution (owner only).
+ * @summary Delete a facility on the caller's institution (owner or registrar).
  */
 export const DeleteMyInstitutionFacilityParams = zod.object({
   id: zod.coerce.number(),
@@ -1004,10 +1135,23 @@ export const GetInstitutionResponse = zod
             .describe("Owning account-manager display name (admin-only field)"),
         }),
       ),
+      faculties: zod.array(
+        zod.object({
+          id: zod.number(),
+          institutionId: zod.number(),
+          name: zod.string(),
+          code: zod.string().nullable(),
+          deanName: zod.string().nullable(),
+          description: zod.string().nullable(),
+          createdAt: zod.coerce.date(),
+          updatedAt: zod.coerce.date(),
+        }),
+      ),
       departments: zod.array(
         zod.object({
           id: zod.number(),
           institutionId: zod.number(),
+          facultyId: zod.number().nullable(),
           name: zod.string(),
           code: zod.string().nullable(),
           headName: zod.string().nullable(),
@@ -1082,7 +1226,7 @@ export const ListInstitutionStudentsResponseItem = zod.object({
     .number()
     .nullish()
     .describe(
-      "Department\/program\/faculty the student belongs to within this institution. Null if unassigned.",
+      "Department\/program the student belongs to within this institution. Null if unassigned.",
     ),
   departmentName: zod
     .string()
@@ -1090,6 +1234,16 @@ export const ListInstitutionStudentsResponseItem = zod.object({
     .describe(
       "Resolved name of the assigned department\/program. Null if unassigned.",
     ),
+  facultyId: zod
+    .number()
+    .nullish()
+    .describe(
+      "Faculty (parent of department) the student belongs to. Derived from the department. Null if the institution doesn't use faculties or the student has no department.",
+    ),
+  facultyName: zod
+    .string()
+    .nullish()
+    .describe("Resolved name of the parent faculty. Null when no faculty."),
 });
 export const ListInstitutionStudentsResponse = zod.array(
   ListInstitutionStudentsResponseItem,
@@ -1787,7 +1941,7 @@ export const GetInstitutionDashboardResponse = zod.object({
         .number()
         .nullish()
         .describe(
-          "Department\/program\/faculty the student belongs to within this institution. Null if unassigned.",
+          "Department\/program the student belongs to within this institution. Null if unassigned.",
         ),
       departmentName: zod
         .string()
@@ -1795,6 +1949,16 @@ export const GetInstitutionDashboardResponse = zod.object({
         .describe(
           "Resolved name of the assigned department\/program. Null if unassigned.",
         ),
+      facultyId: zod
+        .number()
+        .nullish()
+        .describe(
+          "Faculty (parent of department) the student belongs to. Derived from the department. Null if the institution doesn't use faculties or the student has no department.",
+        ),
+      facultyName: zod
+        .string()
+        .nullish()
+        .describe("Resolved name of the parent faculty. Null when no faculty."),
     }),
   ),
   placementsLocked: zod
@@ -1932,6 +2096,18 @@ export const LoginUserResponse = zod.object({
       candidateId: zod.number().nullable(),
       employerId: zod.number().nullable(),
       institutionId: zod.number().nullable(),
+      assignedDepartmentId: zod
+        .number()
+        .nullish()
+        .describe(
+          "Department scope for institution staff (e.g. HoD). Null when org-wide.",
+        ),
+      assignedFacultyId: zod
+        .number()
+        .nullish()
+        .describe(
+          "Faculty scope for institution staff (typically Dean). Null when not faculty-scoped.",
+        ),
       avatarUrl: zod
         .string()
         .nullable()
@@ -1974,6 +2150,18 @@ export const GetCurrentUserResponse = zod.object({
       candidateId: zod.number().nullable(),
       employerId: zod.number().nullable(),
       institutionId: zod.number().nullable(),
+      assignedDepartmentId: zod
+        .number()
+        .nullish()
+        .describe(
+          "Department scope for institution staff (e.g. HoD). Null when org-wide.",
+        ),
+      assignedFacultyId: zod
+        .number()
+        .nullish()
+        .describe(
+          "Faculty scope for institution staff (typically Dean). Null when not faculty-scoped.",
+        ),
       avatarUrl: zod
         .string()
         .nullable()
@@ -2044,6 +2232,18 @@ export const UpdateMyProfileResponse = zod.object({
       candidateId: zod.number().nullable(),
       employerId: zod.number().nullable(),
       institutionId: zod.number().nullable(),
+      assignedDepartmentId: zod
+        .number()
+        .nullish()
+        .describe(
+          "Department scope for institution staff (e.g. HoD). Null when org-wide.",
+        ),
+      assignedFacultyId: zod
+        .number()
+        .nullish()
+        .describe(
+          "Faculty scope for institution staff (typically Dean). Null when not faculty-scoped.",
+        ),
       avatarUrl: zod
         .string()
         .nullable()
@@ -2112,6 +2312,18 @@ export const SetupPasswordResponse = zod.object({
       candidateId: zod.number().nullable(),
       employerId: zod.number().nullable(),
       institutionId: zod.number().nullable(),
+      assignedDepartmentId: zod
+        .number()
+        .nullish()
+        .describe(
+          "Department scope for institution staff (e.g. HoD). Null when org-wide.",
+        ),
+      assignedFacultyId: zod
+        .number()
+        .nullish()
+        .describe(
+          "Faculty scope for institution staff (typically Dean). Null when not faculty-scoped.",
+        ),
       avatarUrl: zod
         .string()
         .nullable()
@@ -3293,13 +3505,25 @@ export const ListStaffResponse = zod.object({
         .number()
         .nullish()
         .describe(
-          "Optional department\/program scope for non-owner institution\nstaff. Null means org-wide. Owners always operate org-wide and\nignore this field.\n",
+          "Optional department\/program scope for non-owner institution\nstaff (e.g. Head of Department). Null means org-wide.\nOwners\/registrars always operate org-wide and ignore this field.\n",
         ),
       assignedDepartmentName: zod
         .string()
         .nullish()
         .describe(
           "Resolved name of the assigned department\/program. Null when org-wide.",
+        ),
+      assignedFacultyId: zod
+        .number()
+        .nullish()
+        .describe(
+          "Optional faculty scope for institution staff (typically Deans).\nWhen set, the user can see all departments under that faculty.\nNull means no faculty scope. Ignored for owner \/ registrar roles.\n",
+        ),
+      assignedFacultyName: zod
+        .string()
+        .nullish()
+        .describe(
+          "Resolved name of the assigned faculty. Null when not faculty-scoped.",
         ),
       createdAt: zod.coerce.date(),
     }),
@@ -3317,7 +3541,13 @@ export const InviteStaffBody = zod.object({
     .number()
     .nullish()
     .describe(
-      "Optional department\/program scope (institution staff only,\nnon-owner roles). Must reference a department of the inviter's\ninstitution. Ignored for owner roles and for non-institution orgs.\n",
+      "Optional department\/program scope (institution staff only,\nnon-owner roles). Required for `hod` (head of department).\nMust reference a department of the inviter's institution.\nIgnored for owner \/ registrar roles and for non-institution orgs.\n",
+    ),
+  assignedFacultyId: zod
+    .number()
+    .nullish()
+    .describe(
+      "Optional faculty scope (institution staff only). Required for\n`dean`. Must reference a faculty of the inviter's institution.\nIgnored for owner \/ registrar roles.\n",
     ),
 });
 
@@ -3345,7 +3575,13 @@ export const UpdateStaffRoleBody = zod.object({
     .number()
     .nullish()
     .describe(
-      "Optional department\/program scope (institution staff only,\nnon-owner roles). Set to null to clear and grant org-wide\naccess. Omit to leave the existing scope unchanged. Ignored\nfor owner roles and for non-institution orgs.\n",
+      "Optional department\/program scope (institution staff only).\nRequired for `hod`. Set to null to clear and grant org-wide\naccess. Omit to leave the existing scope unchanged. Ignored\nfor owner \/ registrar roles and for non-institution orgs.\n",
+    ),
+  assignedFacultyId: zod
+    .number()
+    .nullish()
+    .describe(
+      "Optional faculty scope. Required for `dean`. Set to null to\nclear. Omit to leave unchanged. Ignored for owner \/ registrar\nroles.\n",
     ),
 });
 
@@ -3363,13 +3599,25 @@ export const UpdateStaffRoleResponse = zod.object({
       .number()
       .nullish()
       .describe(
-        "Optional department\/program scope for non-owner institution\nstaff. Null means org-wide. Owners always operate org-wide and\nignore this field.\n",
+        "Optional department\/program scope for non-owner institution\nstaff (e.g. Head of Department). Null means org-wide.\nOwners\/registrars always operate org-wide and ignore this field.\n",
       ),
     assignedDepartmentName: zod
       .string()
       .nullish()
       .describe(
         "Resolved name of the assigned department\/program. Null when org-wide.",
+      ),
+    assignedFacultyId: zod
+      .number()
+      .nullish()
+      .describe(
+        "Optional faculty scope for institution staff (typically Deans).\nWhen set, the user can see all departments under that faculty.\nNull means no faculty scope. Ignored for owner \/ registrar roles.\n",
+      ),
+    assignedFacultyName: zod
+      .string()
+      .nullish()
+      .describe(
+        "Resolved name of the assigned faculty. Null when not faculty-scoped.",
       ),
     createdAt: zod.coerce.date(),
   }),

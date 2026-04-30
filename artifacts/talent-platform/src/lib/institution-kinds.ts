@@ -52,6 +52,15 @@ export interface AcademicUnitTerms {
   codeLabel: string;
   // Label for the lead-staff field.
   headLabel: string;
+  /**
+   * Whether this institution kind has a Faculty layer above departments.
+   * SHS-style schools don't, so the faculty picker (and Faculties page)
+   * should be hidden for them.
+   */
+  hasFaculties: boolean;
+  // Used by the Faculties page header.
+  facultySingular: string;
+  facultyPlural: string;
 }
 
 const SHS_TERMS: AcademicUnitTerms = {
@@ -60,14 +69,20 @@ const SHS_TERMS: AcademicUnitTerms = {
   hint: "Programs offered by your school (e.g. Science, General Arts, Business, Visual Arts).",
   codeLabel: "Code",
   headLabel: "Coordinator",
+  hasFaculties: false,
+  facultySingular: "Faculty",
+  facultyPlural: "Faculties",
 };
 
 const DEFAULT_TERMS: AcademicUnitTerms = {
   singular: "Department",
   plural: "Departments",
-  hint: "Academic departments and faculties within your institution.",
+  hint: "Academic departments within your institution, optionally grouped by faculty.",
   codeLabel: "Code",
   headLabel: "Head of department",
+  hasFaculties: true,
+  facultySingular: "Faculty",
+  facultyPlural: "Faculties",
 };
 
 export function academicUnitTerms(

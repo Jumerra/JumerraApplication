@@ -18,11 +18,18 @@ export interface StaffMember {
   employerId: number | null;
   institutionId: number | null;
   /** Optional department/program scope for non-owner institution
-staff. Null means org-wide. Owners always operate org-wide and
-ignore this field.
+staff (e.g. Head of Department). Null means org-wide.
+Owners/registrars always operate org-wide and ignore this field.
  */
   assignedDepartmentId?: number | null;
   /** Resolved name of the assigned department/program. Null when org-wide. */
   assignedDepartmentName?: string | null;
+  /** Optional faculty scope for institution staff (typically Deans).
+When set, the user can see all departments under that faculty.
+Null means no faculty scope. Ignored for owner / registrar roles.
+ */
+  assignedFacultyId?: number | null;
+  /** Resolved name of the assigned faculty. Null when not faculty-scoped. */
+  assignedFacultyName?: string | null;
   createdAt: Date;
 }

@@ -5,6 +5,7 @@ import {
   institutionsTable,
   institutionDepartmentsTable,
   institutionFacilitiesTable,
+  institutionFacultiesTable,
   candidatesTable,
   candidateInstitutionsTable,
   applicationsTable,
@@ -12,6 +13,7 @@ import {
   employersTable,
   type InstitutionDepartment,
   type InstitutionFacility,
+  type InstitutionFaculty,
 } from "@workspace/db";
 import {
   CreateInstitutionBody,
@@ -25,6 +27,9 @@ import {
   CreateMyInstitutionFacilityBody,
   UpdateMyInstitutionFacilityBody,
   UpdateMyInstitutionFacilityParams,
+  CreateMyInstitutionFacultyBody,
+  UpdateMyInstitutionFacultyBody,
+  UpdateMyInstitutionFacultyParams,
 } from "@workspace/api-zod";
 import {
   getCandidateIdsForInstitution,
@@ -33,9 +38,13 @@ import {
 import {
   requireAdmin,
   requireAuth,
-  isOrgOwner,
+  isOrgOwnerOrRegistrar,
 } from "../middleware/require-auth";
-import { requirePermission } from "../lib/permissions";
+import {
+  requirePermission,
+  getUserPermissions,
+  isImplicitAllUser,
+} from "../lib/permissions";
 import { usersTable, notificationsTable } from "@workspace/db";
 
 /**
@@ -113,12 +122,26 @@ function serializeDepartment(d: InstitutionDepartment) {
   return {
     id: d.id,
     institutionId: d.institutionId,
+    facultyId: d.facultyId,
     name: d.name,
     code: d.code,
     headName: d.headName,
     description: d.description,
     createdAt: d.createdAt.toISOString(),
     updatedAt: d.updatedAt.toISOString(),
+  };
+}
+
+function serializeFaculty(f: InstitutionFaculty) {
+  return {
+    id: f.id,
+    institutionId: f.institutionId,
+    name: f.name,
+    code: f.code,
+    deanName: f.deanName,
+    description: f.description,
+    createdAt: f.createdAt.toISOString(),
+    updatedAt: f.updatedAt.toISOString(),
   };
 }
 
@@ -351,7 +374,7 @@ router.get("/institutions/:id", async (req, res): Promise<void> => {
     createdAt: e.createdAt.toISOString(),
   }));
 
-  const [departments, facilities] = await Promise.all([
+  const [departments, facilities, faculties] = await Promise.all([
     db
       .select()
       .from(institutionDepartmentsTable)
@@ -362,6 +385,11 @@ router.get("/institutions/:id", async (req, res): Promise<void> => {
       .from(institutionFacilitiesTable)
       .where(eq(institutionFacilitiesTable.institutionId, institution.id))
       .orderBy(asc(institutionFacilitiesTable.name)),
+    db
+      .select()
+      .from(institutionFacultiesTable)
+      .where(eq(institutionFacultiesTable.institutionId, institution.id))
+      .orderBy(asc(institutionFacultiesTable.name)),
   ]);
 
   res.json({
@@ -370,10 +398,14 @@ router.get("/institutions/:id", async (req, res): Promise<void> => {
     partnerEmployers,
     departments: departments.map(serializeDepartment),
     facilities: facilities.map(serializeFacility),
+    faculties: faculties.map(serializeFaculty),
   });
 });
 
-router.get("/institutions/:id/students", async (req, res): Promise<void> => {
+router.get(
+  "/institutions/:id/students",
+  requireAuth,
+  async (req, res): Promise<void> => {
   const params = ListInstitutionStudentsParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -385,23 +417,127 @@ router.get("/institutions/:id/students", async (req, res): Promise<void> => {
     return;
   }
 
-  // Per-department scoping: a non-owner institution staffer with an
-  // assigned department is hard-scoped to that department server-side.
-  // Owners and platform admins may pass `?departmentId=` to filter
-  // voluntarily; everyone else's query value is ignored in favor of
-  // the assignment so a curious coordinator can't widen their view by
-  // omitting/changing the param.
-  const me = req.currentUser ?? null;
+  // Authorization: this roster is sensitive student PII. Only allow:
+  //   * platform admins (any orgRole) — they can audit any institution
+  //   * institution staff of THIS institution who hold "students:view"
+  // Anyone else (other-org staff, candidates, employers) gets 403.
+  const me = req.currentUser!;
+  const isPlatformAdmin = me.role === "admin";
   const isInstStaffOfThisInst =
-    me?.role === "institution" && me.institutionId === params.data.id;
-  const scopedDepartmentId =
-    isInstStaffOfThisInst && !isOrgOwner(me) && me?.assignedDepartmentId != null
-      ? me.assignedDepartmentId
-      : queryParams.data.departmentId ?? null;
+    me.role === "institution" && me.institutionId === params.data.id;
+  if (!isPlatformAdmin && !isInstStaffOfThisInst) {
+    res.status(403).json({ error: "Not allowed to view this roster" });
+    return;
+  }
+  if (isInstStaffOfThisInst && !isImplicitAllUser(me)) {
+    const perms = await getUserPermissions(me);
+    if (!perms.has("students:view")) {
+      res
+        .status(403)
+        .json({ error: "Missing permission: students:view" });
+      return;
+    }
+  }
 
-  const studentIds = await getCandidateIdsForInstitution(params.data.id, {
-    departmentId: scopedDepartmentId ?? undefined,
-  });
+  // Server-side scoping for institution staff:
+  //   * HoD (assignedDepartmentId)  → restricted to that single department
+  //   * Dean (assignedFacultyId)    → restricted to every department
+  //                                    under that faculty
+  //   * Owner / Registrar / admin   → org-wide; may opt-in via
+  //                                    `?departmentId=`
+  // Non-owner staff cannot widen their view by changing/omitting the
+  // query param: their assignment overrides the request value.
+  // A dean/HoD whose scope row was deleted (FK SET NULL) is denied
+  // entirely below — we never silently broaden them to org-wide.
+  const hasOrgWideAccess =
+    !isInstStaffOfThisInst || isOrgOwnerOrRegistrar(me);
+
+  // Reject scoped roles (dean / hod) whose required scope assignment
+  // has been cleared (e.g. faculty/department deleted via FK SET NULL).
+  // Without this guard they would fall through into the "both null →
+  // org-wide" branch and see every student.
+  if (
+    isInstStaffOfThisInst &&
+    !hasOrgWideAccess &&
+    me.orgRole === "dean" &&
+    me.assignedFacultyId == null
+  ) {
+    res
+      .status(403)
+      .json({ error: "Dean has no assigned faculty; ask the registrar to reassign you." });
+    return;
+  }
+  if (
+    isInstStaffOfThisInst &&
+    !hasOrgWideAccess &&
+    me.orgRole === "hod" &&
+    me.assignedDepartmentId == null
+  ) {
+    res
+      .status(403)
+      .json({ error: "HoD has no assigned department; ask the registrar to reassign you." });
+    return;
+  }
+
+  let scopedDepartmentIds: number[] | null = null;
+  if (!hasOrgWideAccess) {
+    if (me.assignedDepartmentId != null) {
+      scopedDepartmentIds = [me.assignedDepartmentId];
+    } else if (me.assignedFacultyId != null) {
+      const facultyDepts = await db
+        .select({ id: institutionDepartmentsTable.id })
+        .from(institutionDepartmentsTable)
+        .where(
+          and(
+            eq(institutionDepartmentsTable.institutionId, params.data.id),
+            eq(institutionDepartmentsTable.facultyId, me.assignedFacultyId),
+          ),
+        );
+      // Empty list = dean assigned to a faculty with no departments yet.
+      // Returning [] here yields an empty student list, which is correct.
+      scopedDepartmentIds = facultyDepts.map((d) => d.id);
+    }
+  }
+
+  const requestedDepartmentId = queryParams.data.departmentId ?? null;
+
+  // Combine the staff scope with any opt-in `?departmentId=` filter.
+  // For org-wide callers, the requested filter is honored as-is.
+  // For scoped callers, the requested value must lie within their scope
+  // or it's ignored (we never widen).
+  let effectiveDepartmentIds: number[] | null = scopedDepartmentIds;
+  if (
+    requestedDepartmentId != null &&
+    (effectiveDepartmentIds === null ||
+      effectiveDepartmentIds.includes(requestedDepartmentId))
+  ) {
+    effectiveDepartmentIds = [requestedDepartmentId];
+  }
+
+  let studentIds: number[];
+  if (effectiveDepartmentIds === null) {
+    studentIds = await getCandidateIdsForInstitution(params.data.id);
+  } else if (effectiveDepartmentIds.length === 0) {
+    studentIds = [];
+  } else if (effectiveDepartmentIds.length === 1) {
+    studentIds = await getCandidateIdsForInstitution(params.data.id, {
+      departmentId: effectiveDepartmentIds[0],
+    });
+  } else {
+    const rows = await db
+      .select({ candidateId: candidateInstitutionsTable.candidateId })
+      .from(candidateInstitutionsTable)
+      .where(
+        and(
+          eq(candidateInstitutionsTable.institutionId, params.data.id),
+          inArray(
+            candidateInstitutionsTable.departmentId,
+            effectiveDepartmentIds,
+          ),
+        ),
+      );
+    studentIds = Array.from(new Set(rows.map((r) => r.candidateId)));
+  }
 
   if (studentIds.length === 0) {
     res.json([]);
@@ -417,8 +553,8 @@ router.get("/institutions/:id/students", async (req, res): Promise<void> => {
   // Determine whether each student's link to this institution is primary
   // so the UI can flag transfer / multi-affiliation students, and whether
   // this institution has VERIFIED them as a real student. Also pull the
-  // resolved department name so the table can render it without a second
-  // round-trip.
+  // resolved department + faculty name so the table can render them
+  // without a second round-trip.
   const linkRows = await db
     .select({
       candidateId: candidateInstitutionsTable.candidateId,
@@ -426,6 +562,8 @@ router.get("/institutions/:id/students", async (req, res): Promise<void> => {
       verifiedAt: candidateInstitutionsTable.verifiedAt,
       departmentId: candidateInstitutionsTable.departmentId,
       departmentName: institutionDepartmentsTable.name,
+      facultyId: institutionDepartmentsTable.facultyId,
+      facultyName: institutionFacultiesTable.name,
       verifiedByName: usersTable.fullName,
     })
     .from(candidateInstitutionsTable)
@@ -439,6 +577,10 @@ router.get("/institutions/:id/students", async (req, res): Promise<void> => {
         institutionDepartmentsTable.id,
         candidateInstitutionsTable.departmentId,
       ),
+    )
+    .leftJoin(
+      institutionFacultiesTable,
+      eq(institutionFacultiesTable.id, institutionDepartmentsTable.facultyId),
     )
     .where(
       and(
@@ -455,6 +597,8 @@ router.get("/institutions/:id/students", async (req, res): Promise<void> => {
       verifiedByName: string | null;
       departmentId: number | null;
       departmentName: string | null;
+      facultyId: number | null;
+      facultyName: string | null;
     }
   >(
     linkRows.map((r) => [
@@ -466,6 +610,8 @@ router.get("/institutions/:id/students", async (req, res): Promise<void> => {
         verifiedByName: r.verifiedByName,
         departmentId: r.departmentId,
         departmentName: r.departmentName,
+        facultyId: r.facultyId,
+        facultyName: r.facultyName,
       },
     ]),
   );
@@ -517,10 +663,13 @@ router.get("/institutions/:id/students", async (req, res): Promise<void> => {
         verifiedByName: link?.verifiedByName ?? null,
         departmentId: link?.departmentId ?? null,
         departmentName: link?.departmentName ?? null,
+        facultyId: link?.facultyId ?? null,
+        facultyName: link?.facultyName ?? null,
       };
     }),
   );
-});
+  },
+);
 
 /**
  * Authorization helper for verify/unverify: caller must be either a
@@ -536,27 +685,62 @@ function canManageInstitutionStudents(
   if (user.role === "admin") return true;
   if (user.role !== "institution") return false;
   if (user.institutionId !== institutionId) return false;
-  // Viewers can't change verification status — only owners and coordinators.
-  return user.orgRole === "owner" || user.orgRole === "coordinator";
+  // Viewers can't change verification status. Owners, registrars,
+  // coordinators, deans, and HoDs all can (HoDs and Deans are further
+  // department/faculty-scoped via canActOnCandidateAffiliation below).
+  return (
+    user.orgRole === "owner" ||
+    user.orgRole === "registrar" ||
+    user.orgRole === "coordinator" ||
+    user.orgRole === "dean" ||
+    user.orgRole === "hod"
+  );
 }
 
 /**
- * Per-department scoping check for verify/unverify. Returns true when
- * the actor either has org-wide access (owner / admin / unscoped staff)
- * OR the candidate's affiliation row falls within the actor's assigned
- * department. Returns false when a scoped staffer attempts to act on a
- * candidate outside their department or without an affiliation row.
+ * Per-department / per-faculty scoping check for verify/unverify.
+ * Returns true when the actor either has org-wide access (owner /
+ * registrar / admin / unscoped staff) OR the candidate's affiliation
+ * row falls within the actor's assigned scope:
+ *   * HoD: candidate's department === assignedDepartmentId
+ *   * Dean: candidate's department's faculty === assignedFacultyId
+ * Returns false when a scoped staffer attempts to act on a candidate
+ * outside their scope or on a candidate without an affiliation row.
  */
 async function canActOnCandidateAffiliation(
   user: typeof usersTable.$inferSelect,
   institutionId: number,
   candidateId: number,
 ): Promise<boolean> {
-  if (isOrgOwner(user)) return true;
-  if (user.assignedDepartmentId == null) return true;
+  if (isOrgOwnerOrRegistrar(user)) return true;
+  // Dean/HoD MUST have a scope row. If their faculty/department was
+  // deleted (FK SET NULL) they lose access until the registrar
+  // reassigns them — we never silently fall back to org-wide.
+  if (user.orgRole === "dean" && user.assignedFacultyId == null) {
+    return false;
+  }
+  if (user.orgRole === "hod" && user.assignedDepartmentId == null) {
+    return false;
+  }
+  // Other staff (coordinators, viewers, etc.) without any scope are
+  // treated as org-wide acting users — they were intentionally not
+  // restricted by the registrar.
+  if (user.assignedDepartmentId == null && user.assignedFacultyId == null) {
+    return true;
+  }
   const [link] = await db
-    .select({ departmentId: candidateInstitutionsTable.departmentId })
+    .select({
+      departmentId: candidateInstitutionsTable.departmentId,
+      facultyId: institutionDepartmentsTable.facultyId,
+    })
     .from(candidateInstitutionsTable)
+    .leftJoin(
+      institutionDepartmentsTable,
+      eq(
+        institutionDepartmentsTable.id,
+        candidateInstitutionsTable.departmentId,
+      ),
+    )
     .where(
       and(
         eq(candidateInstitutionsTable.institutionId, institutionId),
@@ -565,7 +749,19 @@ async function canActOnCandidateAffiliation(
     )
     .limit(1);
   if (!link) return false;
-  return link.departmentId === user.assignedDepartmentId;
+  if (
+    user.assignedDepartmentId != null &&
+    link.departmentId === user.assignedDepartmentId
+  ) {
+    return true;
+  }
+  if (
+    user.assignedFacultyId != null &&
+    link.facultyId === user.assignedFacultyId
+  ) {
+    return true;
+  }
+  return false;
 }
 
 router.post(
@@ -683,8 +879,10 @@ router.patch(
       res.status(403).json({ error: "Not associated with an institution" });
       return;
     }
-    if (!isOrgOwner(me)) {
-      res.status(403).json({ error: "Owner access required" });
+    if (!isOrgOwnerOrRegistrar(me)) {
+      res
+        .status(403)
+        .json({ error: "Owner or registrar access required" });
       return;
     }
     const parsed = UpdateMyInstitutionBody.safeParse(req.body);
@@ -732,6 +930,30 @@ router.get(
   },
 );
 
+/**
+ * Validate that a faculty id (when provided) is owned by the caller's
+ * institution. Returns true on success or when `facultyId` is
+ * null/undefined; false when the id refers to a faculty that doesn't
+ * exist or belongs to another institution.
+ */
+async function facultyBelongsToInstitution(
+  facultyId: number | null | undefined,
+  institutionId: number,
+): Promise<boolean> {
+  if (facultyId == null) return true;
+  const [row] = await db
+    .select({ id: institutionFacultiesTable.id })
+    .from(institutionFacultiesTable)
+    .where(
+      and(
+        eq(institutionFacultiesTable.id, facultyId),
+        eq(institutionFacultiesTable.institutionId, institutionId),
+      ),
+    )
+    .limit(1);
+  return row != null;
+}
+
 router.post(
   "/institutions/me/departments",
   requireAuth,
@@ -742,8 +964,8 @@ router.post(
       res.status(403).json({ error: "Not associated with an institution" });
       return;
     }
-    if (!isOrgOwner(me)) {
-      res.status(403).json({ error: "Owner access required" });
+    if (!isOrgOwnerOrRegistrar(me)) {
+      res.status(403).json({ error: "Owner or registrar access required" });
       return;
     }
     const parsed = CreateMyInstitutionDepartmentBody.safeParse(req.body);
@@ -751,11 +973,23 @@ router.post(
       res.status(400).json({ error: parsed.error.message });
       return;
     }
+    if (
+      !(await facultyBelongsToInstitution(
+        parsed.data.facultyId ?? null,
+        institutionId,
+      ))
+    ) {
+      res
+        .status(400)
+        .json({ error: "Faculty does not belong to this institution" });
+      return;
+    }
     try {
       const [created] = await db
         .insert(institutionDepartmentsTable)
         .values({
           institutionId,
+          facultyId: parsed.data.facultyId ?? null,
           name: parsed.data.name,
           code: parsed.data.code ?? null,
           headName: parsed.data.headName ?? null,
@@ -787,8 +1021,8 @@ router.patch(
       res.status(403).json({ error: "Not associated with an institution" });
       return;
     }
-    if (!isOrgOwner(me)) {
-      res.status(403).json({ error: "Owner access required" });
+    if (!isOrgOwnerOrRegistrar(me)) {
+      res.status(403).json({ error: "Owner or registrar access required" });
       return;
     }
     const params = UpdateMyInstitutionDepartmentParams.safeParse(req.params);
@@ -804,6 +1038,18 @@ router.patch(
     const updates = parsed.data;
     if (Object.keys(updates).length === 0) {
       res.status(400).json({ error: "No fields to update" });
+      return;
+    }
+    if (
+      "facultyId" in updates &&
+      !(await facultyBelongsToInstitution(
+        updates.facultyId ?? null,
+        institutionId,
+      ))
+    ) {
+      res
+        .status(400)
+        .json({ error: "Faculty does not belong to this institution" });
       return;
     }
     try {
@@ -846,8 +1092,8 @@ router.delete(
       res.status(403).json({ error: "Not associated with an institution" });
       return;
     }
-    if (!isOrgOwner(me)) {
-      res.status(403).json({ error: "Owner access required" });
+    if (!isOrgOwnerOrRegistrar(me)) {
+      res.status(403).json({ error: "Owner or registrar access required" });
       return;
     }
     const params = UpdateMyInstitutionDepartmentParams.safeParse(req.params);
@@ -866,6 +1112,165 @@ router.delete(
       .returning({ id: institutionDepartmentsTable.id });
     if (result.length === 0) {
       res.status(404).json({ error: "Department not found" });
+      return;
+    }
+    res.json({ ok: true });
+  },
+);
+
+// ── Faculties ──
+
+router.get(
+  "/institutions/me/faculties",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const me = req.currentUser!;
+    const institutionId = resolveCallerInstitutionId(me);
+    if (institutionId == null) {
+      res.status(403).json({ error: "Not associated with an institution" });
+      return;
+    }
+    const rows = await db
+      .select()
+      .from(institutionFacultiesTable)
+      .where(eq(institutionFacultiesTable.institutionId, institutionId))
+      .orderBy(asc(institutionFacultiesTable.name));
+    res.json(rows.map(serializeFaculty));
+  },
+);
+
+router.post(
+  "/institutions/me/faculties",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const me = req.currentUser!;
+    const institutionId = resolveCallerInstitutionId(me);
+    if (institutionId == null) {
+      res.status(403).json({ error: "Not associated with an institution" });
+      return;
+    }
+    if (!isOrgOwnerOrRegistrar(me)) {
+      res.status(403).json({ error: "Owner or registrar access required" });
+      return;
+    }
+    const parsed = CreateMyInstitutionFacultyBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    try {
+      const [created] = await db
+        .insert(institutionFacultiesTable)
+        .values({
+          institutionId,
+          name: parsed.data.name,
+          code: parsed.data.code ?? null,
+          deanName: parsed.data.deanName ?? null,
+          description: parsed.data.description ?? null,
+        })
+        .returning();
+      res.status(201).json(serializeFaculty(created!));
+    } catch (err) {
+      if (
+        err instanceof Error &&
+        /duplicate key|unique/i.test(err.message ?? "")
+      ) {
+        res.status(409).json({ error: "Faculty name already exists" });
+        return;
+      }
+      throw err;
+    }
+  },
+);
+
+router.patch(
+  "/institutions/me/faculties/:id",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const me = req.currentUser!;
+    const institutionId = resolveCallerInstitutionId(me);
+    if (institutionId == null) {
+      res.status(403).json({ error: "Not associated with an institution" });
+      return;
+    }
+    if (!isOrgOwnerOrRegistrar(me)) {
+      res.status(403).json({ error: "Owner or registrar access required" });
+      return;
+    }
+    const params = UpdateMyInstitutionFacultyParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: params.error.message });
+      return;
+    }
+    const parsed = UpdateMyInstitutionFacultyBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const updates = parsed.data;
+    if (Object.keys(updates).length === 0) {
+      res.status(400).json({ error: "No fields to update" });
+      return;
+    }
+    try {
+      const [updated] = await db
+        .update(institutionFacultiesTable)
+        .set({ ...updates, updatedAt: new Date() })
+        .where(
+          and(
+            eq(institutionFacultiesTable.id, params.data.id),
+            eq(institutionFacultiesTable.institutionId, institutionId),
+          ),
+        )
+        .returning();
+      if (!updated) {
+        res.status(404).json({ error: "Faculty not found" });
+        return;
+      }
+      res.json(serializeFaculty(updated));
+    } catch (err) {
+      if (
+        err instanceof Error &&
+        /duplicate key|unique/i.test(err.message ?? "")
+      ) {
+        res.status(409).json({ error: "Faculty name already exists" });
+        return;
+      }
+      throw err;
+    }
+  },
+);
+
+router.delete(
+  "/institutions/me/faculties/:id",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const me = req.currentUser!;
+    const institutionId = resolveCallerInstitutionId(me);
+    if (institutionId == null) {
+      res.status(403).json({ error: "Not associated with an institution" });
+      return;
+    }
+    if (!isOrgOwnerOrRegistrar(me)) {
+      res.status(403).json({ error: "Owner or registrar access required" });
+      return;
+    }
+    const params = UpdateMyInstitutionFacultyParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: params.error.message });
+      return;
+    }
+    const result = await db
+      .delete(institutionFacultiesTable)
+      .where(
+        and(
+          eq(institutionFacultiesTable.id, params.data.id),
+          eq(institutionFacultiesTable.institutionId, institutionId),
+        ),
+      )
+      .returning({ id: institutionFacultiesTable.id });
+    if (result.length === 0) {
+      res.status(404).json({ error: "Faculty not found" });
       return;
     }
     res.json({ ok: true });
@@ -903,8 +1308,10 @@ router.post(
       res.status(403).json({ error: "Not associated with an institution" });
       return;
     }
-    if (!isOrgOwner(me)) {
-      res.status(403).json({ error: "Owner access required" });
+    if (!isOrgOwnerOrRegistrar(me)) {
+      res
+        .status(403)
+        .json({ error: "Owner or registrar access required" });
       return;
     }
     const parsed = CreateMyInstitutionFacilityBody.safeParse(req.body);
@@ -948,8 +1355,10 @@ router.patch(
       res.status(403).json({ error: "Not associated with an institution" });
       return;
     }
-    if (!isOrgOwner(me)) {
-      res.status(403).json({ error: "Owner access required" });
+    if (!isOrgOwnerOrRegistrar(me)) {
+      res
+        .status(403)
+        .json({ error: "Owner or registrar access required" });
       return;
     }
     const params = UpdateMyInstitutionFacilityParams.safeParse(req.params);
@@ -1006,8 +1415,10 @@ router.delete(
       res.status(403).json({ error: "Not associated with an institution" });
       return;
     }
-    if (!isOrgOwner(me)) {
-      res.status(403).json({ error: "Owner access required" });
+    if (!isOrgOwnerOrRegistrar(me)) {
+      res
+        .status(403)
+        .json({ error: "Owner or registrar access required" });
       return;
     }
     const params = UpdateMyInstitutionFacilityParams.safeParse(req.params);

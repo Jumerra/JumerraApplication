@@ -6,7 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface CreateInstitutionDepartment {
+export interface CreateInstitutionFaculty {
   /**
    * @minLength 1
    * @maxLength 200
@@ -15,8 +15,7 @@ export interface CreateInstitutionDepartment {
   /** @maxLength 30 */
   code?: string | null;
   /** @maxLength 200 */
-  headName?: string | null;
+  deanName?: string | null;
   /** @maxLength 2000 */
   description?: string | null;
-  facultyId?: number | null;
 }

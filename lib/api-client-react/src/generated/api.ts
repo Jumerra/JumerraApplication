@@ -47,6 +47,7 @@ import type {
   CreateInstitution,
   CreateInstitutionDepartment,
   CreateInstitutionFacility,
+  CreateInstitutionFaculty,
   CreateInterviewInviteRequest,
   CreateJob,
   CreatePartnerRequest,
@@ -68,6 +69,7 @@ import type {
   InstitutionDepartment,
   InstitutionDetail,
   InstitutionFacility,
+  InstitutionFaculty,
   InstitutionStudent,
   InstitutionSubscriptionSettings,
   InstitutionSubscriptionStatus,
@@ -116,6 +118,7 @@ import type {
   UpdateEmployerSubscriptionSettingsRequest,
   UpdateInstitutionDepartment,
   UpdateInstitutionFacility,
+  UpdateInstitutionFaculty,
   UpdateInstitutionRequest,
   UpdateInstitutionSubscriptionSettingsRequest,
   UpdatePartnerRequest,
@@ -973,7 +976,7 @@ export const useCreateInstitution = <
 };
 
 /**
- * @summary Update the caller's institution profile (owner only).
+ * @summary Update the caller's institution profile (owner or registrar).
  */
 export const getUpdateMyInstitutionUrl = () => {
   return `/api/institutions/me`;
@@ -1037,7 +1040,7 @@ export type UpdateMyInstitutionMutationBody =
 export type UpdateMyInstitutionMutationError = ErrorType<unknown>;
 
 /**
- * @summary Update the caller's institution profile (owner only).
+ * @summary Update the caller's institution profile (owner or registrar).
  */
 export const useUpdateMyInstitution = <
   TError = ErrorType<unknown>,
@@ -1057,6 +1060,341 @@ export const useUpdateMyInstitution = <
   TContext
 > => {
   return useMutation(getUpdateMyInstitutionMutationOptions(options));
+};
+
+/**
+ * @summary List faculties for the caller's institution.
+ */
+export const getListMyInstitutionFacultiesUrl = () => {
+  return `/api/institutions/me/faculties`;
+};
+
+export const listMyInstitutionFaculties = async (
+  options?: RequestInit,
+): Promise<InstitutionFaculty[]> => {
+  return customFetch<InstitutionFaculty[]>(getListMyInstitutionFacultiesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListMyInstitutionFacultiesQueryKey = () => {
+  return [`/api/institutions/me/faculties`] as const;
+};
+
+export const getListMyInstitutionFacultiesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listMyInstitutionFaculties>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listMyInstitutionFaculties>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListMyInstitutionFacultiesQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listMyInstitutionFaculties>>
+  > = ({ signal }) => listMyInstitutionFaculties({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listMyInstitutionFaculties>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListMyInstitutionFacultiesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listMyInstitutionFaculties>>
+>;
+export type ListMyInstitutionFacultiesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List faculties for the caller's institution.
+ */
+
+export function useListMyInstitutionFaculties<
+  TData = Awaited<ReturnType<typeof listMyInstitutionFaculties>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listMyInstitutionFaculties>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListMyInstitutionFacultiesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a faculty on the caller's institution (owner / registrar).
+ */
+export const getCreateMyInstitutionFacultyUrl = () => {
+  return `/api/institutions/me/faculties`;
+};
+
+export const createMyInstitutionFaculty = async (
+  createInstitutionFaculty: CreateInstitutionFaculty,
+  options?: RequestInit,
+): Promise<InstitutionFaculty> => {
+  return customFetch<InstitutionFaculty>(getCreateMyInstitutionFacultyUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createInstitutionFaculty),
+  });
+};
+
+export const getCreateMyInstitutionFacultyMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createMyInstitutionFaculty>>,
+    TError,
+    { data: BodyType<CreateInstitutionFaculty> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createMyInstitutionFaculty>>,
+  TError,
+  { data: BodyType<CreateInstitutionFaculty> },
+  TContext
+> => {
+  const mutationKey = ["createMyInstitutionFaculty"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createMyInstitutionFaculty>>,
+    { data: BodyType<CreateInstitutionFaculty> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createMyInstitutionFaculty(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateMyInstitutionFacultyMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createMyInstitutionFaculty>>
+>;
+export type CreateMyInstitutionFacultyMutationBody =
+  BodyType<CreateInstitutionFaculty>;
+export type CreateMyInstitutionFacultyMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a faculty on the caller's institution (owner / registrar).
+ */
+export const useCreateMyInstitutionFaculty = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createMyInstitutionFaculty>>,
+    TError,
+    { data: BodyType<CreateInstitutionFaculty> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createMyInstitutionFaculty>>,
+  TError,
+  { data: BodyType<CreateInstitutionFaculty> },
+  TContext
+> => {
+  return useMutation(getCreateMyInstitutionFacultyMutationOptions(options));
+};
+
+/**
+ * @summary Update a faculty on the caller's institution (owner / registrar).
+ */
+export const getUpdateMyInstitutionFacultyUrl = (id: number) => {
+  return `/api/institutions/me/faculties/${id}`;
+};
+
+export const updateMyInstitutionFaculty = async (
+  id: number,
+  updateInstitutionFaculty: UpdateInstitutionFaculty,
+  options?: RequestInit,
+): Promise<InstitutionFaculty> => {
+  return customFetch<InstitutionFaculty>(getUpdateMyInstitutionFacultyUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateInstitutionFaculty),
+  });
+};
+
+export const getUpdateMyInstitutionFacultyMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateMyInstitutionFaculty>>,
+    TError,
+    { id: number; data: BodyType<UpdateInstitutionFaculty> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateMyInstitutionFaculty>>,
+  TError,
+  { id: number; data: BodyType<UpdateInstitutionFaculty> },
+  TContext
+> => {
+  const mutationKey = ["updateMyInstitutionFaculty"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateMyInstitutionFaculty>>,
+    { id: number; data: BodyType<UpdateInstitutionFaculty> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateMyInstitutionFaculty(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateMyInstitutionFacultyMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateMyInstitutionFaculty>>
+>;
+export type UpdateMyInstitutionFacultyMutationBody =
+  BodyType<UpdateInstitutionFaculty>;
+export type UpdateMyInstitutionFacultyMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update a faculty on the caller's institution (owner / registrar).
+ */
+export const useUpdateMyInstitutionFaculty = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateMyInstitutionFaculty>>,
+    TError,
+    { id: number; data: BodyType<UpdateInstitutionFaculty> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateMyInstitutionFaculty>>,
+  TError,
+  { id: number; data: BodyType<UpdateInstitutionFaculty> },
+  TContext
+> => {
+  return useMutation(getUpdateMyInstitutionFacultyMutationOptions(options));
+};
+
+/**
+ * @summary Delete a faculty on the caller's institution (owner / registrar).
+ */
+export const getDeleteMyInstitutionFacultyUrl = (id: number) => {
+  return `/api/institutions/me/faculties/${id}`;
+};
+
+export const deleteMyInstitutionFaculty = async (
+  id: number,
+  options?: RequestInit,
+): Promise<OkResponse> => {
+  return customFetch<OkResponse>(getDeleteMyInstitutionFacultyUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteMyInstitutionFacultyMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteMyInstitutionFaculty>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteMyInstitutionFaculty>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteMyInstitutionFaculty"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteMyInstitutionFaculty>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteMyInstitutionFaculty(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteMyInstitutionFacultyMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteMyInstitutionFaculty>>
+>;
+
+export type DeleteMyInstitutionFacultyMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a faculty on the caller's institution (owner / registrar).
+ */
+export const useDeleteMyInstitutionFaculty = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteMyInstitutionFaculty>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteMyInstitutionFaculty>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteMyInstitutionFacultyMutationOptions(options));
 };
 
 /**
@@ -1140,7 +1478,7 @@ export function useListMyInstitutionDepartments<
 }
 
 /**
- * @summary Create a department on the caller's institution (owner only).
+ * @summary Create a department on the caller's institution (owner or registrar).
  */
 export const getCreateMyInstitutionDepartmentUrl = () => {
   return `/api/institutions/me/departments`;
@@ -1207,7 +1545,7 @@ export type CreateMyInstitutionDepartmentMutationBody =
 export type CreateMyInstitutionDepartmentMutationError = ErrorType<unknown>;
 
 /**
- * @summary Create a department on the caller's institution (owner only).
+ * @summary Create a department on the caller's institution (owner or registrar).
  */
 export const useCreateMyInstitutionDepartment = <
   TError = ErrorType<unknown>,
@@ -1230,7 +1568,7 @@ export const useCreateMyInstitutionDepartment = <
 };
 
 /**
- * @summary Update a department on the caller's institution (owner only).
+ * @summary Update a department on the caller's institution (owner or registrar).
  */
 export const getUpdateMyInstitutionDepartmentUrl = (id: number) => {
   return `/api/institutions/me/departments/${id}`;
@@ -1298,7 +1636,7 @@ export type UpdateMyInstitutionDepartmentMutationBody =
 export type UpdateMyInstitutionDepartmentMutationError = ErrorType<unknown>;
 
 /**
- * @summary Update a department on the caller's institution (owner only).
+ * @summary Update a department on the caller's institution (owner or registrar).
  */
 export const useUpdateMyInstitutionDepartment = <
   TError = ErrorType<unknown>,
@@ -1321,7 +1659,7 @@ export const useUpdateMyInstitutionDepartment = <
 };
 
 /**
- * @summary Delete a department on the caller's institution (owner only).
+ * @summary Delete a department on the caller's institution (owner or registrar).
  */
 export const getDeleteMyInstitutionDepartmentUrl = (id: number) => {
   return `/api/institutions/me/departments/${id}`;
@@ -1382,7 +1720,7 @@ export type DeleteMyInstitutionDepartmentMutationResult = NonNullable<
 export type DeleteMyInstitutionDepartmentMutationError = ErrorType<unknown>;
 
 /**
- * @summary Delete a department on the caller's institution (owner only).
+ * @summary Delete a department on the caller's institution (owner or registrar).
  */
 export const useDeleteMyInstitutionDepartment = <
   TError = ErrorType<unknown>,
@@ -1485,7 +1823,7 @@ export function useListMyInstitutionFacilities<
 }
 
 /**
- * @summary Create a facility on the caller's institution (owner only).
+ * @summary Create a facility on the caller's institution (owner or registrar).
  */
 export const getCreateMyInstitutionFacilityUrl = () => {
   return `/api/institutions/me/facilities`;
@@ -1549,7 +1887,7 @@ export type CreateMyInstitutionFacilityMutationBody =
 export type CreateMyInstitutionFacilityMutationError = ErrorType<unknown>;
 
 /**
- * @summary Create a facility on the caller's institution (owner only).
+ * @summary Create a facility on the caller's institution (owner or registrar).
  */
 export const useCreateMyInstitutionFacility = <
   TError = ErrorType<unknown>,
@@ -1572,7 +1910,7 @@ export const useCreateMyInstitutionFacility = <
 };
 
 /**
- * @summary Update a facility on the caller's institution (owner only).
+ * @summary Update a facility on the caller's institution (owner or registrar).
  */
 export const getUpdateMyInstitutionFacilityUrl = (id: number) => {
   return `/api/institutions/me/facilities/${id}`;
@@ -1640,7 +1978,7 @@ export type UpdateMyInstitutionFacilityMutationBody =
 export type UpdateMyInstitutionFacilityMutationError = ErrorType<unknown>;
 
 /**
- * @summary Update a facility on the caller's institution (owner only).
+ * @summary Update a facility on the caller's institution (owner or registrar).
  */
 export const useUpdateMyInstitutionFacility = <
   TError = ErrorType<unknown>,
@@ -1663,7 +2001,7 @@ export const useUpdateMyInstitutionFacility = <
 };
 
 /**
- * @summary Delete a facility on the caller's institution (owner only).
+ * @summary Delete a facility on the caller's institution (owner or registrar).
  */
 export const getDeleteMyInstitutionFacilityUrl = (id: number) => {
   return `/api/institutions/me/facilities/${id}`;
@@ -1724,7 +2062,7 @@ export type DeleteMyInstitutionFacilityMutationResult = NonNullable<
 export type DeleteMyInstitutionFacilityMutationError = ErrorType<unknown>;
 
 /**
- * @summary Delete a facility on the caller's institution (owner only).
+ * @summary Delete a facility on the caller's institution (owner or registrar).
  */
 export const useDeleteMyInstitutionFacility = <
   TError = ErrorType<unknown>,

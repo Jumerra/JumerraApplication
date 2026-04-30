@@ -8,7 +8,7 @@
 import type { InstitutionKind } from "./institutionKind";
 
 /**
- * All fields optional. Owner-only.
+ * All fields optional. Owner or registrar only.
  */
 export interface UpdateInstitutionRequest {
   /**

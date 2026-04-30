@@ -65,6 +65,8 @@ function serializeCandidate(
       verifiedByName: i.verifiedByName,
       departmentId: i.departmentId ?? null,
       departmentName: i.departmentName ?? null,
+      facultyId: i.facultyId ?? null,
+      facultyName: i.facultyName ?? null,
     })),
     // True when ANY institution has explicitly verified this candidate.
     isVerified: institutions.some((i) => i.isVerified),

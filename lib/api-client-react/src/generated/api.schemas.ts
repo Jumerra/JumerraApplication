@@ -38,6 +38,10 @@ export interface AuthUser {
   candidateId: number | null;
   employerId: number | null;
   institutionId: number | null;
+  /** Department scope for institution staff (e.g. HoD). Null when org-wide. */
+  assignedDepartmentId?: number | null;
+  /** Faculty scope for institution staff (typically Dean). Null when not faculty-scoped. */
+  assignedFacultyId?: number | null;
   /** Normalized object storage path (e.g. /objects/uploads/<id>) for the user's avatar image. */
   avatarUrl: string | null;
   phone: string | null;
@@ -396,10 +400,17 @@ export interface CandidateInstitutionLink {
   /** True if this institution has explicitly verified the candidate as a real student. */
   isVerified: boolean;
   verifiedAt?: string | null;
-  /** Department/program/faculty within this institution. Null when unassigned. */
+  /** Department/program within this institution. Null when unassigned. */
   departmentId?: number | null;
   /** Resolved department/program name. Null when unassigned. */
   departmentName?: string | null;
+  /** Parent faculty of the assigned department, derived from the
+department row. Null if the institution doesn't use faculties
+or the candidate has no department selected.
+ */
+  facultyId?: number | null;
+  /** Resolved faculty name. Null when no faculty. */
+  facultyName?: string | null;
 }
 
 export interface Candidate {
@@ -787,9 +798,21 @@ export interface Institution {
   accountManagerName?: string | null;
 }
 
+export interface InstitutionFaculty {
+  id: number;
+  institutionId: number;
+  name: string;
+  code: string | null;
+  deanName: string | null;
+  description: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface InstitutionDepartment {
   id: number;
   institutionId: number;
+  facultyId: number | null;
   name: string;
   code: string | null;
   headName: string | null;
@@ -813,9 +836,41 @@ export interface InstitutionFacility {
 export type InstitutionDetail = Institution & {
   description: string;
   partnerEmployers: Employer[];
+  faculties: InstitutionFaculty[];
   departments: InstitutionDepartment[];
   facilities: InstitutionFacility[];
 };
+
+export interface CreateInstitutionFaculty {
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  name: string;
+  /** @maxLength 30 */
+  code?: string | null;
+  /** @maxLength 200 */
+  deanName?: string | null;
+  /** @maxLength 2000 */
+  description?: string | null;
+}
+
+/**
+ * All fields optional. Send null on nullable fields to clear them.
+ */
+export interface UpdateInstitutionFaculty {
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  name?: string;
+  /** @maxLength 30 */
+  code?: string | null;
+  /** @maxLength 200 */
+  deanName?: string | null;
+  /** @maxLength 2000 */
+  description?: string | null;
+}
 
 export interface CreateInstitutionDepartment {
   /**
@@ -829,6 +884,7 @@ export interface CreateInstitutionDepartment {
   headName?: string | null;
   /** @maxLength 2000 */
   description?: string | null;
+  facultyId?: number | null;
 }
 
 /**
@@ -846,6 +902,7 @@ export interface UpdateInstitutionDepartment {
   headName?: string | null;
   /** @maxLength 2000 */
   description?: string | null;
+  facultyId?: number | null;
 }
 
 export interface CreateInstitutionFacility {
@@ -890,7 +947,7 @@ export interface UpdateInstitutionFacility {
 }
 
 /**
- * All fields optional. Owner-only.
+ * All fields optional. Owner or registrar only.
  */
 export interface UpdateInstitutionRequest {
   /**
@@ -940,10 +997,14 @@ export interface InstitutionStudent {
   verifiedAt?: string | null;
   /** Name of the institution staff member who verified this student. */
   verifiedByName?: string | null;
-  /** Department/program/faculty the student belongs to within this institution. Null if unassigned. */
+  /** Department/program the student belongs to within this institution. Null if unassigned. */
   departmentId?: number | null;
   /** Resolved name of the assigned department/program. Null if unassigned. */
   departmentName?: string | null;
+  /** Faculty (parent of department) the student belongs to. Derived from the department. Null if the institution doesn't use faculties or the student has no department. */
+  facultyId?: number | null;
+  /** Resolved name of the parent faculty. Null when no faculty. */
+  facultyName?: string | null;
 }
 
 export interface CreateInstitution {
@@ -1616,12 +1677,19 @@ export interface StaffMember {
   employerId: number | null;
   institutionId: number | null;
   /** Optional department/program scope for non-owner institution
-staff. Null means org-wide. Owners always operate org-wide and
-ignore this field.
+staff (e.g. Head of Department). Null means org-wide.
+Owners/registrars always operate org-wide and ignore this field.
  */
   assignedDepartmentId?: number | null;
   /** Resolved name of the assigned department/program. Null when org-wide. */
   assignedDepartmentName?: string | null;
+  /** Optional faculty scope for institution staff (typically Deans).
+When set, the user can see all departments under that faculty.
+Null means no faculty scope. Ignored for owner / registrar roles.
+ */
+  assignedFacultyId?: number | null;
+  /** Resolved name of the assigned faculty. Null when not faculty-scoped. */
+  assignedFacultyName?: string | null;
   createdAt: string;
 }
 
@@ -1634,10 +1702,16 @@ export interface InviteStaffRequest {
   fullName: string;
   orgRole: string;
   /** Optional department/program scope (institution staff only,
-non-owner roles). Must reference a department of the inviter's
-institution. Ignored for owner roles and for non-institution orgs.
+non-owner roles). Required for `hod` (head of department).
+Must reference a department of the inviter's institution.
+Ignored for owner / registrar roles and for non-institution orgs.
  */
   assignedDepartmentId?: number | null;
+  /** Optional faculty scope (institution staff only). Required for
+`dean`. Must reference a faculty of the inviter's institution.
+Ignored for owner / registrar roles.
+ */
+  assignedFacultyId?: number | null;
 }
 
 export interface InviteStaffResponse {
@@ -1651,12 +1725,17 @@ export interface InviteStaffResponse {
 
 export interface UpdateStaffRoleRequest {
   orgRole: string;
-  /** Optional department/program scope (institution staff only,
-non-owner roles). Set to null to clear and grant org-wide
+  /** Optional department/program scope (institution staff only).
+Required for `hod`. Set to null to clear and grant org-wide
 access. Omit to leave the existing scope unchanged. Ignored
-for owner roles and for non-institution orgs.
+for owner / registrar roles and for non-institution orgs.
  */
   assignedDepartmentId?: number | null;
+  /** Optional faculty scope. Required for `dean`. Set to null to
+clear. Omit to leave unchanged. Ignored for owner / registrar
+roles.
+ */
+  assignedFacultyId?: number | null;
 }
 
 export interface StaffMemberResponse {

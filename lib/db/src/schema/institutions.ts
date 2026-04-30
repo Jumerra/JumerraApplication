@@ -45,8 +45,54 @@ export type Institution = typeof institutionsTable.$inferSelect;
 export type InsertInstitution = typeof institutionsTable.$inferInsert;
 
 /**
+ * Academic faculties (a.k.a. schools/colleges) owned by an institution.
+ * A faculty groups multiple departments, e.g. "Faculty of Engineering"
+ * contains "Department of Computer Engineering". Senior High Schools
+ * typically don't use faculties, so this layer is optional — every
+ * institution_departments row may or may not have a parent faculty.
+ *
+ * Cascades on institution delete.
+ */
+export const institutionFacultiesTable = pgTable(
+  "institution_faculties",
+  {
+    id: serial("id").primaryKey(),
+    institutionId: integer("institution_id")
+      .notNull()
+      .references(() => institutionsTable.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    code: text("code"),
+    deanName: text("dean_name"),
+    description: text("description"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    institutionFacultyInstIdx: index("institution_faculty_inst_idx").on(
+      t.institutionId,
+    ),
+    institutionFacultyUniqueName: uniqueIndex(
+      "institution_faculty_inst_name_idx",
+    ).on(t.institutionId, t.name),
+  }),
+);
+
+export type InstitutionFaculty = typeof institutionFacultiesTable.$inferSelect;
+export type InsertInstitutionFaculty =
+  typeof institutionFacultiesTable.$inferInsert;
+
+/**
  * Academic departments owned by an institution. Cascades on parent
  * delete so an institution removal cleans up its sub-resources.
+ *
+ * `facultyId` is optional: it groups departments under an academic
+ * faculty for permission scoping (a Dean assigned to a faculty can
+ * see candidates across every department under it). Set NULL on
+ * faculty delete so departments aren't orphaned.
  */
 export const institutionDepartmentsTable = pgTable(
   "institution_departments",
@@ -55,6 +101,10 @@ export const institutionDepartmentsTable = pgTable(
     institutionId: integer("institution_id")
       .notNull()
       .references(() => institutionsTable.id, { onDelete: "cascade" }),
+    facultyId: integer("faculty_id").references(
+      (): AnyPgColumn => institutionFacultiesTable.id,
+      { onDelete: "set null" },
+    ),
     name: text("name").notNull(),
     code: text("code"),
     headName: text("head_name"),
@@ -69,6 +119,9 @@ export const institutionDepartmentsTable = pgTable(
   (t) => ({
     institutionDeptInstIdx: index("institution_dept_inst_idx").on(
       t.institutionId,
+    ),
+    institutionDeptFacultyIdx: index("institution_dept_faculty_idx").on(
+      t.facultyId,
     ),
     institutionDeptUniqueName: uniqueIndex(
       "institution_dept_inst_name_idx",

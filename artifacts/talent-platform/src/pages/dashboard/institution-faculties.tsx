@@ -1,26 +1,17 @@
 import { useState } from "react";
-import { Link } from "wouter";
+import { Link, Redirect } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
-  useListMyInstitutionDepartments,
-  useCreateMyInstitutionDepartment,
-  useUpdateMyInstitutionDepartment,
-  useDeleteMyInstitutionDepartment,
-  useGetInstitution,
   useListMyInstitutionFaculties,
-  getListMyInstitutionDepartmentsQueryKey,
-  getGetInstitutionQueryKey,
+  useCreateMyInstitutionFaculty,
+  useUpdateMyInstitutionFaculty,
+  useDeleteMyInstitutionFaculty,
+  useGetInstitution,
   getListMyInstitutionFacultiesQueryKey,
-  type InstitutionDepartment,
+  getGetInstitutionQueryKey,
+  type InstitutionFaculty,
 } from "@workspace/api-client-react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { academicUnitTerms } from "@/lib/institution-kinds";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -66,49 +57,32 @@ import {
   Pencil,
   Trash2,
   Loader2,
-  BookOpen,
+  Building2,
 } from "lucide-react";
 
 interface FormState {
   name: string;
   code: string;
-  headName: string;
+  deanName: string;
   description: string;
-  // "" means "(none)" — we send `null` to the API in that case.
-  facultyId: string;
 }
 
 const EMPTY_FORM: FormState = {
   name: "",
   code: "",
-  headName: "",
+  deanName: "",
   description: "",
-  facultyId: "",
 };
 
-// The Select component doesn't allow empty-string values, so we use a
-// sentinel for the "(none)" option and translate to "" in state.
-const FACULTY_NONE = "__none__";
-
-export default function InstitutionDepartmentsPage() {
+export default function InstitutionFacultiesPage() {
   const { sessionUser } = useAuth();
   const queryClient = useQueryClient();
-  // Owner OR registrar can manage departments — registrars are
-  // owner-equivalent for institution operations.
+  // Owner OR registrar can manage faculties (registrar is owner-equivalent
+  // for academic ops).
   const canManage =
     sessionUser?.role === "institution" &&
     (sessionUser.orgRole === "owner" || sessionUser.orgRole === "registrar");
 
-  const { data: departments = [], isLoading } =
-    useListMyInstitutionDepartments({
-      query: {
-        queryKey: getListMyInstitutionDepartmentsQueryKey(),
-        enabled: sessionUser?.role === "institution",
-      },
-    });
-
-  // Pull the institution so we know which kind it is. SHS schools see
-  // the same data renamed to "Programs" with SHS-friendly field labels.
   const institutionId =
     sessionUser?.role === "institution" ? sessionUser.institutionId : null;
   const { data: institution } = useGetInstitution(institutionId ?? 0, {
@@ -118,69 +92,66 @@ export default function InstitutionDepartmentsPage() {
     },
   });
   const terms = academicUnitTerms(institution?.type);
-  const singularLower = terms.singular.toLowerCase();
-  const pluralLower = terms.plural.toLowerCase();
 
-  // Faculties are only relevant for kinds that actually use them. SHS-style
-  // schools skip the faculty layer entirely.
-  const { data: faculties = [] } = useListMyInstitutionFaculties({
+  const { data: faculties = [], isLoading } = useListMyInstitutionFaculties({
     query: {
       queryKey: getListMyInstitutionFacultiesQueryKey(),
-      enabled: sessionUser?.role === "institution" && terms.hasFaculties,
+      enabled:
+        sessionUser?.role === "institution" && institution != null
+          ? terms.hasFaculties
+          : false,
     },
   });
-  const facultyById = new Map(faculties.map((f) => [f.id, f.name]));
 
-  const [editTarget, setEditTarget] = useState<InstitutionDepartment | null>(
-    null,
-  );
+  const [editTarget, setEditTarget] = useState<InstitutionFaculty | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
-  const [deleteTarget, setDeleteTarget] =
-    useState<InstitutionDepartment | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<InstitutionFaculty | null>(
+    null,
+  );
 
   const invalidate = () =>
     queryClient.invalidateQueries({
-      queryKey: getListMyInstitutionDepartmentsQueryKey(),
+      queryKey: getListMyInstitutionFacultiesQueryKey(),
     });
 
-  const create = useCreateMyInstitutionDepartment({
+  const create = useCreateMyInstitutionFaculty({
     mutation: {
       onSuccess: () => {
-        toast.success(`${terms.singular} created`);
+        toast.success("Faculty created");
         invalidate();
         setCreateOpen(false);
         setForm(EMPTY_FORM);
       },
       onError: (err) =>
-        toast.error(`Could not create ${singularLower}`, {
+        toast.error("Could not create faculty", {
           description: err instanceof Error ? err.message : undefined,
         }),
     },
   });
 
-  const update = useUpdateMyInstitutionDepartment({
+  const update = useUpdateMyInstitutionFaculty({
     mutation: {
       onSuccess: () => {
-        toast.success(`${terms.singular} updated`);
+        toast.success("Faculty updated");
         invalidate();
         setEditTarget(null);
       },
       onError: (err) =>
-        toast.error(`Could not update ${singularLower}`, {
+        toast.error("Could not update faculty", {
           description: err instanceof Error ? err.message : undefined,
         }),
     },
   });
 
-  const remove = useDeleteMyInstitutionDepartment({
+  const remove = useDeleteMyInstitutionFaculty({
     mutation: {
       onSuccess: () => {
-        toast.success(`${terms.singular} removed`);
+        toast.success("Faculty removed");
         invalidate();
         setDeleteTarget(null);
       },
-      onError: () => toast.error(`Could not delete ${singularLower}`),
+      onError: () => toast.error("Could not delete faculty"),
     },
   });
 
@@ -193,34 +164,32 @@ export default function InstitutionDepartmentsPage() {
       </div>
     );
   }
+  // SHS-style schools don't have faculties — bounce back to Departments.
+  if (institution && !terms.hasFaculties) {
+    return <Redirect to="/dashboard/institution/departments" />;
+  }
 
   function openCreate() {
     setForm(EMPTY_FORM);
     setCreateOpen(true);
   }
 
-  function openEdit(dept: InstitutionDepartment) {
+  function openEdit(f: InstitutionFaculty) {
     setForm({
-      name: dept.name,
-      code: dept.code ?? "",
-      headName: dept.headName ?? "",
-      description: dept.description ?? "",
-      facultyId: dept.facultyId != null ? String(dept.facultyId) : "",
+      name: f.name,
+      code: f.code ?? "",
+      deanName: f.deanName ?? "",
+      description: f.description ?? "",
     });
-    setEditTarget(dept);
+    setEditTarget(f);
   }
 
   function buildPayload() {
     return {
       name: form.name.trim(),
       code: form.code.trim() || null,
-      headName: form.headName.trim() || null,
+      deanName: form.deanName.trim() || null,
       description: form.description.trim() || null,
-      // Only send facultyId when this institution kind actually uses
-      // faculties; otherwise leave it untouched on the server.
-      ...(terms.hasFaculties
-        ? { facultyId: form.facultyId ? Number(form.facultyId) : null }
-        : {}),
     };
   }
 
@@ -256,26 +225,29 @@ export default function InstitutionDepartmentsPage() {
       <div className="flex items-end justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 rounded-xl bg-muted border flex items-center justify-center text-muted-foreground">
-            <BookOpen className="w-6 h-6" />
+            <Building2 className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">{terms.plural}</h1>
-            <p className="text-muted-foreground">{terms.hint}</p>
+            <h1 className="text-3xl font-bold tracking-tight">
+              {terms.facultyPlural}
+            </h1>
+            <p className="text-muted-foreground">
+              Top-level academic units that group your departments.
+            </p>
           </div>
         </div>
         {canManage ? (
           <Button onClick={openCreate} className="gap-2">
-            <Plus className="w-4 h-4" /> Add {singularLower}
+            <Plus className="w-4 h-4" /> Add faculty
           </Button>
         ) : null}
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>All {pluralLower}</CardTitle>
+          <CardTitle>All faculties</CardTitle>
           <CardDescription>
-            {departments.length}{" "}
-            {departments.length === 1 ? singularLower : pluralLower}
+            {faculties.length} {faculties.length === 1 ? "faculty" : "faculties"}
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
@@ -283,12 +255,11 @@ export default function InstitutionDepartmentsPage() {
             <TableHeader>
               <TableRow>
                 <TableHead className="pl-6">Name</TableHead>
-                <TableHead>{terms.codeLabel}</TableHead>
-                {terms.hasFaculties ? (
-                  <TableHead>{terms.facultySingular}</TableHead>
-                ) : null}
-                <TableHead>{terms.headLabel}</TableHead>
-                <TableHead className="hidden md:table-cell">Description</TableHead>
+                <TableHead>Code</TableHead>
+                <TableHead>Dean</TableHead>
+                <TableHead className="hidden md:table-cell">
+                  Description
+                </TableHead>
                 {canManage ? (
                   <TableHead className="pr-6 text-right">Actions</TableHead>
                 ) : null}
@@ -298,47 +269,34 @@ export default function InstitutionDepartmentsPage() {
               {isLoading ? (
                 <TableRow>
                   <TableCell
-                    colSpan={
-                      (canManage ? 5 : 4) + (terms.hasFaculties ? 1 : 0)
-                    }
+                    colSpan={canManage ? 5 : 4}
                     className="text-center py-8 text-muted-foreground"
                   >
-                    Loading {pluralLower}…
+                    Loading faculties…
                   </TableCell>
                 </TableRow>
-              ) : departments.length === 0 ? (
+              ) : faculties.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={
-                      (canManage ? 5 : 4) + (terms.hasFaculties ? 1 : 0)
-                    }
+                    colSpan={canManage ? 5 : 4}
                     className="text-center py-12 text-muted-foreground"
                   >
-                    No {pluralLower} yet.
-                    {canManage
-                      ? ` Click "Add ${singularLower}" to create one.`
-                      : ""}
+                    No faculties yet.
+                    {canManage ? ' Click "Add faculty" to create one.' : ""}
                   </TableCell>
                 </TableRow>
               ) : (
-                departments.map((d) => (
-                  <TableRow key={d.id}>
-                    <TableCell className="pl-6 font-medium">{d.name}</TableCell>
+                faculties.map((f) => (
+                  <TableRow key={f.id}>
+                    <TableCell className="pl-6 font-medium">{f.name}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {d.code ?? "—"}
+                      {f.code ?? "—"}
                     </TableCell>
-                    {terms.hasFaculties ? (
-                      <TableCell className="text-sm">
-                        {d.facultyId != null
-                          ? facultyById.get(d.facultyId) ?? "—"
-                          : "—"}
-                      </TableCell>
-                    ) : null}
                     <TableCell className="text-sm">
-                      {d.headName ?? "—"}
+                      {f.deanName ?? "—"}
                     </TableCell>
                     <TableCell className="hidden md:table-cell text-sm text-muted-foreground max-w-md truncate">
-                      {d.description ?? "—"}
+                      {f.description ?? "—"}
                     </TableCell>
                     {canManage ? (
                       <TableCell className="pr-6 text-right">
@@ -346,16 +304,16 @@ export default function InstitutionDepartmentsPage() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => openEdit(d)}
-                            aria-label={`Edit ${d.name}`}
+                            onClick={() => openEdit(f)}
+                            aria-label={`Edit ${f.name}`}
                           >
                             <Pencil className="w-4 h-4" />
                           </Button>
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => setDeleteTarget(d)}
-                            aria-label={`Delete ${d.name}`}
+                            onClick={() => setDeleteTarget(f)}
+                            aria-label={`Delete ${f.name}`}
                             className="text-destructive hover:text-destructive"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -376,18 +334,13 @@ export default function InstitutionDepartmentsPage() {
         <DialogContent>
           <form onSubmit={handleCreateSubmit}>
             <DialogHeader>
-              <DialogTitle>Add {singularLower}</DialogTitle>
+              <DialogTitle>Add faculty</DialogTitle>
               <DialogDescription>
-                Create a new {singularLower}. Names must be unique within your
-                institution.
+                Create a new faculty. Departments can later be grouped under
+                it.
               </DialogDescription>
             </DialogHeader>
-            <DepartmentFormFields
-              form={form}
-              setForm={setForm}
-              terms={terms}
-              faculties={faculties}
-            />
+            <FacultyFormFields form={form} setForm={setForm} />
             <DialogFooter>
               <Button
                 type="button"
@@ -417,17 +370,10 @@ export default function InstitutionDepartmentsPage() {
         <DialogContent>
           <form onSubmit={handleUpdateSubmit}>
             <DialogHeader>
-              <DialogTitle>Edit {singularLower}</DialogTitle>
-              <DialogDescription>
-                Update the {singularLower} details.
-              </DialogDescription>
+              <DialogTitle>Edit faculty</DialogTitle>
+              <DialogDescription>Update the faculty details.</DialogDescription>
             </DialogHeader>
-            <DepartmentFormFields
-              form={form}
-              setForm={setForm}
-              terms={terms}
-              faculties={faculties}
-            />
+            <FacultyFormFields form={form} setForm={setForm} />
             <DialogFooter>
               <Button
                 type="button"
@@ -449,17 +395,17 @@ export default function InstitutionDepartmentsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete confirm */}
       <AlertDialog
         open={deleteTarget != null}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete {singularLower}?</AlertDialogTitle>
+            <AlertDialogTitle>Delete faculty?</AlertDialogTitle>
             <AlertDialogDescription>
               This will remove "{deleteTarget?.name}" from your institution.
-              This action cannot be undone.
+              Departments and staff currently assigned to this faculty will
+              become unassigned. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -487,91 +433,54 @@ export default function InstitutionDepartmentsPage() {
   );
 }
 
-function DepartmentFormFields({
+function FacultyFormFields({
   form,
   setForm,
-  terms,
-  faculties,
 }: {
   form: FormState;
   setForm: React.Dispatch<React.SetStateAction<FormState>>;
-  terms: ReturnType<typeof academicUnitTerms>;
-  faculties: ReadonlyArray<{ id: number; name: string }>;
 }) {
-  const isProgram = terms.singular === "Program";
   return (
     <div className="grid gap-4 py-4">
       <div className="grid gap-2">
-        <Label htmlFor="dept-name">Name</Label>
+        <Label htmlFor="faculty-name">Name</Label>
         <Input
-          id="dept-name"
+          id="faculty-name"
           value={form.name}
           onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
           required
           maxLength={200}
-          placeholder={isProgram ? "General Science" : "Computer Science"}
+          placeholder="Faculty of Engineering"
         />
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
         <div className="grid gap-2">
-          <Label htmlFor="dept-code">{terms.codeLabel} (optional)</Label>
+          <Label htmlFor="faculty-code">Code (optional)</Label>
           <Input
-            id="dept-code"
+            id="faculty-code"
             value={form.code}
             onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
             maxLength={30}
-            placeholder={isProgram ? "SCI" : "CS"}
+            placeholder="ENG"
           />
         </div>
         <div className="grid gap-2">
-          <Label htmlFor="dept-head">{terms.headLabel} (optional)</Label>
+          <Label htmlFor="faculty-dean">Dean (optional)</Label>
           <Input
-            id="dept-head"
-            value={form.headName}
-            onChange={(e) => setForm((f) => ({ ...f, headName: e.target.value }))}
+            id="faculty-dean"
+            value={form.deanName}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, deanName: e.target.value }))
+            }
             maxLength={200}
-            placeholder="Dr. Jane Doe"
+            placeholder="Prof. Jane Doe"
           />
         </div>
       </div>
-      {terms.hasFaculties ? (
-        <div className="grid gap-2">
-          <Label htmlFor="dept-faculty">
-            {terms.facultySingular} (optional)
-          </Label>
-          <Select
-            value={form.facultyId === "" ? FACULTY_NONE : form.facultyId}
-            onValueChange={(v) =>
-              setForm((f) => ({
-                ...f,
-                facultyId: v === FACULTY_NONE ? "" : v,
-              }))
-            }
-          >
-            <SelectTrigger id="dept-faculty">
-              <SelectValue placeholder="No faculty" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={FACULTY_NONE}>No faculty</SelectItem>
-              {faculties.map((f) => (
-                <SelectItem key={f.id} value={String(f.id)}>
-                  {f.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {faculties.length === 0 ? (
-            <p className="text-xs text-muted-foreground">
-              No faculties yet. Create faculties first to group your{" "}
-              {terms.plural.toLowerCase()}.
-            </p>
-          ) : null}
-        </div>
-      ) : null}
       <div className="grid gap-2">
-        <Label htmlFor="dept-description">Description (optional)</Label>
+        <Label htmlFor="faculty-description">Description (optional)</Label>
         <Textarea
-          id="dept-description"
+          id="faculty-description"
           value={form.description}
           onChange={(e) =>
             setForm((f) => ({ ...f, description: e.target.value }))

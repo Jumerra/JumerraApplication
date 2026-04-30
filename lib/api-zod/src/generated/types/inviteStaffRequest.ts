@@ -11,8 +11,14 @@ export interface InviteStaffRequest {
   fullName: string;
   orgRole: string;
   /** Optional department/program scope (institution staff only,
-non-owner roles). Must reference a department of the inviter's
-institution. Ignored for owner roles and for non-institution orgs.
+non-owner roles). Required for `hod` (head of department).
+Must reference a department of the inviter's institution.
+Ignored for owner / registrar roles and for non-institution orgs.
  */
   assignedDepartmentId?: number | null;
+  /** Optional faculty scope (institution staff only). Required for
+`dean`. Must reference a faculty of the inviter's institution.
+Ignored for owner / registrar roles.
+ */
+  assignedFacultyId?: number | null;
 }

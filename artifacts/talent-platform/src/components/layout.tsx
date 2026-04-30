@@ -37,6 +37,7 @@ import {
   BookOpen,
   Building,
   Pencil,
+  Crown,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { NotificationBell } from "@/components/notification-bell";
@@ -306,6 +307,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
                                 </Link>
                               </DropdownMenuItem>
                             )}
+                            <DropdownMenuItem asChild>
+                              <Link
+                                href="/dashboard/institution/subscription"
+                                className="gap-2 cursor-pointer"
+                                data-testid="link-institution-subscription"
+                              >
+                                <Crown className="w-4 h-4" /> Subscription
+                              </Link>
+                            </DropdownMenuItem>
                           </>
                         )}
                         <DropdownMenuSeparator />

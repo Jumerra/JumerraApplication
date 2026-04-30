@@ -15,6 +15,7 @@ import {
 } from "@workspace/api-zod";
 import { calculateMatchScore } from "../lib/matching";
 import { getCandidateIdsForInstitution } from "../lib/candidate-institutions";
+import { isInstitutionPlacementUnlocked } from "./institution-subscription";
 
 const router: IRouter = Router();
 
@@ -332,17 +333,27 @@ router.get("/dashboard/institution/:id", async (req, res): Promise<void> => {
     ? Math.round(students.reduce((s, c) => s + Math.min(100, c.talentScore + c.skills.length * 2), 0) / students.length)
     : 0;
 
+  // Premium yearly subscription gate. We only blank out *placement-
+  // specific* signals (recent hires, top employers, status breakdown).
+  // Roster size + readiness remain visible so the dashboard isn't a
+  // dead empty shell — the locked card surfaces the upsell instead.
+  const placementsUnlocked = await isInstitutionPlacementUnlocked(institution.id);
+  const placementsLocked = !placementsUnlocked;
+
   res.json({
     institutionId: institution.id,
     institutionName: institution.name,
     totalStudents: students.length,
-    placedStudents,
-    placementRate,
+    placedStudents: placementsLocked ? 0 : placedStudents,
+    placementRate: placementsLocked ? 0 : placementRate,
     averageReadiness,
-    averageSalary: avgSalary,
-    topEmployers,
-    statusBreakdown,
-    recentHires,
+    averageSalary: placementsLocked ? 0 : avgSalary,
+    topEmployers: placementsLocked ? [] : topEmployers,
+    statusBreakdown: placementsLocked
+      ? STATUS_LIST.map((s) => ({ status: s, count: 0 }))
+      : statusBreakdown,
+    recentHires: placementsLocked ? [] : recentHires,
+    placementsLocked,
   });
 });
 

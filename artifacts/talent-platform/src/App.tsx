@@ -30,9 +30,12 @@ import AdminOnboardPage from "@/pages/dashboard/admin/onboard";
 import AdminSiteContentPage from "@/pages/dashboard/admin/site-content";
 import AdminBoostSettingsPage from "@/pages/dashboard/admin/boost-settings";
 import AdminCvSettingsPage from "@/pages/dashboard/admin/cv-settings";
+import AdminInstitutionSubscriptionSettingsPage from "@/pages/dashboard/admin/institution-subscription-settings";
 import BoostReturnPage from "@/pages/boost/return";
 import CvReturnPage from "@/pages/cv/return";
 import CvBuilderPage from "@/pages/cv/builder";
+import InstitutionSubscriptionPage from "@/pages/dashboard/institution-subscription";
+import InstitutionSubscriptionReturnPage from "@/pages/institution-subscription/return";
 import AdminAccountManagersPage from "@/pages/dashboard/admin/account-managers";
 import AdminCandidatesPage from "@/pages/dashboard/admin/candidates";
 import AdminEmployersPage from "@/pages/dashboard/admin/employers";
@@ -115,6 +118,11 @@ function Router() {
         <Route path="/dashboard/admin/cv-settings">
           <AdminLayout><AdminCvSettingsPage /></AdminLayout>
         </Route>
+        <Route path="/dashboard/admin/institution-subscription-settings">
+          <AdminLayout><AdminInstitutionSubscriptionSettingsPage /></AdminLayout>
+        </Route>
+        <Route path="/dashboard/institution/subscription" component={InstitutionSubscriptionPage} />
+        <Route path="/institution-subscription/return" component={InstitutionSubscriptionReturnPage} />
         <Route path="/boost/return" component={BoostReturnPage} />
         <Route path="/cv/return" component={CvReturnPage} />
         <Route path="/cv/builder" component={CvBuilderPage} />

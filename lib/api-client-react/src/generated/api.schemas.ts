@@ -1024,6 +1024,13 @@ export interface InstitutionDashboard {
   topEmployers: InstitutionDashboardTopEmployersItem[];
   statusBreakdown: InstitutionDashboardStatusBreakdownItem[];
   recentHires: InstitutionStudent[];
+  /** True when the global institution-subscription feature is
+enabled and this institution does NOT have an active or
+trialing subscription. When true, the placement-specific
+arrays (`recentHires`, `topEmployers`, `statusBreakdown`)
+are zeroed out and the UI should render a paywall card.
+ */
+  placementsLocked: boolean;
 }
 
 export type CandidateDashboardStatusBreakdownItem = {
@@ -1149,6 +1156,72 @@ export const VerifyBoostCheckoutResponseStatus = {
 export interface VerifyBoostCheckoutResponse {
   status: VerifyBoostCheckoutResponseStatus;
   boostExpiresAt: string | null;
+}
+
+export interface InstitutionSubscriptionSettings {
+  isActive: boolean;
+  /**
+   * @minimum 50
+   * @maximum 10000000
+   */
+  priceCents: number;
+  /** ISO 4217 lowercase, e.g. 'usd' */
+  currency: string;
+  /**
+   * Free trial length applied to every new subscription. 0 disables the trial.
+   * @minimum 0
+   * @maximum 365
+   */
+  trialDays: number;
+}
+
+export interface UpdateInstitutionSubscriptionSettingsRequest {
+  isActive: boolean;
+  /**
+   * @minimum 50
+   * @maximum 10000000
+   */
+  priceCents: number;
+  currency: string;
+  /**
+   * @minimum 0
+   * @maximum 365
+   */
+  trialDays: number;
+}
+
+export type InstitutionSubscriptionStatusStatus =
+  (typeof InstitutionSubscriptionStatusStatus)[keyof typeof InstitutionSubscriptionStatusStatus];
+
+export const InstitutionSubscriptionStatusStatus = {
+  none: "none",
+  pending: "pending",
+  trialing: "trialing",
+  active: "active",
+  expired: "expired",
+  canceled: "canceled",
+  failed: "failed",
+} as const;
+
+/**
+ * Current subscription state for one institution. `status === 'none'`
+means no row exists (or only failed/expired/canceled rows exist) —
+the institution should see the subscribe CTA. `trialing` and
+`active` are the two states that unlock placements.
+
+ */
+export interface InstitutionSubscriptionStatus {
+  status: InstitutionSubscriptionStatusStatus;
+  trialEndsAt: string | null;
+  currentPeriodEnd: string | null;
+  priceCentsSnapshot: number | null;
+  currencySnapshot: string | null;
+  isInTrial: boolean;
+  /** True iff the institution currently has access to placement
+data. Equivalent to status in (trialing, active) AND
+currentPeriodEnd is in the future.
+ */
+  unlocksPlacements: boolean;
 }
 
 export interface CvSettings {

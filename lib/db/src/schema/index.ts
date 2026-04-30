@@ -10,3 +10,4 @@ export * from "./admin-roles";
 export * from "./notifications";
 export * from "./boost";
 export * from "./cv";
+export * from "./institution-subscription";

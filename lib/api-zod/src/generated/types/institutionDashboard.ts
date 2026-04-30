@@ -20,4 +20,11 @@ export interface InstitutionDashboard {
   topEmployers: InstitutionDashboardTopEmployersItem[];
   statusBreakdown: InstitutionDashboardStatusBreakdownItem[];
   recentHires: InstitutionStudent[];
+  /** True when the global institution-subscription feature is
+enabled and this institution does NOT have an active or
+trialing subscription. When true, the placement-specific
+arrays (`recentHires`, `topEmployers`, `statusBreakdown`)
+are zeroed out and the UI should render a paywall card.
+ */
+  placementsLocked: boolean;
 }

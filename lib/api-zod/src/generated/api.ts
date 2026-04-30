@@ -1457,6 +1457,11 @@ export const GetInstitutionDashboardResponse = zod.object({
         ),
     }),
   ),
+  placementsLocked: zod
+    .boolean()
+    .describe(
+      "True when the global institution-subscription feature is\nenabled and this institution does NOT have an active or\ntrialing subscription. When true, the placement-specific\narrays (`recentHires`, `topEmployers`, `statusBreakdown`)\nare zeroed out and the UI should render a paywall card.\n",
+    ),
 });
 
 export const GetCandidateDashboardParams = zod.object({
@@ -2329,6 +2334,164 @@ export const VerifyBoostCheckoutResponse = zod.object({
   status: zod.enum(["paid", "pending", "failed", "expired"]),
   boostExpiresAt: zod.coerce.date().nullable(),
 });
+
+/**
+ * @summary Read the global institution subscription configuration
+ */
+export const getInstitutionSubscriptionSettingsResponsePriceCentsMin = 50;
+export const getInstitutionSubscriptionSettingsResponsePriceCentsMax = 10000000;
+
+export const getInstitutionSubscriptionSettingsResponseTrialDaysMin = 0;
+export const getInstitutionSubscriptionSettingsResponseTrialDaysMax = 365;
+
+export const GetInstitutionSubscriptionSettingsResponse = zod.object({
+  isActive: zod.boolean(),
+  priceCents: zod
+    .number()
+    .min(getInstitutionSubscriptionSettingsResponsePriceCentsMin)
+    .max(getInstitutionSubscriptionSettingsResponsePriceCentsMax),
+  currency: zod.string().describe("ISO 4217 lowercase, e.g. 'usd'"),
+  trialDays: zod
+    .number()
+    .min(getInstitutionSubscriptionSettingsResponseTrialDaysMin)
+    .max(getInstitutionSubscriptionSettingsResponseTrialDaysMax)
+    .describe(
+      "Free trial length applied to every new subscription. 0 disables the trial.",
+    ),
+});
+
+/**
+ * @summary Update institution subscription configuration (admin only)
+ */
+export const updateInstitutionSubscriptionSettingsBodyPriceCentsMin = 50;
+export const updateInstitutionSubscriptionSettingsBodyPriceCentsMax = 10000000;
+
+export const updateInstitutionSubscriptionSettingsBodyTrialDaysMin = 0;
+export const updateInstitutionSubscriptionSettingsBodyTrialDaysMax = 365;
+
+export const UpdateInstitutionSubscriptionSettingsBody = zod.object({
+  isActive: zod.boolean(),
+  priceCents: zod
+    .number()
+    .min(updateInstitutionSubscriptionSettingsBodyPriceCentsMin)
+    .max(updateInstitutionSubscriptionSettingsBodyPriceCentsMax),
+  currency: zod.string(),
+  trialDays: zod
+    .number()
+    .min(updateInstitutionSubscriptionSettingsBodyTrialDaysMin)
+    .max(updateInstitutionSubscriptionSettingsBodyTrialDaysMax),
+});
+
+export const updateInstitutionSubscriptionSettingsResponsePriceCentsMin = 50;
+export const updateInstitutionSubscriptionSettingsResponsePriceCentsMax = 10000000;
+
+export const updateInstitutionSubscriptionSettingsResponseTrialDaysMin = 0;
+export const updateInstitutionSubscriptionSettingsResponseTrialDaysMax = 365;
+
+export const UpdateInstitutionSubscriptionSettingsResponse = zod.object({
+  isActive: zod.boolean(),
+  priceCents: zod
+    .number()
+    .min(updateInstitutionSubscriptionSettingsResponsePriceCentsMin)
+    .max(updateInstitutionSubscriptionSettingsResponsePriceCentsMax),
+  currency: zod.string().describe("ISO 4217 lowercase, e.g. 'usd'"),
+  trialDays: zod
+    .number()
+    .min(updateInstitutionSubscriptionSettingsResponseTrialDaysMin)
+    .max(updateInstitutionSubscriptionSettingsResponseTrialDaysMax)
+    .describe(
+      "Free trial length applied to every new subscription. 0 disables the trial.",
+    ),
+});
+
+/**
+ * @summary Get the current subscription state for an institution
+ */
+export const GetInstitutionSubscriptionParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetInstitutionSubscriptionResponse = zod
+  .object({
+    status: zod.enum([
+      "none",
+      "pending",
+      "trialing",
+      "active",
+      "expired",
+      "canceled",
+      "failed",
+    ]),
+    trialEndsAt: zod.coerce.date().nullable(),
+    currentPeriodEnd: zod.coerce.date().nullable(),
+    priceCentsSnapshot: zod.number().nullable(),
+    currencySnapshot: zod.string().nullable(),
+    isInTrial: zod.boolean(),
+    unlocksPlacements: zod
+      .boolean()
+      .describe(
+        "True iff the institution currently has access to placement\ndata. Equivalent to status in (trialing, active) AND\ncurrentPeriodEnd is in the future.\n",
+      ),
+  })
+  .describe(
+    "Current subscription state for one institution. `status === 'none'`\nmeans no row exists (or only failed\/expired\/canceled rows exist) —\nthe institution should see the subscribe CTA. `trialing` and\n`active` are the two states that unlock placements.\n",
+  );
+
+/**
+ * @summary Create a Stripe Checkout Session for the institution's yearly subscription
+ */
+export const CreateInstitutionSubscriptionCheckoutParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const CreateInstitutionSubscriptionCheckoutBody = zod.object({
+  successUrl: zod
+    .string()
+    .describe(
+      "Absolute URL the candidate is sent to after a successful\npayment. The string `{CHECKOUT_SESSION_ID}` is replaced with\nthe real Stripe session id by Stripe.\n",
+    ),
+  cancelUrl: zod
+    .string()
+    .describe("Absolute URL the candidate is sent to if they cancel."),
+});
+
+export const CreateInstitutionSubscriptionCheckoutResponse = zod.object({
+  sessionId: zod.string(),
+  checkoutUrl: zod.string(),
+});
+
+/**
+ * @summary Verify a Stripe Checkout Session and activate the subscription on success
+ */
+export const VerifyInstitutionSubscriptionCheckoutBody = zod.object({
+  sessionId: zod.string(),
+});
+
+export const VerifyInstitutionSubscriptionCheckoutResponse = zod
+  .object({
+    status: zod.enum([
+      "none",
+      "pending",
+      "trialing",
+      "active",
+      "expired",
+      "canceled",
+      "failed",
+    ]),
+    trialEndsAt: zod.coerce.date().nullable(),
+    currentPeriodEnd: zod.coerce.date().nullable(),
+    priceCentsSnapshot: zod.number().nullable(),
+    currencySnapshot: zod.string().nullable(),
+    isInTrial: zod.boolean(),
+    unlocksPlacements: zod
+      .boolean()
+      .describe(
+        "True iff the institution currently has access to placement\ndata. Equivalent to status in (trialing, active) AND\ncurrentPeriodEnd is in the future.\n",
+      ),
+  })
+  .describe(
+    "Current subscription state for one institution. `status === 'none'`\nmeans no row exists (or only failed\/expired\/canceled rows exist) —\nthe institution should see the subscribe CTA. `trialing` and\n`active` are the two states that unlock placements.\n",
+  );
 
 /**
  * @summary Read the global AI CV Builder configuration

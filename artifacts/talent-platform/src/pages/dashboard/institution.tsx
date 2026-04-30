@@ -20,7 +20,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import { Users, GraduationCap, Building2, Banknote, Briefcase, Link2, ShieldCheck, ShieldAlert, Loader2, BookOpen, Building, Pencil, ArrowRight } from "lucide-react";
+import { Users, GraduationCap, Building2, Banknote, Briefcase, Link2, ShieldCheck, ShieldAlert, Loader2, BookOpen, Building, Pencil, ArrowRight, Crown, Lock } from "lucide-react";
 import { Link } from "wouter";
 import { institutionKindLabel, academicUnitTerms } from "@/lib/institution-kinds";
 import {
@@ -376,6 +376,39 @@ export default function InstitutionDashboard() {
         </CardContent>
       </Card>
 
+      {dashboard.placementsLocked ? (
+        <Card className="shadow-sm border-primary/30 bg-primary/5" data-testid="card-placements-locked">
+          <CardContent className="p-8">
+            <div className="flex flex-col md:flex-row md:items-center gap-6">
+              <div className="w-14 h-14 shrink-0 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+                <Lock className="w-7 h-7" />
+              </div>
+              <div className="flex-1 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Crown className="w-4 h-4 text-primary" />
+                  <span className="text-xs font-semibold uppercase tracking-wide text-primary">
+                    Premium feature
+                  </span>
+                </div>
+                <h2 className="text-xl font-bold">
+                  Placement insights are part of the premium subscription
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Subscribe to your institution's yearly plan to unlock recent
+                  placements, top employer leaderboards, and the full status
+                  pipeline. Roster and readiness signals stay free.
+                </p>
+              </div>
+              <Button asChild data-testid="button-placements-subscribe">
+                <Link href="/dashboard/institution/subscription">
+                  View plan
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
       <div className="grid lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
           <Card className="shadow-sm">
@@ -488,6 +521,7 @@ export default function InstitutionDashboard() {
           </Card>
         </div>
       </div>
+      )}
     </div>
   );
 }

@@ -34,6 +34,7 @@ import {
   ShieldCheck,
   Rocket,
   FileText,
+  Crown,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 
@@ -108,6 +109,7 @@ const ADMIN_NAV: AdminNavGroup[] = [
       { href: "/dashboard/admin/site-content", label: "Site content", icon: Sparkles, permission: "site-content:edit" },
       { href: "/dashboard/admin/boost-settings", label: "Profile Boost", icon: Rocket },
       { href: "/dashboard/admin/cv-settings", label: "AI CV Builder", icon: FileText },
+      { href: "/dashboard/admin/institution-subscription-settings", label: "Institution Subscription", icon: Crown },
       { href: "/dashboard/admin/staff", label: "Admin team", icon: UsersRound, permission: "staff:view" },
       { href: "/dashboard/admin/roles", label: "Roles & permissions", icon: ShieldCheck, superAdminOnly: true },
     ],

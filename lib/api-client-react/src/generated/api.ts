@@ -63,6 +63,8 @@ import type {
   InstitutionDetail,
   InstitutionFacility,
   InstitutionStudent,
+  InstitutionSubscriptionSettings,
+  InstitutionSubscriptionStatus,
   InviteStaffRequest,
   InviteStaffResponse,
   Job,
@@ -104,6 +106,7 @@ import type {
   UpdateInstitutionDepartment,
   UpdateInstitutionFacility,
   UpdateInstitutionRequest,
+  UpdateInstitutionSubscriptionSettingsRequest,
   UpdateSiteContentRequest,
   UpdateStaffRoleRequest,
   UploadUrlRequest,
@@ -6334,6 +6337,459 @@ export const useVerifyBoostCheckout = <
   TContext
 > => {
   return useMutation(getVerifyBoostCheckoutMutationOptions(options));
+};
+
+/**
+ * @summary Read the global institution subscription configuration
+ */
+export const getGetInstitutionSubscriptionSettingsUrl = () => {
+  return `/api/institution-subscription/settings`;
+};
+
+export const getInstitutionSubscriptionSettings = async (
+  options?: RequestInit,
+): Promise<InstitutionSubscriptionSettings> => {
+  return customFetch<InstitutionSubscriptionSettings>(
+    getGetInstitutionSubscriptionSettingsUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetInstitutionSubscriptionSettingsQueryKey = () => {
+  return [`/api/institution-subscription/settings`] as const;
+};
+
+export const getGetInstitutionSubscriptionSettingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getInstitutionSubscriptionSettings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getInstitutionSubscriptionSettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetInstitutionSubscriptionSettingsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getInstitutionSubscriptionSettings>>
+  > = ({ signal }) =>
+    getInstitutionSubscriptionSettings({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getInstitutionSubscriptionSettings>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetInstitutionSubscriptionSettingsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getInstitutionSubscriptionSettings>>
+>;
+export type GetInstitutionSubscriptionSettingsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Read the global institution subscription configuration
+ */
+
+export function useGetInstitutionSubscriptionSettings<
+  TData = Awaited<ReturnType<typeof getInstitutionSubscriptionSettings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getInstitutionSubscriptionSettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions =
+    getGetInstitutionSubscriptionSettingsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update institution subscription configuration (admin only)
+ */
+export const getUpdateInstitutionSubscriptionSettingsUrl = () => {
+  return `/api/admin/institution-subscription/settings`;
+};
+
+export const updateInstitutionSubscriptionSettings = async (
+  updateInstitutionSubscriptionSettingsRequest: UpdateInstitutionSubscriptionSettingsRequest,
+  options?: RequestInit,
+): Promise<InstitutionSubscriptionSettings> => {
+  return customFetch<InstitutionSubscriptionSettings>(
+    getUpdateInstitutionSubscriptionSettingsUrl(),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(updateInstitutionSubscriptionSettingsRequest),
+    },
+  );
+};
+
+export const getUpdateInstitutionSubscriptionSettingsMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateInstitutionSubscriptionSettings>>,
+    TError,
+    { data: BodyType<UpdateInstitutionSubscriptionSettingsRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateInstitutionSubscriptionSettings>>,
+  TError,
+  { data: BodyType<UpdateInstitutionSubscriptionSettingsRequest> },
+  TContext
+> => {
+  const mutationKey = ["updateInstitutionSubscriptionSettings"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateInstitutionSubscriptionSettings>>,
+    { data: BodyType<UpdateInstitutionSubscriptionSettingsRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateInstitutionSubscriptionSettings(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateInstitutionSubscriptionSettingsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateInstitutionSubscriptionSettings>>
+>;
+export type UpdateInstitutionSubscriptionSettingsMutationBody =
+  BodyType<UpdateInstitutionSubscriptionSettingsRequest>;
+export type UpdateInstitutionSubscriptionSettingsMutationError =
+  ErrorType<void>;
+
+/**
+ * @summary Update institution subscription configuration (admin only)
+ */
+export const useUpdateInstitutionSubscriptionSettings = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateInstitutionSubscriptionSettings>>,
+    TError,
+    { data: BodyType<UpdateInstitutionSubscriptionSettingsRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateInstitutionSubscriptionSettings>>,
+  TError,
+  { data: BodyType<UpdateInstitutionSubscriptionSettingsRequest> },
+  TContext
+> => {
+  return useMutation(
+    getUpdateInstitutionSubscriptionSettingsMutationOptions(options),
+  );
+};
+
+/**
+ * @summary Get the current subscription state for an institution
+ */
+export const getGetInstitutionSubscriptionUrl = (id: number) => {
+  return `/api/institutions/${id}/subscription`;
+};
+
+export const getInstitutionSubscription = async (
+  id: number,
+  options?: RequestInit,
+): Promise<InstitutionSubscriptionStatus> => {
+  return customFetch<InstitutionSubscriptionStatus>(
+    getGetInstitutionSubscriptionUrl(id),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetInstitutionSubscriptionQueryKey = (id: number) => {
+  return [`/api/institutions/${id}/subscription`] as const;
+};
+
+export const getGetInstitutionSubscriptionQueryOptions = <
+  TData = Awaited<ReturnType<typeof getInstitutionSubscription>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getInstitutionSubscription>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetInstitutionSubscriptionQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getInstitutionSubscription>>
+  > = ({ signal }) =>
+    getInstitutionSubscription(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getInstitutionSubscription>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetInstitutionSubscriptionQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getInstitutionSubscription>>
+>;
+export type GetInstitutionSubscriptionQueryError = ErrorType<void>;
+
+/**
+ * @summary Get the current subscription state for an institution
+ */
+
+export function useGetInstitutionSubscription<
+  TData = Awaited<ReturnType<typeof getInstitutionSubscription>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getInstitutionSubscription>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetInstitutionSubscriptionQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a Stripe Checkout Session for the institution's yearly subscription
+ */
+export const getCreateInstitutionSubscriptionCheckoutUrl = (id: number) => {
+  return `/api/institutions/${id}/subscription/checkout`;
+};
+
+export const createInstitutionSubscriptionCheckout = async (
+  id: number,
+  createBoostCheckoutRequest: CreateBoostCheckoutRequest,
+  options?: RequestInit,
+): Promise<CreateBoostCheckoutResponse> => {
+  return customFetch<CreateBoostCheckoutResponse>(
+    getCreateInstitutionSubscriptionCheckoutUrl(id),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(createBoostCheckoutRequest),
+    },
+  );
+};
+
+export const getCreateInstitutionSubscriptionCheckoutMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createInstitutionSubscriptionCheckout>>,
+    TError,
+    { id: number; data: BodyType<CreateBoostCheckoutRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createInstitutionSubscriptionCheckout>>,
+  TError,
+  { id: number; data: BodyType<CreateBoostCheckoutRequest> },
+  TContext
+> => {
+  const mutationKey = ["createInstitutionSubscriptionCheckout"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createInstitutionSubscriptionCheckout>>,
+    { id: number; data: BodyType<CreateBoostCheckoutRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return createInstitutionSubscriptionCheckout(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateInstitutionSubscriptionCheckoutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createInstitutionSubscriptionCheckout>>
+>;
+export type CreateInstitutionSubscriptionCheckoutMutationBody =
+  BodyType<CreateBoostCheckoutRequest>;
+export type CreateInstitutionSubscriptionCheckoutMutationError =
+  ErrorType<void>;
+
+/**
+ * @summary Create a Stripe Checkout Session for the institution's yearly subscription
+ */
+export const useCreateInstitutionSubscriptionCheckout = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createInstitutionSubscriptionCheckout>>,
+    TError,
+    { id: number; data: BodyType<CreateBoostCheckoutRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createInstitutionSubscriptionCheckout>>,
+  TError,
+  { id: number; data: BodyType<CreateBoostCheckoutRequest> },
+  TContext
+> => {
+  return useMutation(
+    getCreateInstitutionSubscriptionCheckoutMutationOptions(options),
+  );
+};
+
+/**
+ * @summary Verify a Stripe Checkout Session and activate the subscription on success
+ */
+export const getVerifyInstitutionSubscriptionCheckoutUrl = () => {
+  return `/api/institution-subscription/checkout/verify`;
+};
+
+export const verifyInstitutionSubscriptionCheckout = async (
+  verifyBoostCheckoutRequest: VerifyBoostCheckoutRequest,
+  options?: RequestInit,
+): Promise<InstitutionSubscriptionStatus> => {
+  return customFetch<InstitutionSubscriptionStatus>(
+    getVerifyInstitutionSubscriptionCheckoutUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(verifyBoostCheckoutRequest),
+    },
+  );
+};
+
+export const getVerifyInstitutionSubscriptionCheckoutMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof verifyInstitutionSubscriptionCheckout>>,
+    TError,
+    { data: BodyType<VerifyBoostCheckoutRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof verifyInstitutionSubscriptionCheckout>>,
+  TError,
+  { data: BodyType<VerifyBoostCheckoutRequest> },
+  TContext
+> => {
+  const mutationKey = ["verifyInstitutionSubscriptionCheckout"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof verifyInstitutionSubscriptionCheckout>>,
+    { data: BodyType<VerifyBoostCheckoutRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return verifyInstitutionSubscriptionCheckout(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type VerifyInstitutionSubscriptionCheckoutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof verifyInstitutionSubscriptionCheckout>>
+>;
+export type VerifyInstitutionSubscriptionCheckoutMutationBody =
+  BodyType<VerifyBoostCheckoutRequest>;
+export type VerifyInstitutionSubscriptionCheckoutMutationError =
+  ErrorType<void>;
+
+/**
+ * @summary Verify a Stripe Checkout Session and activate the subscription on success
+ */
+export const useVerifyInstitutionSubscriptionCheckout = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof verifyInstitutionSubscriptionCheckout>>,
+    TError,
+    { data: BodyType<VerifyBoostCheckoutRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof verifyInstitutionSubscriptionCheckout>>,
+  TError,
+  { data: BodyType<VerifyBoostCheckoutRequest> },
+  TContext
+> => {
+  return useMutation(
+    getVerifyInstitutionSubscriptionCheckoutMutationOptions(options),
+  );
 };
 
 /**

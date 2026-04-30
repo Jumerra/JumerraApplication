@@ -32,6 +32,8 @@ tags:
     description: Object storage upload helpers
   - name: boost
     description: Paid Profile Boost configuration and checkout
+  - name: institution-subscription
+    description: Premium yearly subscription for institutions (placement access)
   - name: cv
     description: Premium AI CV Builder configuration, checkout, and generation
 paths:
@@ -1424,6 +1426,108 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/VerifyBoostCheckoutResponse" }
+        "400": { description: Invalid input }
+        "404": { description: Session not found }
+
+  /institution-subscription/settings:
+    get:
+      operationId: getInstitutionSubscriptionSettings
+      tags: [institution-subscription]
+      summary: Read the global institution subscription configuration
+      responses:
+        "200":
+          description: Subscription settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InstitutionSubscriptionSettings"
+
+  /admin/institution-subscription/settings:
+    put:
+      operationId: updateInstitutionSubscriptionSettings
+      tags: [institution-subscription, admin]
+      summary: Update institution subscription configuration (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateInstitutionSubscriptionSettingsRequest"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InstitutionSubscriptionSettings"
+        "400": { description: Invalid input }
+        "403": { description: Admin only }
+
+  /institutions/{id}/subscription:
+    get:
+      operationId: getInstitutionSubscription
+      tags: [institution-subscription, institutions]
+      summary: Get the current subscription state for an institution
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Current subscription state (or "none" status)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InstitutionSubscriptionStatus"
+        "403": { description: Not allowed }
+        "404": { description: Institution not found }
+
+  /institutions/{id}/subscription/checkout:
+    post:
+      operationId: createInstitutionSubscriptionCheckout
+      tags: [institution-subscription, institutions]
+      summary: Create a Stripe Checkout Session for the institution's yearly subscription
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBoostCheckoutRequest"
+      responses:
+        "200":
+          description: Checkout session created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateBoostCheckoutResponse"
+        "400": { description: "Subscription disabled, already subscribed, or invalid input" }
+        "403": { description: Not allowed }
+        "404": { description: Institution not found }
+
+  /institution-subscription/checkout/verify:
+    post:
+      operationId: verifyInstitutionSubscriptionCheckout
+      tags: [institution-subscription]
+      summary: Verify a Stripe Checkout Session and activate the subscription on success
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyBoostCheckoutRequest"
+      responses:
+        "200":
+          description: Verification result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InstitutionSubscriptionStatus"
         "400": { description: Invalid input }
         "404": { description: Session not found }
 
@@ -2824,6 +2928,14 @@ components:
         recentHires:
           type: array
           items: { $ref: "#/components/schemas/InstitutionStudent" }
+        placementsLocked:
+          type: boolean
+          description: |
+            True when the global institution-subscription feature is
+            enabled and this institution does NOT have an active or
+            trialing subscription. When true, the placement-specific
+            arrays (`recentHires`, `topEmployers`, `statusBreakdown`)
+            are zeroed out and the UI should render a paywall card.
       required:
         - institutionId
         - institutionName
@@ -2835,6 +2947,7 @@ components:
         - topEmployers
         - statusBreakdown
         - recentHires
+        - placementsLocked
 
     CandidateDashboard:
       type: object
@@ -2971,6 +3084,69 @@ components:
           format: date-time
           nullable: true
       required: [status, boostExpiresAt]
+
+    InstitutionSubscriptionSettings:
+      type: object
+      properties:
+        isActive: { type: boolean }
+        priceCents: { type: integer, minimum: 50, maximum: 10000000 }
+        currency: { type: string, description: "ISO 4217 lowercase, e.g. 'usd'" }
+        trialDays:
+          type: integer
+          minimum: 0
+          maximum: 365
+          description: "Free trial length applied to every new subscription. 0 disables the trial."
+      required: [isActive, priceCents, currency, trialDays]
+
+    UpdateInstitutionSubscriptionSettingsRequest:
+      type: object
+      properties:
+        isActive: { type: boolean }
+        priceCents: { type: integer, minimum: 50, maximum: 10000000 }
+        currency: { type: string }
+        trialDays: { type: integer, minimum: 0, maximum: 365 }
+      required: [isActive, priceCents, currency, trialDays]
+
+    InstitutionSubscriptionStatus:
+      type: object
+      description: |
+        Current subscription state for one institution. `status === 'none'`
+        means no row exists (or only failed/expired/canceled rows exist) —
+        the institution should see the subscribe CTA. `trialing` and
+        `active` are the two states that unlock placements.
+      properties:
+        status:
+          type: string
+          enum: [none, pending, trialing, active, expired, canceled, failed]
+        trialEndsAt:
+          type: string
+          format: date-time
+          nullable: true
+        currentPeriodEnd:
+          type: string
+          format: date-time
+          nullable: true
+        priceCentsSnapshot:
+          type: integer
+          nullable: true
+        currencySnapshot:
+          type: string
+          nullable: true
+        isInTrial: { type: boolean }
+        unlocksPlacements:
+          type: boolean
+          description: |
+            True iff the institution currently has access to placement
+            data. Equivalent to status in (trialing, active) AND
+            currentPeriodEnd is in the future.
+      required:
+        - status
+        - trialEndsAt
+        - currentPeriodEnd
+        - priceCentsSnapshot
+        - currencySnapshot
+        - isInTrial
+        - unlocksPlacements
 
     CvSettings:
       type: object

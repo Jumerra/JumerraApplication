@@ -30,17 +30,19 @@ const ROLE_ICON: Record<string, typeof UserCircle2> = {
 };
 
 export default function AdminRegistrationsPage() {
-  const { sessionUser, isLoading } = useAuth();
+  const { sessionUser, role, isLoading } = useAuth();
   const [statusFilter, setStatusFilter] = useState<"pending" | "active" | "rejected" | "all">(
     "pending",
   );
   const queryClient = useQueryClient();
+  const hasRealAdminSession = sessionUser?.role === "admin";
+  const isAdminView = hasRealAdminSession || role === "admin";
   const { data, isLoading: isLoadingList } = useListRegistrations(
     { status: statusFilter },
     {
       query: {
         queryKey: getListRegistrationsQueryKey({ status: statusFilter }),
-        enabled: sessionUser?.role === "admin",
+        enabled: hasRealAdminSession,
       },
     },
   );
@@ -48,7 +50,7 @@ export default function AdminRegistrationsPage() {
   const reject = useRejectRegistration();
 
   if (isLoading) return <div className="container py-12">Loading…</div>;
-  if (!sessionUser || sessionUser.role !== "admin") {
+  if (!isAdminView) {
     return (
       <div className="container max-w-md py-16">
         <Card>
@@ -57,6 +59,26 @@ export default function AdminRegistrationsPage() {
             <p className="font-medium">Admin access required</p>
             <p className="text-sm text-muted-foreground mt-2">
               Sign in with an administrator account to review registrations.
+            </p>
+            <Button asChild className="mt-4">
+              <Link href="/login">Sign in</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+  if (!hasRealAdminSession) {
+    return (
+      <div className="container max-w-md py-16">
+        <Card>
+          <CardContent className="p-8 text-center">
+            <ShieldAlert className="w-10 h-10 mx-auto mb-3 text-amber-600" />
+            <p className="font-medium">Real admin sign-in required</p>
+            <p className="text-sm text-muted-foreground mt-2">
+              You're previewing the admin console as a demo. To approve or
+              reject sign-ups, please log in with a real administrator
+              account.
             </p>
             <Button asChild className="mt-4">
               <Link href="/login">Sign in</Link>

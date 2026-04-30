@@ -36,6 +36,7 @@ import {
   getGetInstitutionQueryKey,
 } from "@workspace/api-client-react";
 import { academicUnitTerms } from "@/lib/institution-kinds";
+import { SidebarLogoutButton } from "@/components/sidebar-logout";
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state";
 
@@ -273,6 +274,7 @@ export function InstitutionLayout({ children }: { children: ReactNode }) {
           <div className="px-2 py-1.5 text-xs text-muted-foreground truncate group-data-[collapsible=icon]:hidden">
             Signed in as {sessionUser?.fullName ?? "Institution"}
           </div>
+          <SidebarLogoutButton />
         </SidebarFooter>
         <SidebarRail />
       </Sidebar>

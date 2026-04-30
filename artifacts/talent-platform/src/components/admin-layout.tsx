@@ -37,6 +37,7 @@ import {
   Crown,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { SidebarLogoutButton } from "@/components/sidebar-logout";
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state";
 
@@ -213,6 +214,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
           <div className="px-2 py-1.5 text-xs text-muted-foreground truncate group-data-[collapsible=icon]:hidden">
             Signed in as {sessionUser?.fullName ?? "Admin"}
           </div>
+          <SidebarLogoutButton />
         </SidebarFooter>
         <SidebarRail />
       </Sidebar>

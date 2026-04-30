@@ -118,7 +118,11 @@ router.post(
   // employers (admins bypass — they post on behalf). Returns 402 with
   // the same shape as GET /employers/:id/subscription so the client can
   // render the paywall UI directly from the error body.
-  if (user.role === "employer") {
+  //
+  // Internships are ALWAYS free for employers — no quota, no
+  // subscription required. They also do not count toward the free
+  // quota for paid postings (see countEmployerPaidJobs).
+  if (user.role === "employer" && parsed.data.type !== "internship") {
     const status = await getEmployerPostingStatus(employerId);
     if (!status.canPostJob) {
       res.status(402).json({

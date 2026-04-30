@@ -14,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Briefcase } from "lucide-react";
+import { Briefcase, GraduationCap } from "lucide-react";
 
 const formSchema = z.object({
   title: z.string().min(5, "Title must be at least 5 characters"),
@@ -82,10 +82,12 @@ export default function JobPost() {
       },
       onError: (err: any) => {
         // The API returns 402 + a structured paywall payload when the
-        // employer has used their free job-post quota. Surface a clear
-        // message and route them to the subscription page.
+        // employer has used their free job-post quota. Internships are
+        // always free, so a 402 should never happen for them — but if
+        // it ever does, fall through to the generic error rather than
+        // routing the user to a paywall they don't actually need.
         const status = err?.response?.status ?? err?.status;
-        if (status === 402) {
+        if (status === 402 && values.type !== "internship") {
           toast.error("You've used your free job posts. Subscribe to keep posting.");
           setLocation("/dashboard/employer/subscription");
           return;
@@ -130,9 +132,22 @@ export default function JobPost() {
                           <SelectItem value="full_time">Full Time</SelectItem>
                           <SelectItem value="part_time">Part Time</SelectItem>
                           <SelectItem value="contract">Contract</SelectItem>
-                          <SelectItem value="internship">Internship</SelectItem>
+                          <SelectItem value="internship">Internship — always free</SelectItem>
                         </SelectContent>
                       </Select>
+                      {field.value === "internship" ? (
+                        <div
+                          className="mt-2 flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-200"
+                          data-testid="text-internship-free-notice"
+                        >
+                          <GraduationCap className="h-3.5 w-3.5 shrink-0" />
+                          <span>
+                            Internships are always free to post — no
+                            subscription needed and they don't count against
+                            your free quota.
+                          </span>
+                        </div>
+                      ) : null}
                       <FormMessage />
                     </FormItem>
                   )} />

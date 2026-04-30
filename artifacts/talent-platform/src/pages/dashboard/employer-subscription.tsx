@@ -25,6 +25,7 @@ import {
   ArrowRight,
   Calendar,
   Briefcase,
+  GraduationCap,
 } from "lucide-react";
 
 function formatPrice(cents: number, currency: string) {
@@ -49,7 +50,7 @@ function intervalLabel(days: number): string {
 }
 
 const FEATURES = [
-  "Unlimited job postings",
+  "Unlimited paid job postings (full-time, part-time, contract, remote)",
   "Reach the entire candidate pool",
   "Featured placement for premium employers",
   "Cancel any time from your dashboard",
@@ -179,15 +180,25 @@ export default function EmployerSubscriptionPage() {
               <span>Your job posting quota</span>
             </div>
             <div className="text-2xl font-bold" data-testid="text-emp-quota">
-              {jobsPosted} / {freeQuota} free posts used
+              {jobsPosted} / {freeQuota} free paid posts used
             </div>
             <p className="text-sm text-muted-foreground">
               {subscribed
                 ? "You currently have an active subscription — post as many jobs as you like."
                 : freeRemaining > 0
-                  ? `You can still post ${freeRemaining} more job${freeRemaining === 1 ? "" : "s"} before subscribing.`
-                  : "You have used your free quota. Subscribe to continue posting."}
+                  ? `You can still post ${freeRemaining} more paid job${freeRemaining === 1 ? "" : "s"} before subscribing.`
+                  : "You have used your free quota for paid postings. Subscribe to keep posting paid roles."}
             </p>
+            <div
+              className="mt-2 flex items-start gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-200"
+              data-testid="text-internship-free-note"
+            >
+              <GraduationCap className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              <span>
+                Internships are always free to post — they don't count
+                against this quota and don't require a subscription.
+              </span>
+            </div>
           </CardContent>
         </Card>
       )}

@@ -184,11 +184,21 @@ function rowToBaseStatus(row: SubRow | null): {
   };
 }
 
-async function countEmployerJobs(employerId: number): Promise<number> {
+/**
+ * Count of paid (non-internship) jobs an employer has posted. Internships
+ * are ALWAYS free and never consume the free-quota or require a
+ * subscription, so they are excluded from this count.
+ */
+async function countEmployerPaidJobs(employerId: number): Promise<number> {
   const result = await db
     .select({ c: sql<number>`count(*)::int` })
     .from(jobsTable)
-    .where(eq(jobsTable.employerId, employerId));
+    .where(
+      and(
+        eq(jobsTable.employerId, employerId),
+        sql`${jobsTable.type} <> 'internship'`,
+      ),
+    );
   return Number(result[0]?.c ?? 0);
 }
 
@@ -198,7 +208,9 @@ async function buildStatusForEmployer(
   const settings = await loadOrSeedSettings();
   const row = await loadCurrentSubscription(employerId);
   const base = rowToBaseStatus(row);
-  const jobsPostedCount = await countEmployerJobs(employerId);
+  // Only count paid (non-internship) jobs against the free quota.
+  // Internships are always free and never consume the quota.
+  const jobsPostedCount = await countEmployerPaidJobs(employerId);
   const freeRemaining = Math.max(
     settings.freeJobPostLimit - jobsPostedCount,
     0,

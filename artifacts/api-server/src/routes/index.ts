@@ -25,7 +25,26 @@ const router: IRouter = Router();
 router.use("/candidates", requireAuth);
 router.use("/applications", requireAuth);
 router.use("/institutions", requireAuth);
-router.use("/dashboard", requireAuth);
+// /dashboard hosts both public landing-page stats (used by `/`, the
+// home route, while the user is signed out) AND private per-role
+// dashboards (admin, employer, institution, candidate).  Globally
+// requiring auth on `/dashboard/*` was causing the public home page
+// to fire authenticated calls to `/dashboard/platform`,
+// `/dashboard/activity`, and `/dashboard/salary-insights`, which
+// returned 401 for signed-out viewers.  An older fetch wrapper
+// shipped to some browsers reacted to those 401s by clearing the
+// stored bearer token, which then broke any session that had just
+// been established.  Whitelist the public stats paths and only gate
+// the truly private subpaths.
+const PUBLIC_DASHBOARD_PATHS = new Set([
+  "/platform",
+  "/activity",
+  "/salary-insights",
+]);
+router.use("/dashboard", (req, res, next) => {
+  if (PUBLIC_DASHBOARD_PATHS.has(req.path)) return next();
+  return requireAuth(req, res, next);
+});
 
 router.use(healthRouter);
 router.use(authRouter);

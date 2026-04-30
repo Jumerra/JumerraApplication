@@ -470,7 +470,21 @@ router.get("/dashboard/candidate/:id", async (req, res): Promise<void> => {
   });
 });
 
-router.get("/dashboard/activity", async (_req, res): Promise<void> => {
+// Reduce a candidate's full name to "First L." so anonymous viewers
+// of the public landing-page activity feed do not see identifiable
+// names tied to application/hire events.  Authenticated viewers
+// still see the full name (and avatar) in the response.
+function anonymizeName(fullName: string): string {
+  const parts = fullName.trim().split(/\s+/);
+  if (parts.length === 0) return "Someone";
+  const first = parts[0];
+  if (parts.length === 1) return first;
+  const last = parts[parts.length - 1];
+  return `${first} ${last.charAt(0).toUpperCase()}.`;
+}
+
+router.get("/dashboard/activity", async (req, res): Promise<void> => {
+  const isAuthed = Boolean(req.session?.userId);
   const recentApps = await db
     .select({
       application: applicationsTable,
@@ -511,22 +525,26 @@ router.get("/dashboard/activity", async (_req, res): Promise<void> => {
   }> = [];
 
   for (const r of recentApps) {
+    const candidateLabel = isAuthed
+      ? r.candidate.fullName
+      : anonymizeName(r.candidate.fullName);
+    const candidateAvatar = isAuthed ? r.candidate.avatarUrl : "";
     if (r.application.status === "hired") {
       items.push({
         id: `hire-${r.application.id}`,
         type: "hire",
-        title: `${r.candidate.fullName} was hired at ${r.employer.name}`,
+        title: `${candidateLabel} was hired at ${r.employer.name}`,
         subtitle: `For ${r.job.title}`,
-        avatarUrl: r.candidate.avatarUrl,
+        avatarUrl: candidateAvatar,
         timestamp: r.application.updatedAt.toISOString(),
       });
     } else {
       items.push({
         id: `app-${r.application.id}`,
         type: "application",
-        title: `${r.candidate.fullName} applied to ${r.job.title}`,
+        title: `${candidateLabel} applied to ${r.job.title}`,
         subtitle: `at ${r.employer.name}`,
-        avatarUrl: r.candidate.avatarUrl,
+        avatarUrl: candidateAvatar,
         timestamp: r.application.appliedAt.toISOString(),
       });
     }
@@ -545,9 +563,9 @@ router.get("/dashboard/activity", async (_req, res): Promise<void> => {
     items.push({
       id: `cand-${c.id}`,
       type: "candidate_joined",
-      title: `${c.fullName} joined the platform`,
-      subtitle: c.headline,
-      avatarUrl: c.avatarUrl,
+      title: `${isAuthed ? c.fullName : anonymizeName(c.fullName)} joined the platform`,
+      subtitle: isAuthed ? c.headline : "",
+      avatarUrl: isAuthed ? c.avatarUrl : "",
       timestamp: c.createdAt.toISOString(),
     });
   }

@@ -197,21 +197,10 @@ export default function AdminSiteContentPage() {
     hydratedRef.current = true;
   }, [data, currentMap]);
 
-  if (!sessionUser || sessionUser.role !== "admin") {
-    return (
-      <div className="container max-w-md py-16">
-        <Card>
-          <CardContent className="p-8 text-center">
-            <ShieldAlert className="w-10 h-10 mx-auto mb-3 text-destructive" />
-            <p className="font-medium">Admin access required</p>
-            <Button asChild className="mt-4">
-              <Link href="/login">Sign in</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  // Access control is centralized in <AdminLayout>; no per-page gate
+  // needed.  AdminLayout permits real admin sessions and the
+  // "View as Admin" demo role; the API still enforces admin-only on
+  // the save endpoint.
 
   async function onSave() {
     setError(null);

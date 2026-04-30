@@ -47,6 +47,8 @@ import AdminRolesPage from "@/pages/dashboard/admin/roles";
 import OrgRolesPage from "@/pages/dashboard/org-roles";
 import StaffPage from "@/pages/dashboard/staff";
 import { AdminLayout } from "@/components/admin-layout";
+import { InstitutionLayout } from "@/components/institution-layout";
+import { EmployerLayout } from "@/components/employer-layout";
 import LoginPage from "@/pages/auth/login";
 import SignupPage from "@/pages/auth/signup";
 import SetupPasswordPage from "@/pages/auth/setup-password";
@@ -77,11 +79,21 @@ function Router() {
         <Route path="/candidates/:id" component={CandidateDetail} />
         
         <Route path="/dashboard/candidate" component={CandidateDashboard} />
-        <Route path="/dashboard/employer" component={EmployerDashboard} />
-        <Route path="/dashboard/institution" component={InstitutionDashboard} />
-        <Route path="/dashboard/institution/edit" component={InstitutionEditPage} />
-        <Route path="/dashboard/institution/departments" component={InstitutionDepartmentsPage} />
-        <Route path="/dashboard/institution/facilities" component={InstitutionFacilitiesPage} />
+        <Route path="/dashboard/employer">
+          <EmployerLayout><EmployerDashboard /></EmployerLayout>
+        </Route>
+        <Route path="/dashboard/institution">
+          <InstitutionLayout><InstitutionDashboard /></InstitutionLayout>
+        </Route>
+        <Route path="/dashboard/institution/edit">
+          <InstitutionLayout><InstitutionEditPage /></InstitutionLayout>
+        </Route>
+        <Route path="/dashboard/institution/departments">
+          <InstitutionLayout><InstitutionDepartmentsPage /></InstitutionLayout>
+        </Route>
+        <Route path="/dashboard/institution/facilities">
+          <InstitutionLayout><InstitutionFacilitiesPage /></InstitutionLayout>
+        </Route>
         <Route path="/dashboard/admin">
           <AdminLayout><AdminDashboard /></AdminLayout>
         </Route>
@@ -121,7 +133,9 @@ function Router() {
         <Route path="/dashboard/admin/institution-subscription-settings">
           <AdminLayout><AdminInstitutionSubscriptionSettingsPage /></AdminLayout>
         </Route>
-        <Route path="/dashboard/institution/subscription" component={InstitutionSubscriptionPage} />
+        <Route path="/dashboard/institution/subscription">
+          <InstitutionLayout><InstitutionSubscriptionPage /></InstitutionLayout>
+        </Route>
         <Route path="/institution-subscription/return" component={InstitutionSubscriptionReturnPage} />
         <Route path="/boost/return" component={BoostReturnPage} />
         <Route path="/cv/return" component={CvReturnPage} />
@@ -135,10 +149,18 @@ function Router() {
         <Route path="/dashboard/admin/roles">
           <AdminLayout><AdminRolesPage /></AdminLayout>
         </Route>
-        <Route path="/dashboard/employer/staff" component={StaffPage} />
-        <Route path="/dashboard/employer/roles" component={OrgRolesPage} />
-        <Route path="/dashboard/institution/staff" component={StaffPage} />
-        <Route path="/dashboard/institution/roles" component={OrgRolesPage} />
+        <Route path="/dashboard/employer/staff">
+          <EmployerLayout><StaffPage /></EmployerLayout>
+        </Route>
+        <Route path="/dashboard/employer/roles">
+          <EmployerLayout><OrgRolesPage /></EmployerLayout>
+        </Route>
+        <Route path="/dashboard/institution/staff">
+          <InstitutionLayout><StaffPage /></InstitutionLayout>
+        </Route>
+        <Route path="/dashboard/institution/roles">
+          <InstitutionLayout><OrgRolesPage /></InstitutionLayout>
+        </Route>
 
         <Route path="/login" component={LoginPage} />
         <Route path="/signup" component={SignupPage} />

@@ -17,6 +17,7 @@ import storageRouter from "./storage";
 import boostRouter from "./boost";
 import cvRouter from "./cv";
 import institutionSubscriptionRouter from "./institution-subscription";
+import employerSubscriptionRouter from "./employer-subscription";
 import { requireAuth } from "../middleware/require-auth";
 
 const router: IRouter = Router();
@@ -37,6 +38,7 @@ router.use(storageRouter);
 router.use(boostRouter);
 router.use(cvRouter);
 router.use(institutionSubscriptionRouter);
+router.use(employerSubscriptionRouter);
 router.use(candidatesRouter);
 router.use(employersRouter);
 router.use(institutionsRouter);

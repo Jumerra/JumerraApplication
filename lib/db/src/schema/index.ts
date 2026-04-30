@@ -11,3 +11,4 @@ export * from "./notifications";
 export * from "./boost";
 export * from "./cv";
 export * from "./institution-subscription";
+export * from "./employer-subscription";

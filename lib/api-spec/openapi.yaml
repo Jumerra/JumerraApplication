@@ -34,6 +34,8 @@ tags:
     description: Paid Profile Boost configuration and checkout
   - name: institution-subscription
     description: Premium yearly subscription for institutions (placement access)
+  - name: employer-subscription
+    description: Premium subscription gating job posts beyond the free quota
   - name: cv
     description: Premium AI CV Builder configuration, checkout, and generation
 paths:
@@ -1528,6 +1530,108 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/InstitutionSubscriptionStatus"
+        "400": { description: Invalid input }
+        "404": { description: Session not found }
+
+  /employer-subscription/settings:
+    get:
+      operationId: getEmployerSubscriptionSettings
+      tags: [employer-subscription]
+      summary: Read the global employer-subscription configuration (free job-post limit + price)
+      responses:
+        "200":
+          description: Subscription settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployerSubscriptionSettings"
+
+  /admin/employer-subscription/settings:
+    put:
+      operationId: updateEmployerSubscriptionSettings
+      tags: [employer-subscription, admin]
+      summary: Update employer-subscription configuration (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateEmployerSubscriptionSettingsRequest"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployerSubscriptionSettings"
+        "400": { description: Invalid input }
+        "403": { description: Admin only }
+
+  /employers/{id}/subscription:
+    get:
+      operationId: getEmployerSubscription
+      tags: [employer-subscription, employers]
+      summary: Get the current subscription state and free-quota usage for an employer
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Current subscription state and quota counters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployerSubscriptionStatus"
+        "403": { description: Not allowed }
+        "404": { description: Employer not found }
+
+  /employers/{id}/subscription/checkout:
+    post:
+      operationId: createEmployerSubscriptionCheckout
+      tags: [employer-subscription, employers]
+      summary: Create a Stripe Checkout Session for the employer's subscription
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBoostCheckoutRequest"
+      responses:
+        "200":
+          description: Checkout session created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateBoostCheckoutResponse"
+        "400": { description: "Subscription disabled, already subscribed, or invalid input" }
+        "403": { description: Not allowed }
+        "404": { description: Employer not found }
+
+  /employer-subscription/checkout/verify:
+    post:
+      operationId: verifyEmployerSubscriptionCheckout
+      tags: [employer-subscription]
+      summary: Verify a Stripe Checkout Session and activate the employer subscription
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyBoostCheckoutRequest"
+      responses:
+        "200":
+          description: Verification result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployerSubscriptionStatus"
         "400": { description: Invalid input }
         "404": { description: Session not found }
 
@@ -3147,6 +3251,102 @@ components:
         - currencySnapshot
         - isInTrial
         - unlocksPlacements
+
+    EmployerSubscriptionSettings:
+      type: object
+      properties:
+        isActive: { type: boolean }
+        freeJobPostLimit:
+          type: integer
+          minimum: 0
+          maximum: 1000
+          description: "Number of jobs an employer can post for free before the paywall kicks in. 0 disables the free quota entirely."
+        priceCents: { type: integer, minimum: 50, maximum: 10000000 }
+        currency: { type: string, description: "ISO 4217 lowercase, e.g. 'usd'" }
+        intervalDays:
+          type: integer
+          minimum: 1
+          maximum: 365
+          description: "Subscription billing interval in days (30 = monthly, 365 = yearly)."
+        trialDays:
+          type: integer
+          minimum: 0
+          maximum: 365
+          description: "Free trial length applied to every new subscription. 0 disables the trial."
+      required: [isActive, freeJobPostLimit, priceCents, currency, intervalDays, trialDays]
+
+    UpdateEmployerSubscriptionSettingsRequest:
+      type: object
+      properties:
+        isActive: { type: boolean }
+        freeJobPostLimit: { type: integer, minimum: 0, maximum: 1000 }
+        priceCents: { type: integer, minimum: 50, maximum: 10000000 }
+        currency: { type: string }
+        intervalDays: { type: integer, minimum: 1, maximum: 365 }
+        trialDays: { type: integer, minimum: 0, maximum: 365 }
+      required: [isActive, freeJobPostLimit, priceCents, currency, intervalDays, trialDays]
+
+    EmployerSubscriptionStatus:
+      type: object
+      description: |
+        Combined view of an employer's subscription state and their
+        free-quota usage. `canPostJob` is what the UI should consult
+        before showing the post-job CTA — it is true when the feature
+        is disabled, when the employer is under the free quota, or when
+        they have a trialing/active subscription.
+      properties:
+        status:
+          type: string
+          enum: [none, pending, trialing, active, expired, canceled, failed]
+        trialEndsAt:
+          type: string
+          format: date-time
+          nullable: true
+        currentPeriodEnd:
+          type: string
+          format: date-time
+          nullable: true
+        priceCentsSnapshot:
+          type: integer
+          nullable: true
+        currencySnapshot:
+          type: string
+          nullable: true
+        isInTrial: { type: boolean }
+        hasActiveSubscription:
+          type: boolean
+          description: True iff the employer has a trialing/active subscription right now.
+        freeJobPostLimit:
+          type: integer
+          description: Snapshot of the current admin-configured free quota.
+        jobsPostedCount:
+          type: integer
+          description: Total number of jobs this employer has posted (active + closed + draft).
+        freeJobsRemaining:
+          type: integer
+          description: max(freeJobPostLimit - jobsPostedCount, 0). Always 0 when the feature is disabled (no quota to track).
+        canPostJob:
+          type: boolean
+          description: |
+            True when the employer is allowed to post another job. False
+            when the feature is enabled, free quota is exhausted, and
+            the employer has no active subscription.
+        featureEnabled:
+          type: boolean
+          description: Mirror of EmployerSubscriptionSettings.isActive for convenience.
+      required:
+        - status
+        - trialEndsAt
+        - currentPeriodEnd
+        - priceCentsSnapshot
+        - currencySnapshot
+        - isInTrial
+        - hasActiveSubscription
+        - freeJobPostLimit
+        - jobsPostedCount
+        - freeJobsRemaining
+        - canPostJob
+        - featureEnabled
 
     CvSettings:
       type: object

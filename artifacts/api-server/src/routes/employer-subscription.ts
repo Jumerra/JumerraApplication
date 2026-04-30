@@ -1,10 +1,11 @@
 import { Router } from "express";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 import {
   db,
-  institutionSubscriptionSettingsTable,
-  institutionSubscriptionsTable,
-  institutionsTable,
+  employerSubscriptionSettingsTable,
+  employerSubscriptionsTable,
+  employersTable,
+  jobsTable,
 } from "@workspace/db";
 import {
   requireAuth,
@@ -26,14 +27,16 @@ const ALLOWED_CURRENCIES = new Set([
   "zar",
 ]);
 
-type SettingsRow = typeof institutionSubscriptionSettingsTable.$inferSelect;
-type SubRow = typeof institutionSubscriptionsTable.$inferSelect;
+type SettingsRow = typeof employerSubscriptionSettingsTable.$inferSelect;
+type SubRow = typeof employerSubscriptionsTable.$inferSelect;
 
 function toApiSettings(row: SettingsRow) {
   return {
     isActive: row.isActive,
+    freeJobPostLimit: row.freeJobPostLimit,
     priceCents: row.priceCents,
     currency: row.currency,
+    intervalDays: row.intervalDays,
     trialDays: row.trialDays,
   };
 }
@@ -41,50 +44,41 @@ function toApiSettings(row: SettingsRow) {
 async function loadOrSeedSettings(): Promise<SettingsRow> {
   const existing = await db
     .select()
-    .from(institutionSubscriptionSettingsTable)
-    .where(eq(institutionSubscriptionSettingsTable.id, SETTINGS_ROW_ID))
+    .from(employerSubscriptionSettingsTable)
+    .where(eq(employerSubscriptionSettingsTable.id, SETTINGS_ROW_ID))
     .limit(1);
   if (existing[0]) return existing[0];
-  // Seed the singleton row on first read so admin form has something to
-  // edit. Defaults are intentionally inactive — admin must enable.
   const inserted = await db
-    .insert(institutionSubscriptionSettingsTable)
+    .insert(employerSubscriptionSettingsTable)
     .values({ id: SETTINGS_ROW_ID })
     .onConflictDoNothing()
     .returning();
   if (inserted[0]) return inserted[0];
   const reread = await db
     .select()
-    .from(institutionSubscriptionSettingsTable)
-    .where(eq(institutionSubscriptionSettingsTable.id, SETTINGS_ROW_ID))
+    .from(employerSubscriptionSettingsTable)
+    .where(eq(employerSubscriptionSettingsTable.id, SETTINGS_ROW_ID))
     .limit(1);
   if (!reread[0]) {
-    throw new Error("Failed to seed institution_subscription_settings row");
+    throw new Error("Failed to seed employer_subscription_settings row");
   }
   return reread[0];
 }
 
 /**
- * "Current" subscription for an institution.
- *
- * We can't trust simple "latest row" ordering: a brand-new pending
- * checkout (or a failed retry) would mask an existing active/trialing
- * subscription and incorrectly lock the institution out.
- *
- * Resolution rules:
- *   1. Prefer the most recent row whose Stripe-side state is currently
- *      valid (trialing/active AND its time-window hasn't passed).
- *   2. Otherwise return the most recent row of any status, so the UI
- *      can still render pending/failed/expired states.
+ * "Current" subscription for an employer. Same resolution rules as
+ * institution-subscription: prefer the most recent row whose
+ * Stripe-side state is still valid, otherwise the most recent of any
+ * status.
  */
 async function loadCurrentSubscription(
-  institutionId: number,
+  employerId: number,
 ): Promise<SubRow | null> {
   const rows = await db
     .select()
-    .from(institutionSubscriptionsTable)
-    .where(eq(institutionSubscriptionsTable.institutionId, institutionId))
-    .orderBy(desc(institutionSubscriptionsTable.createdAt));
+    .from(employerSubscriptionsTable)
+    .where(eq(employerSubscriptionsTable.employerId, employerId))
+    .orderBy(desc(employerSubscriptionsTable.createdAt));
   if (rows.length === 0) return null;
 
   const now = Date.now();
@@ -99,27 +93,20 @@ async function loadCurrentSubscription(
   return valid ?? rows[0];
 }
 
-/**
- * Find a recent open checkout session for this institution that we can
- * safely reuse instead of creating a duplicate Stripe session. We
- * consider a pending row "reusable" only if it is younger than 1 hour
- * — Stripe Checkout Sessions expire after 24h but we'd rather force a
- * fresh session well before that to avoid edge cases.
- */
 async function findReusablePendingCheckout(
-  institutionId: number,
+  employerId: number,
 ): Promise<SubRow | null> {
   const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
   const rows = await db
     .select()
-    .from(institutionSubscriptionsTable)
+    .from(employerSubscriptionsTable)
     .where(
       and(
-        eq(institutionSubscriptionsTable.institutionId, institutionId),
-        eq(institutionSubscriptionsTable.status, "pending"),
+        eq(employerSubscriptionsTable.employerId, employerId),
+        eq(employerSubscriptionsTable.status, "pending"),
       ),
     )
-    .orderBy(desc(institutionSubscriptionsTable.createdAt))
+    .orderBy(desc(employerSubscriptionsTable.createdAt))
     .limit(1);
   const row = rows[0];
   if (!row) return null;
@@ -143,20 +130,23 @@ interface ApiStatus {
   priceCentsSnapshot: number | null;
   currencySnapshot: string | null;
   isInTrial: boolean;
-  unlocksPlacements: boolean;
+  hasActiveSubscription: boolean;
+  freeJobPostLimit: number;
+  jobsPostedCount: number;
+  freeJobsRemaining: number;
+  canPostJob: boolean;
+  featureEnabled: boolean;
 }
 
-/**
- * Coerce a stored row into the API-shaped status the UI consumes.
- *
- * If the row is in `trialing` or `active` but its `currentPeriodEnd`
- * (or `trialEndsAt` when still in trial) has passed, we surface it as
- * `expired` so the UI doesn't keep telling the user they're subscribed
- * when Stripe stopped renewing them. The DB row is left untouched —
- * the verify endpoint or a future webhook is the only path that mutates
- * row-level state.
- */
-function rowToApiStatus(row: SubRow | null): ApiStatus {
+function rowToBaseStatus(row: SubRow | null): {
+  status: StatusName;
+  trialEndsAt: string | null;
+  currentPeriodEnd: string | null;
+  priceCentsSnapshot: number | null;
+  currencySnapshot: string | null;
+  isInTrial: boolean;
+  hasActiveSubscription: boolean;
+} {
   if (!row) {
     return {
       status: "none",
@@ -165,7 +155,7 @@ function rowToApiStatus(row: SubRow | null): ApiStatus {
       priceCentsSnapshot: null,
       currencySnapshot: null,
       isInTrial: false,
-      unlocksPlacements: false,
+      hasActiveSubscription: false,
     };
   }
   const now = Date.now();
@@ -175,9 +165,6 @@ function rowToApiStatus(row: SubRow | null): ApiStatus {
   const inActivePeriod = !!(periodEnd && periodEnd.getTime() > now);
 
   let status: StatusName = (row.status as StatusName) ?? "none";
-
-  // Auto-derive expired view when the snapshot is stale; trialing rows
-  // expire at trialEndsAt unless they have rolled into a paid period.
   if (status === "trialing" && !inTrial && !inActivePeriod) {
     status = "expired";
   }
@@ -185,7 +172,7 @@ function rowToApiStatus(row: SubRow | null): ApiStatus {
     status = "expired";
   }
 
-  const unlocks = status === "trialing" || status === "active";
+  const hasActive = status === "trialing" || status === "active";
   return {
     status,
     trialEndsAt: trialEnd ? trialEnd.toISOString() : null,
@@ -193,35 +180,61 @@ function rowToApiStatus(row: SubRow | null): ApiStatus {
     priceCentsSnapshot: row.priceCentsSnapshot,
     currencySnapshot: row.currencySnapshot,
     isInTrial: inTrial,
-    unlocksPlacements: unlocks,
+    hasActiveSubscription: hasActive,
+  };
+}
+
+async function countEmployerJobs(employerId: number): Promise<number> {
+  const result = await db
+    .select({ c: sql<number>`count(*)::int` })
+    .from(jobsTable)
+    .where(eq(jobsTable.employerId, employerId));
+  return Number(result[0]?.c ?? 0);
+}
+
+async function buildStatusForEmployer(
+  employerId: number,
+): Promise<ApiStatus> {
+  const settings = await loadOrSeedSettings();
+  const row = await loadCurrentSubscription(employerId);
+  const base = rowToBaseStatus(row);
+  const jobsPostedCount = await countEmployerJobs(employerId);
+  const freeRemaining = Math.max(
+    settings.freeJobPostLimit - jobsPostedCount,
+    0,
+  );
+  // Allow posting when: feature disabled, OR under free quota, OR has
+  // an active/trialing subscription.
+  const canPost =
+    !settings.isActive ||
+    freeRemaining > 0 ||
+    base.hasActiveSubscription;
+  return {
+    ...base,
+    freeJobPostLimit: settings.freeJobPostLimit,
+    jobsPostedCount,
+    freeJobsRemaining: freeRemaining,
+    canPostJob: canPost,
+    featureEnabled: settings.isActive,
   };
 }
 
 /**
- * Public helper for other routers (notably the institution dashboard
- * gate): returns whether placements should be unlocked for this
- * institution given the current admin toggle and subscription state.
- *
- * When the admin toggle is OFF, placements are ALWAYS unlocked — the
- * subscription feature is dormant and we don't want to break existing
- * users. When ON, only `trialing`/`active` subs unlock placements.
+ * Public helper used by the jobs route to enforce the paywall on
+ * POST /jobs. Returns the same shape as the GET endpoint so callers
+ * can render the same paywall UI from the 402 response.
  */
-export async function isInstitutionPlacementUnlocked(
-  institutionId: number,
-): Promise<boolean> {
-  const settings = await loadOrSeedSettings();
-  if (!settings.isActive) return true;
-  const row = await loadCurrentSubscription(institutionId);
-  return rowToApiStatus(row).unlocksPlacements;
+export async function getEmployerPostingStatus(
+  employerId: number,
+): Promise<ApiStatus> {
+  return buildStatusForEmployer(employerId);
 }
 
 // ---------------------------------------------------------------------------
-// GET /api/institution-subscription/settings
-// Auth required. Anyone signed in reads so the institution UI knows
-// whether to render the CTA, and the admin page renders the form.
+// GET /api/employer-subscription/settings
 // ---------------------------------------------------------------------------
 router.get(
-  "/institution-subscription/settings",
+  "/employer-subscription/settings",
   requireAuth,
   async (_req, res) => {
     const row = await loadOrSeedSettings();
@@ -230,28 +243,47 @@ router.get(
 );
 
 // ---------------------------------------------------------------------------
-// PUT /api/admin/institution-subscription/settings
-// Admin only. Updates the singleton config row.
+// PUT /api/admin/employer-subscription/settings
 // ---------------------------------------------------------------------------
 router.put(
-  "/admin/institution-subscription/settings",
+  "/admin/employer-subscription/settings",
   requireAdmin,
   async (req, res) => {
     try {
       const body = req.body as {
         isActive?: unknown;
+        freeJobPostLimit?: unknown;
         priceCents?: unknown;
         currency?: unknown;
+        intervalDays?: unknown;
         trialDays?: unknown;
       } | null;
       if (!body) {
         res.status(400).json({ error: "Request body required" });
         return;
       }
-      const { isActive, priceCents, currency, trialDays } = body;
+      const {
+        isActive,
+        freeJobPostLimit,
+        priceCents,
+        currency,
+        intervalDays,
+        trialDays,
+      } = body;
 
       if (typeof isActive !== "boolean") {
         res.status(400).json({ error: "isActive must be boolean" });
+        return;
+      }
+      if (
+        typeof freeJobPostLimit !== "number" ||
+        !Number.isInteger(freeJobPostLimit) ||
+        freeJobPostLimit < 0 ||
+        freeJobPostLimit > 1000
+      ) {
+        res.status(400).json({
+          error: "freeJobPostLimit must be an integer between 0 and 1000",
+        });
         return;
       }
       if (
@@ -277,6 +309,17 @@ router.put(
         return;
       }
       if (
+        typeof intervalDays !== "number" ||
+        !Number.isInteger(intervalDays) ||
+        intervalDays < 1 ||
+        intervalDays > 365
+      ) {
+        res.status(400).json({
+          error: "intervalDays must be an integer between 1 and 365",
+        });
+        return;
+      }
+      if (
         typeof trialDays !== "number" ||
         !Number.isInteger(trialDays) ||
         trialDays < 0 ||
@@ -290,93 +333,91 @@ router.put(
 
       await loadOrSeedSettings();
       const updated = await db
-        .update(institutionSubscriptionSettingsTable)
+        .update(employerSubscriptionSettingsTable)
         .set({
           isActive,
+          freeJobPostLimit,
           priceCents,
           currency: normalizedCurrency,
+          intervalDays,
           trialDays,
           updatedAt: new Date(),
           updatedBy: req.currentUser!.id,
         })
-        .where(eq(institutionSubscriptionSettingsTable.id, SETTINGS_ROW_ID))
+        .where(eq(employerSubscriptionSettingsTable.id, SETTINGS_ROW_ID))
         .returning();
       if (!updated[0]) {
         res
           .status(500)
-          .json({ error: "Failed to update institution subscription settings" });
+          .json({ error: "Failed to update employer subscription settings" });
         return;
       }
       res.json(toApiSettings(updated[0]));
     } catch (err) {
-      req.log.error({ err }, "institution subscription settings update failed");
+      req.log.error({ err }, "employer subscription settings update failed");
       res.status(500).json({ error: "Update failed" });
     }
   },
 );
 
 // ---------------------------------------------------------------------------
-// GET /api/institutions/:id/subscription
-// Returns the current subscription status for an institution. Visible
-// to: any staff member of that institution, or any admin.
+// GET /api/employers/:id/subscription
 // ---------------------------------------------------------------------------
 router.get(
-  "/institutions/:id/subscription",
+  "/employers/:id/subscription",
   requireAuth,
   async (req, res) => {
-    const institutionId = Number(req.params.id);
-    if (!Number.isInteger(institutionId) || institutionId <= 0) {
-      res.status(400).json({ error: "Invalid institution id" });
+    const employerId = Number(req.params.id);
+    if (!Number.isInteger(employerId) || employerId <= 0) {
+      res.status(400).json({ error: "Invalid employer id" });
       return;
     }
     const user = req.currentUser!;
     const isAdmin = user.role === "admin";
     const isMember =
-      user.role === "institution" && user.institutionId === institutionId;
+      user.role === "employer" && user.employerId === employerId;
     if (!isAdmin && !isMember) {
       res.status(403).json({ error: "Not allowed" });
       return;
     }
 
-    const inst = await db
-      .select({ id: institutionsTable.id })
-      .from(institutionsTable)
-      .where(eq(institutionsTable.id, institutionId))
+    const emp = await db
+      .select({ id: employersTable.id })
+      .from(employersTable)
+      .where(eq(employersTable.id, employerId))
       .limit(1);
-    if (!inst[0]) {
-      res.status(404).json({ error: "Institution not found" });
+    if (!emp[0]) {
+      res.status(404).json({ error: "Employer not found" });
       return;
     }
 
-    const row = await loadCurrentSubscription(institutionId);
-    res.json(rowToApiStatus(row));
+    const status = await buildStatusForEmployer(employerId);
+    res.json(status);
   },
 );
 
 // ---------------------------------------------------------------------------
-// POST /api/institutions/:id/subscription/checkout
-// Owner of the institution (or admin) creates a Stripe Checkout
-// Session in `subscription` mode with the configured trial length.
+// POST /api/employers/:id/subscription/checkout
 // ---------------------------------------------------------------------------
 router.post(
-  "/institutions/:id/subscription/checkout",
+  "/employers/:id/subscription/checkout",
   requireAuth,
   async (req, res) => {
     try {
-      const institutionId = Number(req.params.id);
-      if (!Number.isInteger(institutionId) || institutionId <= 0) {
-        res.status(400).json({ error: "Invalid institution id" });
+      const employerId = Number(req.params.id);
+      if (!Number.isInteger(employerId) || employerId <= 0) {
+        res.status(400).json({ error: "Invalid employer id" });
         return;
       }
       const user = req.currentUser!;
       const isAdmin = user.role === "admin";
       const isOwner =
-        user.role === "institution" &&
-        user.institutionId === institutionId &&
+        user.role === "employer" &&
+        user.employerId === employerId &&
         user.orgRole === "owner";
       if (!isAdmin && !isOwner) {
         res.status(403).json({
-          error: "Only institution owners or platform admins can subscribe",
+          error: "Only employer owners or platform admins can subscribe",
         });
         return;
       }
@@ -399,40 +440,33 @@ router.post(
       const settings = await loadOrSeedSettings();
       if (!settings.isActive) {
         res.status(400).json({
-          error: "Institution subscriptions are currently disabled",
+          error: "Employer subscriptions are currently disabled",
         });
         return;
       }
 
-      const inst = await db
-        .select({ id: institutionsTable.id, name: institutionsTable.name })
-        .from(institutionsTable)
-        .where(eq(institutionsTable.id, institutionId))
+      const emp = await db
+        .select({ id: employersTable.id, name: employersTable.name })
+        .from(employersTable)
+        .where(eq(employersTable.id, employerId))
         .limit(1);
-      const institution = inst[0];
-      if (!institution) {
-        res.status(404).json({ error: "Institution not found" });
+      const employer = emp[0];
+      if (!employer) {
+        res.status(404).json({ error: "Employer not found" });
         return;
       }
 
-      // Block double-subscribing while one is already live.
-      const existing = await loadCurrentSubscription(institutionId);
-      const existingStatus = rowToApiStatus(existing);
-      if (existingStatus.unlocksPlacements) {
+      const existing = await loadCurrentSubscription(employerId);
+      const existingBase = rowToBaseStatus(existing);
+      if (existingBase.hasActiveSubscription) {
         res.status(400).json({
-          error: "Institution already has an active subscription",
+          error: "Employer already has an active subscription",
         });
         return;
       }
 
-      // Idempotency: if there's a recent pending checkout session,
-      // re-issue its URL instead of creating a duplicate Stripe session
-      // (and a duplicate DB row). This makes accidental double-clicks
-      // and the user-clicks-back-then-clicks-again flow safe. Stripe
-      // sessions stay valid for 24h; we cap reuse at 1h to avoid edge
-      // cases around expiring sessions.
       const stripe = await getUncachableStripeClient();
-      const reusable = await findReusablePendingCheckout(institutionId);
+      const reusable = await findReusablePendingCheckout(employerId);
       if (reusable) {
         try {
           const existingSession = await stripe.checkout.sessions.retrieve(
@@ -449,14 +483,31 @@ router.post(
             return;
           }
         } catch (retrieveErr) {
-          // Stripe doesn't know about this session anymore — fall
-          // through to create a fresh one.
           req.log.warn(
             { err: retrieveErr, sessionId: reusable.stripeCheckoutSessionId },
             "could not retrieve pending session for reuse, creating new one",
           );
         }
       }
+
+      // Map intervalDays -> Stripe recurring interval. We support
+      // weekly / monthly / yearly; everything else falls back to a
+      // day-based count.
+      const recurring = (() => {
+        if (settings.intervalDays === 7) {
+          return { interval: "week" as const };
+        }
+        if (settings.intervalDays === 30) {
+          return { interval: "month" as const };
+        }
+        if (settings.intervalDays === 365) {
+          return { interval: "year" as const };
+        }
+        return {
+          interval: "day" as const,
+          interval_count: settings.intervalDays,
+        };
+      })();
 
       const checkout = await stripe.checkout.sessions.create({
         mode: "subscription",
@@ -466,10 +517,10 @@ router.post(
             price_data: {
               currency: settings.currency,
               unit_amount: settings.priceCents,
-              recurring: { interval: "year" },
+              recurring,
               product_data: {
-                name: `${institution.name} — Premium yearly subscription`,
-                description: `Full access to candidate placements for ${institution.name}.${
+                name: `${employer.name} — Job Posting Premium`,
+                description: `Unlimited job posts for ${employer.name}.${
                   settings.trialDays > 0
                     ? ` Includes ${settings.trialDays}-day free trial.`
                     : ""
@@ -482,17 +533,14 @@ router.post(
           settings.trialDays > 0
             ? { trial_period_days: settings.trialDays }
             : undefined,
-        // Skip the credit-card requirement when the admin has configured
-        // a free trial — the user only enters payment info if/when the
-        // trial is about to convert. With no trial we still require a
-        // card up front so the first invoice can be charged immediately.
+        // Same trial/no-card behavior as institution-subscription.
         payment_method_collection:
           settings.trialDays > 0 ? "if_required" : "always",
         success_url: successUrl,
         cancel_url: cancelUrl,
         metadata: {
-          institutionId: String(institutionId),
-          purpose: "institution_subscription",
+          employerId: String(employerId),
+          purpose: "employer_subscription",
         },
       });
 
@@ -503,12 +551,13 @@ router.post(
         return;
       }
 
-      await db.insert(institutionSubscriptionsTable).values({
-        institutionId,
+      await db.insert(employerSubscriptionsTable).values({
+        employerId,
         stripeCheckoutSessionId: checkout.id,
         status: "pending",
         priceCentsSnapshot: settings.priceCents,
         currencySnapshot: settings.currency,
+        intervalDaysSnapshot: settings.intervalDays,
         trialDaysSnapshot: settings.trialDays,
       });
 
@@ -516,7 +565,7 @@ router.post(
     } catch (err) {
       req.log.error(
         { err },
-        "institution subscription checkout creation failed",
+        "employer subscription checkout creation failed",
       );
       res.status(500).json({ error: "Failed to create checkout session" });
     }
@@ -524,13 +573,10 @@ router.post(
 );
 
 // ---------------------------------------------------------------------------
-// POST /api/institution-subscription/checkout/verify
-// Verifies a Stripe Checkout Session, fetches the subscription state
-// from Stripe, and writes it into our row. Idempotent — repeat calls
-// for an already-finalized row simply return the current state.
+// POST /api/employer-subscription/checkout/verify
 // ---------------------------------------------------------------------------
 router.post(
-  "/institution-subscription/checkout/verify",
+  "/employer-subscription/checkout/verify",
   requireAuth,
   async (req, res) => {
     try {
@@ -543,10 +589,10 @@ router.post(
 
       const rows = await db
         .select()
-        .from(institutionSubscriptionsTable)
+        .from(employerSubscriptionsTable)
         .where(
           eq(
-            institutionSubscriptionsTable.stripeCheckoutSessionId,
+            employerSubscriptionsTable.stripeCheckoutSessionId,
             sessionId,
           ),
         )
@@ -560,13 +606,12 @@ router.post(
       const user = req.currentUser!;
       const isAdmin = user.role === "admin";
       const isMember =
-        user.role === "institution" && user.institutionId === row.institutionId;
+        user.role === "employer" && user.employerId === row.employerId;
       if (!isAdmin && !isMember) {
         res.status(403).json({ error: "Not allowed" });
         return;
       }
 
-      // Already terminal — short-circuit.
       if (
         row.status === "trialing" ||
         row.status === "active" ||
@@ -574,7 +619,8 @@ router.post(
         row.status === "canceled" ||
         row.status === "failed"
       ) {
-        res.json(rowToApiStatus(row));
+        const status = await buildStatusForEmployer(row.employerId);
+        res.json(status);
         return;
       }
 
@@ -583,12 +629,6 @@ router.post(
         expand: ["subscription"],
       });
 
-      // Stripe returns the Subscription object inline because we asked
-      // for it via `expand`. Type it loosely; the only fields we need
-      // are status, trial_end, current_period_end, customer, id.
-      // Note: in recent Stripe API versions `current_period_end` moved
-      // from the Subscription itself onto each subscription item, so we
-      // accept either shape.
       const sub =
         typeof session.subscription === "object" && session.subscription
           ? (session.subscription as unknown as {
@@ -603,25 +643,24 @@ router.post(
             })
           : null;
 
-      // Checkout closed without producing a subscription -> failed.
       if (session.status === "expired") {
         await db
-          .update(institutionSubscriptionsTable)
+          .update(employerSubscriptionsTable)
           .set({ status: "expired", updatedAt: new Date() })
           .where(
             and(
-              eq(institutionSubscriptionsTable.id, row.id),
-              eq(institutionSubscriptionsTable.status, "pending"),
+              eq(employerSubscriptionsTable.id, row.id),
+              eq(employerSubscriptionsTable.status, "pending"),
             ),
           );
-        const fresh = await loadCurrentSubscription(row.institutionId);
-        res.json(rowToApiStatus(fresh));
+        const status = await buildStatusForEmployer(row.employerId);
+        res.json(status);
         return;
       }
 
       if (!sub) {
-        // Still waiting on Stripe to finalize — let the client poll.
-        res.json(rowToApiStatus(row));
+        const status = await buildStatusForEmployer(row.employerId);
+        res.json(status);
         return;
       }
 
@@ -630,9 +669,6 @@ router.post(
           ? sub.customer
           : sub.customer?.id ?? null;
 
-      // Map Stripe's subscription.status onto our internal enum. Stripe
-      // returns one of: incomplete, incomplete_expired, trialing,
-      // active, past_due, canceled, unpaid, paused.
       let mapped: "trialing" | "active" | "canceled" | "expired" | "failed" =
         "failed";
       if (sub.status === "trialing") mapped = "trialing";
@@ -646,9 +682,8 @@ router.post(
       } else if (sub.status === "past_due" || sub.status === "paused") {
         mapped = "expired";
       } else if (sub.status === "incomplete") {
-        // Customer hasn't completed the initial payment; let them
-        // retry — keep the row pending.
-        res.json(rowToApiStatus(row));
+        const status = await buildStatusForEmployer(row.employerId);
+        res.json(status);
         return;
       }
 
@@ -658,15 +693,14 @@ router.post(
         sub.items?.data?.[0]?.current_period_end ??
         null;
       if (!periodEndUnix) {
-        // Stripe didn't give us a period end yet — keep the row pending
-        // and let the client retry verification.
-        res.json(rowToApiStatus(row));
+        const status = await buildStatusForEmployer(row.employerId);
+        res.json(status);
         return;
       }
       const currentPeriodEnd = new Date(periodEndUnix * 1000);
 
       await db
-        .update(institutionSubscriptionsTable)
+        .update(employerSubscriptionsTable)
         .set({
           status: mapped,
           stripeSubscriptionId: sub.id,
@@ -677,15 +711,12 @@ router.post(
           updatedAt: new Date(),
           ...(mapped === "canceled" ? { canceledAt: new Date() } : {}),
         })
-        .where(eq(institutionSubscriptionsTable.id, row.id));
+        .where(eq(employerSubscriptionsTable.id, row.id));
 
-      const fresh = await loadCurrentSubscription(row.institutionId);
-      res.json(rowToApiStatus(fresh));
+      const status = await buildStatusForEmployer(row.employerId);
+      res.json(status);
     } catch (err) {
-      req.log.error(
-        { err },
-        "institution subscription verify failed",
-      );
+      req.log.error({ err }, "employer subscription verify failed");
       res.status(500).json({ error: "Verification failed" });
     }
   },

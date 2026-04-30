@@ -80,7 +80,16 @@ export default function JobPost() {
         queryClient.invalidateQueries({ queryKey: getGetEmployerDashboardQueryKey(userId) });
         setLocation("/dashboard/employer");
       },
-      onError: () => {
+      onError: (err: any) => {
+        // The API returns 402 + a structured paywall payload when the
+        // employer has used their free job-post quota. Surface a clear
+        // message and route them to the subscription page.
+        const status = err?.response?.status ?? err?.status;
+        if (status === 402) {
+          toast.error("You've used your free job posts. Subscribe to keep posting.");
+          setLocation("/dashboard/employer/subscription");
+          return;
+        }
         toast.error("Failed to post job. Please check your inputs.");
       }
     });

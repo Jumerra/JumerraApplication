@@ -27,6 +27,7 @@ import {
   Briefcase,
   PlusCircle,
   ShieldAlert,
+  Crown,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 
@@ -134,6 +135,17 @@ export function EmployerLayout({ children }: { children: ReactNode }) {
           href: "/candidates",
           label: "Talent",
           icon: Users,
+        },
+      ],
+    },
+    {
+      label: "Billing",
+      items: [
+        {
+          href: "/dashboard/employer/subscription",
+          label: "Subscription",
+          icon: Crown,
+          orgRoles: ["owner"],
         },
       ],
     },

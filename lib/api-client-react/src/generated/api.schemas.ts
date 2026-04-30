@@ -1224,6 +1224,105 @@ currentPeriodEnd is in the future.
   unlocksPlacements: boolean;
 }
 
+export interface EmployerSubscriptionSettings {
+  isActive: boolean;
+  /**
+   * Number of jobs an employer can post for free before the paywall kicks in. 0 disables the free quota entirely.
+   * @minimum 0
+   * @maximum 1000
+   */
+  freeJobPostLimit: number;
+  /**
+   * @minimum 50
+   * @maximum 10000000
+   */
+  priceCents: number;
+  /** ISO 4217 lowercase, e.g. 'usd' */
+  currency: string;
+  /**
+   * Subscription billing interval in days (30 = monthly, 365 = yearly).
+   * @minimum 1
+   * @maximum 365
+   */
+  intervalDays: number;
+  /**
+   * Free trial length applied to every new subscription. 0 disables the trial.
+   * @minimum 0
+   * @maximum 365
+   */
+  trialDays: number;
+}
+
+export interface UpdateEmployerSubscriptionSettingsRequest {
+  isActive: boolean;
+  /**
+   * @minimum 0
+   * @maximum 1000
+   */
+  freeJobPostLimit: number;
+  /**
+   * @minimum 50
+   * @maximum 10000000
+   */
+  priceCents: number;
+  currency: string;
+  /**
+   * @minimum 1
+   * @maximum 365
+   */
+  intervalDays: number;
+  /**
+   * @minimum 0
+   * @maximum 365
+   */
+  trialDays: number;
+}
+
+export type EmployerSubscriptionStatusStatus =
+  (typeof EmployerSubscriptionStatusStatus)[keyof typeof EmployerSubscriptionStatusStatus];
+
+export const EmployerSubscriptionStatusStatus = {
+  none: "none",
+  pending: "pending",
+  trialing: "trialing",
+  active: "active",
+  expired: "expired",
+  canceled: "canceled",
+  failed: "failed",
+} as const;
+
+/**
+ * Combined view of an employer's subscription state and their
+free-quota usage. `canPostJob` is what the UI should consult
+before showing the post-job CTA — it is true when the feature
+is disabled, when the employer is under the free quota, or when
+they have a trialing/active subscription.
+
+ */
+export interface EmployerSubscriptionStatus {
+  status: EmployerSubscriptionStatusStatus;
+  trialEndsAt: string | null;
+  currentPeriodEnd: string | null;
+  priceCentsSnapshot: number | null;
+  currencySnapshot: string | null;
+  isInTrial: boolean;
+  /** True iff the employer has a trialing/active subscription right now. */
+  hasActiveSubscription: boolean;
+  /** Snapshot of the current admin-configured free quota. */
+  freeJobPostLimit: number;
+  /** Total number of jobs this employer has posted (active + closed + draft). */
+  jobsPostedCount: number;
+  /** max(freeJobPostLimit - jobsPostedCount, 0). Always 0 when the feature is disabled (no quota to track). */
+  freeJobsRemaining: number;
+  /** True when the employer is allowed to post another job. False
+when the feature is enabled, free quota is exhausted, and
+the employer has no active subscription.
+ */
+  canPostJob: boolean;
+  /** Mirror of EmployerSubscriptionSettings.isActive for convenience. */
+  featureEnabled: boolean;
+}
+
 export interface CvSettings {
   isActive: boolean;
   /**

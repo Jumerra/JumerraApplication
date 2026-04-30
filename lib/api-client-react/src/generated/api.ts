@@ -52,6 +52,8 @@ import type {
   EmployerAnalyticsResponse,
   EmployerDashboard,
   EmployerDetail,
+  EmployerSubscriptionSettings,
+  EmployerSubscriptionStatus,
   ForgotPasswordRequest,
   GenerateCvRequest,
   HealthStatus,
@@ -103,6 +105,7 @@ import type {
   UpdateBoostSettingsRequest,
   UpdateCandidate,
   UpdateCvSettingsRequest,
+  UpdateEmployerSubscriptionSettingsRequest,
   UpdateInstitutionDepartment,
   UpdateInstitutionFacility,
   UpdateInstitutionRequest,
@@ -6789,6 +6792,455 @@ export const useVerifyInstitutionSubscriptionCheckout = <
 > => {
   return useMutation(
     getVerifyInstitutionSubscriptionCheckoutMutationOptions(options),
+  );
+};
+
+/**
+ * @summary Read the global employer-subscription configuration (free job-post limit + price)
+ */
+export const getGetEmployerSubscriptionSettingsUrl = () => {
+  return `/api/employer-subscription/settings`;
+};
+
+export const getEmployerSubscriptionSettings = async (
+  options?: RequestInit,
+): Promise<EmployerSubscriptionSettings> => {
+  return customFetch<EmployerSubscriptionSettings>(
+    getGetEmployerSubscriptionSettingsUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetEmployerSubscriptionSettingsQueryKey = () => {
+  return [`/api/employer-subscription/settings`] as const;
+};
+
+export const getGetEmployerSubscriptionSettingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getEmployerSubscriptionSettings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getEmployerSubscriptionSettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetEmployerSubscriptionSettingsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getEmployerSubscriptionSettings>>
+  > = ({ signal }) =>
+    getEmployerSubscriptionSettings({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getEmployerSubscriptionSettings>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetEmployerSubscriptionSettingsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getEmployerSubscriptionSettings>>
+>;
+export type GetEmployerSubscriptionSettingsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Read the global employer-subscription configuration (free job-post limit + price)
+ */
+
+export function useGetEmployerSubscriptionSettings<
+  TData = Awaited<ReturnType<typeof getEmployerSubscriptionSettings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getEmployerSubscriptionSettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetEmployerSubscriptionSettingsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update employer-subscription configuration (admin only)
+ */
+export const getUpdateEmployerSubscriptionSettingsUrl = () => {
+  return `/api/admin/employer-subscription/settings`;
+};
+
+export const updateEmployerSubscriptionSettings = async (
+  updateEmployerSubscriptionSettingsRequest: UpdateEmployerSubscriptionSettingsRequest,
+  options?: RequestInit,
+): Promise<EmployerSubscriptionSettings> => {
+  return customFetch<EmployerSubscriptionSettings>(
+    getUpdateEmployerSubscriptionSettingsUrl(),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(updateEmployerSubscriptionSettingsRequest),
+    },
+  );
+};
+
+export const getUpdateEmployerSubscriptionSettingsMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateEmployerSubscriptionSettings>>,
+    TError,
+    { data: BodyType<UpdateEmployerSubscriptionSettingsRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateEmployerSubscriptionSettings>>,
+  TError,
+  { data: BodyType<UpdateEmployerSubscriptionSettingsRequest> },
+  TContext
+> => {
+  const mutationKey = ["updateEmployerSubscriptionSettings"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateEmployerSubscriptionSettings>>,
+    { data: BodyType<UpdateEmployerSubscriptionSettingsRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateEmployerSubscriptionSettings(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateEmployerSubscriptionSettingsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateEmployerSubscriptionSettings>>
+>;
+export type UpdateEmployerSubscriptionSettingsMutationBody =
+  BodyType<UpdateEmployerSubscriptionSettingsRequest>;
+export type UpdateEmployerSubscriptionSettingsMutationError = ErrorType<void>;
+
+/**
+ * @summary Update employer-subscription configuration (admin only)
+ */
+export const useUpdateEmployerSubscriptionSettings = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateEmployerSubscriptionSettings>>,
+    TError,
+    { data: BodyType<UpdateEmployerSubscriptionSettingsRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateEmployerSubscriptionSettings>>,
+  TError,
+  { data: BodyType<UpdateEmployerSubscriptionSettingsRequest> },
+  TContext
+> => {
+  return useMutation(
+    getUpdateEmployerSubscriptionSettingsMutationOptions(options),
+  );
+};
+
+/**
+ * @summary Get the current subscription state and free-quota usage for an employer
+ */
+export const getGetEmployerSubscriptionUrl = (id: number) => {
+  return `/api/employers/${id}/subscription`;
+};
+
+export const getEmployerSubscription = async (
+  id: number,
+  options?: RequestInit,
+): Promise<EmployerSubscriptionStatus> => {
+  return customFetch<EmployerSubscriptionStatus>(
+    getGetEmployerSubscriptionUrl(id),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetEmployerSubscriptionQueryKey = (id: number) => {
+  return [`/api/employers/${id}/subscription`] as const;
+};
+
+export const getGetEmployerSubscriptionQueryOptions = <
+  TData = Awaited<ReturnType<typeof getEmployerSubscription>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getEmployerSubscription>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetEmployerSubscriptionQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getEmployerSubscription>>
+  > = ({ signal }) =>
+    getEmployerSubscription(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getEmployerSubscription>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetEmployerSubscriptionQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getEmployerSubscription>>
+>;
+export type GetEmployerSubscriptionQueryError = ErrorType<void>;
+
+/**
+ * @summary Get the current subscription state and free-quota usage for an employer
+ */
+
+export function useGetEmployerSubscription<
+  TData = Awaited<ReturnType<typeof getEmployerSubscription>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getEmployerSubscription>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetEmployerSubscriptionQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a Stripe Checkout Session for the employer's subscription
+ */
+export const getCreateEmployerSubscriptionCheckoutUrl = (id: number) => {
+  return `/api/employers/${id}/subscription/checkout`;
+};
+
+export const createEmployerSubscriptionCheckout = async (
+  id: number,
+  createBoostCheckoutRequest: CreateBoostCheckoutRequest,
+  options?: RequestInit,
+): Promise<CreateBoostCheckoutResponse> => {
+  return customFetch<CreateBoostCheckoutResponse>(
+    getCreateEmployerSubscriptionCheckoutUrl(id),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(createBoostCheckoutRequest),
+    },
+  );
+};
+
+export const getCreateEmployerSubscriptionCheckoutMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createEmployerSubscriptionCheckout>>,
+    TError,
+    { id: number; data: BodyType<CreateBoostCheckoutRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createEmployerSubscriptionCheckout>>,
+  TError,
+  { id: number; data: BodyType<CreateBoostCheckoutRequest> },
+  TContext
+> => {
+  const mutationKey = ["createEmployerSubscriptionCheckout"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createEmployerSubscriptionCheckout>>,
+    { id: number; data: BodyType<CreateBoostCheckoutRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return createEmployerSubscriptionCheckout(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateEmployerSubscriptionCheckoutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createEmployerSubscriptionCheckout>>
+>;
+export type CreateEmployerSubscriptionCheckoutMutationBody =
+  BodyType<CreateBoostCheckoutRequest>;
+export type CreateEmployerSubscriptionCheckoutMutationError = ErrorType<void>;
+
+/**
+ * @summary Create a Stripe Checkout Session for the employer's subscription
+ */
+export const useCreateEmployerSubscriptionCheckout = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createEmployerSubscriptionCheckout>>,
+    TError,
+    { id: number; data: BodyType<CreateBoostCheckoutRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createEmployerSubscriptionCheckout>>,
+  TError,
+  { id: number; data: BodyType<CreateBoostCheckoutRequest> },
+  TContext
+> => {
+  return useMutation(
+    getCreateEmployerSubscriptionCheckoutMutationOptions(options),
+  );
+};
+
+/**
+ * @summary Verify a Stripe Checkout Session and activate the employer subscription
+ */
+export const getVerifyEmployerSubscriptionCheckoutUrl = () => {
+  return `/api/employer-subscription/checkout/verify`;
+};
+
+export const verifyEmployerSubscriptionCheckout = async (
+  verifyBoostCheckoutRequest: VerifyBoostCheckoutRequest,
+  options?: RequestInit,
+): Promise<EmployerSubscriptionStatus> => {
+  return customFetch<EmployerSubscriptionStatus>(
+    getVerifyEmployerSubscriptionCheckoutUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(verifyBoostCheckoutRequest),
+    },
+  );
+};
+
+export const getVerifyEmployerSubscriptionCheckoutMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof verifyEmployerSubscriptionCheckout>>,
+    TError,
+    { data: BodyType<VerifyBoostCheckoutRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof verifyEmployerSubscriptionCheckout>>,
+  TError,
+  { data: BodyType<VerifyBoostCheckoutRequest> },
+  TContext
+> => {
+  const mutationKey = ["verifyEmployerSubscriptionCheckout"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof verifyEmployerSubscriptionCheckout>>,
+    { data: BodyType<VerifyBoostCheckoutRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return verifyEmployerSubscriptionCheckout(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type VerifyEmployerSubscriptionCheckoutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof verifyEmployerSubscriptionCheckout>>
+>;
+export type VerifyEmployerSubscriptionCheckoutMutationBody =
+  BodyType<VerifyBoostCheckoutRequest>;
+export type VerifyEmployerSubscriptionCheckoutMutationError = ErrorType<void>;
+
+/**
+ * @summary Verify a Stripe Checkout Session and activate the employer subscription
+ */
+export const useVerifyEmployerSubscriptionCheckout = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof verifyEmployerSubscriptionCheckout>>,
+    TError,
+    { data: BodyType<VerifyBoostCheckoutRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof verifyEmployerSubscriptionCheckout>>,
+  TError,
+  { data: BodyType<VerifyBoostCheckoutRequest> },
+  TContext
+> => {
+  return useMutation(
+    getVerifyEmployerSubscriptionCheckoutMutationOptions(options),
   );
 };
 

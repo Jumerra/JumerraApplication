@@ -16,6 +16,7 @@ import {
 import { calculateMatchScore } from "../lib/matching";
 import { requireAuth } from "../middleware/require-auth";
 import { requirePermission } from "../lib/permissions";
+import { getEmployerPostingStatus } from "./employer-subscription";
 
 const router: IRouter = Router();
 
@@ -111,6 +112,21 @@ router.post(
   if (!employerId) {
     res.status(403).json({ error: "No employer account linked to this user" });
     return;
+  }
+
+  // Paywall: enforce the admin-configured free job-post quota for
+  // employers (admins bypass — they post on behalf). Returns 402 with
+  // the same shape as GET /employers/:id/subscription so the client can
+  // render the paywall UI directly from the error body.
+  if (user.role === "employer") {
+    const status = await getEmployerPostingStatus(employerId);
+    if (!status.canPostJob) {
+      res.status(402).json({
+        error: "Free job post limit reached. Subscribe to post more jobs.",
+        subscriptionStatus: status,
+      });
+      return;
+    }
   }
 
   const [created] = await db

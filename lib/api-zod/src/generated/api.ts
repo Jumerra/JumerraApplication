@@ -2494,6 +2494,261 @@ export const VerifyInstitutionSubscriptionCheckoutResponse = zod
   );
 
 /**
+ * @summary Read the global employer-subscription configuration (free job-post limit + price)
+ */
+export const getEmployerSubscriptionSettingsResponseFreeJobPostLimitMin = 0;
+export const getEmployerSubscriptionSettingsResponseFreeJobPostLimitMax = 1000;
+
+export const getEmployerSubscriptionSettingsResponsePriceCentsMin = 50;
+export const getEmployerSubscriptionSettingsResponsePriceCentsMax = 10000000;
+
+export const getEmployerSubscriptionSettingsResponseIntervalDaysMax = 365;
+
+export const getEmployerSubscriptionSettingsResponseTrialDaysMin = 0;
+export const getEmployerSubscriptionSettingsResponseTrialDaysMax = 365;
+
+export const GetEmployerSubscriptionSettingsResponse = zod.object({
+  isActive: zod.boolean(),
+  freeJobPostLimit: zod
+    .number()
+    .min(getEmployerSubscriptionSettingsResponseFreeJobPostLimitMin)
+    .max(getEmployerSubscriptionSettingsResponseFreeJobPostLimitMax)
+    .describe(
+      "Number of jobs an employer can post for free before the paywall kicks in. 0 disables the free quota entirely.",
+    ),
+  priceCents: zod
+    .number()
+    .min(getEmployerSubscriptionSettingsResponsePriceCentsMin)
+    .max(getEmployerSubscriptionSettingsResponsePriceCentsMax),
+  currency: zod.string().describe("ISO 4217 lowercase, e.g. 'usd'"),
+  intervalDays: zod
+    .number()
+    .min(1)
+    .max(getEmployerSubscriptionSettingsResponseIntervalDaysMax)
+    .describe(
+      "Subscription billing interval in days (30 = monthly, 365 = yearly).",
+    ),
+  trialDays: zod
+    .number()
+    .min(getEmployerSubscriptionSettingsResponseTrialDaysMin)
+    .max(getEmployerSubscriptionSettingsResponseTrialDaysMax)
+    .describe(
+      "Free trial length applied to every new subscription. 0 disables the trial.",
+    ),
+});
+
+/**
+ * @summary Update employer-subscription configuration (admin only)
+ */
+export const updateEmployerSubscriptionSettingsBodyFreeJobPostLimitMin = 0;
+export const updateEmployerSubscriptionSettingsBodyFreeJobPostLimitMax = 1000;
+
+export const updateEmployerSubscriptionSettingsBodyPriceCentsMin = 50;
+export const updateEmployerSubscriptionSettingsBodyPriceCentsMax = 10000000;
+
+export const updateEmployerSubscriptionSettingsBodyIntervalDaysMax = 365;
+
+export const updateEmployerSubscriptionSettingsBodyTrialDaysMin = 0;
+export const updateEmployerSubscriptionSettingsBodyTrialDaysMax = 365;
+
+export const UpdateEmployerSubscriptionSettingsBody = zod.object({
+  isActive: zod.boolean(),
+  freeJobPostLimit: zod
+    .number()
+    .min(updateEmployerSubscriptionSettingsBodyFreeJobPostLimitMin)
+    .max(updateEmployerSubscriptionSettingsBodyFreeJobPostLimitMax),
+  priceCents: zod
+    .number()
+    .min(updateEmployerSubscriptionSettingsBodyPriceCentsMin)
+    .max(updateEmployerSubscriptionSettingsBodyPriceCentsMax),
+  currency: zod.string(),
+  intervalDays: zod
+    .number()
+    .min(1)
+    .max(updateEmployerSubscriptionSettingsBodyIntervalDaysMax),
+  trialDays: zod
+    .number()
+    .min(updateEmployerSubscriptionSettingsBodyTrialDaysMin)
+    .max(updateEmployerSubscriptionSettingsBodyTrialDaysMax),
+});
+
+export const updateEmployerSubscriptionSettingsResponseFreeJobPostLimitMin = 0;
+export const updateEmployerSubscriptionSettingsResponseFreeJobPostLimitMax = 1000;
+
+export const updateEmployerSubscriptionSettingsResponsePriceCentsMin = 50;
+export const updateEmployerSubscriptionSettingsResponsePriceCentsMax = 10000000;
+
+export const updateEmployerSubscriptionSettingsResponseIntervalDaysMax = 365;
+
+export const updateEmployerSubscriptionSettingsResponseTrialDaysMin = 0;
+export const updateEmployerSubscriptionSettingsResponseTrialDaysMax = 365;
+
+export const UpdateEmployerSubscriptionSettingsResponse = zod.object({
+  isActive: zod.boolean(),
+  freeJobPostLimit: zod
+    .number()
+    .min(updateEmployerSubscriptionSettingsResponseFreeJobPostLimitMin)
+    .max(updateEmployerSubscriptionSettingsResponseFreeJobPostLimitMax)
+    .describe(
+      "Number of jobs an employer can post for free before the paywall kicks in. 0 disables the free quota entirely.",
+    ),
+  priceCents: zod
+    .number()
+    .min(updateEmployerSubscriptionSettingsResponsePriceCentsMin)
+    .max(updateEmployerSubscriptionSettingsResponsePriceCentsMax),
+  currency: zod.string().describe("ISO 4217 lowercase, e.g. 'usd'"),
+  intervalDays: zod
+    .number()
+    .min(1)
+    .max(updateEmployerSubscriptionSettingsResponseIntervalDaysMax)
+    .describe(
+      "Subscription billing interval in days (30 = monthly, 365 = yearly).",
+    ),
+  trialDays: zod
+    .number()
+    .min(updateEmployerSubscriptionSettingsResponseTrialDaysMin)
+    .max(updateEmployerSubscriptionSettingsResponseTrialDaysMax)
+    .describe(
+      "Free trial length applied to every new subscription. 0 disables the trial.",
+    ),
+});
+
+/**
+ * @summary Get the current subscription state and free-quota usage for an employer
+ */
+export const GetEmployerSubscriptionParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetEmployerSubscriptionResponse = zod
+  .object({
+    status: zod.enum([
+      "none",
+      "pending",
+      "trialing",
+      "active",
+      "expired",
+      "canceled",
+      "failed",
+    ]),
+    trialEndsAt: zod.coerce.date().nullable(),
+    currentPeriodEnd: zod.coerce.date().nullable(),
+    priceCentsSnapshot: zod.number().nullable(),
+    currencySnapshot: zod.string().nullable(),
+    isInTrial: zod.boolean(),
+    hasActiveSubscription: zod
+      .boolean()
+      .describe(
+        "True iff the employer has a trialing\/active subscription right now.",
+      ),
+    freeJobPostLimit: zod
+      .number()
+      .describe("Snapshot of the current admin-configured free quota."),
+    jobsPostedCount: zod
+      .number()
+      .describe(
+        "Total number of jobs this employer has posted (active + closed + draft).",
+      ),
+    freeJobsRemaining: zod
+      .number()
+      .describe(
+        "max(freeJobPostLimit - jobsPostedCount, 0). Always 0 when the feature is disabled (no quota to track).",
+      ),
+    canPostJob: zod
+      .boolean()
+      .describe(
+        "True when the employer is allowed to post another job. False\nwhen the feature is enabled, free quota is exhausted, and\nthe employer has no active subscription.\n",
+      ),
+    featureEnabled: zod
+      .boolean()
+      .describe(
+        "Mirror of EmployerSubscriptionSettings.isActive for convenience.",
+      ),
+  })
+  .describe(
+    "Combined view of an employer's subscription state and their\nfree-quota usage. `canPostJob` is what the UI should consult\nbefore showing the post-job CTA — it is true when the feature\nis disabled, when the employer is under the free quota, or when\nthey have a trialing\/active subscription.\n",
+  );
+
+/**
+ * @summary Create a Stripe Checkout Session for the employer's subscription
+ */
+export const CreateEmployerSubscriptionCheckoutParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const CreateEmployerSubscriptionCheckoutBody = zod.object({
+  successUrl: zod
+    .string()
+    .describe(
+      "Absolute URL the candidate is sent to after a successful\npayment. The string `{CHECKOUT_SESSION_ID}` is replaced with\nthe real Stripe session id by Stripe.\n",
+    ),
+  cancelUrl: zod
+    .string()
+    .describe("Absolute URL the candidate is sent to if they cancel."),
+});
+
+export const CreateEmployerSubscriptionCheckoutResponse = zod.object({
+  sessionId: zod.string(),
+  checkoutUrl: zod.string(),
+});
+
+/**
+ * @summary Verify a Stripe Checkout Session and activate the employer subscription
+ */
+export const VerifyEmployerSubscriptionCheckoutBody = zod.object({
+  sessionId: zod.string(),
+});
+
+export const VerifyEmployerSubscriptionCheckoutResponse = zod
+  .object({
+    status: zod.enum([
+      "none",
+      "pending",
+      "trialing",
+      "active",
+      "expired",
+      "canceled",
+      "failed",
+    ]),
+    trialEndsAt: zod.coerce.date().nullable(),
+    currentPeriodEnd: zod.coerce.date().nullable(),
+    priceCentsSnapshot: zod.number().nullable(),
+    currencySnapshot: zod.string().nullable(),
+    isInTrial: zod.boolean(),
+    hasActiveSubscription: zod
+      .boolean()
+      .describe(
+        "True iff the employer has a trialing\/active subscription right now.",
+      ),
+    freeJobPostLimit: zod
+      .number()
+      .describe("Snapshot of the current admin-configured free quota."),
+    jobsPostedCount: zod
+      .number()
+      .describe(
+        "Total number of jobs this employer has posted (active + closed + draft).",
+      ),
+    freeJobsRemaining: zod
+      .number()
+      .describe(
+        "max(freeJobPostLimit - jobsPostedCount, 0). Always 0 when the feature is disabled (no quota to track).",
+      ),
+    canPostJob: zod
+      .boolean()
+      .describe(
+        "True when the employer is allowed to post another job. False\nwhen the feature is enabled, free quota is exhausted, and\nthe employer has no active subscription.\n",
+      ),
+    featureEnabled: zod
+      .boolean()
+      .describe(
+        "Mirror of EmployerSubscriptionSettings.isActive for convenience.",
+      ),
+  })
+  .describe(
+    "Combined view of an employer's subscription state and their\nfree-quota usage. `canPostJob` is what the UI should consult\nbefore showing the post-job CTA — it is true when the feature\nis disabled, when the employer is under the free quota, or when\nthey have a trialing\/active subscription.\n",
+  );
+
+/**
  * @summary Read the global AI CV Builder configuration
  */
 export const getCvSettingsResponsePriceCentsMin = 50;

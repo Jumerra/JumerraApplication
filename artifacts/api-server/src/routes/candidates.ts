@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, sql, desc } from "drizzle-orm";
+import { eq, and, sql, desc, inArray } from "drizzle-orm";
 import {
   db,
   candidatesTable,
@@ -72,6 +72,62 @@ function serializeCandidate(
     createdAt: c.createdAt.toISOString(),
   };
 }
+
+// Resolve employer logo URLs in a single batched query for a list of
+// experience rows. Returns a Map keyed by employerId. We do this once per
+// response instead of N+1ing the employers table, then use it inside
+// serializeExperience below to denormalize `employerLogoUrl` into the
+// response.
+async function loadEmployerLogos(
+  rows: ReadonlyArray<{ employerId: number | null }>,
+): Promise<Map<number, string>> {
+  const ids = Array.from(
+    new Set(rows.map((r) => r.employerId).filter((v): v is number => v != null)),
+  );
+  if (ids.length === 0) return new Map();
+  const employers = await db
+    .select({ id: employersTable.id, logoUrl: employersTable.logoUrl })
+    .from(employersTable)
+    .where(inArray(employersTable.id, ids));
+  const m = new Map<number, string>();
+  for (const e of employers) m.set(e.id, e.logoUrl);
+  return m;
+}
+
+function serializeExperience(
+  e: typeof experienceTable.$inferSelect,
+  logoMap: Map<number, string>,
+) {
+  return {
+    id: e.id,
+    employerId: e.employerId,
+    employerLogoUrl:
+      e.employerId != null ? logoMap.get(e.employerId) ?? null : null,
+    company: e.company,
+    title: e.title,
+    employmentType: e.employmentType,
+    location: e.location,
+    locationType: e.locationType,
+    description: e.description,
+    startDate: e.startDate,
+    endDate: e.endDate,
+  };
+}
+
+const EXPERIENCE_MAX_ENTRIES = 50;
+const EXPERIENCE_TEXT_MAX = 200;
+const EXPERIENCE_DESCRIPTION_MAX = 4000;
+const EMPLOYMENT_TYPES = new Set([
+  "full_time",
+  "part_time",
+  "self_employed",
+  "freelance",
+  "contract",
+  "internship",
+  "apprenticeship",
+  "seasonal",
+]);
+const LOCATION_TYPES = new Set(["on_site", "hybrid", "remote"]);
 
 router.get("/candidates", async (req, res): Promise<void> => {
   const params = ListCandidatesQueryParams.safeParse(req.query);
@@ -183,6 +239,7 @@ router.get("/candidates/:id", async (req, res): Promise<void> => {
       getInstitutionLinksByCandidate([params.data.id]),
     ]);
 
+  const expLogoMap = await loadEmployerLogos(experience);
   res.json({
     ...serializeCandidate(candidate, linkMap.get(candidate.id) ?? []),
     education: education.map((e) => ({
@@ -193,14 +250,7 @@ router.get("/candidates/:id", async (req, res): Promise<void> => {
       startYear: e.startYear,
       endYear: e.endYear,
     })),
-    experience: experience.map((e) => ({
-      id: e.id,
-      company: e.company,
-      title: e.title,
-      description: e.description,
-      startDate: e.startDate,
-      endDate: e.endDate,
-    })),
+    experience: experience.map((e) => serializeExperience(e, expLogoMap)),
     certifications: certifications.map((c) => ({
       id: c.id,
       name: c.name,
@@ -251,6 +301,9 @@ router.patch("/candidates/:id", requireAuth, async (req, res): Promise<void> => 
   // an empty array means "clear all entries".
   const educationInput = parsed.data.education;
   delete (updateData as Record<string, unknown>).education;
+  // Same pattern for `experience` (lives in experience_entries).
+  const experienceInput = parsed.data.experience;
+  delete (updateData as Record<string, unknown>).experience;
 
   // Cross-field validation for education:
   //   - Cap entry count to keep payloads bounded (must mirror the mobile cap).
@@ -281,6 +334,91 @@ router.patch("/candidates/:id", requireAuth, async (req, res): Promise<void> => 
       if (e.endYear != null && e.endYear < e.startYear) {
         res.status(400).json({
           error: `End year (${e.endYear}) cannot be earlier than start year (${e.startYear}) for "${e.institution}".`,
+        });
+        return;
+      }
+    }
+  }
+
+  // Cross-field validation for work experience:
+  //   - Cap entry count to keep payloads bounded (mirrors the mobile cap).
+  //   - Reject whitespace-only `title`/`company` (Zod's minLength alone
+  //     can't catch post-trim emptiness).
+  //   - endDate (when present) must be on or after startDate. A null
+  //     endDate means "currently working here" and is allowed.
+  //   - employmentType / locationType must be one of the supported enum
+  //     values when present.
+  //   - When `employerId` is set, the employer must exist; the server
+  //     snapshots the employer's current name into `company` (so the
+  //     entry stays accurate even if the employer renames later).
+  let employerNamesById = new Map<number, string>();
+  if (experienceInput) {
+    if (experienceInput.length > EXPERIENCE_MAX_ENTRIES) {
+      res.status(400).json({
+        error: `Too many experience entries (max ${EXPERIENCE_MAX_ENTRIES}).`,
+      });
+      return;
+    }
+    for (const e of experienceInput) {
+      if (e.title.trim().length === 0) {
+        res.status(400).json({
+          error: "Experience entries require a non-empty title.",
+        });
+        return;
+      }
+      if (e.employerId == null && (e.company == null || e.company.trim().length === 0)) {
+        res.status(400).json({
+          error:
+            "Experience entries require either a company name or an employerId.",
+        });
+        return;
+      }
+      if (e.endDate != null && e.endDate < e.startDate) {
+        res.status(400).json({
+          error: `End date (${e.endDate}) cannot be earlier than start date (${e.startDate}) for "${e.title}".`,
+        });
+        return;
+      }
+      if (e.employmentType != null && !EMPLOYMENT_TYPES.has(e.employmentType)) {
+        res.status(400).json({
+          error: `Invalid employmentType "${e.employmentType}".`,
+        });
+        return;
+      }
+      if (e.locationType != null && !LOCATION_TYPES.has(e.locationType)) {
+        res.status(400).json({
+          error: `Invalid locationType "${e.locationType}".`,
+        });
+        return;
+      }
+      if (e.title.length > EXPERIENCE_TEXT_MAX) {
+        res.status(400).json({ error: "Title is too long." });
+        return;
+      }
+      if ((e.description ?? "").length > EXPERIENCE_DESCRIPTION_MAX) {
+        res.status(400).json({ error: "Description is too long." });
+        return;
+      }
+    }
+    // Resolve referenced employerIds in one batch so we can both verify
+    // they exist and snapshot the canonical name.
+    const employerIds = Array.from(
+      new Set(
+        experienceInput
+          .map((e) => e.employerId)
+          .filter((v): v is number => v != null),
+      ),
+    );
+    if (employerIds.length > 0) {
+      const rows = await db
+        .select({ id: employersTable.id, name: employersTable.name })
+        .from(employersTable)
+        .where(inArray(employersTable.id, employerIds));
+      for (const row of rows) employerNamesById.set(row.id, row.name);
+      const missing = employerIds.filter((id) => !employerNamesById.has(id));
+      if (missing.length > 0) {
+        res.status(400).json({
+          error: `Unknown employerId(s): ${missing.join(", ")}.`,
         });
         return;
       }
@@ -375,6 +513,52 @@ router.patch("/candidates/:id", requireAuth, async (req, res): Promise<void> => 
     });
   }
 
+  // Self-reported work experience entries: same atomic full-replacement
+  // pattern as education. When an entry is linked to an on-platform
+  // employer (employerId), we snapshot the canonical employer name into
+  // `company` so the entry stays accurate after employer renames.
+  if (experienceInput) {
+    await db.transaction(async (tx) => {
+      await tx
+        .delete(experienceTable)
+        .where(eq(experienceTable.candidateId, updated.id));
+      if (experienceInput.length > 0) {
+        await tx.insert(experienceTable).values(
+          experienceInput.map((e) => {
+            const linkedName =
+              e.employerId != null ? employerNamesById.get(e.employerId) : null;
+            return {
+              candidateId: updated.id,
+              employerId: e.employerId ?? null,
+              // Prefer the canonical employer name when linked, fall back
+              // to whatever the candidate typed for off-platform roles.
+              company: (linkedName ?? e.company ?? "").trim(),
+              title: e.title.trim(),
+              employmentType: e.employmentType ?? null,
+              location: e.location?.trim() || null,
+              locationType: e.locationType ?? null,
+              description: (e.description ?? "").trim(),
+              // Drizzle's pg `date` column wants YYYY-MM-DD strings.
+              // The Zod schema coerces incoming values to Date, so we
+              // convert back here. .toISOString() returns the UTC date,
+              // which is fine since we only care about the date portion.
+              startDate:
+                e.startDate instanceof Date
+                  ? e.startDate.toISOString().slice(0, 10)
+                  : (e.startDate as unknown as string),
+              endDate:
+                e.endDate == null
+                  ? null
+                  : e.endDate instanceof Date
+                    ? e.endDate.toISOString().slice(0, 10)
+                    : (e.endDate as unknown as string),
+            };
+          }),
+        );
+      }
+    });
+  }
+
   // Re-read the full detail so clients seeding the cache from this
   // response see the updated education/affiliations without an extra
   // round-trip. Mirrors the GET /candidates/:id serializer above.
@@ -399,6 +583,7 @@ router.patch("/candidates/:id", requireAuth, async (req, res): Promise<void> => 
       getInstitutionLinksByCandidate([updated.id]),
     ]);
 
+  const expLogoMap2 = await loadEmployerLogos(experience);
   res.json({
     ...serializeCandidate(updated, linkMap.get(updated.id) ?? []),
     education: education.map((e) => ({
@@ -409,14 +594,7 @@ router.patch("/candidates/:id", requireAuth, async (req, res): Promise<void> => 
       startYear: e.startYear,
       endYear: e.endYear,
     })),
-    experience: experience.map((e) => ({
-      id: e.id,
-      company: e.company,
-      title: e.title,
-      description: e.description,
-      startDate: e.startDate,
-      endDate: e.endDate,
-    })),
+    experience: experience.map((e) => serializeExperience(e, expLogoMap2)),
     certifications: certifications.map((c) => ({
       id: c.id,
       name: c.name,

@@ -5,11 +5,18 @@
  * Talent Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { ExperienceEntryEmploymentType } from "./experienceEntryEmploymentType";
+import type { ExperienceEntryLocationType } from "./experienceEntryLocationType";
 
 export interface ExperienceEntry {
   id: number;
+  employerId?: number | null;
+  employerLogoUrl?: string | null;
   company: string;
   title: string;
+  employmentType?: ExperienceEntryEmploymentType;
+  location?: string | null;
+  locationType?: ExperienceEntryLocationType;
   description: string;
   startDate: Date;
   endDate?: Date | null;

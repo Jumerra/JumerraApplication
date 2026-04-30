@@ -436,10 +436,40 @@ export interface EducationEntry {
   endYear?: number | null;
 }
 
+export type ExperienceEntryEmploymentType =
+  | (typeof ExperienceEntryEmploymentType)[keyof typeof ExperienceEntryEmploymentType]
+  | null;
+
+export const ExperienceEntryEmploymentType = {
+  full_time: "full_time",
+  part_time: "part_time",
+  self_employed: "self_employed",
+  freelance: "freelance",
+  contract: "contract",
+  internship: "internship",
+  apprenticeship: "apprenticeship",
+  seasonal: "seasonal",
+} as const;
+
+export type ExperienceEntryLocationType =
+  | (typeof ExperienceEntryLocationType)[keyof typeof ExperienceEntryLocationType]
+  | null;
+
+export const ExperienceEntryLocationType = {
+  on_site: "on_site",
+  hybrid: "hybrid",
+  remote: "remote",
+} as const;
+
 export interface ExperienceEntry {
   id: number;
+  employerId?: number | null;
+  employerLogoUrl?: string | null;
   company: string;
   title: string;
+  employmentType?: ExperienceEntryEmploymentType;
+  location?: string | null;
+  locationType?: ExperienceEntryLocationType;
   description: string;
   startDate: string;
   endDate?: string | null;
@@ -509,6 +539,62 @@ export interface EducationEntryInput {
   endYear?: number | null;
 }
 
+export type ExperienceEntryInputEmploymentType =
+  | (typeof ExperienceEntryInputEmploymentType)[keyof typeof ExperienceEntryInputEmploymentType]
+  | null;
+
+export const ExperienceEntryInputEmploymentType = {
+  full_time: "full_time",
+  part_time: "part_time",
+  self_employed: "self_employed",
+  freelance: "freelance",
+  contract: "contract",
+  internship: "internship",
+  apprenticeship: "apprenticeship",
+  seasonal: "seasonal",
+} as const;
+
+export type ExperienceEntryInputLocationType =
+  | (typeof ExperienceEntryInputLocationType)[keyof typeof ExperienceEntryInputLocationType]
+  | null;
+
+export const ExperienceEntryInputLocationType = {
+  on_site: "on_site",
+  hybrid: "hybrid",
+  remote: "remote",
+} as const;
+
+/**
+ * Input shape for replacing a candidate's work experience entries
+via PATCH /candidates/{id}. The id field is omitted; the server
+replaces all entries atomically. Either pick an employer from the
+platform via `employerId` (the server snapshots the employer's
+name into `company`) or pass a free-text `company` for off-platform
+roles. A null `endDate` means "currently working here".
+
+ */
+export interface ExperienceEntryInput {
+  employerId?: number | null;
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  company?: string;
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  title: string;
+  employmentType?: ExperienceEntryInputEmploymentType;
+  /** @maxLength 200 */
+  location?: string | null;
+  locationType?: ExperienceEntryInputLocationType;
+  /** @maxLength 4000 */
+  description?: string;
+  startDate: string;
+  endDate?: string | null;
+}
+
 export type CreateCandidateAvailability =
   (typeof CreateCandidateAvailability)[keyof typeof CreateCandidateAvailability];
 
@@ -570,6 +656,13 @@ deleted and replaced with this list. Omit the field to leave
 entries untouched. Pass an empty array to clear all entries.
  */
   education?: EducationEntryInput[];
+  /** Optional full replacement of the candidate's self-reported
+work experience entries (LinkedIn-style). When provided, the
+existing entries are deleted and replaced with this list.
+Omit the field to leave entries untouched. Pass an empty
+array to clear all entries.
+ */
+  experience?: ExperienceEntryInput[];
   skills?: string[];
   availability?: UpdateCandidateAvailability;
   isBoosted?: boolean;

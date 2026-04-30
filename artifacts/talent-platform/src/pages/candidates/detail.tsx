@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MapPin, Mail, Phone, ExternalLink, Video, Star, Award, Briefcase, GraduationCap, Sparkles, Link2, BadgeCheck } from "lucide-react";
+import { EMPLOYMENT_TYPE_LABELS, LOCATION_TYPE_LABELS } from "@/lib/experience-labels";
 
 export default function CandidateDetail() {
   const { id } = useParams();
@@ -149,19 +150,69 @@ export default function CandidateDetail() {
               </div>
             </TabsContent>
             
-            <TabsContent value="experience" className="pt-6 outline-none space-y-8">
-              {candidate.experience.map((exp) => (
-                <div key={exp.id} className="relative pl-6 before:absolute before:left-0 before:top-2 before:w-px before:h-full before:bg-border last:before:hidden">
-                  <div className="absolute left-[-4px] top-2 w-2 h-2 rounded-full bg-primary" />
-                  <h4 className="text-lg font-bold">{exp.title}</h4>
-                  <p className="text-muted-foreground font-medium mb-1">{exp.company}</p>
-                  <p className="text-sm text-muted-foreground mb-3">
-                    {new Date(exp.startDate).toLocaleDateString(undefined, {month:'short', year:'numeric'})} - 
-                    {exp.endDate ? new Date(exp.endDate).toLocaleDateString(undefined, {month:'short', year:'numeric'}) : ' Present'}
-                  </p>
-                  <p className="text-muted-foreground text-sm leading-relaxed">{exp.description}</p>
-                </div>
-              ))}
+            <TabsContent value="experience" className="pt-6 outline-none space-y-6">
+              {candidate.experience.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No work experience added yet.
+                </p>
+              ) : (
+                candidate.experience.map((exp) => {
+                  const startLabel = new Date(exp.startDate).toLocaleDateString(
+                    undefined,
+                    { month: "short", year: "numeric" },
+                  );
+                  const endLabel = exp.endDate
+                    ? new Date(exp.endDate).toLocaleDateString(undefined, {
+                        month: "short",
+                        year: "numeric",
+                      })
+                    : "Present";
+                  const employmentLabel = exp.employmentType
+                    ? EMPLOYMENT_TYPE_LABELS[exp.employmentType] ?? null
+                    : null;
+                  const locationTypeLabel = exp.locationType
+                    ? LOCATION_TYPE_LABELS[exp.locationType] ?? null
+                    : null;
+                  const locationLine = [exp.location, locationTypeLabel]
+                    .filter(Boolean)
+                    .join(" · ");
+                  return (
+                    <div key={exp.id} className="flex gap-4 items-start">
+                      <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center shrink-0 overflow-hidden">
+                        {exp.employerLogoUrl ? (
+                          <img
+                            src={exp.employerLogoUrl}
+                            alt=""
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <Briefcase className="w-6 h-6 text-muted-foreground" />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h4 className="text-lg font-bold">{exp.title}</h4>
+                        <p className="text-muted-foreground font-medium">
+                          {exp.company}
+                          {employmentLabel ? ` · ${employmentLabel}` : ""}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {startLabel} – {endLabel}
+                        </p>
+                        {locationLine ? (
+                          <p className="text-sm text-muted-foreground">
+                            {locationLine}
+                          </p>
+                        ) : null}
+                        {exp.description ? (
+                          <p className="text-muted-foreground text-sm leading-relaxed mt-2 whitespace-pre-line">
+                            {exp.description}
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </TabsContent>
 
             <TabsContent value="education" className="pt-6 outline-none space-y-8">

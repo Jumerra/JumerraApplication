@@ -2342,12 +2342,77 @@ components:
       type: object
       properties:
         id: { type: integer }
+        # employerId links the entry to an Employer record on the platform
+        # so we can show the company logo and let viewers click through to
+        # the employer page. Null when the candidate typed the company by
+        # hand (free text in `company`).
+        employerId: { type: integer, nullable: true }
+        # employerLogoUrl is denormalized into the response so candidate
+        # detail pages can render the LinkedIn-style company tile without
+        # a separate fetch per entry.
+        employerLogoUrl: { type: string, nullable: true }
         company: { type: string }
         title: { type: string }
+        employmentType:
+          type: string
+          nullable: true
+          enum:
+            [
+              full_time,
+              part_time,
+              self_employed,
+              freelance,
+              contract,
+              internship,
+              apprenticeship,
+              seasonal,
+            ]
+        location: { type: string, nullable: true }
+        locationType:
+          type: string
+          nullable: true
+          enum: [on_site, hybrid, remote]
         description: { type: string }
         startDate: { type: string, format: date }
         endDate: { type: string, format: date, nullable: true }
       required: [id, company, title, description, startDate]
+
+    ExperienceEntryInput:
+      type: object
+      description: |
+        Input shape for replacing a candidate's work experience entries
+        via PATCH /candidates/{id}. The id field is omitted; the server
+        replaces all entries atomically. Either pick an employer from the
+        platform via `employerId` (the server snapshots the employer's
+        name into `company`) or pass a free-text `company` for off-platform
+        roles. A null `endDate` means "currently working here".
+      properties:
+        employerId: { type: integer, nullable: true }
+        company: { type: string, minLength: 1, maxLength: 200 }
+        title: { type: string, minLength: 1, maxLength: 200 }
+        employmentType:
+          type: string
+          nullable: true
+          enum:
+            [
+              full_time,
+              part_time,
+              self_employed,
+              freelance,
+              contract,
+              internship,
+              apprenticeship,
+              seasonal,
+            ]
+        location: { type: string, nullable: true, maxLength: 200 }
+        locationType:
+          type: string
+          nullable: true
+          enum: [on_site, hybrid, remote]
+        description: { type: string, maxLength: 4000 }
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date, nullable: true }
+      required: [title, startDate]
 
     Certification:
       type: object
@@ -2429,6 +2494,15 @@ components:
             deleted and replaced with this list. Omit the field to leave
             entries untouched. Pass an empty array to clear all entries.
           items: { $ref: "#/components/schemas/EducationEntryInput" }
+        experience:
+          type: array
+          description: |
+            Optional full replacement of the candidate's self-reported
+            work experience entries (LinkedIn-style). When provided, the
+            existing entries are deleted and replaced with this list.
+            Omit the field to leave entries untouched. Pass an empty
+            array to clear all entries.
+          items: { $ref: "#/components/schemas/ExperienceEntryInput" }
         skills:
           type: array
           items: { type: string }

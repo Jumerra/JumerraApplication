@@ -172,8 +172,24 @@ export const GetCandidateResponse = zod
       experience: zod.array(
         zod.object({
           id: zod.number(),
+          employerId: zod.number().nullish(),
+          employerLogoUrl: zod.string().nullish(),
           company: zod.string(),
           title: zod.string(),
+          employmentType: zod
+            .enum([
+              "full_time",
+              "part_time",
+              "self_employed",
+              "freelance",
+              "contract",
+              "internship",
+              "apprenticeship",
+              "seasonal",
+            ])
+            .nullish(),
+          location: zod.string().nullish(),
+          locationType: zod.enum(["on_site", "hybrid", "remote"]).nullish(),
           description: zod.string(),
           startDate: zod.coerce.date(),
           endDate: zod.coerce.date().nullish(),
@@ -213,6 +229,14 @@ export const updateCandidateBodyEducationItemStartYearMax = 2100;
 
 export const updateCandidateBodyEducationItemEndYearMin = 1900;
 export const updateCandidateBodyEducationItemEndYearMax = 2100;
+
+export const updateCandidateBodyExperienceItemCompanyMax = 200;
+
+export const updateCandidateBodyExperienceItemTitleMax = 200;
+
+export const updateCandidateBodyExperienceItemLocationMax = 200;
+
+export const updateCandidateBodyExperienceItemDescriptionMax = 4000;
 
 export const UpdateCandidateBody = zod.object({
   fullName: zod.string().optional(),
@@ -278,6 +302,52 @@ export const UpdateCandidateBody = zod.object({
     .optional()
     .describe(
       "Optional full replacement of the candidate's self-reported\neducation entries. When provided, the existing entries are\ndeleted and replaced with this list. Omit the field to leave\nentries untouched. Pass an empty array to clear all entries.\n",
+    ),
+  experience: zod
+    .array(
+      zod
+        .object({
+          employerId: zod.number().nullish(),
+          company: zod
+            .string()
+            .min(1)
+            .max(updateCandidateBodyExperienceItemCompanyMax)
+            .optional(),
+          title: zod
+            .string()
+            .min(1)
+            .max(updateCandidateBodyExperienceItemTitleMax),
+          employmentType: zod
+            .enum([
+              "full_time",
+              "part_time",
+              "self_employed",
+              "freelance",
+              "contract",
+              "internship",
+              "apprenticeship",
+              "seasonal",
+            ])
+            .nullish(),
+          location: zod
+            .string()
+            .max(updateCandidateBodyExperienceItemLocationMax)
+            .nullish(),
+          locationType: zod.enum(["on_site", "hybrid", "remote"]).nullish(),
+          description: zod
+            .string()
+            .max(updateCandidateBodyExperienceItemDescriptionMax)
+            .optional(),
+          startDate: zod.coerce.date(),
+          endDate: zod.coerce.date().nullish(),
+        })
+        .describe(
+          "Input shape for replacing a candidate's work experience entries\nvia PATCH \/candidates\/{id}. The id field is omitted; the server\nreplaces all entries atomically. Either pick an employer from the\nplatform via `employerId` (the server snapshots the employer's\nname into `company`) or pass a free-text `company` for off-platform\nroles. A null `endDate` means \"currently working here\".\n",
+        ),
+    )
+    .optional()
+    .describe(
+      "Optional full replacement of the candidate's self-reported\nwork experience entries (LinkedIn-style). When provided, the\nexisting entries are deleted and replaced with this list.\nOmit the field to leave entries untouched. Pass an empty\narray to clear all entries.\n",
     ),
   skills: zod.array(zod.string()).optional(),
   availability: zod.enum(["open", "employed", "not_looking"]).optional(),
@@ -355,8 +425,24 @@ export const UpdateCandidateResponse = zod
       experience: zod.array(
         zod.object({
           id: zod.number(),
+          employerId: zod.number().nullish(),
+          employerLogoUrl: zod.string().nullish(),
           company: zod.string(),
           title: zod.string(),
+          employmentType: zod
+            .enum([
+              "full_time",
+              "part_time",
+              "self_employed",
+              "freelance",
+              "contract",
+              "internship",
+              "apprenticeship",
+              "seasonal",
+            ])
+            .nullish(),
+          location: zod.string().nullish(),
+          locationType: zod.enum(["on_site", "hybrid", "remote"]).nullish(),
           description: zod.string(),
           startDate: zod.coerce.date(),
           endDate: zod.coerce.date().nullish(),

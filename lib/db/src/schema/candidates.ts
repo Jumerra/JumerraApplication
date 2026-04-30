@@ -103,10 +103,23 @@ export type Education = typeof educationTable.$inferSelect;
 export const experienceTable = pgTable("experience_entries", {
   id: serial("id").primaryKey(),
   candidateId: integer("candidate_id").notNull(),
+  // employerId links the entry to an existing employer in the system
+  // (LinkedIn-style "pick a company"). Nullable so candidates can still
+  // record roles at companies that aren't on the platform — in that case
+  // `company` is the free-text fallback.
+  employerId: integer("employer_id"),
   company: text("company").notNull(),
   title: text("title").notNull(),
-  description: text("description").notNull(),
+  // employmentType mirrors LinkedIn's enum; stored as free text so future
+  // values don't require a migration. Validated by Zod at the API edge.
+  employmentType: text("employment_type"),
+  location: text("location"),
+  // locationType: 'on_site' | 'hybrid' | 'remote'. Same rationale as
+  // employmentType — free text, validated at the edge.
+  locationType: text("location_type"),
+  description: text("description").notNull().default(""),
   startDate: date("start_date").notNull(),
+  // Null endDate means "currently working here".
   endDate: date("end_date"),
 });
 

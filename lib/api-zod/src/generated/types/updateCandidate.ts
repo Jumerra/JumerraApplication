@@ -7,6 +7,7 @@
  */
 import type { CandidateAffiliationInput } from "./candidateAffiliationInput";
 import type { EducationEntryInput } from "./educationEntryInput";
+import type { ExperienceEntryInput } from "./experienceEntryInput";
 import type { UpdateCandidateAvailability } from "./updateCandidateAvailability";
 
 export interface UpdateCandidate {
@@ -32,6 +33,13 @@ deleted and replaced with this list. Omit the field to leave
 entries untouched. Pass an empty array to clear all entries.
  */
   education?: EducationEntryInput[];
+  /** Optional full replacement of the candidate's self-reported
+work experience entries (LinkedIn-style). When provided, the
+existing entries are deleted and replaced with this list.
+Omit the field to leave entries untouched. Pass an empty
+array to clear all entries.
+ */
+  experience?: ExperienceEntryInput[];
   skills?: string[];
   availability?: UpdateCandidateAvailability;
   isBoosted?: boolean;

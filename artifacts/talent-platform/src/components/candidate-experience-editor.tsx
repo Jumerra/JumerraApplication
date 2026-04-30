@@ -707,11 +707,16 @@ function CompanyPicker({
     return () => clearTimeout(id);
   }, [query]);
 
-  const params = debounced.length >= 2 ? { search: debounced } : undefined;
+  // We fetch as soon as the dropdown is open so the candidate can BROWSE
+  // existing platform employers without having to guess a search query
+  // first. When they type, we send the search through to the API for
+  // filtered results.
+  const params =
+    debounced.trim().length > 0 ? { search: debounced.trim() } : undefined;
   const employersQuery = useListEmployers(params, {
     query: {
       queryKey: getListEmployersQueryKey(params),
-      enabled: open && debounced.length >= 2,
+      enabled: open,
       staleTime: 60_000,
     },
   });
@@ -748,19 +753,23 @@ function CompanyPicker({
               // Delay so the click on a suggestion can register first.
               setTimeout(() => setOpen(false), 150);
             }}
-            placeholder="Type to search the platform"
+            placeholder="Browse or search platform companies…"
             maxLength={200}
             autoComplete="off"
           />
-          {open && debounced.length >= 2 ? (
+          {open ? (
             <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-md max-h-56 overflow-y-auto">
               {employersQuery.isLoading ? (
                 <p className="px-3 py-2 text-xs text-muted-foreground">
-                  Searching…
+                  {debounced.trim().length > 0
+                    ? "Searching…"
+                    : "Loading companies…"}
                 </p>
               ) : results.length === 0 ? (
                 <p className="px-3 py-2 text-xs text-muted-foreground">
-                  No matches. You can keep typing to add it as free text.
+                  {debounced.trim().length > 0
+                    ? "No matches. You can keep typing to add it as free text."
+                    : "No companies on the platform yet — type to add yours as free text."}
                 </p>
               ) : (
                 results.slice(0, 8).map((emp) => (

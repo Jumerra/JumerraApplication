@@ -2219,12 +2219,15 @@ function CompanyPickerModal({
     return () => clearTimeout(id);
   }, [query]);
 
+  // Fetch as soon as the picker opens so the candidate can BROWSE the
+  // platform employer list. When they type, we send the search to the
+  // API for filtered results.
   const params =
-    debounced.trim().length >= 2 ? { search: debounced.trim() } : undefined;
+    debounced.trim().length > 0 ? { search: debounced.trim() } : undefined;
   const employersQuery = useListEmployers(params, {
     query: {
       queryKey: getListEmployersQueryKey(params),
-      enabled: visible && debounced.trim().length >= 2,
+      enabled: visible,
       staleTime: 60_000,
     },
   });
@@ -2300,7 +2303,7 @@ function CompanyPickerModal({
             <TextInput
               value={query}
               onChangeText={setQuery}
-              placeholder="Search platform employers"
+              placeholder="Browse or search platform employers"
               placeholderTextColor={colors.mutedForeground}
               autoFocus
               autoCapitalize="words"
@@ -2321,8 +2324,8 @@ function CompanyPickerModal({
                 { color: colors.mutedForeground, marginTop: 6 },
               ]}
             >
-              Type at least 2 characters to search. Can't find your company?
-              Use it as typed.
+              Tap a company below to link your entry, or type a name and use
+              it as free text.
             </Text>
           </View>
           <FlatList
@@ -2330,7 +2333,7 @@ function CompanyPickerModal({
             data={results}
             keyExtractor={(item) => `${item.id}`}
             ListEmptyComponent={
-              debounced.trim().length < 2 ? null : employersQuery.isLoading ? (
+              employersQuery.isLoading ? (
                 <Text
                   style={{
                     paddingHorizontal: 20,
@@ -2340,7 +2343,9 @@ function CompanyPickerModal({
                     fontSize: 13,
                   }}
                 >
-                  Searching…
+                  {debounced.trim().length > 0
+                    ? "Searching…"
+                    : "Loading employers…"}
                 </Text>
               ) : (
                 <Text
@@ -2352,7 +2357,9 @@ function CompanyPickerModal({
                     fontSize: 13,
                   }}
                 >
-                  No platform matches.
+                  {debounced.trim().length > 0
+                    ? "No platform matches."
+                    : "No employers on the platform yet."}
                 </Text>
               )
             }

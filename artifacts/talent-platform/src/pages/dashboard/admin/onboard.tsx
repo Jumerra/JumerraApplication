@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { INSTITUTION_KIND_OPTIONS } from "@/lib/institution-kinds";
 import {
   ShieldAlert,
   Briefcase,
@@ -142,9 +143,11 @@ export default function AdminOnboardPage() {
                     <Select value={type} onValueChange={setType}>
                       <SelectTrigger id="ob-instType"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="university">University</SelectItem>
-                        <SelectItem value="college">College</SelectItem>
-                        <SelectItem value="bootcamp">Bootcamp</SelectItem>
+                        {INSTITUTION_KIND_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>

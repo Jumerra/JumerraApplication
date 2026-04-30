@@ -47,6 +47,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { CandidateExperienceEditor } from "@/components/candidate-experience-editor";
+import { CandidateEducationEditor } from "@/components/candidate-education-editor";
 
 const ROLE_LABEL: Record<string, string> = {
   candidate: "Candidate",
@@ -475,6 +476,13 @@ export default function ProfilePage() {
         <CandidateExperienceEditor
           candidateId={candidateId}
           experience={candidate.experience}
+        />
+      ) : null}
+
+      {isCandidate && candidate ? (
+        <CandidateEducationEditor
+          candidateId={candidateId}
+          education={candidate.education}
         />
       ) : null}
 

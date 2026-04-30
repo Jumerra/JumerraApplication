@@ -66,7 +66,11 @@ export default function CandidateDetail() {
                   Institutions
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  {candidate.institutions.map((inst) => (
+                  {candidate.institutions.map((inst) => {
+                    const academicLine = [inst.facultyName, inst.departmentName]
+                      .filter((s): s is string => !!s && s.length > 0)
+                      .join(" · ");
+                    return (
                     <div
                       key={inst.id}
                       className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm border ${
@@ -86,6 +90,17 @@ export default function CandidateDetail() {
                         <Link2 className="w-3.5 h-3.5" />
                       )}
                       <span className="font-medium">{inst.name}</span>
+                      {academicLine ? (
+                        <span
+                          className={`text-xs ${
+                            inst.isPrimary
+                              ? "opacity-90"
+                              : "text-muted-foreground"
+                          }`}
+                        >
+                          {academicLine}
+                        </span>
+                      ) : null}
                       {inst.isVerified ? (
                         <span
                           className={`inline-flex items-center gap-1 text-[10px] uppercase tracking-wider font-semibold rounded-full px-1.5 py-0.5 ${
@@ -106,7 +121,8 @@ export default function CandidateDetail() {
                         </span>
                       )}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}

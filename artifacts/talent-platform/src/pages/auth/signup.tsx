@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PasswordInput } from "@/components/ui/password-input";
 import { UserPlus, AlertCircle, CheckCircle2, GraduationCap, Briefcase, UserCircle2 } from "lucide-react";
+import { INSTITUTION_KIND_OPTIONS } from "@/lib/institution-kinds";
 
 type RoleTab = "candidate" | "employer" | "institution";
 
@@ -258,9 +259,11 @@ export default function SignupPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="university">University</SelectItem>
-                        <SelectItem value="college">College</SelectItem>
-                        <SelectItem value="bootcamp">Bootcamp</SelectItem>
+                        {INSTITUTION_KIND_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>

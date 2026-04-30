@@ -341,6 +341,18 @@ router.patch("/auth/me/profile", requireAuth, async (req, res) => {
     }
 
     await db.update(usersTable).set(updates).where(eq(usersTable.id, user.id));
+
+    // Mirror avatarUrl to the linked candidate row so the public candidate
+    // detail page (which reads candidates.avatar_url) stays in lockstep
+    // with the web profile (which reads users.avatar_url via /auth/me).
+    if ("avatarUrl" in updates && user.candidateId != null) {
+      // candidates.avatar_url is NOT NULL, so coerce a cleared avatar to "".
+      await db
+        .update(candidatesTable)
+        .set({ avatarUrl: updates.avatarUrl ?? "" })
+        .where(eq(candidatesTable.id, user.candidateId));
+    }
+
     const refreshed = await findUserById(user.id);
     if (!refreshed) {
       res.status(500).json({ error: "Profile reload failed" });

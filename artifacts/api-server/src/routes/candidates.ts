@@ -9,6 +9,7 @@ import {
   badgesTable,
   jobsTable,
   employersTable,
+  usersTable,
 } from "@workspace/db";
 import {
   ListCandidatesQueryParams,
@@ -448,6 +449,17 @@ router.patch("/candidates/:id", requireAuth, async (req, res): Promise<void> => 
   if (!updated) {
     res.status(404).json({ error: "Candidate not found" });
     return;
+  }
+
+  // Mirror avatarUrl to the linked user account so the web profile (which
+  // reads users.avatar_url via /auth/me) and the candidate detail page
+  // (which reads candidates.avatar_url) stay in lockstep regardless of
+  // which surface saved the change.
+  if ("avatarUrl" in updateData) {
+    await db
+      .update(usersTable)
+      .set({ avatarUrl: updated.avatarUrl })
+      .where(eq(usersTable.candidateId, updated.id));
   }
 
   // Keep the junction table in sync with the new primary affiliation.

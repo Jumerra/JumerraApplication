@@ -38,6 +38,8 @@ tags:
     description: Premium subscription gating job posts beyond the free quota
   - name: cv
     description: Premium AI CV Builder configuration, checkout, and generation
+  - name: partners
+    description: Admin-managed "Our Partners" landing-page section
 paths:
   /healthz:
     get:
@@ -1355,6 +1357,108 @@ paths:
               schema: { $ref: "#/components/schemas/OkResponse" }
         "400": { description: Invalid input }
         "403": { description: Admin only }
+
+  /partner-settings:
+    get:
+      operationId: getPartnerSettings
+      tags: [partners]
+      summary: Read the global "Our Partners" section configuration (public)
+      responses:
+        "200":
+          description: Partner settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PartnerSettings" }
+
+  /admin/partner-settings:
+    put:
+      operationId: updatePartnerSettings
+      tags: [partners, admin]
+      summary: Update the global partners section toggle (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdatePartnerSettingsRequest" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PartnerSettings" }
+        "400": { description: Invalid input }
+        "403": { description: Admin only }
+
+  /partners:
+    get:
+      operationId: listPartners
+      tags: [partners]
+      summary: List partners shown in the marquee, in display order (public)
+      responses:
+        "200":
+          description: Partners ordered by displayOrder asc, then id asc
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Partner" }
+
+  /admin/partners:
+    post:
+      operationId: createPartner
+      tags: [partners, admin]
+      summary: Create a partner (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreatePartnerRequest" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Partner" }
+        "400": { description: Invalid input }
+        "403": { description: Admin only }
+
+  /admin/partners/{id}:
+    patch:
+      operationId: updatePartner
+      tags: [partners, admin]
+      summary: Update a partner (admin only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdatePartnerRequest" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Partner" }
+        "400": { description: Invalid input }
+        "403": { description: Admin only }
+        "404": { description: Partner not found }
+    delete:
+      operationId: deletePartner
+      tags: [partners, admin]
+      summary: Delete a partner (admin only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "204": { description: Deleted }
+        "403": { description: Admin only }
+        "404": { description: Partner not found }
 
   /boost/settings:
     get:
@@ -3205,6 +3309,44 @@ components:
           type: array
           items: { $ref: "#/components/schemas/SiteContentItem" }
       required: [items]
+
+    PartnerSettings:
+      type: object
+      properties:
+        isActive: { type: boolean }
+      required: [isActive]
+
+    UpdatePartnerSettingsRequest:
+      type: object
+      properties:
+        isActive: { type: boolean }
+      required: [isActive]
+
+    Partner:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        logoUrl: { type: string }
+        displayOrder: { type: integer }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      required: [id, name, logoUrl, displayOrder, createdAt, updatedAt]
+
+    CreatePartnerRequest:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200 }
+        logoUrl: { type: string, minLength: 1, maxLength: 2048 }
+        displayOrder: { type: integer }
+      required: [name, logoUrl]
+
+    UpdatePartnerRequest:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200 }
+        logoUrl: { type: string, minLength: 1, maxLength: 2048 }
+        displayOrder: { type: integer }
 
     BoostSettings:
       type: object

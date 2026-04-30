@@ -1,10 +1,11 @@
 import { useMemo } from "react";
-import { useListJobs, useGetSalaryInsights, useGetRecentActivity, useGetPlatformStats, useGetSiteContent } from "@workspace/api-client-react";
+import { useListJobs, useGetSalaryInsights, useGetPlatformStats, useGetSiteContent } from "@workspace/api-client-react";
+import { PartnersMarquee } from "@/components/partners-marquee";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowRight, Building2, GraduationCap, MapPin, Sparkles, TrendingUp, UserCircle2, CheckCircle2, Users, Briefcase } from "lucide-react";
+import { ArrowRight, Building2, GraduationCap, MapPin, Sparkles, TrendingUp, UserCircle2, CheckCircle2, Briefcase } from "lucide-react";
 import { motion, type Variants } from "framer-motion";
 
 const container: Variants = {
@@ -23,7 +24,6 @@ const item: Variants = {
 export default function Home() {
   const { data: featuredJobs, isLoading: isLoadingJobs } = useListJobs({ featured: true });
   const { data: insights, isLoading: isLoadingInsights } = useGetSalaryInsights();
-  const { data: activity, isLoading: isLoadingActivity } = useGetRecentActivity();
   const { data: stats } = useGetPlatformStats();
   const { data: site } = useGetSiteContent();
 
@@ -290,79 +290,48 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Salary Insights & Activity */}
+      {/* Market Insights */}
       <section className="py-24 bg-muted/30 border-t">
         <div className="container px-4 md:px-6">
-          <div className="grid lg:grid-cols-2 gap-12 lg:gap-24">
-            <div>
-              <h2 className="text-3xl font-bold flex items-center gap-2 mb-8">
-                <TrendingUp className="w-6 h-6 text-primary" />
-                Market Insights
-              </h2>
-              {isLoadingInsights ? (
-                <div className="space-y-4">
-                  {[1, 2, 3].map(i => <div key={i} className="h-20 animate-pulse bg-muted rounded-xl" />)}
-                </div>
-              ) : (
-                <motion.div 
-                  variants={container}
-                  initial="hidden"
-                  whileInView="show"
-                  viewport={{ once: true }}
-                  className="space-y-4"
-                >
-                  {insights?.slice(0, 4).map((insight, i) => (
-                    <motion.div key={i} variants={item} className="flex items-center justify-between p-5 rounded-xl border bg-card hover:shadow-md transition-shadow">
-                      <div>
-                        <p className="font-semibold text-lg">{insight.role}</p>
-                        <p className="text-sm text-muted-foreground">Based on {insight.sampleSize.toLocaleString()} roles</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-bold text-xl text-green-600 dark:text-green-500">
-                          {insight.currency} {(insight.averageSalary / 1000).toFixed(0)}k
-                        </p>
-                        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Average</p>
-                      </div>
-                    </motion.div>
-                  ))}
-                </motion.div>
-              )}
-            </div>
-
-            <div>
-              <h2 className="text-3xl font-bold flex items-center gap-2 mb-8">
-                <Users className="w-6 h-6 text-primary" />
-                Platform Activity
-              </h2>
-              {isLoadingActivity ? (
-                <div className="space-y-4">
-                  {[1, 2, 3].map(i => <div key={i} className="h-16 animate-pulse bg-muted rounded-lg" />)}
-                </div>
-              ) : (
-                <motion.div 
-                  variants={container}
-                  initial="hidden"
-                  whileInView="show"
-                  viewport={{ once: true }}
-                  className="space-y-4 relative before:absolute before:inset-y-0 before:left-5 before:w-px before:bg-border"
-                >
-                  {activity?.slice(0, 5).map((entry) => (
-                    <motion.div key={entry.id} variants={item} className="flex gap-4 items-center relative z-10 p-3 rounded-xl hover:bg-muted/50 transition-colors">
-                      <img src={entry.avatarUrl} alt="" className="w-10 h-10 rounded-full object-cover bg-muted border-2 border-background ring-2 ring-primary/10 shadow-sm" />
-                      <div className="flex-1">
-                        <p className="text-sm">
-                          <span className="font-medium text-foreground">{entry.title}</span>
-                        </p>
-                        <p className="text-xs text-muted-foreground">{entry.subtitle} • {new Date(entry.timestamp).toLocaleDateString()}</p>
-                      </div>
-                    </motion.div>
-                  ))}
-                </motion.div>
-              )}
-            </div>
+          <div className="max-w-4xl mx-auto">
+            <h2 className="text-3xl font-bold flex items-center gap-2 mb-8">
+              <TrendingUp className="w-6 h-6 text-primary" />
+              Market Insights
+            </h2>
+            {isLoadingInsights ? (
+              <div className="grid sm:grid-cols-2 gap-4">
+                {[1, 2, 3, 4].map(i => <div key={i} className="h-20 animate-pulse bg-muted rounded-xl" />)}
+              </div>
+            ) : (
+              <motion.div 
+                variants={container}
+                initial="hidden"
+                whileInView="show"
+                viewport={{ once: true }}
+                className="grid sm:grid-cols-2 gap-4"
+              >
+                {insights?.slice(0, 4).map((insight, i) => (
+                  <motion.div key={i} variants={item} className="flex items-center justify-between p-5 rounded-xl border bg-card hover:shadow-md transition-shadow">
+                    <div>
+                      <p className="font-semibold text-lg">{insight.role}</p>
+                      <p className="text-sm text-muted-foreground">Based on {insight.sampleSize.toLocaleString()} roles</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-xl text-green-600 dark:text-green-500">
+                        {insight.currency} {(insight.averageSalary / 1000).toFixed(0)}k
+                      </p>
+                      <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Average</p>
+                    </div>
+                  </motion.div>
+                ))}
+              </motion.div>
+            )}
           </div>
         </div>
       </section>
+
+      {/* Our Partners (admin-managed; renders only when enabled and non-empty) */}
+      <PartnersMarquee />
     </div>
   );
 }

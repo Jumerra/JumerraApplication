@@ -1192,6 +1192,51 @@ export interface SiteContentResponse {
   items: SiteContentItem[];
 }
 
+export interface PartnerSettings {
+  isActive: boolean;
+}
+
+export interface UpdatePartnerSettingsRequest {
+  isActive: boolean;
+}
+
+export interface Partner {
+  id: number;
+  name: string;
+  logoUrl: string;
+  displayOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreatePartnerRequest {
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  name: string;
+  /**
+   * @minLength 1
+   * @maxLength 2048
+   */
+  logoUrl: string;
+  displayOrder?: number;
+}
+
+export interface UpdatePartnerRequest {
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  name?: string;
+  /**
+   * @minLength 1
+   * @maxLength 2048
+   */
+  logoUrl?: string;
+  displayOrder?: number;
+}
+
 export interface BoostSettings {
   isActive: boolean;
   /**

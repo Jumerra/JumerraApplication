@@ -29,6 +29,7 @@ import AdminRegistrationsPage from "@/pages/dashboard/admin/registrations";
 import AdminOnboardPage from "@/pages/dashboard/admin/onboard";
 import AdminSiteContentPage from "@/pages/dashboard/admin/site-content";
 import AdminBoostSettingsPage from "@/pages/dashboard/admin/boost-settings";
+import AdminPartnersPage from "@/pages/dashboard/admin/partners";
 import AdminCvSettingsPage from "@/pages/dashboard/admin/cv-settings";
 import AdminInstitutionSubscriptionSettingsPage from "@/pages/dashboard/admin/institution-subscription-settings";
 import AdminEmployerSubscriptionSettingsPage from "@/pages/dashboard/admin/employer-subscription-settings";
@@ -126,6 +127,9 @@ function Router() {
         </Route>
         <Route path="/dashboard/admin/site-content">
           <AdminLayout><AdminSiteContentPage /></AdminLayout>
+        </Route>
+        <Route path="/dashboard/admin/partners">
+          <AdminLayout><AdminPartnersPage /></AdminLayout>
         </Route>
         <Route path="/dashboard/admin/boost-settings">
           <AdminLayout><AdminBoostSettingsPage /></AdminLayout>

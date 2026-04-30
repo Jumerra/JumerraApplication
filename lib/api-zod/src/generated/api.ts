@@ -2342,6 +2342,83 @@ export const UpdateSiteContentResponse = zod.object({
 });
 
 /**
+ * @summary Read the global "Our Partners" section configuration (public)
+ */
+export const GetPartnerSettingsResponse = zod.object({
+  isActive: zod.boolean(),
+});
+
+/**
+ * @summary Update the global partners section toggle (admin only)
+ */
+export const UpdatePartnerSettingsBody = zod.object({
+  isActive: zod.boolean(),
+});
+
+export const UpdatePartnerSettingsResponse = zod.object({
+  isActive: zod.boolean(),
+});
+
+/**
+ * @summary List partners shown in the marquee, in display order (public)
+ */
+export const ListPartnersResponseItem = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  logoUrl: zod.string(),
+  displayOrder: zod.number(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+export const ListPartnersResponse = zod.array(ListPartnersResponseItem);
+
+/**
+ * @summary Create a partner (admin only)
+ */
+export const createPartnerBodyNameMax = 200;
+
+export const createPartnerBodyLogoUrlMax = 2048;
+
+export const CreatePartnerBody = zod.object({
+  name: zod.string().min(1).max(createPartnerBodyNameMax),
+  logoUrl: zod.string().min(1).max(createPartnerBodyLogoUrlMax),
+  displayOrder: zod.number().optional(),
+});
+
+/**
+ * @summary Update a partner (admin only)
+ */
+export const UpdatePartnerParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const updatePartnerBodyNameMax = 200;
+
+export const updatePartnerBodyLogoUrlMax = 2048;
+
+export const UpdatePartnerBody = zod.object({
+  name: zod.string().min(1).max(updatePartnerBodyNameMax).optional(),
+  logoUrl: zod.string().min(1).max(updatePartnerBodyLogoUrlMax).optional(),
+  displayOrder: zod.number().optional(),
+});
+
+export const UpdatePartnerResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  logoUrl: zod.string(),
+  displayOrder: zod.number(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Delete a partner (admin only)
+ */
+export const DeletePartnerParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
  * @summary Read the global Profile Boost configuration
  */
 export const getBoostSettingsResponsePriceCentsMin = 50;

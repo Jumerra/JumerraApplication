@@ -9,7 +9,10 @@ import {
   educationTable,
 } from "@workspace/db";
 import { requireAuth, requireAdmin } from "../middleware/require-auth";
-import { getUncachableStripeClient } from "../stripeClient";
+import {
+  getUncachableStripeClient,
+  mapStripeCheckoutError,
+} from "../stripeClient";
 import { getAnthropic, ANTHROPIC_MODEL } from "../aiClient";
 
 const router: Router = Router();
@@ -194,32 +197,56 @@ router.post(
         return;
       }
 
-      const stripe = await getUncachableStripeClient();
-      const session = await stripe.checkout.sessions.create({
-        mode: "payment",
-        line_items: [
-          {
-            quantity: 1,
-            price_data: {
-              currency: settings.currency,
-              unit_amount: settings.priceCents,
-              product_data: {
-                name: "AI CV Builder (lifetime unlock)",
-                description: `Unlock the AI CV Builder for ${candidate.fullName}.`,
+      let session;
+      try {
+        const stripe = await getUncachableStripeClient();
+        session = await stripe.checkout.sessions.create({
+          mode: "payment",
+          line_items: [
+            {
+              quantity: 1,
+              price_data: {
+                currency: settings.currency,
+                unit_amount: settings.priceCents,
+                product_data: {
+                  name: "AI CV Builder (lifetime unlock)",
+                  description: `Unlock the AI CV Builder for ${candidate.fullName}.`,
+                },
               },
             },
+          ],
+          success_url: successUrl,
+          cancel_url: cancelUrl,
+          metadata: {
+            candidateId: String(candidateId),
+            purpose: "ai_cv_unlock",
           },
-        ],
-        success_url: successUrl,
-        cancel_url: cancelUrl,
-        metadata: {
-          candidateId: String(candidateId),
-          purpose: "ai_cv_unlock",
-        },
-      });
+        });
+      } catch (stripeErr) {
+        const mapped = mapStripeCheckoutError(stripeErr);
+        req.log.error(
+          {
+            err: stripeErr,
+            candidateId,
+            purpose: "ai_cv_unlock",
+            ...mapped.logFields,
+          },
+          "cv checkout: stripe call failed",
+        );
+        res.status(mapped.status).json(mapped.body);
+        return;
+      }
 
       if (!session.url) {
-        res.status(500).json({ error: "Stripe did not return a checkout URL" });
+        req.log.error(
+          { candidateId, purpose: "ai_cv_unlock", sessionId: session.id },
+          "cv checkout: stripe returned session without url",
+        );
+        res.status(502).json({
+          error:
+            "Stripe didn't return a checkout URL. Please try again or contact support.",
+          code: "stripe_no_url",
+        });
         return;
       }
 
@@ -233,8 +260,12 @@ router.post(
 
       res.json({ sessionId: session.id, checkoutUrl: session.url });
     } catch (err) {
-      req.log.error({ err }, "cv checkout creation failed");
-      res.status(500).json({ error: "Failed to create checkout session" });
+      req.log.error({ err }, "cv checkout: unexpected failure");
+      res.status(500).json({
+        error:
+          "An unexpected error occurred while creating the checkout session.",
+        code: "internal_error",
+      });
     }
   },
 );

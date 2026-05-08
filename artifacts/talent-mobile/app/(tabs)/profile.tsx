@@ -1,5 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import {
+  ApiError,
   getGetCandidateQueryKey,
   getGetBoostSettingsQueryKey,
   getGetCvSettingsQueryKey,
@@ -822,11 +823,116 @@ function buildCancelUrl(suffix: string): string {
   return `${origin}${suffix}?cancelled=1&mobile_redirect=${encodeURIComponent(deepLink)}`;
 }
 
-// Strip the "HTTP 400 Bad Request: " prefix added by our shared API
-// client so the user sees the actual server message.
-function humanizeError(err: unknown, fallback: string): string {
-  if (!(err instanceof Error)) return fallback;
-  return err.message.replace(/^HTTP \d+ [^:]+: /, "") || fallback;
+// Network failures from `fetch` look different on RN vs the web. We
+// match on the message so we can show "can't reach server" instead of
+// the cryptic raw error.
+function isLikelyNetworkError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  return /network request failed|failed to fetch|network ?error|aborted/i.test(
+    err.message,
+  );
+}
+
+// Stripe-related failure codes the server emits (see
+// `mapStripeCheckoutError` in `artifacts/api-server/src/stripeClient.ts`).
+// We split them into two groups so the alert title matches what the
+// candidate should actually do about it.
+
+// Likely to clear on its own — encourage a retry.
+const TRANSIENT_STRIPE_CODES = new Set([
+  "stripe_connector_unreachable",
+  "stripe_connector_status",
+  "stripe_connection_error",
+  "stripe_rate_limited",
+  "stripe_api_error",
+]);
+
+// Configuration / contract-level — retrying won't help. The server's
+// own message tells the candidate to contact support.
+const NEEDS_ATTENTION_STRIPE_CODES = new Set([
+  "stripe_not_configured",
+  "stripe_token_missing",
+  "stripe_auth_error",
+  "stripe_permission_error",
+  "stripe_invalid_request",
+  "stripe_no_url",
+  "stripe_error",
+]);
+
+// Build an alert title + message tailored to *why* a checkout (or any
+// API call) failed. We distinguish:
+//   * No connectivity / can't reach the server   -> retry hint
+//   * Transient Stripe / payment outage          -> "try again in a moment"
+//   * Stripe config / contract issue             -> "needs attention"
+//   * Other 5xx server errors                    -> generic server error
+//   * 4xx errors                                 -> show the server's own copy
+function describeApiError(
+  err: unknown,
+  fallback: { title: string; message: string },
+): { title: string; message: string } {
+  if (err instanceof ApiError) {
+    const data =
+      err.data && typeof err.data === "object"
+        ? (err.data as { error?: unknown; code?: unknown })
+        : null;
+    const serverMessage =
+      typeof data?.error === "string" && data.error.length > 0
+        ? data.error
+        : null;
+    const code =
+      typeof data?.code === "string" && data.code.length > 0
+        ? data.code
+        : null;
+
+    if (code && NEEDS_ATTENTION_STRIPE_CODES.has(code)) {
+      return {
+        title: "Payments need attention",
+        message:
+          serverMessage ??
+          "Something is wrong with the payment setup. Please contact support.",
+      };
+    }
+
+    if (
+      (code && TRANSIENT_STRIPE_CODES.has(code)) ||
+      (err.status === 503 && (!code || code.startsWith("stripe_")))
+    ) {
+      return {
+        title: "Payments temporarily unavailable",
+        message:
+          serverMessage ??
+          "Stripe is temporarily unavailable. Please try again in a moment.",
+      };
+    }
+
+    if (err.status >= 500) {
+      return {
+        title: "Server error",
+        message:
+          serverMessage ??
+          "Something went wrong on our end. Please try again.",
+      };
+    }
+
+    // 4xx — server has a specific reason; surface it.
+    return {
+      title: fallback.title,
+      message: serverMessage ?? fallback.message,
+    };
+  }
+
+  if (isLikelyNetworkError(err)) {
+    return {
+      title: "Can't reach the server",
+      message: "Check your internet connection and try again.",
+    };
+  }
+
+  if (err instanceof Error && err.message) {
+    return { title: fallback.title, message: err.message };
+  }
+
+  return fallback;
 }
 
 function PremiumSection({ candidateId }: { candidateId: number }) {
@@ -927,10 +1033,11 @@ function PremiumSection({ candidateId }: { candidateId: number }) {
       await verify(sid);
       await refreshAll();
     } catch (err) {
-      Alert.alert(
-        "Checkout failed",
-        humanizeError(err, "Please try again."),
-      );
+      const { title, message } = describeApiError(err, {
+        title: "Checkout failed",
+        message: "Please try again.",
+      });
+      Alert.alert(title, message);
     } finally {
       setBusy(null);
     }
@@ -970,10 +1077,11 @@ function PremiumSection({ candidateId }: { candidateId: number }) {
       await generate.mutateAsync({ id: candidateId, data: { focus: null } });
       await refreshAll();
     } catch (err) {
-      Alert.alert(
-        "Couldn't generate CV",
-        humanizeError(err, "Please try again."),
-      );
+      const { title, message } = describeApiError(err, {
+        title: "Couldn't generate CV",
+        message: "Please try again.",
+      });
+      Alert.alert(title, message);
     } finally {
       setBusy(null);
     }

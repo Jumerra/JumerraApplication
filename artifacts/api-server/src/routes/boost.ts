@@ -7,7 +7,10 @@ import {
   candidatesTable,
 } from "@workspace/db";
 import { requireAuth, requireAdmin } from "../middleware/require-auth";
-import { getUncachableStripeClient } from "../stripeClient";
+import {
+  getUncachableStripeClient,
+  mapStripeCheckoutError,
+} from "../stripeClient";
 
 const router: Router = Router();
 
@@ -205,33 +208,57 @@ router.post(
         return;
       }
 
-      const stripe = await getUncachableStripeClient();
-      const session = await stripe.checkout.sessions.create({
-        mode: "payment",
-        line_items: [
-          {
-            quantity: 1,
-            price_data: {
-              currency: settings.currency,
-              unit_amount: settings.priceCents,
-              product_data: {
-                name: `Profile Boost (${settings.durationDays} days)`,
-                description: `Boost ${candidate.fullName}'s profile to top employers for ${settings.durationDays} days.`,
+      let session;
+      try {
+        const stripe = await getUncachableStripeClient();
+        session = await stripe.checkout.sessions.create({
+          mode: "payment",
+          line_items: [
+            {
+              quantity: 1,
+              price_data: {
+                currency: settings.currency,
+                unit_amount: settings.priceCents,
+                product_data: {
+                  name: `Profile Boost (${settings.durationDays} days)`,
+                  description: `Boost ${candidate.fullName}'s profile to top employers for ${settings.durationDays} days.`,
+                },
               },
             },
+          ],
+          success_url: successUrl,
+          cancel_url: cancelUrl,
+          metadata: {
+            candidateId: String(candidateId),
+            durationDays: String(settings.durationDays),
+            purpose: "profile_boost",
           },
-        ],
-        success_url: successUrl,
-        cancel_url: cancelUrl,
-        metadata: {
-          candidateId: String(candidateId),
-          durationDays: String(settings.durationDays),
-          purpose: "profile_boost",
-        },
-      });
+        });
+      } catch (stripeErr) {
+        const mapped = mapStripeCheckoutError(stripeErr);
+        req.log.error(
+          {
+            err: stripeErr,
+            candidateId,
+            purpose: "profile_boost",
+            ...mapped.logFields,
+          },
+          "boost checkout: stripe call failed",
+        );
+        res.status(mapped.status).json(mapped.body);
+        return;
+      }
 
       if (!session.url) {
-        res.status(500).json({ error: "Stripe did not return a checkout URL" });
+        req.log.error(
+          { candidateId, purpose: "profile_boost", sessionId: session.id },
+          "boost checkout: stripe returned session without url",
+        );
+        res.status(502).json({
+          error:
+            "Stripe didn't return a checkout URL. Please try again or contact support.",
+          code: "stripe_no_url",
+        });
         return;
       }
 
@@ -246,8 +273,12 @@ router.post(
 
       res.json({ sessionId: session.id, checkoutUrl: session.url });
     } catch (err) {
-      req.log.error({ err }, "boost checkout creation failed");
-      res.status(500).json({ error: "Failed to create checkout session" });
+      req.log.error({ err }, "boost checkout: unexpected failure");
+      res.status(500).json({
+        error:
+          "An unexpected error occurred while creating the checkout session.",
+        code: "internal_error",
+      });
     }
   },
 );

@@ -1,5 +1,4 @@
 uploads = []
-outputs = []
 
 [[generated]]
 id = "OnuK3kOFVVmzTBpB8YqaF"
@@ -18,3 +17,51 @@ id = "Xj9EBwumktvpDZp1QkMXY"
 uri = "file://artifacts/talent-mobile/assets/images/icon.png"
 type = "image"
 title = "talentlink_app_icon"
+
+[[generated]]
+id = "JOOzE0jqvKqOQhmuG24sc"
+uri = "file://attached_assets/logos/jumerra_option_1_growth_mark.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "S7vUpC3POr_JRCQ33b-8A"
+uri = "file://attached_assets/logos/jumerra_option_2_compass_network.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "HnCMEM2FlwL_FNoXPPfmX"
+uri = "file://attached_assets/logos/jumerra_option_3_monogram_badge.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "Mz3b68ACWrBSLLooBXRwk"
+uri = "file://attached_assets/logos/jumerra_option_4_wordmark.png"
+type = "image"
+title = "generated_image"
+
+[[outputs]]
+id = "ZHTSPwZLiHWQ50jNElsHs"
+uri = "file://attached_assets/logos/jumerra_option_1_growth_mark.png"
+type = "image"
+title = "Option 1 — Growth Mark (J + rising path)"
+
+[[outputs]]
+id = "1_Af_rnYvpJvaytjjsTxk"
+uri = "file://attached_assets/logos/jumerra_option_2_compass_network.png"
+type = "image"
+title = "Option 2 — Compass / Network emblem"
+
+[[outputs]]
+id = "ll0CJquRBpXpZ19XssFOa"
+uri = "file://attached_assets/logos/jumerra_option_3_monogram_badge.png"
+type = "image"
+title = "Option 3 — Monogram Badge (app-icon ready)"
+
+[[outputs]]
+id = "aHJjjg0zlB9dr0JFQVblF"
+uri = "file://attached_assets/logos/jumerra_option_4_wordmark.png"
+type = "image"
+title = "Option 4 — Pure Wordmark (editorial)"

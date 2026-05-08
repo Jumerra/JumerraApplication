@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-TalentLink is a pnpm monorepo for an early-career hiring platform. It has an Express API (`artifacts/api-server`) backed by PostgreSQL/Drizzle, a React web app (`artifacts/talent-platform`), and an Expo mobile app (`artifacts/talent-mobile`). Web authentication is session-based with `express-session`; the mobile app currently consumes the same backend without a real user auth flow. The platform stores candidate profiles, application pipeline data, employer and institution records, staff memberships, and admin review workflows.
+Jumerra is a pnpm monorepo for an early-career hiring platform. It has an Express API (`artifacts/api-server`) backed by PostgreSQL/Drizzle, a React web app (`artifacts/talent-platform`), and an Expo mobile app (`artifacts/talent-mobile`). Web authentication is session-based with `express-session`; the mobile app currently consumes the same backend without a real user auth flow. The platform stores candidate profiles, application pipeline data, employer and institution records, staff memberships, and admin review workflows.
 
 Production assumptions for this repository:
 - `NODE_ENV` is `production` in deployed environments.

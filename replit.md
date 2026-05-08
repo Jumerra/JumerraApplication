@@ -1,8 +1,8 @@
-# TalentLink
+# Jumerra
 
 ## Overview
 
-TalentLink is an AI-powered talent ecosystem designed to intelligently connect early-career candidates (interns, graduates) with employers. It also provides educational institutions with real-time student placement tracking. The project aims to streamline entry-level recruitment, offer valuable insights into talent pipelines, and analyze hiring trends.
+Jumerra is an AI-powered talent ecosystem designed to intelligently connect early-career candidates (interns, graduates) with employers. It also provides educational institutions with real-time student placement tracking. The project aims to streamline entry-level recruitment, offer valuable insights into talent pipelines, and analyze hiring trends.
 
 ## User Preferences
 
@@ -10,7 +10,7 @@ I prefer concise and direct communication. When making changes, prioritize itera
 
 ## System Architecture
 
-TalentLink is structured as a monorepo using pnpm workspaces. The API specification, defined in `lib/api-spec/openapi.yaml`, acts as the single source of truth for API contracts and Zod validator generation.
+Jumerra is structured as a monorepo using pnpm workspaces. The API specification, defined in `lib/api-spec/openapi.yaml`, acts as the single source of truth for API contracts and Zod validator generation.
 
 **Core Components:**
 - **API Server**: An Express 5 application leveraging Drizzle ORM, pino for structured logging, and domain-split routes. It encapsulates business logic, including the matching algorithm.

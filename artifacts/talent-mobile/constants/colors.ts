@@ -1,5 +1,5 @@
 /**
- * Semantic design tokens for TalentLink Mobile.
+ * Semantic design tokens for Jumerra Mobile.
  *
  * Mirrors the palette from artifacts/talent-platform/src/index.css so that
  * web and mobile share the same visual identity.

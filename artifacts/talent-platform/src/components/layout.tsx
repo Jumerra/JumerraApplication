@@ -111,7 +111,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               className="flex items-center gap-2 font-bold text-xl tracking-tight text-primary"
             >
               <Compass className="h-6 w-6" />
-              TalentLink
+              Jumerra
             </Link>
             <nav className="hidden md:flex gap-6">
               {navLinks.map((link) => (
@@ -357,7 +357,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <footer className="border-t bg-muted/20 py-10 mt-auto">
         <div className="container text-center text-sm text-muted-foreground">
           <p>
-            &copy; {new Date().getFullYear()} TalentLink. Where ambition meets
+            &copy; {new Date().getFullYear()} Jumerra. Where ambition meets
             opportunity.
           </p>
         </div>

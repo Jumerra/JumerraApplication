@@ -1209,7 +1209,7 @@ router.get("/admin/analytics/institutions.csv", requirePermission("partner-analy
     ORDER BY candidate_count DESC, i.name ASC
   `);
   const lines = [
-    "# TalentLink institution analytics",
+    "# Jumerra institution analytics",
     `# Generated,${new Date().toISOString()}`,
     "",
     "institution_id,institution_name,location,candidates,applications,hires",
@@ -1228,7 +1228,7 @@ router.get("/admin/analytics/institutions.csv", requirePermission("partner-analy
   }
   sendCsv(
     res,
-    `talentlink-institutions-${new Date().toISOString().slice(0, 10)}.csv`,
+    `jumerra-institutions-${new Date().toISOString().slice(0, 10)}.csv`,
     lines,
   );
 });
@@ -1258,7 +1258,7 @@ router.get("/admin/analytics/employers.csv", requirePermission("partner-analytic
     ORDER BY hires_count DESC, applications_count DESC, e.name ASC
   `);
   const lines = [
-    "# TalentLink employer analytics",
+    "# Jumerra employer analytics",
     `# Generated,${new Date().toISOString()}`,
     "",
     "employer_id,employer_name,industry,jobs,applications,hires,unique_candidates_hired",
@@ -1278,7 +1278,7 @@ router.get("/admin/analytics/employers.csv", requirePermission("partner-analytic
   }
   sendCsv(
     res,
-    `talentlink-employers-${new Date().toISOString().slice(0, 10)}.csv`,
+    `jumerra-employers-${new Date().toISOString().slice(0, 10)}.csv`,
     lines,
   );
 });
@@ -1431,7 +1431,7 @@ router.get("/admin/hires/export.csv", requirePermission("hires:view"), async (re
   };
 
   const lines: string[] = [];
-  lines.push(`# TalentLink hires export`);
+  lines.push(`# Jumerra hires export`);
   lines.push(`# Bucket,${bucket}`);
   lines.push(`# Range,${from.toISOString()},${to.toISOString()}`);
   lines.push(`# Total hires,${total}`);
@@ -1441,7 +1441,7 @@ router.get("/admin/hires/export.csv", requirePermission("hires:view"), async (re
     lines.push(`${p.periodStart},${escape(p.label)},${p.count}`);
   }
 
-  const filename = `talentlink-hires-${bucket}-${from
+  const filename = `jumerra-hires-${bucket}-${from
     .toISOString()
     .slice(0, 10)}-to-${to.toISOString().slice(0, 10)}.csv`;
   res.setHeader("Content-Type", "text/csv; charset=utf-8");

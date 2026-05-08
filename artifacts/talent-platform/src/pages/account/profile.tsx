@@ -381,7 +381,7 @@ export default function ProfilePage() {
         <CardHeader>
           <CardTitle className="text-lg">Personal details</CardTitle>
           <CardDescription>
-            Visible to teammates and the people you connect with on TalentLink.
+            Visible to teammates and the people you connect with on Jumerra.
           </CardDescription>
         </CardHeader>
         <CardContent>

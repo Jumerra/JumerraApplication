@@ -120,7 +120,7 @@ export default function SignupPage() {
             <div className="mx-auto w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary mb-3">
               <CheckCircle2 className="w-6 h-6" />
             </div>
-            <CardTitle className="text-2xl">Welcome to TalentLink</CardTitle>
+            <CardTitle className="text-2xl">Welcome to Jumerra</CardTitle>
             <CardDescription>Taking you to your dashboard…</CardDescription>
           </CardHeader>
         </Card>
@@ -159,7 +159,7 @@ export default function SignupPage() {
           <div className="mx-auto w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary mb-3">
             <UserPlus className="w-6 h-6" />
           </div>
-          <CardTitle className="text-2xl">Join TalentLink</CardTitle>
+          <CardTitle className="text-2xl">Join Jumerra</CardTitle>
           <CardDescription>
             Create an account. An administrator will review your application
             before activating it.

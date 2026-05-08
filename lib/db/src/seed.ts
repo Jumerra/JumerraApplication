@@ -412,7 +412,7 @@ async function main() {
   ]);
 
   await db.insert(badgesTable).values([
-    { candidateId: candidates[0].id, name: "Top 1% Talent Score", description: "Among the top 1% of candidates by talent score on TalentLink.", tier: "platinum" },
+    { candidateId: candidates[0].id, name: "Top 1% Talent Score", description: "Among the top 1% of candidates by talent score on Jumerra.", tier: "platinum" },
     { candidateId: candidates[0].id, name: "Verified Project Builder", description: "Has shipped at least 3 production-quality projects.", tier: "gold" },
     { candidateId: candidates[0].id, name: "Open Source Contributor", description: "Active contributor to public repositories.", tier: "silver" },
     { candidateId: candidates[2].id, name: "ML Specialist", description: "Demonstrated expertise in production ML systems.", tier: "gold" },

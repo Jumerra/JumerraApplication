@@ -65,7 +65,7 @@ export default function LoginPage() {
             <LogIn className="w-6 h-6" />
           </div>
           <CardTitle className="text-2xl">Welcome back</CardTitle>
-          <CardDescription>Sign in to your TalentLink account</CardDescription>
+          <CardDescription>Sign in to your Jumerra account</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={onSubmit} className="space-y-4">
@@ -109,7 +109,7 @@ export default function LoginPage() {
             </Button>
           </form>
           <p className="mt-6 text-center text-sm text-muted-foreground">
-            New to TalentLink?{" "}
+            New to Jumerra?{" "}
             <Link href="/signup" className="text-primary font-medium hover:underline">
               Create an account
             </Link>

@@ -20,6 +20,7 @@ import {
   GetCandidateRecommendationsParams,
 } from "@workspace/api-zod";
 import { calculateMatchScore } from "../lib/matching";
+import { sweepExpiredJobTiers } from "./job-tier";
 import {
   getCandidateIdsForInstitution,
   getInstitutionIdForDepartment,
@@ -641,6 +642,10 @@ router.get("/candidates/:id/recommendations", async (req, res): Promise<void> =>
     return;
   }
 
+  // Demote any jobs whose paid tier has expired before we read+rank,
+  // so a recommendations call never surfaces a stale "sponsored" boost.
+  await sweepExpiredJobTiers();
+
   const jobs = await db
     .select({
       job: jobsTable,
@@ -657,6 +662,12 @@ router.get("/candidates/:id/recommendations", async (req, res): Promise<void> =>
         candidate.yearsExperience,
         candidate.talentScore,
       );
+      // Paid-tier injection: sponsored gets a strong push to the top of
+      // the candidate's feed, promoted gets a meaningful but smaller
+      // boost. matchScore is what the UI shows, so we apply the bias
+      // additively here so users still see a sensible relevance signal.
+      const tier = (job.tier ?? "free") as "free" | "promoted" | "sponsored";
+      const tierBias = tier === "sponsored" ? 25 : tier === "promoted" ? 10 : 0;
       return {
         jobId: job.id,
         title: job.title,
@@ -667,8 +678,12 @@ router.get("/candidates/:id/recommendations", async (req, res): Promise<void> =>
         salaryMin: job.salaryMin,
         salaryMax: job.salaryMax,
         currency: job.currency,
-        matchScore: score,
+        matchScore: Math.min(100, score + tierBias),
         matchedSkills,
+        tier,
+        tierExpiresAt: job.tierExpiresAt
+          ? job.tierExpiresAt.toISOString()
+          : null,
       };
     })
     .sort((a, b) => b.matchScore - a.matchScore)

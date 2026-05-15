@@ -36,6 +36,7 @@ import AdminCvSettingsPage from "@/pages/dashboard/admin/cv-settings";
 import AdminInstitutionSubscriptionSettingsPage from "@/pages/dashboard/admin/institution-subscription-settings";
 import AdminJobTierSettingsPage from "@/pages/dashboard/admin/job-tier-settings";
 import JobsPromoteReturnPage from "@/pages/jobs/promote-return";
+import JobBoostPage from "@/pages/jobs/boost";
 import BoostReturnPage from "@/pages/boost/return";
 import CvReturnPage from "@/pages/cv/return";
 import CvBuilderPage from "@/pages/cv/builder";
@@ -72,6 +73,7 @@ function Router() {
         <Route path="/" component={Home} />
         
         <Route path="/jobs" component={JobsList} />
+        <Route path="/jobs/:id/boost" component={JobBoostPage} />
         <Route path="/jobs/:id" component={JobDetail} />
         <Route path="/post-job" component={JobPost} />
         <Route path="/apply/:jobId" component={JobApply} />

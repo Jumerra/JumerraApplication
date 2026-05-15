@@ -191,6 +191,8 @@ router.get("/dashboard/employer/:id", async (req, res): Promise<void> => {
       featured: j.featured,
       applicationsCount: jobAppCounts.get(j.id) ?? 0,
       postedAt: j.postedAt.toISOString(),
+      tier: (j.tier ?? "free") as "free" | "promoted" | "sponsored",
+      tierExpiresAt: j.tierExpiresAt ? j.tierExpiresAt.toISOString() : null,
     }))
     .sort((a, b) => b.applicationsCount - a.applicationsCount)
     .slice(0, 5);

@@ -180,7 +180,7 @@ export default function DiscoverScreen() {
                 salaryMin={item.salaryMin}
                 salaryMax={item.salaryMax}
                 currency={item.currency}
-                tier={(item as { tier?: string }).tier}
+                tier={item.tier}
                 onPress={() => goToJob(item.jobId)}
               />
             )}

@@ -5,6 +5,7 @@
  * Talent Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { JobMatchTier } from "./jobMatchTier";
 import type { JobMatchType } from "./jobMatchType";
 
 export interface JobMatch {
@@ -19,4 +20,6 @@ export interface JobMatch {
   currency: string;
   matchScore: number;
   matchedSkills: string[];
+  tier: JobMatchTier;
+  tierExpiresAt: Date | null;
 }

@@ -1179,6 +1179,19 @@ export interface CandidateMatch {
   matchedSkills: string[];
 }
 
+export interface EmployerSubscriptionLegacyStatus {
+  hasLegacySubscription: boolean;
+  migratedAt: string | null;
+  currentPeriodEnd: string | null;
+}
+
+export interface MigrateLegacyEmployerSubscriptionsResponse {
+  scanned: number;
+  cancelled: number;
+  skipped: number;
+  failed: number;
+}
+
 export type JobMatchType = (typeof JobMatchType)[keyof typeof JobMatchType];
 
 export const JobMatchType = {
@@ -1187,6 +1200,14 @@ export const JobMatchType = {
   full_time: "full_time",
   contract: "contract",
   remote: "remote",
+} as const;
+
+export type JobMatchTier = (typeof JobMatchTier)[keyof typeof JobMatchTier];
+
+export const JobMatchTier = {
+  free: "free",
+  promoted: "promoted",
+  sponsored: "sponsored",
 } as const;
 
 export interface JobMatch {
@@ -1201,6 +1222,8 @@ export interface JobMatch {
   currency: string;
   matchScore: number;
   matchedSkills: string[];
+  tier: JobMatchTier;
+  tierExpiresAt: string | null;
 }
 
 export type PlatformStatsApplicationsByStatusItem = {

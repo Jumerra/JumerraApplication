@@ -28,8 +28,26 @@ import {
   GraduationCap,
   Sparkles,
 } from "lucide-react";
+import { useGetEmployerSubscriptionLegacyStatus } from "@workspace/api-client-react";
 
-function DeprecationBanner() {
+/**
+ * Banner is conditional on persisted migration state from the server:
+ *   - hasLegacySubscription:false → no banner. Brand new employers
+ *     who never subscribed don't get a misleading "we're cancelling
+ *     your subscription" warning.
+ *   - hasLegacySubscription:true && migratedAt:null → "we're going to
+ *     cancel" pre-migration messaging.
+ *   - hasLegacySubscription:true && migratedAt:not-null → "your sub
+ *     has been cancelled at period end" post-migration messaging,
+ *     with the actual end date if known.
+ */
+function LegacyDeprecationBannerGate() {
+  const { data, isLoading } = useGetEmployerSubscriptionLegacyStatus();
+  if (isLoading || !data || !data.hasLegacySubscription) return null;
+  const migrated = !!data.migratedAt;
+  const periodEnd = data.currentPeriodEnd
+    ? new Date(data.currentPeriodEnd).toLocaleDateString()
+    : null;
   return (
     <div
       className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200"
@@ -43,12 +61,24 @@ function DeprecationBanner() {
           </p>
           <p className="opacity-90">
             We've replaced the recurring subscription with one-shot per-job
-            tiers. Free posts go live immediately. Pay only when you want to
-            upgrade an individual job to{" "}
+            tiers. Free posts go live immediately. Pay only when you want
+            to upgrade an individual job to{" "}
             <span className="font-medium">Promoted</span> or{" "}
-            <span className="font-medium">Sponsored</span>. Any active
-            subscription will be cancelled at the end of its current period
-            and won't auto-renew. You'll keep all your perks until then.
+            <span className="font-medium">Sponsored</span>.{" "}
+            {migrated ? (
+              <>
+                Your recurring subscription has been set to cancel at the
+                end of its current period
+                {periodEnd ? ` (${periodEnd})` : ""} and will not
+                auto-renew. You keep all your existing perks until then.
+              </>
+            ) : (
+              <>
+                Your active subscription will be cancelled at the end of
+                its current period
+                {periodEnd ? ` (${periodEnd})` : ""} and won't auto-renew.
+              </>
+            )}
           </p>
           <p>
             <Link
@@ -179,7 +209,7 @@ export default function EmployerSubscriptionPage() {
 
   return (
     <div className="container mx-auto px-4 py-10 max-w-3xl space-y-6">
-      <DeprecationBanner />
+      <LegacyDeprecationBannerGate />
 
       <div className="flex items-center gap-3">
         <div className="p-2 rounded-lg bg-primary/10 text-primary">

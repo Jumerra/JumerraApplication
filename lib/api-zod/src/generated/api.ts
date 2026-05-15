@@ -1461,6 +1461,8 @@ export const GetCandidateRecommendationsResponseItem = zod.object({
   currency: zod.string(),
   matchScore: zod.number(),
   matchedSkills: zod.array(zod.string()),
+  tier: zod.enum(["free", "promoted", "sponsored"]),
+  tierExpiresAt: zod.coerce.date().nullable(),
 });
 export const GetCandidateRecommendationsResponse = zod.array(
   GetCandidateRecommendationsResponseItem,
@@ -2057,6 +2059,8 @@ export const GetCandidateDashboardResponse = zod.object({
       currency: zod.string(),
       matchScore: zod.number(),
       matchedSkills: zod.array(zod.string()),
+      tier: zod.enum(["free", "promoted", "sponsored"]),
+      tierExpiresAt: zod.coerce.date().nullable(),
     }),
   ),
   recentApplications: zod.array(
@@ -3428,6 +3432,25 @@ export const VerifyEmployerSubscriptionCheckoutResponse = zod
   .describe(
     "Combined view of an employer's subscription state and their\nfree-quota usage. `canPostJob` is what the UI should consult\nbefore showing the post-job CTA — it is true when the feature\nis disabled, when the employer is under the free quota, or when\nthey have a trialing\/active subscription.\n",
   );
+
+/**
+ * @summary Whether the current employer's recurring subscription has been migrated to per-job tiers (drives the deprecation banner).
+ */
+export const GetEmployerSubscriptionLegacyStatusResponse = zod.object({
+  hasLegacySubscription: zod.boolean(),
+  migratedAt: zod.coerce.date().nullable(),
+  currentPeriodEnd: zod.coerce.date().nullable(),
+});
+
+/**
+ * @summary Cancel all active recurring employer subscriptions at end of period and stamp employers as migrated. Idempotent.
+ */
+export const MigrateLegacyEmployerSubscriptionsResponse = zod.object({
+  scanned: zod.number(),
+  cancelled: zod.number(),
+  skipped: zod.number(),
+  failed: zod.number(),
+});
 
 /**
  * @summary Read the global per-job tier pricing configuration

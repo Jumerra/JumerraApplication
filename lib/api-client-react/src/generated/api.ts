@@ -59,6 +59,7 @@ import type {
   EmployerAnalyticsResponse,
   EmployerDashboard,
   EmployerDetail,
+  EmployerSubscriptionLegacyStatus,
   EmployerSubscriptionSettings,
   EmployerSubscriptionStatus,
   ForgotPasswordRequest,
@@ -94,6 +95,7 @@ import type {
   ListRegistrationsParams,
   LoginRequest,
   LogoutUser200,
+  MigrateLegacyEmployerSubscriptionsResponse,
   OkResponse,
   OnboardRequest,
   OnboardResponse,
@@ -8740,6 +8742,173 @@ export const useVerifyEmployerSubscriptionCheckout = <
 > => {
   return useMutation(
     getVerifyEmployerSubscriptionCheckoutMutationOptions(options),
+  );
+};
+
+/**
+ * @summary Whether the current employer's recurring subscription has been migrated to per-job tiers (drives the deprecation banner).
+ */
+export const getGetEmployerSubscriptionLegacyStatusUrl = () => {
+  return `/api/employer-subscription/legacy-status`;
+};
+
+export const getEmployerSubscriptionLegacyStatus = async (
+  options?: RequestInit,
+): Promise<EmployerSubscriptionLegacyStatus> => {
+  return customFetch<EmployerSubscriptionLegacyStatus>(
+    getGetEmployerSubscriptionLegacyStatusUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetEmployerSubscriptionLegacyStatusQueryKey = () => {
+  return [`/api/employer-subscription/legacy-status`] as const;
+};
+
+export const getGetEmployerSubscriptionLegacyStatusQueryOptions = <
+  TData = Awaited<ReturnType<typeof getEmployerSubscriptionLegacyStatus>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getEmployerSubscriptionLegacyStatus>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetEmployerSubscriptionLegacyStatusQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getEmployerSubscriptionLegacyStatus>>
+  > = ({ signal }) =>
+    getEmployerSubscriptionLegacyStatus({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getEmployerSubscriptionLegacyStatus>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetEmployerSubscriptionLegacyStatusQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getEmployerSubscriptionLegacyStatus>>
+>;
+export type GetEmployerSubscriptionLegacyStatusQueryError = ErrorType<void>;
+
+/**
+ * @summary Whether the current employer's recurring subscription has been migrated to per-job tiers (drives the deprecation banner).
+ */
+
+export function useGetEmployerSubscriptionLegacyStatus<
+  TData = Awaited<ReturnType<typeof getEmployerSubscriptionLegacyStatus>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getEmployerSubscriptionLegacyStatus>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions =
+    getGetEmployerSubscriptionLegacyStatusQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Cancel all active recurring employer subscriptions at end of period and stamp employers as migrated. Idempotent.
+ */
+export const getMigrateLegacyEmployerSubscriptionsUrl = () => {
+  return `/api/admin/employer-subscription/migrate-legacy`;
+};
+
+export const migrateLegacyEmployerSubscriptions = async (
+  options?: RequestInit,
+): Promise<MigrateLegacyEmployerSubscriptionsResponse> => {
+  return customFetch<MigrateLegacyEmployerSubscriptionsResponse>(
+    getMigrateLegacyEmployerSubscriptionsUrl(),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
+};
+
+export const getMigrateLegacyEmployerSubscriptionsMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof migrateLegacyEmployerSubscriptions>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof migrateLegacyEmployerSubscriptions>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["migrateLegacyEmployerSubscriptions"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof migrateLegacyEmployerSubscriptions>>,
+    void
+  > = () => {
+    return migrateLegacyEmployerSubscriptions(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type MigrateLegacyEmployerSubscriptionsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof migrateLegacyEmployerSubscriptions>>
+>;
+
+export type MigrateLegacyEmployerSubscriptionsMutationError = ErrorType<void>;
+
+/**
+ * @summary Cancel all active recurring employer subscriptions at end of period and stamp employers as migrated. Idempotent.
+ */
+export const useMigrateLegacyEmployerSubscriptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof migrateLegacyEmployerSubscriptions>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof migrateLegacyEmployerSubscriptions>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(
+    getMigrateLegacyEmployerSubscriptionsMutationOptions(options),
   );
 };
 

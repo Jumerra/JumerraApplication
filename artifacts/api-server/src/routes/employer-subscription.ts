@@ -6,6 +6,7 @@ import {
   employerSubscriptionsTable,
   employersTable,
   jobsTable,
+  usersTable,
 } from "@workspace/db";
 import {
   requireAuth,
@@ -749,6 +750,167 @@ router.post(
     } catch (err) {
       req.log.error({ err }, "employer subscription verify failed");
       res.status(500).json({ error: "Verification failed" });
+    }
+  },
+);
+
+/**
+ * Tells the current employer's dashboard whether their recurring
+ * subscription is in the legacy-cancellation cohort. Drives the
+ * deprecation banner: shown only if there's a legacy subscription
+ * (or it has been migrated). Employers without any subscription get
+ * `hasLegacySubscription: false` and won't see the banner.
+ */
+router.get(
+  "/employer-subscription/legacy-status",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    try {
+      const user = req.currentUser!;
+      if (user.role !== "employer" || !user.employerId) {
+        res.json({
+          hasLegacySubscription: false,
+          migratedAt: null,
+          currentPeriodEnd: null,
+        });
+        return;
+      }
+      const sub = await loadCurrentSubscription(user.employerId);
+      const [employer] = await db
+        .select({
+          legacySubscriptionMigratedAt:
+            employersTable.legacySubscriptionMigratedAt,
+        })
+        .from(employersTable)
+        .where(eq(employersTable.id, user.employerId))
+        .limit(1);
+      const hasLegacy =
+        !!sub &&
+        (sub.status === "active" ||
+          sub.status === "trialing" ||
+          (!!employer?.legacySubscriptionMigratedAt));
+      res.json({
+        hasLegacySubscription: hasLegacy,
+        migratedAt:
+          employer?.legacySubscriptionMigratedAt
+            ? employer.legacySubscriptionMigratedAt.toISOString()
+            : null,
+        currentPeriodEnd: sub?.currentPeriodEnd
+          ? sub.currentPeriodEnd.toISOString()
+          : null,
+      });
+    } catch (err) {
+      req.log.error({ err }, "legacy-status lookup failed");
+      res.status(500).json({ error: "Lookup failed" });
+    }
+  },
+);
+
+/**
+ * One-shot admin migration: for every employer with an active or
+ * trialing recurring subscription, call Stripe to set
+ * `cancel_at_period_end=true` and stamp the employer with
+ * `legacySubscriptionMigratedAt`. Idempotent: an employer already
+ * migrated, or whose Stripe subscription is missing/already
+ * cancelling, is counted as `skipped`.
+ */
+router.post(
+  "/admin/employer-subscription/migrate-legacy",
+  requireAdmin,
+  async (req, res): Promise<void> => {
+    const summary = { scanned: 0, cancelled: 0, skipped: 0, failed: 0 };
+    try {
+      const subs = await db
+        .select()
+        .from(employerSubscriptionsTable)
+        .where(
+          sql`${employerSubscriptionsTable.status} IN ('active','trialing')`,
+        );
+      summary.scanned = subs.length;
+
+      let stripe: Awaited<ReturnType<typeof getUncachableStripeClient>> | null =
+        null;
+      try {
+        stripe = await getUncachableStripeClient();
+      } catch (err) {
+        req.log.error({ err }, "migrate-legacy: stripe client unavailable");
+        res.status(503).json({ ...summary, error: "Stripe unavailable" });
+        return;
+      }
+
+      // Group by employer; only operate on the most-recent active sub
+      // per employer (loadCurrentSubscription semantics).
+      const seenEmployer = new Set<number>();
+      for (const sub of subs) {
+        if (seenEmployer.has(sub.employerId)) {
+          summary.skipped += 1;
+          continue;
+        }
+        seenEmployer.add(sub.employerId);
+
+        const [employer] = await db
+          .select({
+            id: employersTable.id,
+            legacySubscriptionMigratedAt:
+              employersTable.legacySubscriptionMigratedAt,
+          })
+          .from(employersTable)
+          .where(eq(employersTable.id, sub.employerId))
+          .limit(1);
+
+        if (employer?.legacySubscriptionMigratedAt) {
+          summary.skipped += 1;
+          continue;
+        }
+        if (!sub.stripeSubscriptionId) {
+          summary.skipped += 1;
+          continue;
+        }
+
+        try {
+          const updated = await stripe.subscriptions.update(
+            sub.stripeSubscriptionId,
+            { cancel_at_period_end: true },
+          );
+          const updatedPeriodEnd =
+            (updated as unknown as { current_period_end?: number | null })
+              .current_period_end ??
+            updated.items?.data?.[0]?.current_period_end ??
+            null;
+          const now = new Date();
+          await db.transaction(async (tx) => {
+            await tx
+              .update(employersTable)
+              .set({ legacySubscriptionMigratedAt: now })
+              .where(eq(employersTable.id, sub.employerId));
+            await tx
+              .update(employerSubscriptionsTable)
+              .set({
+                updatedAt: now,
+                currentPeriodEnd: updatedPeriodEnd
+                  ? new Date(updatedPeriodEnd * 1000)
+                  : sub.currentPeriodEnd,
+              })
+              .where(eq(employerSubscriptionsTable.id, sub.id));
+          });
+          summary.cancelled += 1;
+        } catch (err) {
+          req.log.error(
+            { err, employerId: sub.employerId, subId: sub.id },
+            "migrate-legacy: stripe cancel_at_period_end failed",
+          );
+          summary.failed += 1;
+        }
+      }
+
+      // Reference usersTable to keep the import live for future
+      // notification fan-out (no-op query removed for safety).
+      void usersTable;
+
+      res.json(summary);
+    } catch (err) {
+      req.log.error({ err }, "migrate-legacy: top-level failure");
+      res.status(500).json({ ...summary, error: "Migration failed" });
     }
   },
 );

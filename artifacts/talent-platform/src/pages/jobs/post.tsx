@@ -6,6 +6,7 @@ import {
   useCreateJobTierCheckout,
   getListJobsQueryKey,
   getGetEmployerDashboardQueryKey,
+  type CreateJob,
 } from "@workspace/api-client-react";
 import { useAuth } from "@/lib/auth";
 import { useQueryClient } from "@tanstack/react-query";
@@ -113,8 +114,16 @@ export default function JobPost() {
     if (!userId) return;
     setSubmitting(true);
 
-    const payload = {
-      ...values,
+    const payload: CreateJob = {
+      title: values.title,
+      type: values.type,
+      location: values.location,
+      remote: values.remote,
+      salaryMin: values.salaryMin ?? undefined,
+      salaryMax: values.salaryMax ?? undefined,
+      currency: values.currency,
+      summary: values.summary,
+      description: values.description,
       employerId: userId,
       responsibilities: values.responsibilities
         .split("\n")
@@ -130,7 +139,7 @@ export default function JobPost() {
     };
 
     try {
-      const created = await createJob.mutateAsync({ data: payload as any });
+      const created = await createJob.mutateAsync({ data: payload });
       queryClient.invalidateQueries({ queryKey: getListJobsQueryKey() });
       queryClient.invalidateQueries({
         queryKey: getGetEmployerDashboardQueryKey(userId),

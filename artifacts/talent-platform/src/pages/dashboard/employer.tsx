@@ -1,4 +1,4 @@
-import { useGetEmployerDashboard, useUpdateApplicationStatus, getGetEmployerDashboardQueryKey, getListApplicationsQueryKey } from "@workspace/api-client-react";
+import { useGetEmployerDashboard, useUpdateApplicationStatus, getGetEmployerDashboardQueryKey, getListApplicationsQueryKey, useGetEmployerSubscriptionLegacyStatus } from "@workspace/api-client-react";
 import { useAuth } from "@/lib/auth";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Briefcase, CheckCircle2, Clock, Users, Users2, Sparkles, Building2, Eye } from "lucide-react";
+import { Briefcase, CheckCircle2, Clock, Users, Users2, Sparkles, Building2, Eye, Megaphone, Star, AlertTriangle } from "lucide-react";
 import { Link } from "wouter";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { toast } from "sonner";
@@ -198,19 +198,58 @@ export default function EmployerDashboard() {
             <CardContent className="space-y-4">
               {dashboard.topJobs.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No active jobs.</p>
-              ) : dashboard.topJobs.map(job => (
-                <div key={job.id} className="flex justify-between items-center p-3 -mx-3 rounded-lg hover:bg-muted/50 transition-colors">
-                  <div>
-                    <Link href={`/jobs/${job.id}`} className="font-semibold text-sm hover:text-primary transition-colors block">
-                      {job.title}
-                    </Link>
-                    <p className="text-xs text-muted-foreground mt-0.5">{job.applicationsCount} applicants • {job.location}</p>
+              ) : dashboard.topJobs.map(job => {
+                const tier = job.tier ?? "free";
+                const expires = job.tierExpiresAt
+                  ? new Date(job.tierExpiresAt).toLocaleDateString()
+                  : null;
+                return (
+                  <div
+                    key={job.id}
+                    className="flex justify-between items-center gap-3 p-3 -mx-3 rounded-lg hover:bg-muted/50 transition-colors"
+                    data-testid={`row-employer-job-${job.id}`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Link href={`/jobs/${job.id}`} className="font-semibold text-sm hover:text-primary transition-colors truncate">
+                          {job.title}
+                        </Link>
+                        {tier === "sponsored" && (
+                          <Badge className="gap-1 bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-100 dark:bg-amber-900/40 dark:text-amber-200">
+                            <Star className="w-3 h-3" /> Sponsored
+                          </Badge>
+                        )}
+                        {tier === "promoted" && (
+                          <Badge className="gap-1 bg-sky-100 text-sky-900 border-sky-300 hover:bg-sky-100 dark:bg-sky-900/40 dark:text-sky-200">
+                            <Megaphone className="w-3 h-3" /> Promoted
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {job.applicationsCount} applicants • {job.location}
+                        {tier !== "free" && expires ? ` • Tier ends ${expires}` : ""}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {tier === "free" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          asChild
+                          data-testid={`button-boost-job-${job.id}`}
+                        >
+                          <Link href={`/jobs/${job.id}/boost`}>
+                            <Star className="w-3.5 h-3.5 mr-1.5" /> Boost
+                          </Link>
+                        </Button>
+                      )}
+                      <Button variant="ghost" size="icon" asChild>
+                        <Link href={`/jobs/${job.id}`}><Eye className="w-4 h-4" /></Link>
+                      </Button>
+                    </div>
                   </div>
-                  <Button variant="ghost" size="icon" asChild>
-                    <Link href={`/jobs/${job.id}`}><Eye className="w-4 h-4" /></Link>
-                  </Button>
-                </div>
-              ))}
+                );
+              })}
             </CardContent>
           </Card>
         </div>

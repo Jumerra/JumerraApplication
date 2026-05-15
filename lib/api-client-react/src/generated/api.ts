@@ -50,6 +50,8 @@ import type {
   CreateInstitutionFaculty,
   CreateInterviewInviteRequest,
   CreateJob,
+  CreateJobTierCheckoutRequest,
+  CreateJobTierCheckoutResponse,
   CreatePartnerRequest,
   CvSettings,
   DeclineInterviewInviteRequest,
@@ -79,6 +81,7 @@ import type {
   Job,
   JobDetail,
   JobMatch,
+  JobTierSettings,
   ListApplicationsParams,
   ListCandidatesParams,
   ListEmployersParams,
@@ -121,6 +124,7 @@ import type {
   UpdateInstitutionFaculty,
   UpdateInstitutionRequest,
   UpdateInstitutionSubscriptionSettingsRequest,
+  UpdateJobTierSettingsRequest,
   UpdatePartnerRequest,
   UpdatePartnerSettingsRequest,
   UpdateSiteContentRequest,
@@ -130,6 +134,8 @@ import type {
   VerifyBoostCheckoutRequest,
   VerifyBoostCheckoutResponse,
   VerifyCvCheckoutResponse,
+  VerifyJobTierCheckoutRequest,
+  VerifyJobTierCheckoutResponse,
   VerifyStudentResponse,
 } from "./api.schemas";
 
@@ -8735,6 +8741,349 @@ export const useVerifyEmployerSubscriptionCheckout = <
   return useMutation(
     getVerifyEmployerSubscriptionCheckoutMutationOptions(options),
   );
+};
+
+/**
+ * @summary Read the global per-job tier pricing configuration
+ */
+export const getGetJobTierSettingsUrl = () => {
+  return `/api/job-tier-settings`;
+};
+
+export const getJobTierSettings = async (
+  options?: RequestInit,
+): Promise<JobTierSettings> => {
+  return customFetch<JobTierSettings>(getGetJobTierSettingsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetJobTierSettingsQueryKey = () => {
+  return [`/api/job-tier-settings`] as const;
+};
+
+export const getGetJobTierSettingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getJobTierSettings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getJobTierSettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetJobTierSettingsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getJobTierSettings>>
+  > = ({ signal }) => getJobTierSettings({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getJobTierSettings>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetJobTierSettingsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getJobTierSettings>>
+>;
+export type GetJobTierSettingsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Read the global per-job tier pricing configuration
+ */
+
+export function useGetJobTierSettings<
+  TData = Awaited<ReturnType<typeof getJobTierSettings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getJobTierSettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetJobTierSettingsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update per-job tier pricing configuration (admin only)
+ */
+export const getUpdateJobTierSettingsUrl = () => {
+  return `/api/admin/job-tier-settings`;
+};
+
+export const updateJobTierSettings = async (
+  updateJobTierSettingsRequest: UpdateJobTierSettingsRequest,
+  options?: RequestInit,
+): Promise<JobTierSettings> => {
+  return customFetch<JobTierSettings>(getUpdateJobTierSettingsUrl(), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateJobTierSettingsRequest),
+  });
+};
+
+export const getUpdateJobTierSettingsMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateJobTierSettings>>,
+    TError,
+    { data: BodyType<UpdateJobTierSettingsRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateJobTierSettings>>,
+  TError,
+  { data: BodyType<UpdateJobTierSettingsRequest> },
+  TContext
+> => {
+  const mutationKey = ["updateJobTierSettings"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateJobTierSettings>>,
+    { data: BodyType<UpdateJobTierSettingsRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateJobTierSettings(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateJobTierSettingsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateJobTierSettings>>
+>;
+export type UpdateJobTierSettingsMutationBody =
+  BodyType<UpdateJobTierSettingsRequest>;
+export type UpdateJobTierSettingsMutationError = ErrorType<void>;
+
+/**
+ * @summary Update per-job tier pricing configuration (admin only)
+ */
+export const useUpdateJobTierSettings = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateJobTierSettings>>,
+    TError,
+    { data: BodyType<UpdateJobTierSettingsRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateJobTierSettings>>,
+  TError,
+  { data: BodyType<UpdateJobTierSettingsRequest> },
+  TContext
+> => {
+  return useMutation(getUpdateJobTierSettingsMutationOptions(options));
+};
+
+/**
+ * @summary Create a Stripe Checkout Session to upgrade a job to a paid tier
+ */
+export const getCreateJobTierCheckoutUrl = (id: number) => {
+  return `/api/jobs/${id}/promote/checkout`;
+};
+
+export const createJobTierCheckout = async (
+  id: number,
+  createJobTierCheckoutRequest: CreateJobTierCheckoutRequest,
+  options?: RequestInit,
+): Promise<CreateJobTierCheckoutResponse> => {
+  return customFetch<CreateJobTierCheckoutResponse>(
+    getCreateJobTierCheckoutUrl(id),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(createJobTierCheckoutRequest),
+    },
+  );
+};
+
+export const getCreateJobTierCheckoutMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createJobTierCheckout>>,
+    TError,
+    { id: number; data: BodyType<CreateJobTierCheckoutRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createJobTierCheckout>>,
+  TError,
+  { id: number; data: BodyType<CreateJobTierCheckoutRequest> },
+  TContext
+> => {
+  const mutationKey = ["createJobTierCheckout"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createJobTierCheckout>>,
+    { id: number; data: BodyType<CreateJobTierCheckoutRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return createJobTierCheckout(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateJobTierCheckoutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createJobTierCheckout>>
+>;
+export type CreateJobTierCheckoutMutationBody =
+  BodyType<CreateJobTierCheckoutRequest>;
+export type CreateJobTierCheckoutMutationError = ErrorType<void>;
+
+/**
+ * @summary Create a Stripe Checkout Session to upgrade a job to a paid tier
+ */
+export const useCreateJobTierCheckout = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createJobTierCheckout>>,
+    TError,
+    { id: number; data: BodyType<CreateJobTierCheckoutRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createJobTierCheckout>>,
+  TError,
+  { id: number; data: BodyType<CreateJobTierCheckoutRequest> },
+  TContext
+> => {
+  return useMutation(getCreateJobTierCheckoutMutationOptions(options));
+};
+
+/**
+ * @summary Verify a Stripe Checkout Session and activate the job tier on success
+ */
+export const getVerifyJobTierCheckoutUrl = () => {
+  return `/api/job-tier/checkout/verify`;
+};
+
+export const verifyJobTierCheckout = async (
+  verifyJobTierCheckoutRequest: VerifyJobTierCheckoutRequest,
+  options?: RequestInit,
+): Promise<VerifyJobTierCheckoutResponse> => {
+  return customFetch<VerifyJobTierCheckoutResponse>(
+    getVerifyJobTierCheckoutUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(verifyJobTierCheckoutRequest),
+    },
+  );
+};
+
+export const getVerifyJobTierCheckoutMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof verifyJobTierCheckout>>,
+    TError,
+    { data: BodyType<VerifyJobTierCheckoutRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof verifyJobTierCheckout>>,
+  TError,
+  { data: BodyType<VerifyJobTierCheckoutRequest> },
+  TContext
+> => {
+  const mutationKey = ["verifyJobTierCheckout"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof verifyJobTierCheckout>>,
+    { data: BodyType<VerifyJobTierCheckoutRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return verifyJobTierCheckout(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type VerifyJobTierCheckoutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof verifyJobTierCheckout>>
+>;
+export type VerifyJobTierCheckoutMutationBody =
+  BodyType<VerifyJobTierCheckoutRequest>;
+export type VerifyJobTierCheckoutMutationError = ErrorType<void>;
+
+/**
+ * @summary Verify a Stripe Checkout Session and activate the job tier on success
+ */
+export const useVerifyJobTierCheckout = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof verifyJobTierCheckout>>,
+    TError,
+    { data: BodyType<VerifyJobTierCheckoutRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof verifyJobTierCheckout>>,
+  TError,
+  { data: BodyType<VerifyJobTierCheckoutRequest> },
+  TContext
+> => {
+  return useMutation(getVerifyJobTierCheckoutMutationOptions(options));
 };
 
 /**

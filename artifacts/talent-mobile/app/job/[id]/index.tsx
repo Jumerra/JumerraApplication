@@ -23,6 +23,7 @@ import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { MatchScoreBadge } from "@/components/MatchScoreBadge";
 import { SkillChip } from "@/components/SkillChip";
 import { StatusPill } from "@/components/StatusPill";
+import { TierBadge } from "@/components/TierBadge";
 import { useAuth } from "@/hooks/useAuth";
 import { useColors } from "@/hooks/useColors";
 import { formatSalary } from "@/lib/format";
@@ -144,6 +145,11 @@ export default function JobDetailScreen() {
             >
               {job.title}
             </Text>
+            {job.tier && job.tier !== "free" ? (
+              <View style={{ flexDirection: "row", marginTop: 6 }}>
+                <TierBadge tier={job.tier} size="md" />
+              </View>
+            ) : null}
 
             <View style={styles.metaRow}>
               <JobTypeBadge type={job.type} />

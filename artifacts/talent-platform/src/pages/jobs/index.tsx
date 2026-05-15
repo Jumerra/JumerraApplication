@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, MapPin, Briefcase } from "lucide-react";
+import { Search, MapPin, Briefcase, Star, Megaphone } from "lucide-react";
 import { useState } from "react";
 
 export default function JobsList() {
@@ -73,7 +73,25 @@ export default function JobsList() {
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-col sm:flex-row sm:justify-between gap-2 mb-2">
                     <div>
-                      <h3 className="text-xl font-semibold group-hover:text-primary transition-colors">{job.title}</h3>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="text-xl font-semibold group-hover:text-primary transition-colors">{job.title}</h3>
+                        {job.tier === "sponsored" && (
+                          <Badge
+                            data-testid={`badge-tier-sponsored-${job.id}`}
+                            className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 hover:bg-amber-500/20"
+                          >
+                            <Star className="w-3 h-3 mr-1" /> Sponsored
+                          </Badge>
+                        )}
+                        {job.tier === "promoted" && (
+                          <Badge
+                            data-testid={`badge-tier-promoted-${job.id}`}
+                            className="bg-primary/15 text-primary border-primary/30 hover:bg-primary/20"
+                          >
+                            <Megaphone className="w-3 h-3 mr-1" /> Promoted
+                          </Badge>
+                        )}
+                      </div>
                       <p className="text-muted-foreground">{job.employerName}</p>
                     </div>
                     {job.salaryMin && (

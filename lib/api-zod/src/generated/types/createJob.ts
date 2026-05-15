@@ -5,6 +5,7 @@
  * Talent Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { CreateJobTier } from "./createJobTier";
 import type { CreateJobType } from "./createJobType";
 
 export interface CreateJob {
@@ -23,4 +24,10 @@ export interface CreateJob {
   benefits: string[];
   skills: string[];
   featured?: boolean;
+  /** Optional initial tier. Defaults to 'free'. Paid tiers require a follow-up Stripe checkout (POST /jobs/{id}/promote/checkout) to actually activate. */
+  tier?: CreateJobTier;
+  /** Optional skill targeting filter for Sponsored push. */
+  targetSkills?: string[];
+  /** Optional location targeting filter for Sponsored push. */
+  targetLocation?: string | null;
 }

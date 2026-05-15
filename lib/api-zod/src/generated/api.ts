@@ -596,6 +596,17 @@ export const GetEmployerResponse = zod
           summary: zod.string(),
           skills: zod.array(zod.string()),
           featured: zod.boolean(),
+          tier: zod
+            .enum(["free", "promoted", "sponsored"])
+            .describe(
+              "Effective per-job pricing tier. 'free' is default; 'promoted' ranks higher; 'sponsored' ranks highest and triggers candidate push.",
+            ),
+          tierExpiresAt: zod.coerce
+            .date()
+            .nullable()
+            .describe(
+              "When the current paid tier expires. Null for free jobs.",
+            ),
           applicationsCount: zod.number(),
           postedAt: zod.coerce.date(),
         }),
@@ -1307,6 +1318,15 @@ export const ListJobsResponseItem = zod.object({
   summary: zod.string(),
   skills: zod.array(zod.string()),
   featured: zod.boolean(),
+  tier: zod
+    .enum(["free", "promoted", "sponsored"])
+    .describe(
+      "Effective per-job pricing tier. 'free' is default; 'promoted' ranks higher; 'sponsored' ranks highest and triggers candidate push.",
+    ),
+  tierExpiresAt: zod.coerce
+    .date()
+    .nullable()
+    .describe("When the current paid tier expires. Null for free jobs."),
   applicationsCount: zod.number(),
   postedAt: zod.coerce.date(),
 });
@@ -1334,6 +1354,20 @@ export const CreateJobBody = zod.object({
   benefits: zod.array(zod.string()),
   skills: zod.array(zod.string()),
   featured: zod.boolean().optional(),
+  tier: zod
+    .enum(["free", "promoted", "sponsored"])
+    .optional()
+    .describe(
+      "Optional initial tier. Defaults to 'free'. Paid tiers require a follow-up Stripe checkout (POST \/jobs\/{id}\/promote\/checkout) to actually activate.",
+    ),
+  targetSkills: zod
+    .array(zod.string())
+    .optional()
+    .describe("Optional skill targeting filter for Sponsored push."),
+  targetLocation: zod
+    .string()
+    .nullish()
+    .describe("Optional location targeting filter for Sponsored push."),
 });
 
 export const GetJobParams = zod.object({
@@ -1362,6 +1396,15 @@ export const GetJobResponse = zod
     summary: zod.string(),
     skills: zod.array(zod.string()),
     featured: zod.boolean(),
+    tier: zod
+      .enum(["free", "promoted", "sponsored"])
+      .describe(
+        "Effective per-job pricing tier. 'free' is default; 'promoted' ranks higher; 'sponsored' ranks highest and triggers candidate push.",
+      ),
+    tierExpiresAt: zod.coerce
+      .date()
+      .nullable()
+      .describe("When the current paid tier expires. Null for free jobs."),
     applicationsCount: zod.number(),
     postedAt: zod.coerce.date(),
   })
@@ -1845,6 +1888,15 @@ export const GetEmployerDashboardResponse = zod.object({
       summary: zod.string(),
       skills: zod.array(zod.string()),
       featured: zod.boolean(),
+      tier: zod
+        .enum(["free", "promoted", "sponsored"])
+        .describe(
+          "Effective per-job pricing tier. 'free' is default; 'promoted' ranks higher; 'sponsored' ranks highest and triggers candidate push.",
+        ),
+      tierExpiresAt: zod.coerce
+        .date()
+        .nullable()
+        .describe("When the current paid tier expires. Null for free jobs."),
       applicationsCount: zod.number(),
       postedAt: zod.coerce.date(),
     }),
@@ -3376,6 +3428,164 @@ export const VerifyEmployerSubscriptionCheckoutResponse = zod
   .describe(
     "Combined view of an employer's subscription state and their\nfree-quota usage. `canPostJob` is what the UI should consult\nbefore showing the post-job CTA — it is true when the feature\nis disabled, when the employer is under the free quota, or when\nthey have a trialing\/active subscription.\n",
   );
+
+/**
+ * @summary Read the global per-job tier pricing configuration
+ */
+export const getJobTierSettingsResponsePromotedPriceCentsMin = 50;
+export const getJobTierSettingsResponsePromotedPriceCentsMax = 10000000;
+
+export const getJobTierSettingsResponsePromotedDurationDaysMax = 365;
+
+export const getJobTierSettingsResponseSponsoredPriceCentsMin = 50;
+export const getJobTierSettingsResponseSponsoredPriceCentsMax = 10000000;
+
+export const getJobTierSettingsResponseSponsoredDurationDaysMax = 365;
+
+export const getJobTierSettingsResponseSponsoredPushCapMin = 0;
+export const getJobTierSettingsResponseSponsoredPushCapMax = 100000;
+
+export const GetJobTierSettingsResponse = zod.object({
+  promotedActive: zod.boolean(),
+  promotedPriceCents: zod
+    .number()
+    .min(getJobTierSettingsResponsePromotedPriceCentsMin)
+    .max(getJobTierSettingsResponsePromotedPriceCentsMax),
+  promotedCurrency: zod.string(),
+  promotedDurationDays: zod
+    .number()
+    .min(1)
+    .max(getJobTierSettingsResponsePromotedDurationDaysMax),
+  sponsoredActive: zod.boolean(),
+  sponsoredPriceCents: zod
+    .number()
+    .min(getJobTierSettingsResponseSponsoredPriceCentsMin)
+    .max(getJobTierSettingsResponseSponsoredPriceCentsMax),
+  sponsoredCurrency: zod.string(),
+  sponsoredDurationDays: zod
+    .number()
+    .min(1)
+    .max(getJobTierSettingsResponseSponsoredDurationDaysMax),
+  sponsoredPushCap: zod
+    .number()
+    .min(getJobTierSettingsResponseSponsoredPushCapMin)
+    .max(getJobTierSettingsResponseSponsoredPushCapMax),
+});
+
+/**
+ * @summary Update per-job tier pricing configuration (admin only)
+ */
+export const updateJobTierSettingsBodyPromotedPriceCentsMin = 50;
+export const updateJobTierSettingsBodyPromotedPriceCentsMax = 10000000;
+
+export const updateJobTierSettingsBodyPromotedDurationDaysMax = 365;
+
+export const updateJobTierSettingsBodySponsoredPriceCentsMin = 50;
+export const updateJobTierSettingsBodySponsoredPriceCentsMax = 10000000;
+
+export const updateJobTierSettingsBodySponsoredDurationDaysMax = 365;
+
+export const updateJobTierSettingsBodySponsoredPushCapMin = 0;
+export const updateJobTierSettingsBodySponsoredPushCapMax = 100000;
+
+export const UpdateJobTierSettingsBody = zod.object({
+  promotedActive: zod.boolean(),
+  promotedPriceCents: zod
+    .number()
+    .min(updateJobTierSettingsBodyPromotedPriceCentsMin)
+    .max(updateJobTierSettingsBodyPromotedPriceCentsMax),
+  promotedCurrency: zod.string(),
+  promotedDurationDays: zod
+    .number()
+    .min(1)
+    .max(updateJobTierSettingsBodyPromotedDurationDaysMax),
+  sponsoredActive: zod.boolean(),
+  sponsoredPriceCents: zod
+    .number()
+    .min(updateJobTierSettingsBodySponsoredPriceCentsMin)
+    .max(updateJobTierSettingsBodySponsoredPriceCentsMax),
+  sponsoredCurrency: zod.string(),
+  sponsoredDurationDays: zod
+    .number()
+    .min(1)
+    .max(updateJobTierSettingsBodySponsoredDurationDaysMax),
+  sponsoredPushCap: zod
+    .number()
+    .min(updateJobTierSettingsBodySponsoredPushCapMin)
+    .max(updateJobTierSettingsBodySponsoredPushCapMax),
+});
+
+export const updateJobTierSettingsResponsePromotedPriceCentsMin = 50;
+export const updateJobTierSettingsResponsePromotedPriceCentsMax = 10000000;
+
+export const updateJobTierSettingsResponsePromotedDurationDaysMax = 365;
+
+export const updateJobTierSettingsResponseSponsoredPriceCentsMin = 50;
+export const updateJobTierSettingsResponseSponsoredPriceCentsMax = 10000000;
+
+export const updateJobTierSettingsResponseSponsoredDurationDaysMax = 365;
+
+export const updateJobTierSettingsResponseSponsoredPushCapMin = 0;
+export const updateJobTierSettingsResponseSponsoredPushCapMax = 100000;
+
+export const UpdateJobTierSettingsResponse = zod.object({
+  promotedActive: zod.boolean(),
+  promotedPriceCents: zod
+    .number()
+    .min(updateJobTierSettingsResponsePromotedPriceCentsMin)
+    .max(updateJobTierSettingsResponsePromotedPriceCentsMax),
+  promotedCurrency: zod.string(),
+  promotedDurationDays: zod
+    .number()
+    .min(1)
+    .max(updateJobTierSettingsResponsePromotedDurationDaysMax),
+  sponsoredActive: zod.boolean(),
+  sponsoredPriceCents: zod
+    .number()
+    .min(updateJobTierSettingsResponseSponsoredPriceCentsMin)
+    .max(updateJobTierSettingsResponseSponsoredPriceCentsMax),
+  sponsoredCurrency: zod.string(),
+  sponsoredDurationDays: zod
+    .number()
+    .min(1)
+    .max(updateJobTierSettingsResponseSponsoredDurationDaysMax),
+  sponsoredPushCap: zod
+    .number()
+    .min(updateJobTierSettingsResponseSponsoredPushCapMin)
+    .max(updateJobTierSettingsResponseSponsoredPushCapMax),
+});
+
+/**
+ * @summary Create a Stripe Checkout Session to upgrade a job to a paid tier
+ */
+export const CreateJobTierCheckoutParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const CreateJobTierCheckoutBody = zod.object({
+  tier: zod.enum(["promoted", "sponsored"]),
+  successUrl: zod.string(),
+  cancelUrl: zod.string(),
+});
+
+export const CreateJobTierCheckoutResponse = zod.object({
+  sessionId: zod.string(),
+  checkoutUrl: zod.string(),
+});
+
+/**
+ * @summary Verify a Stripe Checkout Session and activate the job tier on success
+ */
+export const VerifyJobTierCheckoutBody = zod.object({
+  sessionId: zod.string(),
+});
+
+export const VerifyJobTierCheckoutResponse = zod.object({
+  status: zod.enum(["pending", "paid", "failed", "expired"]),
+  jobId: zod.number(),
+  tier: zod.enum(["free", "promoted", "sponsored"]),
+  tierExpiresAt: zod.coerce.date().nullable(),
+});
 
 /**
  * @summary Read the global AI CV Builder configuration

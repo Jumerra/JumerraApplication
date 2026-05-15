@@ -15,6 +15,25 @@ import { getUncachableStripeClient } from "../stripeClient";
 
 const router: Router = Router();
 
+/**
+ * Mark every response from this router as deprecated. Recurring
+ * employer subscriptions are being phased out in favor of one-shot
+ * per-job tiers (Free / Promoted / Sponsored). Endpoints still
+ * function so existing UI stays usable while we migrate.
+ */
+router.use((_req, res, next) => {
+  res.setHeader("Deprecation", "true");
+  res.setHeader(
+    "Link",
+    '</api/job-tier-settings>; rel="successor-version", </api/admin/job-tier-settings>; rel="successor-version"',
+  );
+  res.setHeader(
+    "Warning",
+    '299 - "Recurring employer subscriptions are deprecated; switch to per-job tiers."',
+  );
+  next();
+});
+
 const SETTINGS_ROW_ID = 1;
 
 const ALLOWED_CURRENCIES = new Set([

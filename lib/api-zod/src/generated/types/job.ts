@@ -5,6 +5,7 @@
  * Talent Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { JobTier } from "./jobTier";
 import type { JobType } from "./jobType";
 
 export interface Job {
@@ -22,6 +23,10 @@ export interface Job {
   summary: string;
   skills: string[];
   featured: boolean;
+  /** Effective per-job pricing tier. 'free' is default; 'promoted' ranks higher; 'sponsored' ranks highest and triggers candidate push. */
+  tier: JobTier;
+  /** When the current paid tier expires. Null for free jobs. */
+  tierExpiresAt: Date | null;
   applicationsCount: number;
   postedAt: Date;
 }

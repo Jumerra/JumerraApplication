@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, sql, desc, and } from "drizzle-orm";
+import { eq, sql, desc } from "drizzle-orm";
 import {
   db,
   jobsTable,
@@ -16,15 +16,34 @@ import {
 import { calculateMatchScore } from "../lib/matching";
 import { requireAuth } from "../middleware/require-auth";
 import { requirePermission } from "../lib/permissions";
-import { getEmployerPostingStatus } from "./employer-subscription";
+import { sweepExpiredJobTiers } from "./job-tier";
 
 const router: IRouter = Router();
+
+function effectiveTier(j: typeof jobsTable.$inferSelect): {
+  tier: "free" | "promoted" | "sponsored";
+  tierExpiresAt: Date | null;
+} {
+  // Defensive runtime read of tier — DB column has a default but the
+  // expiry sweep already runs before each list, so this should always
+  // match what's persisted. Belt-and-braces clamp to 'free' if expired.
+  const t = (j.tier ?? "free") as "free" | "promoted" | "sponsored";
+  if (
+    t !== "free" &&
+    j.tierExpiresAt &&
+    j.tierExpiresAt.getTime() <= Date.now()
+  ) {
+    return { tier: "free", tierExpiresAt: null };
+  }
+  return { tier: t, tierExpiresAt: j.tierExpiresAt };
+}
 
 function serializeJob(
   j: typeof jobsTable.$inferSelect,
   employer: { name: string; logoUrl: string },
   applicationsCount: number,
 ) {
+  const { tier, tierExpiresAt } = effectiveTier(j);
   return {
     id: j.id,
     title: j.title,
@@ -40,6 +59,8 @@ function serializeJob(
     summary: j.summary,
     skills: j.skills,
     featured: j.featured,
+    tier,
+    tierExpiresAt: tierExpiresAt ? tierExpiresAt.toISOString() : null,
     applicationsCount,
     postedAt: j.postedAt.toISOString(),
   };
@@ -52,6 +73,16 @@ router.get("/jobs", async (req, res): Promise<void> => {
     return;
   }
 
+  // Demote anything whose paid tier has expired before we read+rank.
+  // Cheap UPDATE; safe under concurrency.
+  await sweepExpiredJobTiers();
+
+  // Tier rank: sponsored > promoted > free. Fall back to recency.
+  const tierRank = sql<number>`CASE ${jobsTable.tier}
+    WHEN 'sponsored' THEN 3
+    WHEN 'promoted' THEN 2
+    ELSE 1 END`;
+
   const rows = await db
     .select({
       job: jobsTable,
@@ -60,7 +91,7 @@ router.get("/jobs", async (req, res): Promise<void> => {
     })
     .from(jobsTable)
     .innerJoin(employersTable, eq(jobsTable.employerId, employersTable.id))
-    .orderBy(desc(jobsTable.featured), desc(jobsTable.postedAt));
+    .orderBy(desc(tierRank), desc(jobsTable.featured), desc(jobsTable.postedAt));
 
   const filters = params.data;
   const filtered = rows.filter(({ job }) => {
@@ -114,31 +145,24 @@ router.post(
     return;
   }
 
-  // Paywall: enforce the admin-configured free job-post quota for
-  // employers (admins bypass — they post on behalf). Returns 402 with
-  // the same shape as GET /employers/:id/subscription so the client can
-  // render the paywall UI directly from the error body.
-  //
-  // Internships are ALWAYS free for employers — no quota, no
-  // subscription required. They also do not count toward the free
-  // quota for paid postings (see countEmployerPaidJobs).
-  if (user.role === "employer" && parsed.data.type !== "internship") {
-    const status = await getEmployerPostingStatus(employerId);
-    if (!status.canPostJob) {
-      res.status(402).json({
-        error: "Free job post limit reached. Subscribe to post more jobs.",
-        subscriptionStatus: status,
-      });
-      return;
-    }
-  }
+  // Posting a job is now ALWAYS free — the freemium per-job tier model
+  // (Free / Promoted / Sponsored) replaces the recurring paywall.
+  // Paid tiers must still go through POST /jobs/:id/promote/checkout
+  // to actually activate; clients that pass `tier: 'promoted'|'sponsored'`
+  // here just get a free job (server clamps it) until payment lands.
+  const { tier: _ignoredTier, targetSkills, targetLocation, ...rest } =
+    parsed.data;
 
   const [created] = await db
     .insert(jobsTable)
     .values({
-      ...parsed.data,
+      ...rest,
       employerId,
       featured: parsed.data.featured ?? false,
+      tier: "free",
+      tierExpiresAt: null,
+      targetSkills: targetSkills ?? [],
+      targetLocation: targetLocation ?? null,
     })
     .returning();
 
@@ -156,6 +180,8 @@ router.get("/jobs/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: params.error.message });
     return;
   }
+
+  await sweepExpiredJobTiers();
 
   const [row] = await db
     .select({

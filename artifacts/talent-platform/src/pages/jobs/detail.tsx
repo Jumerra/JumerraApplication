@@ -3,7 +3,7 @@ import { Link, useParams } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { MapPin, Building2, Calendar, Banknote, CheckCircle2, UserCircle } from "lucide-react";
+import { MapPin, Building2, Calendar, Banknote, CheckCircle2, UserCircle, Star, Megaphone } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 
 export default function JobDetail() {
@@ -40,7 +40,25 @@ export default function JobDetail() {
             <div className="flex items-center gap-4 mb-6">
               <img src={job.employerLogoUrl} alt="" className="w-20 h-20 rounded-xl object-cover border" />
               <div>
-                <h1 className="text-3xl font-bold tracking-tight mb-2">{job.title}</h1>
+                <div className="flex items-center gap-2 flex-wrap mb-2">
+                  <h1 className="text-3xl font-bold tracking-tight">{job.title}</h1>
+                  {job.tier === "sponsored" && (
+                    <Badge
+                      data-testid="badge-tier-sponsored"
+                      className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
+                    >
+                      <Star className="w-3 h-3 mr-1" /> Sponsored
+                    </Badge>
+                  )}
+                  {job.tier === "promoted" && (
+                    <Badge
+                      data-testid="badge-tier-promoted"
+                      className="bg-primary/15 text-primary border-primary/30"
+                    >
+                      <Megaphone className="w-3 h-3 mr-1" /> Promoted
+                    </Badge>
+                  )}
+                </div>
                 <p className="text-lg text-muted-foreground">{job.employerName}</p>
               </div>
             </div>

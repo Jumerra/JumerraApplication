@@ -180,6 +180,7 @@ export default function DiscoverScreen() {
                 salaryMin={item.salaryMin}
                 salaryMax={item.salaryMax}
                 currency={item.currency}
+                tier={(item as { tier?: string }).tier}
                 onPress={() => goToJob(item.jobId)}
               />
             )}
@@ -217,6 +218,7 @@ export default function DiscoverScreen() {
                 salaryMin={job.salaryMin}
                 salaryMax={job.salaryMax}
                 currency={job.currency}
+                tier={job.tier}
                 onPress={() => goToJob(job.id)}
               />
             ))}

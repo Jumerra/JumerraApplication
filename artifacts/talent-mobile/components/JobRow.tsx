@@ -8,6 +8,7 @@ import { formatSalary } from "@/lib/format";
 
 import { JobTypeBadge } from "./JobTypeBadge";
 import { MatchScoreBadge } from "./MatchScoreBadge";
+import { TierBadge } from "./TierBadge";
 
 type Props = {
   title: string;
@@ -19,6 +20,7 @@ type Props = {
   salaryMin?: number | null;
   salaryMax?: number | null;
   currency?: string;
+  tier?: string | null;
   onPress: () => void;
 };
 
@@ -32,6 +34,7 @@ export function JobRow({
   salaryMin,
   salaryMax,
   currency,
+  tier,
   onPress,
 }: Props) {
   const colors = useColors();
@@ -84,6 +87,7 @@ export function JobRow({
 
         <View style={styles.metaRow}>
           <JobTypeBadge type={type} />
+          <TierBadge tier={tier} />
           {location ? (
             <View style={styles.locRow}>
               <Feather name="map-pin" size={11} color={colors.mutedForeground} />

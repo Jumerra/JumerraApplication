@@ -34,7 +34,8 @@ import AdminBoostSettingsPage from "@/pages/dashboard/admin/boost-settings";
 import AdminPartnersPage from "@/pages/dashboard/admin/partners";
 import AdminCvSettingsPage from "@/pages/dashboard/admin/cv-settings";
 import AdminInstitutionSubscriptionSettingsPage from "@/pages/dashboard/admin/institution-subscription-settings";
-import AdminEmployerSubscriptionSettingsPage from "@/pages/dashboard/admin/employer-subscription-settings";
+import AdminJobTierSettingsPage from "@/pages/dashboard/admin/job-tier-settings";
+import JobsPromoteReturnPage from "@/pages/jobs/promote-return";
 import BoostReturnPage from "@/pages/boost/return";
 import CvReturnPage from "@/pages/cv/return";
 import CvBuilderPage from "@/pages/cv/builder";
@@ -146,8 +147,14 @@ function Router() {
         <Route path="/dashboard/admin/institution-subscription-settings">
           <AdminLayout><AdminInstitutionSubscriptionSettingsPage /></AdminLayout>
         </Route>
+        <Route path="/dashboard/admin/job-tier-settings">
+          <AdminLayout><AdminJobTierSettingsPage /></AdminLayout>
+        </Route>
+        <Route path="/jobs/promote/return" component={JobsPromoteReturnPage} />
+        {/* Legacy admin subscription settings page is retired; the route
+            now redirects to the new per-job tier settings. */}
         <Route path="/dashboard/admin/employer-subscription-settings">
-          <AdminLayout><AdminEmployerSubscriptionSettingsPage /></AdminLayout>
+          <AdminLayout><AdminJobTierSettingsPage /></AdminLayout>
         </Route>
         <Route path="/dashboard/institution/subscription">
           <InstitutionLayout><InstitutionSubscriptionPage /></InstitutionLayout>

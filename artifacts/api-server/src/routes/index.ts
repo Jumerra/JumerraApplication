@@ -19,6 +19,7 @@ import partnersRouter from "./partners";
 import cvRouter from "./cv";
 import institutionSubscriptionRouter from "./institution-subscription";
 import employerSubscriptionRouter from "./employer-subscription";
+import jobTierRouter from "./job-tier";
 import interviewsRouter from "./interviews";
 import { requireAuth } from "../middleware/require-auth";
 
@@ -61,6 +62,7 @@ router.use(partnersRouter);
 router.use(cvRouter);
 router.use(institutionSubscriptionRouter);
 router.use(employerSubscriptionRouter);
+router.use(jobTierRouter);
 router.use(interviewsRouter);
 router.use(candidatesRouter);
 router.use(employersRouter);

@@ -26,7 +26,43 @@ import {
   Calendar,
   Briefcase,
   GraduationCap,
+  Sparkles,
 } from "lucide-react";
+
+function DeprecationBanner() {
+  return (
+    <div
+      className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200"
+      data-testid="banner-employer-subscription-deprecated"
+    >
+      <div className="flex items-start gap-3">
+        <Sparkles className="w-5 h-5 mt-0.5 shrink-0" />
+        <div className="space-y-1 text-sm">
+          <p className="font-semibold">
+            Subscriptions are going away — all job posts are now free.
+          </p>
+          <p className="opacity-90">
+            We've replaced the recurring subscription with one-shot per-job
+            tiers. Free posts go live immediately. Pay only when you want to
+            upgrade an individual job to{" "}
+            <span className="font-medium">Promoted</span> or{" "}
+            <span className="font-medium">Sponsored</span>. Any active
+            subscription will be cancelled at the end of its current period
+            and won't auto-renew. You'll keep all your perks until then.
+          </p>
+          <p>
+            <Link
+              href="/post-job"
+              className="font-semibold underline underline-offset-2"
+            >
+              Post a job for free →
+            </Link>
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function formatPrice(cents: number, currency: string) {
   try {
@@ -143,6 +179,8 @@ export default function EmployerSubscriptionPage() {
 
   return (
     <div className="container mx-auto px-4 py-10 max-w-3xl space-y-6">
+      <DeprecationBanner />
+
       <div className="flex items-center gap-3">
         <div className="p-2 rounded-lg bg-primary/10 text-primary">
           <Crown className="w-6 h-6" />

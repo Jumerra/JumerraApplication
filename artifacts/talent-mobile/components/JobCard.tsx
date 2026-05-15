@@ -8,6 +8,7 @@ import { formatSalary } from "@/lib/format";
 
 import { JobTypeBadge } from "./JobTypeBadge";
 import { MatchScoreBadge } from "./MatchScoreBadge";
+import { TierBadge } from "./TierBadge";
 
 type Props = {
   title: string;
@@ -19,6 +20,7 @@ type Props = {
   salaryMin?: number | null;
   salaryMax?: number | null;
   currency?: string;
+  tier?: string | null;
   onPress: () => void;
 };
 
@@ -32,6 +34,7 @@ export function JobCard({
   salaryMin,
   salaryMax,
   currency,
+  tier,
   onPress,
 }: Props) {
   const colors = useColors();
@@ -79,6 +82,11 @@ export function JobCard({
       >
         {title}
       </Text>
+      {tier && tier !== "free" ? (
+        <View style={{ flexDirection: "row" }}>
+          <TierBadge tier={tier} />
+        </View>
+      ) : null}
       <Text
         style={[styles.employer, { color: colors.mutedForeground }]}
         numberOfLines={1}

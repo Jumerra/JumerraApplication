@@ -113,7 +113,7 @@ const ADMIN_NAV: AdminNavGroup[] = [
       { href: "/dashboard/admin/boost-settings", label: "Profile Boost", icon: Rocket },
       { href: "/dashboard/admin/cv-settings", label: "AI CV Builder", icon: FileText },
       { href: "/dashboard/admin/institution-subscription-settings", label: "Institution Subscription", icon: Crown },
-      { href: "/dashboard/admin/employer-subscription-settings", label: "Employer Subscription", icon: Briefcase },
+      { href: "/dashboard/admin/job-tier-settings", label: "Job Tiers (Promote/Sponsor)", icon: Briefcase },
       { href: "/dashboard/admin/staff", label: "Admin team", icon: UsersRound, permission: "staff:view" },
       { href: "/dashboard/admin/roles", label: "Roles & permissions", icon: ShieldCheck, superAdminOnly: true },
     ],

@@ -1947,6 +1947,88 @@ paths:
         "400": { description: Invalid input }
         "404": { description: Session not found }
 
+  /job-tier-settings:
+    get:
+      operationId: getJobTierSettings
+      tags: [job-tier]
+      summary: Read the global per-job tier pricing configuration
+      responses:
+        "200":
+          description: Tier settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobTierSettings"
+
+  /admin/job-tier-settings:
+    put:
+      operationId: updateJobTierSettings
+      tags: [job-tier, admin]
+      summary: Update per-job tier pricing configuration (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateJobTierSettingsRequest"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobTierSettings"
+        "400": { description: Invalid input }
+        "403": { description: Admin only }
+
+  /jobs/{id}/promote/checkout:
+    post:
+      operationId: createJobTierCheckout
+      tags: [job-tier, jobs]
+      summary: Create a Stripe Checkout Session to upgrade a job to a paid tier
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateJobTierCheckoutRequest"
+      responses:
+        "200":
+          description: Checkout session created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateJobTierCheckoutResponse"
+        "400": { description: Tier disabled or invalid input }
+        "403": { description: Not allowed }
+        "404": { description: Job not found }
+
+  /job-tier/checkout/verify:
+    post:
+      operationId: verifyJobTierCheckout
+      tags: [job-tier]
+      summary: Verify a Stripe Checkout Session and activate the job tier on success
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyJobTierCheckoutRequest"
+      responses:
+        "200":
+          description: Verification result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerifyJobTierCheckoutResponse"
+        "400": { description: Invalid input }
+        "404": { description: Session not found }
+
   /cv/settings:
     get:
       operationId: getCvSettings
@@ -3193,6 +3275,15 @@ components:
           type: array
           items: { type: string }
         featured: { type: boolean }
+        tier:
+          type: string
+          enum: [free, promoted, sponsored]
+          description: Effective per-job pricing tier. 'free' is default; 'promoted' ranks higher; 'sponsored' ranks highest and triggers candidate push.
+        tierExpiresAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the current paid tier expires. Null for free jobs.
         applicationsCount: { type: integer }
         postedAt: { type: string, format: date-time }
       required:
@@ -3208,6 +3299,8 @@ components:
         - summary
         - skills
         - featured
+        - tier
+        - tierExpiresAt
         - applicationsCount
         - postedAt
 
@@ -3256,6 +3349,18 @@ components:
           type: array
           items: { type: string }
         featured: { type: boolean }
+        tier:
+          type: string
+          enum: [free, promoted, sponsored]
+          description: Optional initial tier. Defaults to 'free'. Paid tiers require a follow-up Stripe checkout (POST /jobs/{id}/promote/checkout) to actually activate.
+        targetSkills:
+          type: array
+          items: { type: string }
+          description: Optional skill targeting filter for Sponsored push.
+        targetLocation:
+          type: string
+          nullable: true
+          description: Optional location targeting filter for Sponsored push.
       required:
         - title
         - employerId
@@ -3928,6 +4033,91 @@ components:
         - freeJobsRemaining
         - canPostJob
         - featureEnabled
+
+    JobTierSettings:
+      type: object
+      properties:
+        promotedActive: { type: boolean }
+        promotedPriceCents: { type: integer, minimum: 50, maximum: 10000000 }
+        promotedCurrency: { type: string }
+        promotedDurationDays: { type: integer, minimum: 1, maximum: 365 }
+        sponsoredActive: { type: boolean }
+        sponsoredPriceCents: { type: integer, minimum: 50, maximum: 10000000 }
+        sponsoredCurrency: { type: string }
+        sponsoredDurationDays: { type: integer, minimum: 1, maximum: 365 }
+        sponsoredPushCap: { type: integer, minimum: 0, maximum: 100000 }
+      required:
+        - promotedActive
+        - promotedPriceCents
+        - promotedCurrency
+        - promotedDurationDays
+        - sponsoredActive
+        - sponsoredPriceCents
+        - sponsoredCurrency
+        - sponsoredDurationDays
+        - sponsoredPushCap
+
+    UpdateJobTierSettingsRequest:
+      type: object
+      properties:
+        promotedActive: { type: boolean }
+        promotedPriceCents: { type: integer, minimum: 50, maximum: 10000000 }
+        promotedCurrency: { type: string }
+        promotedDurationDays: { type: integer, minimum: 1, maximum: 365 }
+        sponsoredActive: { type: boolean }
+        sponsoredPriceCents: { type: integer, minimum: 50, maximum: 10000000 }
+        sponsoredCurrency: { type: string }
+        sponsoredDurationDays: { type: integer, minimum: 1, maximum: 365 }
+        sponsoredPushCap: { type: integer, minimum: 0, maximum: 100000 }
+      required:
+        - promotedActive
+        - promotedPriceCents
+        - promotedCurrency
+        - promotedDurationDays
+        - sponsoredActive
+        - sponsoredPriceCents
+        - sponsoredCurrency
+        - sponsoredDurationDays
+        - sponsoredPushCap
+
+    CreateJobTierCheckoutRequest:
+      type: object
+      properties:
+        tier:
+          type: string
+          enum: [promoted, sponsored]
+        successUrl: { type: string }
+        cancelUrl: { type: string }
+      required: [tier, successUrl, cancelUrl]
+
+    CreateJobTierCheckoutResponse:
+      type: object
+      properties:
+        sessionId: { type: string }
+        checkoutUrl: { type: string }
+      required: [sessionId, checkoutUrl]
+
+    VerifyJobTierCheckoutRequest:
+      type: object
+      properties:
+        sessionId: { type: string }
+      required: [sessionId]
+
+    VerifyJobTierCheckoutResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pending, paid, failed, expired]
+        jobId: { type: integer }
+        tier:
+          type: string
+          enum: [free, promoted, sponsored]
+        tierExpiresAt:
+          type: string
+          format: date-time
+          nullable: true
+      required: [status, jobId, tier, tierExpiresAt]
 
     CvSettings:
       type: object

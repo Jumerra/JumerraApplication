@@ -35,6 +35,17 @@ export const employersTable = pgTable(
       () => usersTable.id,
       { onDelete: "set null" },
     ),
+    /**
+     * When set, this employer was migrated off the old recurring
+     * subscription model and should see the "new pricing" banner in
+     * the dashboard until they dismiss it (we never persist dismissal
+     * — the banner just goes away if the column is cleared, e.g. for
+     * accounts that signed up after the migration).
+     */
+    legacySubscriptionMigratedAt: timestamp(
+      "legacy_subscription_migrated_at",
+      { withTimezone: true },
+    ),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

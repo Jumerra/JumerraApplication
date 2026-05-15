@@ -77,6 +77,7 @@ export default function SearchScreen() {
         salaryMin={item.salaryMin}
         salaryMax={item.salaryMax}
         currency={item.currency}
+        tier={item.tier}
         onPress={() => goToJob(item.id)}
       />
     ),

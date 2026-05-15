@@ -719,6 +719,17 @@ export const JobType = {
   remote: "remote",
 } as const;
 
+/**
+ * Effective per-job pricing tier. 'free' is default; 'promoted' ranks higher; 'sponsored' ranks highest and triggers candidate push.
+ */
+export type JobTier = (typeof JobTier)[keyof typeof JobTier];
+
+export const JobTier = {
+  free: "free",
+  promoted: "promoted",
+  sponsored: "sponsored",
+} as const;
+
 export interface Job {
   id: number;
   title: string;
@@ -734,6 +745,10 @@ export interface Job {
   summary: string;
   skills: string[];
   featured: boolean;
+  /** Effective per-job pricing tier. 'free' is default; 'promoted' ranks higher; 'sponsored' ranks highest and triggers candidate push. */
+  tier: JobTier;
+  /** When the current paid tier expires. Null for free jobs. */
+  tierExpiresAt: string | null;
   applicationsCount: number;
   postedAt: string;
 }
@@ -1033,6 +1048,17 @@ export const CreateJobType = {
   remote: "remote",
 } as const;
 
+/**
+ * Optional initial tier. Defaults to 'free'. Paid tiers require a follow-up Stripe checkout (POST /jobs/{id}/promote/checkout) to actually activate.
+ */
+export type CreateJobTier = (typeof CreateJobTier)[keyof typeof CreateJobTier];
+
+export const CreateJobTier = {
+  free: "free",
+  promoted: "promoted",
+  sponsored: "sponsored",
+} as const;
+
 export interface CreateJob {
   title: string;
   employerId: number;
@@ -1049,6 +1075,12 @@ export interface CreateJob {
   benefits: string[];
   skills: string[];
   featured?: boolean;
+  /** Optional initial tier. Defaults to 'free'. Paid tiers require a follow-up Stripe checkout (POST /jobs/{id}/promote/checkout) to actually activate. */
+  tier?: CreateJobTier;
+  /** Optional skill targeting filter for Sponsored push. */
+  targetSkills?: string[];
+  /** Optional location targeting filter for Sponsored push. */
+  targetLocation?: string | null;
 }
 
 export interface CreateApplication {
@@ -1582,6 +1614,119 @@ the employer has no active subscription.
   canPostJob: boolean;
   /** Mirror of EmployerSubscriptionSettings.isActive for convenience. */
   featureEnabled: boolean;
+}
+
+export interface JobTierSettings {
+  promotedActive: boolean;
+  /**
+   * @minimum 50
+   * @maximum 10000000
+   */
+  promotedPriceCents: number;
+  promotedCurrency: string;
+  /**
+   * @minimum 1
+   * @maximum 365
+   */
+  promotedDurationDays: number;
+  sponsoredActive: boolean;
+  /**
+   * @minimum 50
+   * @maximum 10000000
+   */
+  sponsoredPriceCents: number;
+  sponsoredCurrency: string;
+  /**
+   * @minimum 1
+   * @maximum 365
+   */
+  sponsoredDurationDays: number;
+  /**
+   * @minimum 0
+   * @maximum 100000
+   */
+  sponsoredPushCap: number;
+}
+
+export interface UpdateJobTierSettingsRequest {
+  promotedActive: boolean;
+  /**
+   * @minimum 50
+   * @maximum 10000000
+   */
+  promotedPriceCents: number;
+  promotedCurrency: string;
+  /**
+   * @minimum 1
+   * @maximum 365
+   */
+  promotedDurationDays: number;
+  sponsoredActive: boolean;
+  /**
+   * @minimum 50
+   * @maximum 10000000
+   */
+  sponsoredPriceCents: number;
+  sponsoredCurrency: string;
+  /**
+   * @minimum 1
+   * @maximum 365
+   */
+  sponsoredDurationDays: number;
+  /**
+   * @minimum 0
+   * @maximum 100000
+   */
+  sponsoredPushCap: number;
+}
+
+export type CreateJobTierCheckoutRequestTier =
+  (typeof CreateJobTierCheckoutRequestTier)[keyof typeof CreateJobTierCheckoutRequestTier];
+
+export const CreateJobTierCheckoutRequestTier = {
+  promoted: "promoted",
+  sponsored: "sponsored",
+} as const;
+
+export interface CreateJobTierCheckoutRequest {
+  tier: CreateJobTierCheckoutRequestTier;
+  successUrl: string;
+  cancelUrl: string;
+}
+
+export interface CreateJobTierCheckoutResponse {
+  sessionId: string;
+  checkoutUrl: string;
+}
+
+export interface VerifyJobTierCheckoutRequest {
+  sessionId: string;
+}
+
+export type VerifyJobTierCheckoutResponseStatus =
+  (typeof VerifyJobTierCheckoutResponseStatus)[keyof typeof VerifyJobTierCheckoutResponseStatus];
+
+export const VerifyJobTierCheckoutResponseStatus = {
+  pending: "pending",
+  paid: "paid",
+  failed: "failed",
+  expired: "expired",
+} as const;
+
+export type VerifyJobTierCheckoutResponseTier =
+  (typeof VerifyJobTierCheckoutResponseTier)[keyof typeof VerifyJobTierCheckoutResponseTier];
+
+export const VerifyJobTierCheckoutResponseTier = {
+  free: "free",
+  promoted: "promoted",
+  sponsored: "sponsored",
+} as const;
+
+export interface VerifyJobTierCheckoutResponse {
+  status: VerifyJobTierCheckoutResponseStatus;
+  jobId: number;
+  tier: VerifyJobTierCheckoutResponseTier;
+  tierExpiresAt: string | null;
 }
 
 export interface CvSettings {

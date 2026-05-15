@@ -3021,6 +3021,47 @@ export const VerifyBoostCheckoutResponse = zod.object({
 });
 
 /**
+ * Owner-only. Returns up to 100 most-recent profile views, grouped
+so each viewing employer appears at most once with its latest
+viewedAt. Requires the candidate to currently be Boosted —
+non-boosted candidates receive `403 { boostRequired: true }`.
+
+ * @summary List recent recruiters who viewed this candidate's profile
+ */
+export const ListCandidateProfileViewsParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const listCandidateProfileViewsResponseTotalViewsMin = 0;
+
+export const listCandidateProfileViewsResponseUniqueEmployersMin = 0;
+
+export const ListCandidateProfileViewsResponse = zod.object({
+  items: zod.array(
+    zod.object({
+      employer: zod.object({
+        id: zod.number(),
+        name: zod.string(),
+        tagline: zod.string(),
+        industry: zod.string(),
+        location: zod.string(),
+        logoUrl: zod.string(),
+        websiteUrl: zod.string(),
+        verified: zod.boolean(),
+      }),
+      viewerName: zod.string().nullable(),
+      viewerTitle: zod.string().nullable(),
+      lastViewedAt: zod.coerce.date(),
+      viewCount: zod.number().min(1),
+    }),
+  ),
+  totalViews: zod.number().min(listCandidateProfileViewsResponseTotalViewsMin),
+  uniqueEmployers: zod
+    .number()
+    .min(listCandidateProfileViewsResponseUniqueEmployersMin),
+});
+
+/**
  * @summary Read the global institution subscription configuration
  */
 export const getInstitutionSubscriptionSettingsResponsePriceCentsMin = 50;

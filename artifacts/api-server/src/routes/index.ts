@@ -21,6 +21,7 @@ import institutionSubscriptionRouter from "./institution-subscription";
 import employerSubscriptionRouter from "./employer-subscription";
 import jobTierRouter from "./job-tier";
 import interviewsRouter from "./interviews";
+import profileViewsRouter from "./profile-views";
 import { requireAuth } from "../middleware/require-auth";
 
 const router: IRouter = Router();
@@ -64,6 +65,7 @@ router.use(institutionSubscriptionRouter);
 router.use(employerSubscriptionRouter);
 router.use(jobTierRouter);
 router.use(interviewsRouter);
+router.use(profileViewsRouter);
 router.use(candidatesRouter);
 router.use(employersRouter);
 router.use(institutionsRouter);

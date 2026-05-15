@@ -21,6 +21,7 @@ import {
 } from "@workspace/api-zod";
 import { calculateMatchScore } from "../lib/matching";
 import { sweepExpiredJobTiers } from "./job-tier";
+import { recordProfileView } from "./profile-views";
 import {
   getCandidateIdsForInstitution,
   getInstitutionIdForDepartment,
@@ -232,6 +233,26 @@ router.get("/candidates/:id", async (req, res): Promise<void> => {
   if (!candidate) {
     res.status(404).json({ error: "Candidate not found" });
     return;
+  }
+
+  // Record profile view when an employer user opens a candidate page.
+  // Skip when the viewer is the candidate themselves (no spam in their
+  // own feed) or an admin (platform-internal review, not recruiter
+  // interest). Best-effort: errors are swallowed inside the helper.
+  const viewer = req.currentUser;
+  if (
+    viewer &&
+    viewer.role === "employer" &&
+    viewer.employerId != null &&
+    viewer.candidateId !== candidate.id
+  ) {
+    void recordProfileView({
+      candidateId: candidate.id,
+      viewerUserId: viewer.id,
+      employerId: viewer.employerId,
+      candidateIsBoosted: candidate.isBoosted,
+      candidateBoostExpiresAt: candidate.boostExpiresAt,
+    });
   }
 
   const [education, experience, certifications, badges, linkMap] =

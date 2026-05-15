@@ -1743,6 +1743,30 @@ paths:
         "400": { description: Invalid input }
         "404": { description: Session not found }
 
+  /candidates/{id}/profile-views:
+    get:
+      operationId: listCandidateProfileViews
+      tags: [candidates, boost]
+      summary: List recent recruiters who viewed this candidate's profile
+      description: |
+        Owner-only. Returns up to 100 most-recent profile views, grouped
+        so each viewing employer appears at most once with its latest
+        viewedAt. Requires the candidate to currently be Boosted —
+        non-boosted candidates receive `403 { boostRequired: true }`.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Profile views with company details
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProfileViewsResponse" }
+        "403": { description: "Forbidden: not the owner, or boost required" }
+        "404": { description: Candidate not found }
+
   /institution-subscription/settings:
     get:
       operationId: getInstitutionSubscriptionSettings
@@ -3205,6 +3229,39 @@ components:
         location: { type: string, maxLength: 200, nullable: true }
         description: { type: string, maxLength: 2000, nullable: true }
         capacity: { type: integer, minimum: 0, nullable: true }
+
+    ProfileViewEmployer:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        tagline: { type: string }
+        industry: { type: string }
+        location: { type: string }
+        logoUrl: { type: string }
+        websiteUrl: { type: string }
+        verified: { type: boolean }
+      required: [id, name, tagline, industry, location, logoUrl, websiteUrl, verified]
+
+    ProfileViewItem:
+      type: object
+      properties:
+        employer: { $ref: "#/components/schemas/ProfileViewEmployer" }
+        viewerName: { type: string, nullable: true }
+        viewerTitle: { type: string, nullable: true }
+        lastViewedAt: { type: string, format: date-time }
+        viewCount: { type: integer, minimum: 1 }
+      required: [employer, viewerName, viewerTitle, lastViewedAt, viewCount]
+
+    ProfileViewsResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/ProfileViewItem" }
+        totalViews: { type: integer, minimum: 0 }
+        uniqueEmployers: { type: integer, minimum: 0 }
+      required: [items, totalViews, uniqueEmployers]
 
     UpdateInstitutionRequest:
       type: object

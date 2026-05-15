@@ -63,6 +63,7 @@ import SetupPasswordPage from "@/pages/auth/setup-password";
 import ForgotPasswordPage from "@/pages/auth/forgot-password";
 import ChangePasswordPage from "@/pages/account/change-password";
 import ProfilePage from "@/pages/account/profile";
+import ProfileViewsPage from "@/pages/account/profile-views";
 
 const queryClient = new QueryClient();
 
@@ -197,6 +198,7 @@ function Router() {
         <Route path="/forgot-password" component={ForgotPasswordPage} />
         <Route path="/account/profile" component={ProfilePage} />
         <Route path="/account/password" component={ChangePasswordPage} />
+        <Route path="/account/profile-views" component={ProfileViewsPage} />
         
         <Route component={NotFound} />
       </Switch>

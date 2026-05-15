@@ -1,15 +1,108 @@
-import { useGetCandidateDashboard } from "@workspace/api-client-react";
+import {
+  useGetCandidateDashboard,
+  useListCandidateProfileViews,
+  useGetCandidate,
+  getGetCandidateQueryKey,
+  getListCandidateProfileViewsQueryKey,
+} from "@workspace/api-client-react";
 import { useAuth } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Briefcase, CheckCircle2, Clock, MailOpen, TrendingUp, Sparkles, Star } from "lucide-react";
+import { Briefcase, CheckCircle2, Clock, MailOpen, TrendingUp, Sparkles, Star, Eye, Lock, Building2 } from "lucide-react";
 import { Link } from "wouter";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { BoostCard } from "@/components/boost-card";
 import { CvCard } from "@/components/cv-card";
 import { PendingInterviewInvitesCard } from "@/components/pending-interview-invites-card";
+
+function ProfileViewsCard({ candidateId }: { candidateId: number }) {
+  const { data: candidate } = useGetCandidate(candidateId, {
+    query: {
+      enabled: candidateId > 0,
+      queryKey: getGetCandidateQueryKey(candidateId),
+    },
+  });
+  const isBoosted = !!candidate?.isBoosted;
+  const { data } = useListCandidateProfileViews(candidateId, {
+    query: {
+      enabled: candidateId > 0 && isBoosted,
+      queryKey: getListCandidateProfileViewsQueryKey(candidateId),
+    },
+  });
+
+  if (!isBoosted) {
+    return (
+      <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Lock className="w-4 h-4 text-primary" />
+            <CardTitle className="text-base">Who Viewed Your Profile</CardTitle>
+          </div>
+          <CardDescription>
+            Boost your profile to unlock the list of recruiters who opened
+            your profile, with full company details and real-time alerts.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="shadow-sm">
+      <CardHeader className="flex flex-row items-center justify-between gap-2">
+        <div>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Eye className="w-4 h-4" /> Who Viewed Your Profile
+          </CardTitle>
+          <CardDescription>
+            {data
+              ? `${data.totalViews} views from ${data.uniqueEmployers} compan${data.uniqueEmployers === 1 ? "y" : "ies"}`
+              : "Loading…"}
+          </CardDescription>
+        </div>
+        <Link
+          to="/account/profile-views"
+          className="text-sm text-primary hover:underline whitespace-nowrap"
+        >
+          View all
+        </Link>
+      </CardHeader>
+      <CardContent>
+        {data && data.items.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-6">
+            No profile views yet.
+          </p>
+        ) : (
+          <div className="flex flex-wrap gap-3">
+            {data?.items.slice(0, 6).map((item, i) => (
+              <Link
+                key={`${item.employer.id}-${i}`}
+                to={`/employers/${item.employer.id}`}
+                className="flex items-center gap-2 border rounded-full px-3 py-1.5 hover:bg-accent text-sm"
+              >
+                {item.employer.logoUrl ? (
+                  <img
+                    src={item.employer.logoUrl}
+                    alt=""
+                    className="w-6 h-6 rounded-full object-cover"
+                  />
+                ) : (
+                  <Building2 className="w-4 h-4" />
+                )}
+                <span className="font-medium">{item.employer.name}</span>
+                <span className="text-muted-foreground text-xs">
+                  · {item.viewCount}
+                </span>
+              </Link>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function CandidateDashboard() {
   const { userId } = useAuth();
@@ -104,6 +197,9 @@ export default function CandidateDashboard() {
         <BoostCard candidateId={id} />
         <CvCard candidateId={id} />
       </div>
+
+      <ProfileViewsCard candidateId={id} />
+
 
       <div className="grid lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">

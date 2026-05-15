@@ -961,6 +961,34 @@ export interface UpdateInstitutionFacility {
   capacity?: number | null;
 }
 
+export interface ProfileViewEmployer {
+  id: number;
+  name: string;
+  tagline: string;
+  industry: string;
+  location: string;
+  logoUrl: string;
+  websiteUrl: string;
+  verified: boolean;
+}
+
+export interface ProfileViewItem {
+  employer: ProfileViewEmployer;
+  viewerName: string | null;
+  viewerTitle: string | null;
+  lastViewedAt: string;
+  /** @minimum 1 */
+  viewCount: number;
+}
+
+export interface ProfileViewsResponse {
+  items: ProfileViewItem[];
+  /** @minimum 0 */
+  totalViews: number;
+  /** @minimum 0 */
+  uniqueEmployers: number;
+}
+
 /**
  * All fields optional. Owner or registrar only.
  */

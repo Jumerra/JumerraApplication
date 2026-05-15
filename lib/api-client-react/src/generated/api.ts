@@ -103,6 +103,7 @@ import type {
   PartnerSettings,
   PlatformStats,
   ProfileUpdateRequest,
+  ProfileViewsResponse,
   RegisterRequest,
   RegisterResponse,
   RegisterUser409,
@@ -7842,6 +7843,103 @@ export const useVerifyBoostCheckout = <
 > => {
   return useMutation(getVerifyBoostCheckoutMutationOptions(options));
 };
+
+/**
+ * Owner-only. Returns up to 100 most-recent profile views, grouped
+so each viewing employer appears at most once with its latest
+viewedAt. Requires the candidate to currently be Boosted —
+non-boosted candidates receive `403 { boostRequired: true }`.
+
+ * @summary List recent recruiters who viewed this candidate's profile
+ */
+export const getListCandidateProfileViewsUrl = (id: number) => {
+  return `/api/candidates/${id}/profile-views`;
+};
+
+export const listCandidateProfileViews = async (
+  id: number,
+  options?: RequestInit,
+): Promise<ProfileViewsResponse> => {
+  return customFetch<ProfileViewsResponse>(
+    getListCandidateProfileViewsUrl(id),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListCandidateProfileViewsQueryKey = (id: number) => {
+  return [`/api/candidates/${id}/profile-views`] as const;
+};
+
+export const getListCandidateProfileViewsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listCandidateProfileViews>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listCandidateProfileViews>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListCandidateProfileViewsQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listCandidateProfileViews>>
+  > = ({ signal }) =>
+    listCandidateProfileViews(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listCandidateProfileViews>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListCandidateProfileViewsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listCandidateProfileViews>>
+>;
+export type ListCandidateProfileViewsQueryError = ErrorType<void>;
+
+/**
+ * @summary List recent recruiters who viewed this candidate's profile
+ */
+
+export function useListCandidateProfileViews<
+  TData = Awaited<ReturnType<typeof listCandidateProfileViews>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listCandidateProfileViews>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListCandidateProfileViewsQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Read the global institution subscription configuration

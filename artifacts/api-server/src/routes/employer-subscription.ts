@@ -6,7 +6,6 @@ import {
   employerSubscriptionsTable,
   employersTable,
   jobsTable,
-  usersTable,
 } from "@workspace/db";
 import {
   requireAuth,
@@ -431,176 +430,28 @@ router.get(
 // ---------------------------------------------------------------------------
 // POST /api/employers/:id/subscription/checkout
 // ---------------------------------------------------------------------------
+/**
+ * DEPRECATED — kept only to preserve old client compatibility. The
+ * platform no longer sells recurring employer subscriptions; pricing
+ * has moved to per-job one-shot tiers (Free / Promoted / Sponsored).
+ *
+ * We deliberately do NOT call Stripe here, do not create any new
+ * subscription rows, and do not return a checkoutUrl. Old clients
+ * receive HTTP 410 with a stable deprecated payload so they can
+ * surface the migration message instead of looping on a broken flow.
+ */
 router.post(
   "/employers/:id/subscription/checkout",
   requireAuth,
-  async (req, res) => {
-    try {
-      const employerId = Number(req.params.id);
-      if (!Number.isInteger(employerId) || employerId <= 0) {
-        res.status(400).json({ error: "Invalid employer id" });
-        return;
-      }
-      const user = req.currentUser!;
-      const isAdmin = user.role === "admin";
-      const isOwner =
-        user.role === "employer" &&
-        user.employerId === employerId &&
-        user.orgRole === "owner";
-      if (!isAdmin && !isOwner) {
-        res.status(403).json({
-          error: "Only employer owners or platform admins can subscribe",
-        });
-        return;
-      }
-
-      const body = (req.body ?? {}) as {
-        successUrl?: unknown;
-        cancelUrl?: unknown;
-      };
-      const successUrl = body.successUrl;
-      const cancelUrl = body.cancelUrl;
-      if (typeof successUrl !== "string" || !/^https?:\/\//.test(successUrl)) {
-        res.status(400).json({ error: "successUrl must be an absolute URL" });
-        return;
-      }
-      if (typeof cancelUrl !== "string" || !/^https?:\/\//.test(cancelUrl)) {
-        res.status(400).json({ error: "cancelUrl must be an absolute URL" });
-        return;
-      }
-
-      const settings = await loadOrSeedSettings();
-      if (!settings.isActive) {
-        res.status(400).json({
-          error: "Employer subscriptions are currently disabled",
-        });
-        return;
-      }
-
-      const emp = await db
-        .select({ id: employersTable.id, name: employersTable.name })
-        .from(employersTable)
-        .where(eq(employersTable.id, employerId))
-        .limit(1);
-      const employer = emp[0];
-      if (!employer) {
-        res.status(404).json({ error: "Employer not found" });
-        return;
-      }
-
-      const existing = await loadCurrentSubscription(employerId);
-      const existingBase = rowToBaseStatus(existing);
-      if (existingBase.hasActiveSubscription) {
-        res.status(400).json({
-          error: "Employer already has an active subscription",
-        });
-        return;
-      }
-
-      const stripe = await getUncachableStripeClient();
-      const reusable = await findReusablePendingCheckout(employerId);
-      if (reusable) {
-        try {
-          const existingSession = await stripe.checkout.sessions.retrieve(
-            reusable.stripeCheckoutSessionId,
-          );
-          if (
-            existingSession.status === "open" &&
-            existingSession.url
-          ) {
-            res.json({
-              sessionId: existingSession.id,
-              checkoutUrl: existingSession.url,
-            });
-            return;
-          }
-        } catch (retrieveErr) {
-          req.log.warn(
-            { err: retrieveErr, sessionId: reusable.stripeCheckoutSessionId },
-            "could not retrieve pending session for reuse, creating new one",
-          );
-        }
-      }
-
-      // Map intervalDays -> Stripe recurring interval. We support
-      // weekly / monthly / yearly; everything else falls back to a
-      // day-based count.
-      const recurring = (() => {
-        if (settings.intervalDays === 7) {
-          return { interval: "week" as const };
-        }
-        if (settings.intervalDays === 30) {
-          return { interval: "month" as const };
-        }
-        if (settings.intervalDays === 365) {
-          return { interval: "year" as const };
-        }
-        return {
-          interval: "day" as const,
-          interval_count: settings.intervalDays,
-        };
-      })();
-
-      const checkout = await stripe.checkout.sessions.create({
-        mode: "subscription",
-        line_items: [
-          {
-            quantity: 1,
-            price_data: {
-              currency: settings.currency,
-              unit_amount: settings.priceCents,
-              recurring,
-              product_data: {
-                name: `${employer.name} — Job Posting Premium`,
-                description: `Unlimited job posts for ${employer.name}.${
-                  settings.trialDays > 0
-                    ? ` Includes ${settings.trialDays}-day free trial.`
-                    : ""
-                }`,
-              },
-            },
-          },
-        ],
-        subscription_data:
-          settings.trialDays > 0
-            ? { trial_period_days: settings.trialDays }
-            : undefined,
-        // Same trial/no-card behavior as institution-subscription.
-        payment_method_collection:
-          settings.trialDays > 0 ? "if_required" : "always",
-        success_url: successUrl,
-        cancel_url: cancelUrl,
-        metadata: {
-          employerId: String(employerId),
-          purpose: "employer_subscription",
-        },
-      });
-
-      if (!checkout.url) {
-        res
-          .status(500)
-          .json({ error: "Stripe did not return a checkout URL" });
-        return;
-      }
-
-      await db.insert(employerSubscriptionsTable).values({
-        employerId,
-        stripeCheckoutSessionId: checkout.id,
-        status: "pending",
-        priceCentsSnapshot: settings.priceCents,
-        currencySnapshot: settings.currency,
-        intervalDaysSnapshot: settings.intervalDays,
-        trialDaysSnapshot: settings.trialDays,
-      });
-
-      res.json({ sessionId: checkout.id, checkoutUrl: checkout.url });
-    } catch (err) {
-      req.log.error(
-        { err },
-        "employer subscription checkout creation failed",
-      );
-      res.status(500).json({ error: "Failed to create checkout session" });
-    }
+  async (_req, res): Promise<void> => {
+    res.status(410).json({
+      error:
+        "Recurring employer subscriptions have been retired. All job posts are now free; upgrade individual jobs to Promoted or Sponsored from the job page.",
+      deprecated: true,
+      replacement: "POST /jobs/:id/promote/checkout",
+      sessionId: null,
+      checkoutUrl: null,
+    });
   },
 );
 
@@ -820,11 +671,19 @@ router.post(
   async (req, res): Promise<void> => {
     const summary = { scanned: 0, cancelled: 0, skipped: 0, failed: 0 };
     try {
+      // Order deterministically newest-first so the per-employer
+      // dedupe below always operates on the most recent active row,
+      // not an arbitrary one. We then skip older rows for the same
+      // employer instead of acting twice.
       const subs = await db
         .select()
         .from(employerSubscriptionsTable)
         .where(
           sql`${employerSubscriptionsTable.status} IN ('active','trialing')`,
+        )
+        .orderBy(
+          desc(employerSubscriptionsTable.createdAt),
+          desc(employerSubscriptionsTable.id),
         );
       summary.scanned = subs.length;
 
@@ -872,11 +731,13 @@ router.post(
             sub.stripeSubscriptionId,
             { cancel_at_period_end: true },
           );
-          const updatedPeriodEnd =
-            (updated as unknown as { current_period_end?: number | null })
-              .current_period_end ??
-            updated.items?.data?.[0]?.current_period_end ??
-            null;
+          // Stripe.Subscription.current_period_end is missing from
+          // the typed surface in newer SDK versions but is still
+          // returned on the wire; fall back to the line item if not
+          // present.
+          const subItemPeriodEnd =
+            updated.items?.data?.[0]?.current_period_end ?? null;
+          const updatedPeriodEnd: number | null = subItemPeriodEnd;
           const now = new Date();
           await db.transaction(async (tx) => {
             await tx
@@ -902,10 +763,6 @@ router.post(
           summary.failed += 1;
         }
       }
-
-      // Reference usersTable to keep the import live for future
-      // notification fan-out (no-op query removed for safety).
-      void usersTable;
 
       res.json(summary);
     } catch (err) {

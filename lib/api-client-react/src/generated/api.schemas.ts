@@ -1220,6 +1220,11 @@ export const InstitutionKind = {
   other: "other",
 } as const;
 
+export type InstitutionFeaturedProgramsItem = {
+  title: string;
+  description: string;
+};
+
 export interface Institution {
   id: number;
   name: string;
@@ -1236,6 +1241,12 @@ export interface Institution {
   accountManagerName?: string | null;
   /** When false, the public cohort placement leaderboard page returns 404 to anonymous visitors. Default true. */
   publicLeaderboardEnabled: boolean;
+  /** Pro-only branded hero banner image for the public profile. */
+  bannerUrl?: string | null;
+  /** Pro-only highlighted academic programs (e.g. flagship majors)
+shown on the public profile. Each entry is `{title, description}`.
+ */
+  featuredPrograms?: InstitutionFeaturedProgramsItem[] | null;
 }
 
 export interface InstitutionFaculty {
@@ -1414,8 +1425,24 @@ export interface ProfileViewsResponse {
   uniqueEmployers: number;
 }
 
+export type UpdateInstitutionRequestFeaturedProgramsItem = {
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  title: string;
+  /**
+   * @minLength 1
+   * @maxLength 1000
+   */
+  description: string;
+};
+
 /**
- * All fields optional. Owner or registrar only.
+ * All fields optional. Owner or registrar only. `bannerUrl` and
+`featuredPrograms` are Pro-only on the server — Starter requests
+that try to set them get a 402 with `requiresUpgrade: true`.
+
  */
 export interface UpdateInstitutionRequest {
   /**
@@ -1436,6 +1463,31 @@ export interface UpdateInstitutionRequest {
   /** @maxLength 5000 */
   description?: string;
   publicLeaderboardEnabled?: boolean;
+  /** @maxLength 1000 */
+  bannerUrl?: string | null;
+  /** @maxItems 12 */
+  featuredPrograms?: UpdateInstitutionRequestFeaturedProgramsItem[] | null;
+}
+
+export type BulkVerifyResponseSummary = {
+  total: number;
+  matched: number;
+  alreadyVerified: number;
+  unmatched: number;
+};
+
+/**
+ * Result buckets for bulk-verify. `matched` = newly verified
+(insert or update from unverified). `alreadyVerified` = no-op
+(was already verified). `unmatched` = no candidate account
+exists with that email.
+
+ */
+export interface BulkVerifyResponse {
+  matched: string[];
+  alreadyVerified: string[];
+  unmatched: string[];
+  summary: BulkVerifyResponseSummary;
 }
 
 export type InstitutionStudentStatus =
@@ -1953,6 +2005,36 @@ export type InstitutionDashboardStatusBreakdownItem = {
   count: number;
 };
 
+export type InstitutionQuotaSnapshotLimits = {
+  verifiedStudents: number;
+  faculties: number;
+  departments: number;
+  staffSeats: number;
+};
+
+export type InstitutionQuotaSnapshotCounts = {
+  verifiedStudents: number;
+  faculties: number;
+  departments: number;
+  staffSeats: number;
+};
+
+/**
+ * Per-institution Starter-tier quota snapshot. `premium: true`
+means the institution has an active Institution Pro
+subscription and the caps in `limits` should be hidden from
+the UI (counts remain accurate so headline KPIs still work).
+For Starter institutions, the UI renders a progress bar per
+quota and surfaces an upgrade CTA as any value approaches
+its limit.
+
+ */
+export interface InstitutionQuotaSnapshot {
+  premium: boolean;
+  limits: InstitutionQuotaSnapshotLimits;
+  counts: InstitutionQuotaSnapshotCounts;
+}
+
 export interface InstitutionDashboard {
   institutionId: number;
   institutionName: string;
@@ -1971,6 +2053,7 @@ arrays (`recentHires`, `topEmployers`, `statusBreakdown`)
 are zeroed out and the UI should render a paywall card.
  */
   placementsLocked: boolean;
+  quotas: InstitutionQuotaSnapshot;
 }
 
 export type CandidateDashboardStatusBreakdownItem = {
@@ -3461,6 +3544,21 @@ and cannot widen the result by omitting or changing this param.
 
  */
   departmentId?: number;
+};
+
+export type BulkVerifyInstitutionStudentsBodyRowsItem = {
+  email: string;
+};
+
+export type BulkVerifyInstitutionStudentsBody = {
+  /** @maxItems 1000 */
+  rows: BulkVerifyInstitutionStudentsBodyRowsItem[];
+};
+
+export type BulkVerifyInstitutionStudents402 = {
+  error: string;
+  requiresUpgrade: boolean;
+  kind: string;
 };
 
 export type ListJobsParams = {

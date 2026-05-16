@@ -5,6 +5,7 @@
  * Talent Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { InstitutionFeaturedProgramsItem } from "./institutionFeaturedProgramsItem";
 import type { InstitutionKind } from "./institutionKind";
 
 export interface Institution {
@@ -23,4 +24,10 @@ export interface Institution {
   accountManagerName?: string | null;
   /** When false, the public cohort placement leaderboard page returns 404 to anonymous visitors. Default true. */
   publicLeaderboardEnabled: boolean;
+  /** Pro-only branded hero banner image for the public profile. */
+  bannerUrl?: string | null;
+  /** Pro-only highlighted academic programs (e.g. flagship majors)
+shown on the public profile. Each entry is `{title, description}`.
+ */
+  featuredPrograms?: InstitutionFeaturedProgramsItem[] | null;
 }

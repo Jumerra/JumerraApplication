@@ -16,7 +16,9 @@ import {
   alumniIntroRequestsTable,
   usersTable,
 } from "@workspace/db";
-import { sendNotificationToCandidate } from "../lib/notifier";
+import { sendNotification, sendNotificationToCandidate } from "../lib/notifier";
+import { candidateInstitutionsTable } from "@workspace/db";
+import { isNotNull } from "drizzle-orm";
 import {
   ListApplicationsQueryParams,
   CreateApplicationBody,
@@ -805,6 +807,20 @@ router.patch(
     } catch (err) {
       req.log.warn({ err }, "Failed to enqueue status-change notification");
     }
+
+    // T6: when a candidate transitions to `hired`, fan-out an in-app
+    // notification to every owner/registrar of each institution that
+    // has verified this candidate. Best-effort; failures are logged
+    // and never block the status update. Email/Slack out of scope —
+    // TODO(resend): once the Resend integration lands, also send a
+    // weekly digest summarising hires per institution.
+    if (parsed.data.status === "hired") {
+      try {
+        await notifyInstitutionsOfHire(updated.id, prev.candidateId, req.log);
+      } catch (err) {
+        req.log.warn({ err }, "Failed to fan-out hire notification to institutions");
+      }
+    }
   }
 
   const serialized = await serializeApplication(
@@ -884,5 +900,95 @@ router.post(
     res.status(200).json({ ok: true });
   },
 );
+
+/**
+ * T6: For each verified institution that this candidate is affiliated
+ * with, push an in-app notification to every owner/registrar of that
+ * org. These are the only org roles with both placement-tracking
+ * responsibility and dashboard access, so they're the right audience
+ * for "your student got hired".
+ *
+ * Looks up the candidate's name and the hiring employer + job title
+ * once, then dispatches one notification per (institution, owner-or-
+ * registrar) pair via the standard `sendNotification` helper so
+ * existing push/preferences plumbing is preserved.
+ */
+async function notifyInstitutionsOfHire(
+  applicationId: number,
+  candidateId: number,
+  log: { warn: (...args: unknown[]) => void },
+): Promise<void> {
+  // 1) Verified institutions for this candidate.
+  const verifiedLinks = await db
+    .select({ institutionId: candidateInstitutionsTable.institutionId })
+    .from(candidateInstitutionsTable)
+    .where(
+      and(
+        eq(candidateInstitutionsTable.candidateId, candidateId),
+        isNotNull(candidateInstitutionsTable.verifiedAt),
+      ),
+    );
+  if (verifiedLinks.length === 0) return;
+  const institutionIds = Array.from(
+    new Set(verifiedLinks.map((l) => l.institutionId)),
+  );
+
+  // 2) Candidate name + hiring context for the notification copy.
+  const [ctx] = await db
+    .select({
+      candidateName: candidatesTable.fullName,
+      jobTitle: jobsTable.title,
+      employerName: employersTable.name,
+    })
+    .from(applicationsTable)
+    .innerJoin(jobsTable, eq(jobsTable.id, applicationsTable.jobId))
+    .innerJoin(employersTable, eq(employersTable.id, jobsTable.employerId))
+    .innerJoin(candidatesTable, eq(candidatesTable.id, applicationsTable.candidateId))
+    .where(eq(applicationsTable.id, applicationId))
+    .limit(1);
+  if (!ctx) {
+    log.warn({ applicationId }, "notifyInstitutionsOfHire: missing context");
+    return;
+  }
+
+  // 3) Owners + registrars of each verified institution.
+  const recipients = await db
+    .select({
+      userId: usersTable.id,
+      institutionId: usersTable.institutionId,
+      institutionName: institutionsTable.name,
+    })
+    .from(usersTable)
+    .innerJoin(
+      institutionsTable,
+      eq(institutionsTable.id, usersTable.institutionId),
+    )
+    .where(
+      and(
+        eq(usersTable.role, "institution"),
+        inArray(usersTable.institutionId, institutionIds),
+        inArray(usersTable.orgRole, ["owner", "registrar"]),
+      ),
+    );
+  if (recipients.length === 0) return;
+
+  await Promise.all(
+    recipients.map((r) =>
+      sendNotification({
+        userId: r.userId,
+        kind: "institution_student_hired",
+        title: `${ctx.candidateName} was hired`,
+        body: `${ctx.candidateName} accepted a ${ctx.jobTitle} role at ${ctx.employerName}.`,
+        link: `/dashboard/institution/analytics`,
+        category: "applicationStatus",
+        data: {
+          applicationId,
+          candidateId,
+          institutionId: r.institutionId,
+        },
+      }),
+    ),
+  );
+}
 
 export default router;

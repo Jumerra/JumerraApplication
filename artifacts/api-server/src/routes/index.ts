@@ -39,6 +39,7 @@ import growthPlanRouter from "./growth-plan";
 import careerConstellationRouter from "./career-constellation";
 import fastTrackRouter from "./fast-track";
 import dailyDeckRouter from "./daily-deck";
+import institutionApiKeysRouter from "./institution-api-keys";
 import { requireAuth } from "../middleware/require-auth";
 
 const router: IRouter = Router();
@@ -146,6 +147,13 @@ router.use(careerConstellationRouter);
 router.use(fastTrackRouter);
 // Daily candidate deck (Task #79): /me/daily-deck*. Router gates itself.
 router.use(dailyDeckRouter);
+// T7: Institution Pro SIS API keys. Mounts both `/institutions/:id/api-keys*`
+// (session-authed, owner-only) and the public bearer-authed
+// `/api/v1/institutions/students` reader. Must be mounted BEFORE the
+// `/institutions` requireAuth gate so the api-keys subpaths are matched
+// here (the router does its own auth) and the public bearer endpoint
+// is not caught by any session gate.
+router.use(institutionApiKeysRouter);
 router.use(candidatesRouter);
 router.use(employersRouter);
 router.use(institutionsRouter);

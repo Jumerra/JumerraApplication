@@ -288,6 +288,47 @@ export default function InstitutionDashboard() {
         </Card>
       </div>
 
+      {dashboard.quotas && !dashboard.quotas.premium ? (
+        <Card className="shadow-sm border-amber-200 dark:border-amber-900/40 bg-amber-50/40 dark:bg-amber-950/10">
+          <CardHeader className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Crown className="w-4 h-4 text-amber-600" /> Starter plan limits
+              </CardTitle>
+              <CardDescription>
+                Upgrade to Institution Pro to lift these caps and unlock branded
+                profile, bulk verification, analytics export, and the SIS API.
+              </CardDescription>
+            </div>
+            <Button asChild size="sm" variant="default">
+              <Link href="/account/institution-subscription">Upgrade</Link>
+            </Button>
+          </CardHeader>
+          <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {([
+              ["Verified students", dashboard.quotas.counts.verifiedStudents, dashboard.quotas.limits.verifiedStudents],
+              ["Faculties", dashboard.quotas.counts.faculties, dashboard.quotas.limits.faculties],
+              ["Departments", dashboard.quotas.counts.departments, dashboard.quotas.limits.departments],
+              ["Staff seats", dashboard.quotas.counts.staffSeats, dashboard.quotas.limits.staffSeats],
+            ] as const).map(([label, used, limit]) => {
+              const pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
+              const atCap = used >= limit;
+              return (
+                <div key={label} className="space-y-1.5">
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-xs font-medium text-muted-foreground">{label}</span>
+                    <span className={`text-sm font-semibold ${atCap ? "text-amber-700 dark:text-amber-400" : ""}`}>
+                      {used}<span className="text-muted-foreground font-normal"> / {limit}</span>
+                    </span>
+                  </div>
+                  <Progress value={pct} className="h-2" />
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      ) : null}
+
       <Card className="shadow-sm">
         <CardHeader className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
           <div>

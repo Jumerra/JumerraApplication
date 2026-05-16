@@ -816,6 +816,21 @@ export const ListInstitutionsResponseItem = zod.object({
     .describe(
       "When false, the public cohort placement leaderboard page returns 404 to anonymous visitors. Default true.",
     ),
+  bannerUrl: zod
+    .string()
+    .nullish()
+    .describe("Pro-only branded hero banner image for the public profile."),
+  featuredPrograms: zod
+    .array(
+      zod.object({
+        title: zod.string(),
+        description: zod.string(),
+      }),
+    )
+    .nullish()
+    .describe(
+      "Pro-only highlighted academic programs (e.g. flagship majors)\nshown on the public profile. Each entry is `{title, description}`.\n",
+    ),
 });
 export const ListInstitutionsResponse = zod.array(ListInstitutionsResponseItem);
 
@@ -854,6 +869,14 @@ export const updateMyInstitutionBodyWebsiteUrlMax = 1000;
 
 export const updateMyInstitutionBodyDescriptionMax = 5000;
 
+export const updateMyInstitutionBodyBannerUrlMax = 1000;
+
+export const updateMyInstitutionBodyFeaturedProgramsItemTitleMax = 200;
+
+export const updateMyInstitutionBodyFeaturedProgramsItemDescriptionMax = 1000;
+
+export const updateMyInstitutionBodyFeaturedProgramsMax = 12;
+
 export const UpdateMyInstitutionBody = zod
   .object({
     name: zod.string().min(1).max(updateMyInstitutionBodyNameMax).optional(),
@@ -887,8 +910,26 @@ export const UpdateMyInstitutionBody = zod
       .max(updateMyInstitutionBodyDescriptionMax)
       .optional(),
     publicLeaderboardEnabled: zod.boolean().optional(),
+    bannerUrl: zod.string().max(updateMyInstitutionBodyBannerUrlMax).nullish(),
+    featuredPrograms: zod
+      .array(
+        zod.object({
+          title: zod
+            .string()
+            .min(1)
+            .max(updateMyInstitutionBodyFeaturedProgramsItemTitleMax),
+          description: zod
+            .string()
+            .min(1)
+            .max(updateMyInstitutionBodyFeaturedProgramsItemDescriptionMax),
+        }),
+      )
+      .max(updateMyInstitutionBodyFeaturedProgramsMax)
+      .nullish(),
   })
-  .describe("All fields optional. Owner or registrar only.");
+  .describe(
+    "All fields optional. Owner or registrar only. `bannerUrl` and\n`featuredPrograms` are Pro-only on the server — Starter requests\nthat try to set them get a 402 with `requiresUpgrade: true`.\n",
+  );
 
 export const UpdateMyInstitutionResponse = zod.object({
   id: zod.number(),
@@ -925,6 +966,21 @@ export const UpdateMyInstitutionResponse = zod.object({
     .boolean()
     .describe(
       "When false, the public cohort placement leaderboard page returns 404 to anonymous visitors. Default true.",
+    ),
+  bannerUrl: zod
+    .string()
+    .nullish()
+    .describe("Pro-only branded hero banner image for the public profile."),
+  featuredPrograms: zod
+    .array(
+      zod.object({
+        title: zod.string(),
+        description: zod.string(),
+      }),
+    )
+    .nullish()
+    .describe(
+      "Pro-only highlighted academic programs (e.g. flagship majors)\nshown on the public profile. Each entry is `{title, description}`.\n",
     ),
 });
 
@@ -1282,6 +1338,21 @@ export const GetInstitutionResponse = zod
       .describe(
         "When false, the public cohort placement leaderboard page returns 404 to anonymous visitors. Default true.",
       ),
+    bannerUrl: zod
+      .string()
+      .nullish()
+      .describe("Pro-only branded hero banner image for the public profile."),
+    featuredPrograms: zod
+      .array(
+        zod.object({
+          title: zod.string(),
+          description: zod.string(),
+        }),
+      )
+      .nullish()
+      .describe(
+        "Pro-only highlighted academic programs (e.g. flagship majors)\nshown on the public profile. Each entry is `{title, description}`.\n",
+      ),
   })
   .and(
     zod.object({
@@ -1445,6 +1516,41 @@ export const VerifyInstitutionStudentResponse = zod.object({
   ok: zod.boolean(),
   verifiedAt: zod.coerce.date(),
 });
+
+/**
+ * @summary Pro-only. Bulk-verify candidates by email (max 1000 rows).
+ */
+export const BulkVerifyInstitutionStudentsParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const bulkVerifyInstitutionStudentsBodyRowsMax = 1000;
+
+export const BulkVerifyInstitutionStudentsBody = zod.object({
+  rows: zod
+    .array(
+      zod.object({
+        email: zod.string().email(),
+      }),
+    )
+    .max(bulkVerifyInstitutionStudentsBodyRowsMax),
+});
+
+export const BulkVerifyInstitutionStudentsResponse = zod
+  .object({
+    matched: zod.array(zod.string().email()),
+    alreadyVerified: zod.array(zod.string().email()),
+    unmatched: zod.array(zod.string().email()),
+    summary: zod.object({
+      total: zod.number(),
+      matched: zod.number(),
+      alreadyVerified: zod.number(),
+      unmatched: zod.number(),
+    }),
+  })
+  .describe(
+    "Result buckets for bulk-verify. `matched` = newly verified\n(insert or update from unverified). `alreadyVerified` = no-op\n(was already verified). `unmatched` = no candidate account\nexists with that email.\n",
+  );
 
 /**
  * @summary Revoke verification for a previously verified student.
@@ -2825,6 +2931,25 @@ export const GetInstitutionDashboardResponse = zod.object({
     .boolean()
     .describe(
       "True when the global institution-subscription feature is\nenabled and this institution does NOT have an active or\ntrialing subscription. When true, the placement-specific\narrays (`recentHires`, `topEmployers`, `statusBreakdown`)\nare zeroed out and the UI should render a paywall card.\n",
+    ),
+  quotas: zod
+    .object({
+      premium: zod.boolean(),
+      limits: zod.object({
+        verifiedStudents: zod.number(),
+        faculties: zod.number(),
+        departments: zod.number(),
+        staffSeats: zod.number(),
+      }),
+      counts: zod.object({
+        verifiedStudents: zod.number(),
+        faculties: zod.number(),
+        departments: zod.number(),
+        staffSeats: zod.number(),
+      }),
+    })
+    .describe(
+      "Per-institution Starter-tier quota snapshot. `premium: true`\nmeans the institution has an active Institution Pro\nsubscription and the caps in `limits` should be hidden from\nthe UI (counts remain accurate so headline KPIs still work).\nFor Starter institutions, the UI renders a progress bar per\nquota and surfaces an upgrade CTA as any value approaches\nits limit.\n",
     ),
 });
 

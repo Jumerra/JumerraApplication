@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
-import { MapPin, Globe, Building2, Trophy } from "lucide-react";
+import { MapPin, Globe, Building2, Trophy, GraduationCap } from "lucide-react";
 
 export default function InstitutionDetail() {
   const { id } = useParams();
@@ -25,6 +25,24 @@ export default function InstitutionDetail() {
 
   return (
     <div className="container px-4 py-8 max-w-6xl mx-auto space-y-8">
+      {/* Pro-only branded banner (above the header). Rendered only when
+          set — Starter institutions get the original chrome unchanged. */}
+      {inst.bannerUrl ? (
+        <div
+          className="rounded-3xl h-48 md:h-64 w-full bg-muted overflow-hidden border shadow-sm"
+          data-testid="institution-banner"
+        >
+          <img
+            src={inst.bannerUrl}
+            alt=""
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              (e.currentTarget.parentElement as HTMLElement | null)?.remove();
+            }}
+          />
+        </div>
+      ) : null}
+
       {/* Header */}
       <div className="bg-card rounded-3xl p-6 md:p-10 shadow-sm border relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
@@ -67,6 +85,28 @@ export default function InstitutionDetail() {
           </div>
         </div>
       </div>
+
+      {/* Featured programs — Pro-only branded section. Only rendered
+          when at least one program is configured. */}
+      {inst.featuredPrograms && inst.featuredPrograms.length > 0 ? (
+        <div className="space-y-4" data-testid="institution-featured-programs">
+          <h2 className="text-2xl font-bold flex items-center gap-2">
+            <GraduationCap className="w-6 h-6 text-primary" /> Featured programs
+          </h2>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {inst.featuredPrograms.map((p, idx) => (
+              <Card key={idx} className="shadow-sm">
+                <CardContent className="p-5 space-y-2">
+                  <h3 className="font-semibold text-base">{p.title}</h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    {p.description}
+                  </p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       <div className="grid lg:grid-cols-4 gap-8">
         <div className="lg:col-span-3 space-y-6">

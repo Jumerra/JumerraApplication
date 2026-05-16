@@ -35,7 +35,13 @@ import {
   Lock,
   Stamp,
   TrendingUp,
+  Download,
+  FileText,
 } from "lucide-react";
+import Papa from "papaparse";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import { useInstitutionPremium, ProBadge } from "@/lib/institution-premium";
 import {
   ResponsiveContainer,
   PieChart,
@@ -208,6 +214,18 @@ export default function InstitutionAnalyticsPage() {
           <Button variant="outline" asChild>
             <Link href="/dashboard/institution/cohorts">Cohorts</Link>
           </Button>
+          <AnalyticsExportButtons
+            institutionName={`Institution #${analytics.institutionId}`}
+            placedShare={placedShare}
+            placedStudents={analytics.placedStudents}
+            totalStudents={analytics.totalStudents}
+            medianTimeToFirstJobDays={analytics.medianTimeToFirstJobDays}
+            endorsementsThisYear={analytics.endorsementsThisYear}
+            topEmployers={analytics.topEmployers.map((e) => ({
+              name: e.employerName,
+              count: e.hires,
+            }))}
+          />
         </div>
       </div>
 
@@ -398,4 +416,119 @@ function KpiCard({
       </CardContent>
     </Card>
   );
+}
+
+function AnalyticsExportButtons(props: {
+  institutionName: string;
+  placedShare: number;
+  placedStudents: number;
+  totalStudents: number;
+  medianTimeToFirstJobDays: number | null;
+  endorsementsThisYear: number;
+  topEmployers: Array<{ name: string; count: number }>;
+}) {
+  const premium = useInstitutionPremium();
+
+  const summaryRows = [
+    ["Institution", props.institutionName],
+    ["Generated at", new Date().toISOString()],
+    ["Placed students", String(props.placedStudents)],
+    ["Total students", String(props.totalStudents)],
+    ["Placed share", `${(props.placedShare * 100).toFixed(1)}%`],
+    [
+      "Median time to first job (days)",
+      props.medianTimeToFirstJobDays == null
+        ? "—"
+        : String(props.medianTimeToFirstJobDays),
+    ],
+    ["Endorsements this year", String(props.endorsementsThisYear)],
+  ];
+
+  function downloadCsv() {
+    const summaryCsv = Papa.unparse({
+      fields: ["Metric", "Value"],
+      data: summaryRows,
+    });
+    const topEmployersCsv = Papa.unparse({
+      fields: ["Employer", "Hires"],
+      data: props.topEmployers.map((e) => [e.name, String(e.count)]),
+    });
+    const combined = `${summaryCsv}\n\nTop employers\n${topEmployersCsv}`;
+    const blob = new Blob([combined], { type: "text/csv;charset=utf-8" });
+    triggerDownload(
+      blob,
+      `${slug(props.institutionName)}-placement-${stamp()}.csv`,
+    );
+  }
+
+  function downloadPdf() {
+    const doc = new jsPDF();
+    doc.setFontSize(16);
+    doc.text(`${props.institutionName} — Placement Report`, 14, 18);
+    doc.setFontSize(10);
+    doc.setTextColor(120);
+    doc.text(`Generated ${new Date().toLocaleString()}`, 14, 25);
+    doc.setTextColor(0);
+    autoTable(doc, {
+      head: [["Metric", "Value"]],
+      body: summaryRows,
+      startY: 32,
+      theme: "striped",
+    });
+    if (props.topEmployers.length > 0) {
+      autoTable(doc, {
+        head: [["Employer", "Hires"]],
+        body: props.topEmployers.map((e) => [e.name, String(e.count)]),
+        theme: "grid",
+      });
+    }
+    doc.save(`${slug(props.institutionName)}-placement-${stamp()}.pdf`);
+  }
+
+  if (premium.isLoading) return null;
+  if (!premium.isPremium) {
+    return (
+      <Button variant="outline" disabled title="Institution Pro required">
+        <Download className="mr-1 h-4 w-4" />
+        Export <ProBadge className="ml-2" />
+      </Button>
+    );
+  }
+  return (
+    <>
+      <Button
+        variant="outline"
+        onClick={downloadCsv}
+        data-testid="button-export-csv"
+      >
+        <Download className="mr-1 h-4 w-4" />
+        CSV
+      </Button>
+      <Button
+        variant="outline"
+        onClick={downloadPdf}
+        data-testid="button-export-pdf"
+      >
+        <FileText className="mr-1 h-4 w-4" />
+        PDF
+      </Button>
+    </>
+  );
+}
+
+function slug(s: string) {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+function stamp() {
+  return new Date().toISOString().slice(0, 10);
+}
+function triggerDownload(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }

@@ -29,11 +29,22 @@ function pickSummary(
   return "A few skills line up — adding the missing ones will lift your match.";
 }
 
+/**
+ * Optional tie-breaker bonus added to the final score when the
+ * candidate has at least one verified affiliation with an Institution
+ * Pro school (T5). Small enough (+2) that it never overrides skill or
+ * experience signal — it only nudges otherwise-identical scores up so
+ * Pro-verified candidates surface slightly earlier in employer search
+ * and Daily Picks results.
+ */
+const PREMIUM_INSTITUTION_BONUS = 2;
+
 export function calculateMatchScore(
   jobSkills: string[],
   candidateSkills: string[],
   yearsExperience: number,
   talentScore: number,
+  opts: { verifiedByPremium?: boolean } = {},
 ): MatchBreakdown {
   const candidateSet = new Set(candidateSkills.map((s) => s.toLowerCase()));
   const matched: string[] = [];
@@ -57,7 +68,8 @@ export function calculateMatchScore(
   const talentContribution = talentFactor * 0.2;
 
   const raw = (skillContribution + experienceContribution + talentContribution) * 100;
-  const score = Math.min(99, Math.max(15, Math.round(raw)));
+  const bonus = opts.verifiedByPremium ? PREMIUM_INSTITUTION_BONUS : 0;
+  const score = Math.min(99, Math.max(15, Math.round(raw) + bonus));
 
   const skillCoveragePct = Math.round(skillCoverage * 100);
   const experiencePct = Math.round(experienceFactor * 100);

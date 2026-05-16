@@ -7,6 +7,7 @@ import {
   boolean,
   index,
   uniqueIndex,
+  jsonb,
 } from "drizzle-orm/pg-core";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { usersTable } from "./auth";
@@ -42,6 +43,16 @@ export const institutionsTable = pgTable(
     publicLeaderboardEnabled: boolean("public_leaderboard_enabled")
       .notNull()
       .default(true),
+    /**
+     * Pro-only branded fields. Visible on the public institution
+     * detail page; editable only when the institution has an active
+     * Pro subscription (UI gates the edit form, server-side gating
+     * lives on PATCH /institutions/me). Nullable so Starter orgs
+     * simply omit them from the page.
+     */
+    bannerUrl: text("banner_url"),
+    featuredPrograms: jsonb("featured_programs")
+      .$type<Array<{ title: string; description: string }>>(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

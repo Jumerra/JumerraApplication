@@ -16,6 +16,7 @@ import {
 } from "../middleware/require-auth";
 import { createSetupToken, findUserByEmail } from "../lib/auth";
 import { sendAuthLinkEmail, originFromReq } from "../lib/email";
+import { enforceStarterQuota } from "../lib/institution-quotas";
 
 /**
  * Validates that `orgRole` is a defined role within the caller's
@@ -398,6 +399,21 @@ router.post("/staff/invite", requireOrgOwnerOrRegistrar, async (req, res) => {
         .status(409)
         .json({ error: "An account with that email already exists" });
       return;
+    }
+
+    // Starter staff-seat cap — institutions only. Employer seats are
+    // gated separately by the employer subscription. Checked AFTER the
+    // duplicate-email guard so an existing-user 409 still takes
+    // precedence over the upsell.
+    if (me.role === "institution" && me.institutionId != null) {
+      const quotaErr = await enforceStarterQuota(
+        me.institutionId,
+        "staffSeats",
+      );
+      if (quotaErr) {
+        res.status(quotaErr.status).json(quotaErr.body);
+        return;
+      }
     }
 
     const baseInsert = {

@@ -505,6 +505,49 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/VerifyStudentResponse" }
+  /institutions/{id}/students/bulk-verify:
+    post:
+      operationId: bulkVerifyInstitutionStudents
+      tags: [institutions]
+      summary: Pro-only. Bulk-verify candidates by email (max 1000 rows).
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                rows:
+                  type: array
+                  maxItems: 1000
+                  items:
+                    type: object
+                    properties:
+                      email: { type: string, format: email }
+                    required: [email]
+              required: [rows]
+      responses:
+        "200":
+          description: Bulk verification result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BulkVerifyResponse" }
+        "402":
+          description: Pro upgrade required
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { type: string }
+                  requiresUpgrade: { type: boolean }
+                  kind: { type: string }
+                required: [error, requiresUpgrade, kind]
   /institutions/{id}/students/{candidateId}/unverify:
     post:
       operationId: unverifyInstitutionStudent
@@ -5221,6 +5264,22 @@ components:
         publicLeaderboardEnabled:
           type: boolean
           description: When false, the public cohort placement leaderboard page returns 404 to anonymous visitors. Default true.
+        bannerUrl:
+          type: string
+          nullable: true
+          description: Pro-only branded hero banner image for the public profile.
+        featuredPrograms:
+          type: array
+          nullable: true
+          description: |
+            Pro-only highlighted academic programs (e.g. flagship majors)
+            shown on the public profile. Each entry is `{title, description}`.
+          items:
+            type: object
+            properties:
+              title: { type: string }
+              description: { type: string }
+            required: [title, description]
       required:
         - id
         - name
@@ -5390,7 +5449,10 @@ components:
 
     UpdateInstitutionRequest:
       type: object
-      description: All fields optional. Owner or registrar only.
+      description: |
+        All fields optional. Owner or registrar only. `bannerUrl` and
+        `featuredPrograms` are Pro-only on the server — Starter requests
+        that try to set them get a 402 with `requiresUpgrade: true`.
       properties:
         name: { type: string, minLength: 1, maxLength: 200 }
         type: { $ref: "#/components/schemas/InstitutionKind" }
@@ -5399,6 +5461,44 @@ components:
         websiteUrl: { type: string, maxLength: 1000 }
         description: { type: string, maxLength: 5000 }
         publicLeaderboardEnabled: { type: boolean }
+        bannerUrl: { type: string, maxLength: 1000, nullable: true }
+        featuredPrograms:
+          type: array
+          nullable: true
+          maxItems: 12
+          items:
+            type: object
+            properties:
+              title: { type: string, minLength: 1, maxLength: 200 }
+              description: { type: string, minLength: 1, maxLength: 1000 }
+            required: [title, description]
+
+    BulkVerifyResponse:
+      type: object
+      description: |
+        Result buckets for bulk-verify. `matched` = newly verified
+        (insert or update from unverified). `alreadyVerified` = no-op
+        (was already verified). `unmatched` = no candidate account
+        exists with that email.
+      properties:
+        matched:
+          type: array
+          items: { type: string, format: email }
+        alreadyVerified:
+          type: array
+          items: { type: string, format: email }
+        unmatched:
+          type: array
+          items: { type: string, format: email }
+        summary:
+          type: object
+          properties:
+            total: { type: integer }
+            matched: { type: integer }
+            alreadyVerified: { type: integer }
+            unmatched: { type: integer }
+          required: [total, matched, alreadyVerified, unmatched]
+      required: [matched, alreadyVerified, unmatched, summary]
 
     InstitutionStudent:
       type: object
@@ -6286,6 +6386,8 @@ components:
             trialing subscription. When true, the placement-specific
             arrays (`recentHires`, `topEmployers`, `statusBreakdown`)
             are zeroed out and the UI should render a paywall card.
+        quotas:
+          $ref: "#/components/schemas/InstitutionQuotaSnapshot"
       required:
         - institutionId
         - institutionName
@@ -6298,6 +6400,37 @@ components:
         - statusBreakdown
         - recentHires
         - placementsLocked
+        - quotas
+
+    InstitutionQuotaSnapshot:
+      type: object
+      description: |
+        Per-institution Starter-tier quota snapshot. `premium: true`
+        means the institution has an active Institution Pro
+        subscription and the caps in `limits` should be hidden from
+        the UI (counts remain accurate so headline KPIs still work).
+        For Starter institutions, the UI renders a progress bar per
+        quota and surfaces an upgrade CTA as any value approaches
+        its limit.
+      properties:
+        premium: { type: boolean }
+        limits:
+          type: object
+          properties:
+            verifiedStudents: { type: integer }
+            faculties: { type: integer }
+            departments: { type: integer }
+            staffSeats: { type: integer }
+          required: [verifiedStudents, faculties, departments, staffSeats]
+        counts:
+          type: object
+          properties:
+            verifiedStudents: { type: integer }
+            faculties: { type: integer }
+            departments: { type: integer }
+            staffSeats: { type: integer }
+          required: [verifiedStudents, faculties, departments, staffSeats]
+      required: [premium, limits, counts]
 
     CandidateDashboard:
       type: object

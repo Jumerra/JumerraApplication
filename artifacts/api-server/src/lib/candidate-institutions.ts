@@ -6,6 +6,7 @@ import {
   institutionDepartmentsTable,
   institutionFacultiesTable,
   institutionsTable,
+  institutionSubscriptionsTable,
   usersTable,
 } from "@workspace/db";
 
@@ -16,6 +17,13 @@ export type InstitutionLink = {
   logoUrl: string;
   isPrimary: boolean;
   isVerified: boolean;
+  /**
+   * True when the verifying institution holds an active/trialing
+   * Institution Pro subscription. Surfaced on candidate cards as a
+   * small "Verified by Pro" ribbon and used by the matching algorithm
+   * as a tiny tie-breaker bonus for Pro-verified candidates.
+   */
+  verifiedByPremium: boolean;
   verifiedAt: string | null;
   verifiedByName: string | null;
   departmentId: number | null;
@@ -37,6 +45,11 @@ export async function getInstitutionLinksByCandidate(
   const map = new Map<number, InstitutionLink[]>();
   if (candidateIds.length === 0) return map;
 
+  // Side-batch: which institutions in this candidate set are on Pro?
+  // We can't easily join the subscriptions table inside the main query
+  // because we'd need a correlated subquery for "current period not
+  // expired AND status in (active, trialing)"; instead we run a
+  // single follow-up query once we know the distinct institution ids.
   const rows = await db
     .select({
       candidateId: candidateInstitutionsTable.candidateId,
@@ -71,6 +84,32 @@ export async function getInstitutionLinksByCandidate(
     )
     .where(inArray(candidateInstitutionsTable.candidateId, candidateIds));
 
+  const distinctInstitutionIds = Array.from(
+    new Set(rows.map((r) => r.institution.id)),
+  );
+  const premiumInstitutionIds =
+    distinctInstitutionIds.length === 0
+      ? new Set<number>()
+      : new Set(
+          (
+            await db
+              .select({ id: institutionSubscriptionsTable.institutionId })
+              .from(institutionSubscriptionsTable)
+              .where(
+                and(
+                  inArray(
+                    institutionSubscriptionsTable.institutionId,
+                    distinctInstitutionIds,
+                  ),
+                  inArray(institutionSubscriptionsTable.status, [
+                    "active",
+                    "trialing",
+                  ]),
+                ),
+              )
+          ).map((r) => r.id),
+        );
+
   for (const row of rows) {
     const list = map.get(row.candidateId) ?? [];
     list.push({
@@ -80,6 +119,8 @@ export async function getInstitutionLinksByCandidate(
       logoUrl: row.institution.logoUrl,
       isPrimary: row.isPrimary,
       isVerified: row.verifiedAt != null,
+      verifiedByPremium:
+        row.verifiedAt != null && premiumInstitutionIds.has(row.institution.id),
       verifiedAt: row.verifiedAt ? row.verifiedAt.toISOString() : null,
       verifiedByName: row.verifiedByName,
       departmentId: row.departmentId,

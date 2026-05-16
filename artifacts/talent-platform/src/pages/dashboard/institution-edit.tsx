@@ -28,12 +28,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Save, Loader2, GraduationCap } from "lucide-react";
+import { ArrowLeft, Save, Loader2, GraduationCap, Plus, Trash2 } from "lucide-react";
 import { Link } from "wouter";
 import {
   INSTITUTION_KIND_OPTIONS,
   type InstitutionKind,
 } from "@/lib/institution-kinds";
+import {
+  PremiumGate,
+  ProBadge,
+  useInstitutionPremium,
+} from "@/lib/institution-premium";
 
 export default function InstitutionEditPage() {
   const { sessionUser } = useAuth();
@@ -43,6 +48,9 @@ export default function InstitutionEditPage() {
   const institutionId = sessionUser?.institutionId ?? null;
   const isOwner =
     sessionUser?.role === "institution" && sessionUser.orgRole === "owner";
+  // Hooks must run unconditionally on every render — keep this above
+  // the early-return branches below.
+  const { isPremium } = useInstitutionPremium();
 
   const { data: institution, isLoading } = useGetInstitution(
     institutionId ?? 0,
@@ -62,6 +70,10 @@ export default function InstitutionEditPage() {
   const [description, setDescription] = useState("");
   const [publicLeaderboardEnabled, setPublicLeaderboardEnabled] =
     useState(true);
+  const [bannerUrl, setBannerUrl] = useState("");
+  const [featuredPrograms, setFeaturedPrograms] = useState<
+    Array<{ title: string; description: string }>
+  >([]);
 
   // Sync form state once when the institution loads (and again if it gets
   // refetched). Avoids stomping the user's in-flight edits on every render.
@@ -77,6 +89,8 @@ export default function InstitutionEditPage() {
     setLogoUrl(institution.logoUrl);
     setDescription(institution.description);
     setPublicLeaderboardEnabled(institution.publicLeaderboardEnabled);
+    setBannerUrl(institution.bannerUrl ?? "");
+    setFeaturedPrograms(institution.featuredPrograms ?? []);
   }, [institution]);
 
   const update = useUpdateMyInstitution({
@@ -138,6 +152,18 @@ export default function InstitutionEditPage() {
       toast.error("Name and location are required");
       return;
     }
+    // Branded fields are sent only when the institution is Pro — the
+    // <PremiumGate> hides the inputs for Starter, but defending in the
+    // submit handler keeps stale React state from triggering an
+    // unexpected 402 if the subscription lapsed mid-session.
+    const branded = isPremium
+      ? {
+          bannerUrl: bannerUrl.trim() || null,
+          featuredPrograms: featuredPrograms
+            .map((p) => ({ title: p.title.trim(), description: p.description.trim() }))
+            .filter((p) => p.title.length > 0),
+        }
+      : {};
     update.mutate({
       data: {
         name: name.trim(),
@@ -147,6 +173,7 @@ export default function InstitutionEditPage() {
         logoUrl: logoUrl.trim(),
         description: description.trim(),
         publicLeaderboardEnabled,
+        ...branded,
       },
     });
   }
@@ -260,6 +287,120 @@ export default function InstitutionEditPage() {
                 maxLength={5000}
               />
             </div>
+          </CardContent>
+        </Card>
+
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              Branded profile <ProBadge />
+            </CardTitle>
+            <CardDescription>
+              Customize your public institution page with a hero banner and
+              up to 12 featured programs. Available on Institution Pro.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <PremiumGate feature="Branded profile">
+              <div className="space-y-5">
+                <div className="grid gap-2">
+                  <Label htmlFor="bannerUrl">Hero banner image URL</Label>
+                  <Input
+                    id="bannerUrl"
+                    type="url"
+                    value={bannerUrl}
+                    onChange={(e) => setBannerUrl(e.target.value)}
+                    placeholder="https://"
+                    maxLength={1000}
+                  />
+                  {bannerUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={bannerUrl}
+                      alt=""
+                      className="mt-2 w-full h-32 object-cover rounded-lg border bg-muted"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).style.display = "none";
+                      }}
+                    />
+                  ) : null}
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label>Featured programs</Label>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="gap-1"
+                      disabled={featuredPrograms.length >= 12}
+                      onClick={() =>
+                        setFeaturedPrograms((prev) => [
+                          ...prev,
+                          { title: "", description: "" },
+                        ])
+                      }
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Add program
+                    </Button>
+                  </div>
+                  {featuredPrograms.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      No featured programs yet. Add up to 12 flagship majors
+                      or programs to highlight on your public profile.
+                    </p>
+                  ) : (
+                    featuredPrograms.map((p, idx) => (
+                      <div
+                        key={idx}
+                        className="grid gap-2 p-3 rounded-lg border bg-muted/30"
+                      >
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="Program title"
+                            value={p.title}
+                            maxLength={200}
+                            onChange={(e) =>
+                              setFeaturedPrograms((prev) =>
+                                prev.map((row, i) =>
+                                  i === idx ? { ...row, title: e.target.value } : row,
+                                ),
+                              )
+                            }
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() =>
+                              setFeaturedPrograms((prev) =>
+                                prev.filter((_, i) => i !== idx),
+                              )
+                            }
+                            aria-label="Remove program"
+                          >
+                            <Trash2 className="w-4 h-4 text-muted-foreground" />
+                          </Button>
+                        </div>
+                        <Textarea
+                          placeholder="Short description"
+                          value={p.description}
+                          rows={2}
+                          maxLength={1000}
+                          onChange={(e) =>
+                            setFeaturedPrograms((prev) =>
+                              prev.map((row, i) =>
+                                i === idx ? { ...row, description: e.target.value } : row,
+                              ),
+                            )
+                          }
+                        />
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </PremiumGate>
           </CardContent>
         </Card>
 

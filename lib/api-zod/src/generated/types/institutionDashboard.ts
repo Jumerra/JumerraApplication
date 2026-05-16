@@ -7,6 +7,7 @@
  */
 import type { InstitutionDashboardStatusBreakdownItem } from "./institutionDashboardStatusBreakdownItem";
 import type { InstitutionDashboardTopEmployersItem } from "./institutionDashboardTopEmployersItem";
+import type { InstitutionQuotaSnapshot } from "./institutionQuotaSnapshot";
 import type { InstitutionStudent } from "./institutionStudent";
 
 export interface InstitutionDashboard {
@@ -27,4 +28,5 @@ arrays (`recentHires`, `topEmployers`, `statusBreakdown`)
 are zeroed out and the UI should render a paywall card.
  */
   placementsLocked: boolean;
+  quotas: InstitutionQuotaSnapshot;
 }

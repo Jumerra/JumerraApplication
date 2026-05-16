@@ -79,6 +79,7 @@ function serializeCandidate(
       logoUrl: i.logoUrl,
       isPrimary: i.isPrimary,
       isVerified: i.isVerified,
+      verifiedByPremium: i.verifiedByPremium,
       verifiedAt: i.verifiedAt,
       verifiedByName: i.verifiedByName,
       departmentId: i.departmentId ?? null,
@@ -88,6 +89,10 @@ function serializeCandidate(
     })),
     // True when ANY institution has explicitly verified this candidate.
     isVerified: institutions.some((i) => i.isVerified),
+    // T5: True when any verifying institution is on Institution Pro.
+    // Drives the "Verified by Pro" ribbon on candidate cards and the
+    // small tie-breaker bonus inside the matching algorithm.
+    verifiedByPremium: institutions.some((i) => i.verifiedByPremium),
     skills: c.skills,
     verifiedSkills: verifiedSkills.map((v) => ({
       id: v.id,

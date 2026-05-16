@@ -49,6 +49,9 @@ import type {
   AuthSession,
   BackgroundCheck,
   BoostSettings,
+  BulkVerifyInstitutionStudents402,
+  BulkVerifyInstitutionStudentsBody,
+  BulkVerifyResponse,
   Candidate,
   CandidateCvResponse,
   CandidateDashboard,
@@ -2461,6 +2464,98 @@ export const useVerifyInstitutionStudent = <
   TContext
 > => {
   return useMutation(getVerifyInstitutionStudentMutationOptions(options));
+};
+
+/**
+ * @summary Pro-only. Bulk-verify candidates by email (max 1000 rows).
+ */
+export const getBulkVerifyInstitutionStudentsUrl = (id: number) => {
+  return `/api/institutions/${id}/students/bulk-verify`;
+};
+
+export const bulkVerifyInstitutionStudents = async (
+  id: number,
+  bulkVerifyInstitutionStudentsBody: BulkVerifyInstitutionStudentsBody,
+  options?: RequestInit,
+): Promise<BulkVerifyResponse> => {
+  return customFetch<BulkVerifyResponse>(
+    getBulkVerifyInstitutionStudentsUrl(id),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(bulkVerifyInstitutionStudentsBody),
+    },
+  );
+};
+
+export const getBulkVerifyInstitutionStudentsMutationOptions = <
+  TError = ErrorType<BulkVerifyInstitutionStudents402>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof bulkVerifyInstitutionStudents>>,
+    TError,
+    { id: number; data: BodyType<BulkVerifyInstitutionStudentsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof bulkVerifyInstitutionStudents>>,
+  TError,
+  { id: number; data: BodyType<BulkVerifyInstitutionStudentsBody> },
+  TContext
+> => {
+  const mutationKey = ["bulkVerifyInstitutionStudents"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof bulkVerifyInstitutionStudents>>,
+    { id: number; data: BodyType<BulkVerifyInstitutionStudentsBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return bulkVerifyInstitutionStudents(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type BulkVerifyInstitutionStudentsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof bulkVerifyInstitutionStudents>>
+>;
+export type BulkVerifyInstitutionStudentsMutationBody =
+  BodyType<BulkVerifyInstitutionStudentsBody>;
+export type BulkVerifyInstitutionStudentsMutationError =
+  ErrorType<BulkVerifyInstitutionStudents402>;
+
+/**
+ * @summary Pro-only. Bulk-verify candidates by email (max 1000 rows).
+ */
+export const useBulkVerifyInstitutionStudents = <
+  TError = ErrorType<BulkVerifyInstitutionStudents402>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof bulkVerifyInstitutionStudents>>,
+    TError,
+    { id: number; data: BodyType<BulkVerifyInstitutionStudentsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof bulkVerifyInstitutionStudents>>,
+  TError,
+  { id: number; data: BodyType<BulkVerifyInstitutionStudentsBody> },
+  TContext
+> => {
+  return useMutation(getBulkVerifyInstitutionStudentsMutationOptions(options));
 };
 
 /**

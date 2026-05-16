@@ -32,6 +32,8 @@ import InstitutionFacilitiesPage from "@/pages/dashboard/institution-facilities"
 import InstitutionAnalyticsPage from "@/pages/dashboard/institution-analytics";
 import InstitutionPendingEndorsementsPage from "@/pages/dashboard/institution-pending-endorsements";
 import InstitutionCohortsPage from "@/pages/dashboard/institution-cohorts";
+import InstitutionBulkVerifyPage from "@/pages/dashboard/institution-bulk-verify";
+import InstitutionApiKeysPage from "@/pages/dashboard/institution-api-keys";
 import AdminDashboard from "@/pages/dashboard/admin";
 import AdminRegistrationsPage from "@/pages/dashboard/admin/registrations";
 import AdminOnboardPage from "@/pages/dashboard/admin/onboard";
@@ -146,6 +148,12 @@ function Router() {
         </Route>
         <Route path="/dashboard/institution/cohorts">
           <InstitutionLayout><InstitutionCohortsPage /></InstitutionLayout>
+        </Route>
+        <Route path="/dashboard/institution/bulk-verify">
+          <InstitutionLayout><InstitutionBulkVerifyPage /></InstitutionLayout>
+        </Route>
+        <Route path="/dashboard/institution/api-keys">
+          <InstitutionLayout><InstitutionApiKeysPage /></InstitutionLayout>
         </Route>
         <Route path="/dashboard/admin">
           <AdminLayout><AdminDashboard /></AdminLayout>

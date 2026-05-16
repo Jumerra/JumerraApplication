@@ -6,9 +6,13 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { InstitutionKind } from "./institutionKind";
+import type { UpdateInstitutionRequestFeaturedProgramsItem } from "./updateInstitutionRequestFeaturedProgramsItem";
 
 /**
- * All fields optional. Owner or registrar only.
+ * All fields optional. Owner or registrar only. `bannerUrl` and
+`featuredPrograms` are Pro-only on the server — Starter requests
+that try to set them get a 402 with `requiresUpgrade: true`.
+
  */
 export interface UpdateInstitutionRequest {
   /**
@@ -29,4 +33,8 @@ export interface UpdateInstitutionRequest {
   /** @maxLength 5000 */
   description?: string;
   publicLeaderboardEnabled?: boolean;
+  /** @maxLength 1000 */
+  bannerUrl?: string | null;
+  /** @maxItems 12 */
+  featuredPrograms?: UpdateInstitutionRequestFeaturedProgramsItem[] | null;
 }

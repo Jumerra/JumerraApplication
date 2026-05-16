@@ -32,3 +32,4 @@ export * from "./whatsapp";
 export * from "./growth-skills";
 export * from "./fast-track";
 export * from "./daily-deck";
+export * from "./institution-api-keys";

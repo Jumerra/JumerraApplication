@@ -46,6 +46,8 @@ import {
   isImplicitAllUser,
 } from "../lib/permissions";
 import { usersTable, notificationsTable } from "@workspace/db";
+import { enforceStarterQuota } from "../lib/institution-quotas";
+import { isInstitutionPremium } from "./institution-subscription";
 
 /**
  * Best-effort: drop a notification on the candidate's user account so
@@ -193,6 +195,8 @@ function serializeInstitution(
   const withFlags = {
     ...base,
     publicLeaderboardEnabled: i.publicLeaderboardEnabled,
+    bannerUrl: i.bannerUrl ?? null,
+    featuredPrograms: i.featuredPrograms ?? null,
   };
   // Account-manager attribution is admin-only.
   if (opts.includeManager) {
@@ -788,6 +792,16 @@ router.post(
       res.status(403).json({ error: "This student is outside your assigned department" });
       return;
     }
+    // Starter quota: cap the *number* of verified students. Re-checked
+    // for every verify so a race or an admin bypass can't sneak past
+    // the cap. The current row (which is unverified at this point) is
+    // counted *after* the verify, so we compare strictly-less-than
+    // limit before inserting. Pro institutions skip this entirely.
+    const quotaErr = await enforceStarterQuota(institutionId, "verifiedStudents");
+    if (quotaErr) {
+      res.status(quotaErr.status).json(quotaErr.body);
+      return;
+    }
     const result = await db
       .update(candidateInstitutionsTable)
       .set({ verifiedAt: new Date(), verifiedBy: me.id })
@@ -814,6 +828,167 @@ router.post(
       req.log,
     );
     res.json({ ok: true, verifiedAt: result[0]!.verifiedAt!.toISOString() });
+  },
+);
+
+/**
+ * Pro-only bulk verification. The client parses the CSV (papaparse)
+ * and posts an array of `{ email, departmentId? }` rows; we match each
+ * email against the `users` table (role='candidate'), then upsert a
+ * verified `candidate_institutions` row per match.
+ *
+ * Three buckets in the response: `matched` (newly verified or
+ * re-verified after an unverify), `alreadyVerified` (no-op — was
+ * already verified), `unmatched` (no candidate with that email).
+ *
+ * Starter institutions get a 402 + `requiresUpgrade: true`. We do NOT
+ * enforce the per-student Starter cap inside this route because it's
+ * Pro-only — Pro removes the cap entirely.
+ */
+router.post(
+  "/institutions/:id/students/bulk-verify",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const institutionId = Number(req.params["id"]);
+    if (!Number.isInteger(institutionId)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    const me = req.currentUser!;
+    if (!canManageInstitutionStudents(me, institutionId)) {
+      res.status(403).json({ error: "Not allowed to verify this institution's students" });
+      return;
+    }
+    if (!(await isInstitutionPremium(institutionId))) {
+      res.status(402).json({
+        error: "Bulk verification is an Institution Pro feature",
+        requiresUpgrade: true,
+        kind: "bulkVerify",
+      });
+      return;
+    }
+    const rowsRaw = (req.body as { rows?: unknown })?.rows;
+    if (!Array.isArray(rowsRaw) || rowsRaw.length === 0) {
+      res.status(400).json({ error: "rows must be a non-empty array" });
+      return;
+    }
+    if (rowsRaw.length > 1000) {
+      res.status(400).json({ error: "Maximum 1000 rows per request" });
+      return;
+    }
+    // Normalize input — keep only well-formed rows. We dedupe on email
+    // so the same CSV row twice doesn't double-count in the response.
+    const seen = new Set<string>();
+    const rows: Array<{ email: string }> = [];
+    for (const r of rowsRaw) {
+      const email =
+        typeof (r as { email?: unknown }).email === "string"
+          ? (r as { email: string }).email.trim().toLowerCase()
+          : "";
+      if (!email || seen.has(email)) continue;
+      seen.add(email);
+      rows.push({ email });
+    }
+    if (rows.length === 0) {
+      res.status(400).json({ error: "No valid rows (each must have an email)" });
+      return;
+    }
+
+    // Lookup candidate user accounts by email in one batch.
+    const emails = rows.map((r) => r.email);
+    const userRows = await db
+      .select({
+        email: usersTable.email,
+        candidateId: usersTable.candidateId,
+      })
+      .from(usersTable)
+      .where(
+        and(
+          eq(usersTable.role, "candidate"),
+          inArray(usersTable.email, emails),
+        ),
+      );
+    const candidateIdByEmail = new Map<string, number>();
+    for (const u of userRows) {
+      if (u.candidateId != null) candidateIdByEmail.set(u.email, u.candidateId);
+    }
+
+    const candidateIds = Array.from(candidateIdByEmail.values());
+    const existingLinks =
+      candidateIds.length === 0
+        ? []
+        : await db
+            .select({
+              candidateId: candidateInstitutionsTable.candidateId,
+              verifiedAt: candidateInstitutionsTable.verifiedAt,
+            })
+            .from(candidateInstitutionsTable)
+            .where(
+              and(
+                eq(candidateInstitutionsTable.institutionId, institutionId),
+                inArray(candidateInstitutionsTable.candidateId, candidateIds),
+              ),
+            );
+    const linkStatusByCandidate = new Map<number, "verified" | "unverified">();
+    for (const l of existingLinks) {
+      linkStatusByCandidate.set(
+        l.candidateId,
+        l.verifiedAt ? "verified" : "unverified",
+      );
+    }
+
+    const matched: string[] = [];
+    const alreadyVerified: string[] = [];
+    const unmatched: string[] = [];
+    const now = new Date();
+
+    for (const { email } of rows) {
+      const candidateId = candidateIdByEmail.get(email);
+      if (candidateId == null) {
+        unmatched.push(email);
+        continue;
+      }
+      const existing = linkStatusByCandidate.get(candidateId);
+      if (existing === "verified") {
+        alreadyVerified.push(email);
+        continue;
+      }
+      if (existing === "unverified") {
+        await db
+          .update(candidateInstitutionsTable)
+          .set({ verifiedAt: now, verifiedBy: me.id })
+          .where(
+            and(
+              eq(candidateInstitutionsTable.institutionId, institutionId),
+              eq(candidateInstitutionsTable.candidateId, candidateId),
+            ),
+          );
+      } else {
+        // No affiliation row yet — create one as a verified, non-primary
+        // affiliation. `isPrimary` stays false so we never silently
+        // displace the candidate's own chosen primary institution.
+        await db.insert(candidateInstitutionsTable).values({
+          candidateId,
+          institutionId,
+          isPrimary: false,
+          verifiedAt: now,
+          verifiedBy: me.id,
+        });
+      }
+      matched.push(email);
+    }
+
+    res.json({
+      matched,
+      alreadyVerified,
+      unmatched,
+      summary: {
+        total: rows.length,
+        matched: matched.length,
+        alreadyVerified: alreadyVerified.length,
+        unmatched: unmatched.length,
+      },
+    });
   },
 );
 
@@ -898,6 +1073,21 @@ router.patch(
     if (Object.keys(updates).length === 0) {
       res.status(400).json({ error: "No fields to update" });
       return;
+    }
+    // Pro-gate the branded fields. Touching either of them on a Starter
+    // org returns 402 so the client can show the upgrade modal. We check
+    // *presence in the patch* rather than the value, so explicitly
+    // clearing back to null is also gated (cleaner upsell story).
+    if ("bannerUrl" in updates || "featuredPrograms" in updates) {
+      const premium = await isInstitutionPremium(institutionId);
+      if (!premium) {
+        res.status(402).json({
+          error: "Branded profile is an Institution Pro feature",
+          requiresUpgrade: true,
+          kind: "brandedProfile",
+        });
+        return;
+      }
     }
     const [updated] = await db
       .update(institutionsTable)
@@ -986,6 +1176,11 @@ router.post(
       res
         .status(400)
         .json({ error: "Faculty does not belong to this institution" });
+      return;
+    }
+    const quotaErr = await enforceStarterQuota(institutionId, "departments");
+    if (quotaErr) {
+      res.status(quotaErr.status).json(quotaErr.body);
       return;
     }
     try {
@@ -1160,6 +1355,11 @@ router.post(
     const parsed = CreateMyInstitutionFacultyBody.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const quotaErr = await enforceStarterQuota(institutionId, "faculties");
+    if (quotaErr) {
+      res.status(quotaErr.status).json(quotaErr.body);
       return;
     }
     try {

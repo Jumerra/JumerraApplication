@@ -31,6 +31,8 @@ import {
   ShieldAlert,
   BarChart3,
   Trophy,
+  Upload,
+  Key,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import {
@@ -157,6 +159,12 @@ export function InstitutionLayout({ children }: { children: ReactNode }) {
           label: "Cohorts",
           icon: Trophy,
         },
+        {
+          href: "/dashboard/institution/bulk-verify",
+          label: "Bulk verify",
+          icon: Upload,
+          orgRoles: ["owner", "registrar"],
+        },
       ],
     },
     {
@@ -218,6 +226,12 @@ export function InstitutionLayout({ children }: { children: ReactNode }) {
           icon: Crown,
           // Subscription/billing is owner-only — registrars manage academic
           // ops but not commercial concerns.
+          orgRoles: ["owner"],
+        },
+        {
+          href: "/dashboard/institution/api-keys",
+          label: "API keys",
+          icon: Key,
           orgRoles: ["owner"],
         },
       ],

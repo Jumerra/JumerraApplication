@@ -16,6 +16,7 @@ import {
 import { calculateMatchScore } from "../lib/matching";
 import { getCandidateIdsForInstitution } from "../lib/candidate-institutions";
 import { isInstitutionPlacementUnlocked } from "./institution-subscription";
+import { loadQuotaSnapshot } from "../lib/institution-quotas";
 
 const router: IRouter = Router();
 
@@ -343,6 +344,12 @@ router.get("/dashboard/institution/:id", async (req, res): Promise<void> => {
   const placementsUnlocked = await isInstitutionPlacementUnlocked(institution.id);
   const placementsLocked = !placementsUnlocked;
 
+  // Starter quota snapshot — the institution dashboard renders progress
+  // bars + an upgrade CTA when any quota is at/near its cap. Pro orgs
+  // get the same counts (so KPIs stay accurate) but `premium: true`
+  // tells the UI to hide the caps and upgrade prompts.
+  const quotas = await loadQuotaSnapshot(institution.id);
+
   res.json({
     institutionId: institution.id,
     institutionName: institution.name,
@@ -357,6 +364,7 @@ router.get("/dashboard/institution/:id", async (req, res): Promise<void> => {
       : statusBreakdown,
     recentHires: placementsLocked ? [] : recentHires,
     placementsLocked,
+    quotas,
   });
 });
 

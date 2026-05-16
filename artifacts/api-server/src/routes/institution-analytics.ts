@@ -341,9 +341,10 @@ router.get(
 // ---------------------------------------------------------------------------
 // GET /institutions/:id/analytics/employers-leaderboard
 //   PUBLIC. Returns the top 10 employers that hired this institution's
-//   students this calendar year. Counts only verified affiliations and
-//   `hired` applications. Subscription-gated like the dashboard: if
-//   placements are locked, returns an empty list.
+//   students during the current academic year (Aug 1 of prior calendar
+//   year through Jul 31 of the named year). Counts only verified
+//   affiliations and `hired` applications. Subscription-gated like the
+//   dashboard: if placements are locked, returns an empty list.
 // ---------------------------------------------------------------------------
 router.get(
   "/institutions/:id/analytics/employers-leaderboard",

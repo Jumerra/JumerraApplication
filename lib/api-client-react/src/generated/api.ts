@@ -12904,7 +12904,7 @@ export function useGetInstitutionPlacementAnalytics<
 }
 
 /**
- * @summary Public top-employers-of-our-students leaderboard for the current calendar year.
+ * @summary Public top-employers-of-our-students leaderboard for the current academic year (Aug 1 of prior calendar year through Jul 31 of the named year).
  */
 export const getGetInstitutionEmployersLeaderboardUrl = (id: number) => {
   return `/api/institutions/${id}/analytics/employers-leaderboard`;
@@ -12969,7 +12969,7 @@ export type GetInstitutionEmployersLeaderboardQueryResult = NonNullable<
 export type GetInstitutionEmployersLeaderboardQueryError = ErrorType<unknown>;
 
 /**
- * @summary Public top-employers-of-our-students leaderboard for the current calendar year.
+ * @summary Public top-employers-of-our-students leaderboard for the current academic year (Aug 1 of prior calendar year through Jul 31 of the named year).
  */
 
 export function useGetInstitutionEmployersLeaderboard<

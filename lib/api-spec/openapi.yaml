@@ -3025,7 +3025,7 @@ paths:
     get:
       operationId: getInstitutionEmployersLeaderboard
       tags: [institutions]
-      summary: Public top-employers-of-our-students leaderboard for the current calendar year.
+      summary: Public top-employers-of-our-students leaderboard for the current academic year (Aug 1 of prior calendar year through Jul 31 of the named year).
       parameters:
         - in: path
           name: id

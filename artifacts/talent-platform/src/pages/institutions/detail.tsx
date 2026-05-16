@@ -153,7 +153,7 @@ export default function InstitutionDetail() {
                   <Trophy className="w-5 h-5 text-primary" /> Top employers of our students
                 </h3>
                 <p className="text-xs text-muted-foreground mb-4">
-                  Most hires from {leaderboard.year} (verified students only).
+                  Most hires this academic year ({leaderboard.year}) — verified students only.
                 </p>
                 <ol className="space-y-3">
                   {leaderboard.employers.map((e, idx) => (

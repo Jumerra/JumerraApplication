@@ -4851,7 +4851,7 @@ export const GetInstitutionPlacementAnalyticsResponse = zod.object({
 });
 
 /**
- * @summary Public top-employers-of-our-students leaderboard for the current calendar year.
+ * @summary Public top-employers-of-our-students leaderboard for the current academic year (Aug 1 of prior calendar year through Jul 31 of the named year).
  */
 export const GetInstitutionEmployersLeaderboardParams = zod.object({
   id: zod.coerce.number(),

@@ -1,4 +1,4 @@
-CREATE TABLE "institution_departments" (
+CREATE TABLE IF NOT EXISTS "institution_departments" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"institution_id" integer NOT NULL,
 	"faculty_id" integer,
@@ -10,7 +10,7 @@ CREATE TABLE "institution_departments" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "institution_facilities" (
+CREATE TABLE IF NOT EXISTS "institution_facilities" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"institution_id" integer NOT NULL,
 	"name" text NOT NULL,
@@ -22,7 +22,7 @@ CREATE TABLE "institution_facilities" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "institution_faculties" (
+CREATE TABLE IF NOT EXISTS "institution_faculties" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"institution_id" integer NOT NULL,
 	"name" text NOT NULL,
@@ -33,7 +33,7 @@ CREATE TABLE "institution_faculties" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "institutions" (
+CREATE TABLE IF NOT EXISTS "institutions" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"name" text NOT NULL,
 	"type" text NOT NULL,
@@ -49,7 +49,7 @@ CREATE TABLE "institutions" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "employers" (
+CREATE TABLE IF NOT EXISTS "employers" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"name" text NOT NULL,
 	"tagline" text NOT NULL,
@@ -71,7 +71,7 @@ CREATE TABLE "employers" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "badges" (
+CREATE TABLE IF NOT EXISTS "badges" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"candidate_id" integer NOT NULL,
 	"name" text NOT NULL,
@@ -79,7 +79,7 @@ CREATE TABLE "badges" (
 	"tier" text DEFAULT 'bronze' NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "candidate_institutions" (
+CREATE TABLE IF NOT EXISTS "candidate_institutions" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"candidate_id" integer NOT NULL,
 	"institution_id" integer NOT NULL,
@@ -90,7 +90,7 @@ CREATE TABLE "candidate_institutions" (
 	"department_id" integer
 );
 --> statement-breakpoint
-CREATE TABLE "candidates" (
+CREATE TABLE IF NOT EXISTS "candidates" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"full_name" text NOT NULL,
 	"headline" text NOT NULL,
@@ -123,7 +123,7 @@ CREATE TABLE "candidates" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "certifications" (
+CREATE TABLE IF NOT EXISTS "certifications" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"candidate_id" integer NOT NULL,
 	"name" text NOT NULL,
@@ -131,7 +131,7 @@ CREATE TABLE "certifications" (
 	"issued_at" date NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "education_entries" (
+CREATE TABLE IF NOT EXISTS "education_entries" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"candidate_id" integer NOT NULL,
 	"institution" text NOT NULL,
@@ -141,7 +141,7 @@ CREATE TABLE "education_entries" (
 	"end_year" integer
 );
 --> statement-breakpoint
-CREATE TABLE "experience_entries" (
+CREATE TABLE IF NOT EXISTS "experience_entries" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"candidate_id" integer NOT NULL,
 	"employer_id" integer,
@@ -155,7 +155,7 @@ CREATE TABLE "experience_entries" (
 	"end_date" date
 );
 --> statement-breakpoint
-CREATE TABLE "jobs" (
+CREATE TABLE IF NOT EXISTS "jobs" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"employer_id" integer NOT NULL,
 	"title" text NOT NULL,
@@ -180,7 +180,7 @@ CREATE TABLE "jobs" (
 	"posted_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "applications" (
+CREATE TABLE IF NOT EXISTS "applications" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"job_id" integer NOT NULL,
 	"candidate_id" integer NOT NULL,
@@ -196,14 +196,14 @@ CREATE TABLE "applications" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "skills" (
+CREATE TABLE IF NOT EXISTS "skills" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"name" text NOT NULL,
 	"category" text NOT NULL,
 	CONSTRAINT "skills_name_unique" UNIQUE("name")
 );
 --> statement-breakpoint
-CREATE TABLE "password_setup_tokens" (
+CREATE TABLE IF NOT EXISTS "password_setup_tokens" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"user_id" integer NOT NULL,
 	"token" text NOT NULL,
@@ -212,7 +212,7 @@ CREATE TABLE "password_setup_tokens" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "pending_registrations" (
+CREATE TABLE IF NOT EXISTS "pending_registrations" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"user_id" integer NOT NULL,
 	"submitted_data" jsonb NOT NULL,
@@ -222,13 +222,13 @@ CREATE TABLE "pending_registrations" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "session" (
+CREATE TABLE IF NOT EXISTS "session" (
 	"sid" text PRIMARY KEY NOT NULL,
 	"sess" jsonb NOT NULL,
 	"expire" timestamp (6) NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "users" (
+CREATE TABLE IF NOT EXISTS "users" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"email" text NOT NULL,
 	"password_hash" text,
@@ -254,7 +254,7 @@ CREATE TABLE "users" (
 	"approved_at" timestamp with time zone
 );
 --> statement-breakpoint
-CREATE TABLE "site_content" (
+CREATE TABLE IF NOT EXISTS "site_content" (
 	"key" text PRIMARY KEY NOT NULL,
 	"type" text NOT NULL,
 	"value" text NOT NULL,
@@ -262,13 +262,13 @@ CREATE TABLE "site_content" (
 	"updated_by" integer
 );
 --> statement-breakpoint
-CREATE TABLE "admin_role_permissions" (
+CREATE TABLE IF NOT EXISTS "admin_role_permissions" (
 	"role_id" integer NOT NULL,
 	"permission" text NOT NULL,
 	CONSTRAINT "admin_role_permissions_role_id_permission_pk" PRIMARY KEY("role_id","permission")
 );
 --> statement-breakpoint
-CREATE TABLE "admin_roles" (
+CREATE TABLE IF NOT EXISTS "admin_roles" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"scope" text DEFAULT 'admin' NOT NULL,
 	"employer_id" integer,
@@ -280,7 +280,7 @@ CREATE TABLE "admin_roles" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "notifications" (
+CREATE TABLE IF NOT EXISTS "notifications" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"user_id" integer NOT NULL,
 	"kind" text NOT NULL,
@@ -291,7 +291,7 @@ CREATE TABLE "notifications" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "boost_payments" (
+CREATE TABLE IF NOT EXISTS "boost_payments" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"candidate_id" integer NOT NULL,
 	"stripe_session_id" text NOT NULL,
@@ -307,7 +307,7 @@ CREATE TABLE "boost_payments" (
 	CONSTRAINT "boost_payments_stripe_session_id_unique" UNIQUE("stripe_session_id")
 );
 --> statement-breakpoint
-CREATE TABLE "boost_settings" (
+CREATE TABLE IF NOT EXISTS "boost_settings" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"is_active" boolean DEFAULT false NOT NULL,
 	"price_cents" integer DEFAULT 2900 NOT NULL,
@@ -317,7 +317,7 @@ CREATE TABLE "boost_settings" (
 	"updated_by" integer
 );
 --> statement-breakpoint
-CREATE TABLE "cv_payments" (
+CREATE TABLE IF NOT EXISTS "cv_payments" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"candidate_id" integer NOT NULL,
 	"stripe_session_id" text NOT NULL,
@@ -331,7 +331,7 @@ CREATE TABLE "cv_payments" (
 	CONSTRAINT "cv_payments_stripe_session_id_unique" UNIQUE("stripe_session_id")
 );
 --> statement-breakpoint
-CREATE TABLE "cv_settings" (
+CREATE TABLE IF NOT EXISTS "cv_settings" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"is_active" boolean DEFAULT false NOT NULL,
 	"price_cents" integer DEFAULT 1900 NOT NULL,
@@ -340,7 +340,7 @@ CREATE TABLE "cv_settings" (
 	"updated_by" integer
 );
 --> statement-breakpoint
-CREATE TABLE "institution_subscription_settings" (
+CREATE TABLE IF NOT EXISTS "institution_subscription_settings" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"is_active" boolean DEFAULT false NOT NULL,
 	"price_cents" integer DEFAULT 9900 NOT NULL,
@@ -351,7 +351,7 @@ CREATE TABLE "institution_subscription_settings" (
 	"updated_by" integer
 );
 --> statement-breakpoint
-CREATE TABLE "institution_subscriptions" (
+CREATE TABLE IF NOT EXISTS "institution_subscriptions" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"institution_id" integer NOT NULL,
 	"stripe_checkout_session_id" text NOT NULL,
@@ -373,7 +373,7 @@ CREATE TABLE "institution_subscriptions" (
 	CONSTRAINT "institution_subscriptions_stripe_checkout_session_id_unique" UNIQUE("stripe_checkout_session_id")
 );
 --> statement-breakpoint
-CREATE TABLE "employer_subscription_settings" (
+CREATE TABLE IF NOT EXISTS "employer_subscription_settings" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"is_active" boolean DEFAULT false NOT NULL,
 	"free_job_post_limit" integer DEFAULT 3 NOT NULL,
@@ -385,7 +385,7 @@ CREATE TABLE "employer_subscription_settings" (
 	"updated_by" integer
 );
 --> statement-breakpoint
-CREATE TABLE "employer_subscriptions" (
+CREATE TABLE IF NOT EXISTS "employer_subscriptions" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"employer_id" integer NOT NULL,
 	"stripe_checkout_session_id" text NOT NULL,
@@ -407,7 +407,7 @@ CREATE TABLE "employer_subscriptions" (
 	CONSTRAINT "employer_subscriptions_stripe_checkout_session_id_unique" UNIQUE("stripe_checkout_session_id")
 );
 --> statement-breakpoint
-CREATE TABLE "job_tier_payments" (
+CREATE TABLE IF NOT EXISTS "job_tier_payments" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"job_id" integer NOT NULL,
 	"employer_id" integer NOT NULL,
@@ -425,7 +425,7 @@ CREATE TABLE "job_tier_payments" (
 	CONSTRAINT "job_tier_payments_stripe_session_id_unique" UNIQUE("stripe_session_id")
 );
 --> statement-breakpoint
-CREATE TABLE "job_tier_settings" (
+CREATE TABLE IF NOT EXISTS "job_tier_settings" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"promoted_active" boolean DEFAULT true NOT NULL,
 	"promoted_price_cents" integer DEFAULT 2900 NOT NULL,
@@ -440,21 +440,21 @@ CREATE TABLE "job_tier_settings" (
 	"updated_by" integer
 );
 --> statement-breakpoint
-CREATE TABLE "sponsored_job_pushes" (
+CREATE TABLE IF NOT EXISTS "sponsored_job_pushes" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"job_id" integer NOT NULL,
 	"candidate_id" integer NOT NULL,
 	"pushed_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "partner_settings" (
+CREATE TABLE IF NOT EXISTS "partner_settings" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"is_active" boolean DEFAULT false NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_by" integer
 );
 --> statement-breakpoint
-CREATE TABLE "partners" (
+CREATE TABLE IF NOT EXISTS "partners" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"name" text NOT NULL,
 	"logo_url" text NOT NULL,
@@ -463,7 +463,7 @@ CREATE TABLE "partners" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "interview_invites" (
+CREATE TABLE IF NOT EXISTS "interview_invites" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"application_id" integer NOT NULL,
 	"employer_id" integer NOT NULL,
@@ -481,7 +481,7 @@ CREATE TABLE "interview_invites" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "interview_time_slots" (
+CREATE TABLE IF NOT EXISTS "interview_time_slots" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"invite_id" integer NOT NULL,
 	"starts_at" timestamp with time zone NOT NULL,
@@ -489,14 +489,14 @@ CREATE TABLE "interview_time_slots" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "profile_view_notifications" (
+CREATE TABLE IF NOT EXISTS "profile_view_notifications" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"candidate_id" integer NOT NULL,
 	"employer_id" integer NOT NULL,
 	"notified_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "profile_views" (
+CREATE TABLE IF NOT EXISTS "profile_views" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"candidate_id" integer NOT NULL,
 	"viewer_user_id" integer NOT NULL,
@@ -504,7 +504,7 @@ CREATE TABLE "profile_views" (
 	"viewed_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "candidate_references" (
+CREATE TABLE IF NOT EXISTS "candidate_references" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"candidate_id" integer NOT NULL,
 	"referee_email" text NOT NULL,
@@ -520,7 +520,7 @@ CREATE TABLE "candidate_references" (
 	"hidden_by" integer
 );
 --> statement-breakpoint
-CREATE TABLE "candidate_skill_verifications" (
+CREATE TABLE IF NOT EXISTS "candidate_skill_verifications" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"candidate_id" integer NOT NULL,
 	"institution_id" integer NOT NULL,
@@ -532,7 +532,7 @@ CREATE TABLE "candidate_skill_verifications" (
 	"note" text
 );
 --> statement-breakpoint
-CREATE TABLE "application_status_history" (
+CREATE TABLE IF NOT EXISTS "application_status_history" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"application_id" integer NOT NULL,
 	"status" text NOT NULL,
@@ -540,7 +540,7 @@ CREATE TABLE "application_status_history" (
 	"changed_by" integer
 );
 --> statement-breakpoint
-CREATE TABLE "candidate_saved_searches" (
+CREATE TABLE IF NOT EXISTS "candidate_saved_searches" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"candidate_id" integer NOT NULL,
 	"name" text NOT NULL,
@@ -556,7 +556,7 @@ CREATE TABLE "candidate_saved_searches" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "candidate_weekly_digests" (
+CREATE TABLE IF NOT EXISTS "candidate_weekly_digests" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"candidate_id" integer NOT NULL,
 	"week_start" date NOT NULL,
@@ -569,7 +569,7 @@ CREATE TABLE "candidate_weekly_digests" (
 	"email_send_result" text
 );
 --> statement-breakpoint
-CREATE TABLE "ai_request_cache" (
+CREATE TABLE IF NOT EXISTS "ai_request_cache" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"candidate_id" integer NOT NULL,
 	"kind" text NOT NULL,
@@ -580,7 +580,7 @@ CREATE TABLE "ai_request_cache" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "employer_message_templates" (
+CREATE TABLE IF NOT EXISTS "employer_message_templates" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"employer_id" integer NOT NULL,
 	"name" text NOT NULL,
@@ -590,7 +590,7 @@ CREATE TABLE "employer_message_templates" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "employer_outreach_messages" (
+CREATE TABLE IF NOT EXISTS "employer_outreach_messages" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"employer_id" integer NOT NULL,
 	"sender_user_id" integer NOT NULL,
@@ -603,7 +603,7 @@ CREATE TABLE "employer_outreach_messages" (
 	"sent_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "employer_talent_pool_members" (
+CREATE TABLE IF NOT EXISTS "employer_talent_pool_members" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"pool_id" integer NOT NULL,
 	"candidate_id" integer NOT NULL,
@@ -612,7 +612,7 @@ CREATE TABLE "employer_talent_pool_members" (
 	"added_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "employer_talent_pools" (
+CREATE TABLE IF NOT EXISTS "employer_talent_pools" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"employer_id" integer NOT NULL,
 	"name" text NOT NULL,
@@ -621,14 +621,14 @@ CREATE TABLE "employer_talent_pools" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "candidate_cohort_members" (
+CREATE TABLE IF NOT EXISTS "candidate_cohort_members" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"cohort_id" integer NOT NULL,
 	"candidate_id" integer NOT NULL,
 	"added_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "candidate_cohorts" (
+CREATE TABLE IF NOT EXISTS "candidate_cohorts" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"institution_id" integer NOT NULL,
 	"year" integer NOT NULL,
@@ -636,7 +636,7 @@ CREATE TABLE "candidate_cohorts" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "employer_reviews" (
+CREATE TABLE IF NOT EXISTS "employer_reviews" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"employer_id" integer NOT NULL,
 	"candidate_id" integer NOT NULL,
@@ -650,7 +650,7 @@ CREATE TABLE "employer_reviews" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "mentorship_requests" (
+CREATE TABLE IF NOT EXISTS "mentorship_requests" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"requester_candidate_id" integer NOT NULL,
 	"mentor_candidate_id" integer NOT NULL,
@@ -661,7 +661,7 @@ CREATE TABLE "mentorship_requests" (
 	"responded_at" timestamp with time zone
 );
 --> statement-breakpoint
-CREATE TABLE "placement_stories" (
+CREATE TABLE IF NOT EXISTS "placement_stories" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"candidate_id" integer NOT NULL,
 	"employer_id" integer NOT NULL,
@@ -676,14 +676,14 @@ CREATE TABLE "placement_stories" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "candidate_dismissed_jobs" (
+CREATE TABLE IF NOT EXISTS "candidate_dismissed_jobs" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"candidate_id" integer NOT NULL,
 	"job_id" integer NOT NULL,
 	"dismissed_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "expo_push_tokens" (
+CREATE TABLE IF NOT EXISTS "expo_push_tokens" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"user_id" integer NOT NULL,
 	"token" text NOT NULL,
@@ -692,7 +692,7 @@ CREATE TABLE "expo_push_tokens" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "notification_prefs" (
+CREATE TABLE IF NOT EXISTS "notification_prefs" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"user_id" integer NOT NULL,
 	"strong_match" boolean DEFAULT true NOT NULL,
@@ -710,7 +710,7 @@ CREATE TABLE "notification_prefs" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "mock_interviews" (
+CREATE TABLE IF NOT EXISTS "mock_interviews" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"candidate_id" integer NOT NULL,
 	"job_id" integer NOT NULL,
@@ -730,7 +730,7 @@ CREATE TABLE "mock_interviews" (
 	"completed_at" timestamp with time zone
 );
 --> statement-breakpoint
-CREATE TABLE "application_endorsements" (
+CREATE TABLE IF NOT EXISTS "application_endorsements" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"application_id" integer NOT NULL,
 	"institution_id" integer NOT NULL,
@@ -739,7 +739,7 @@ CREATE TABLE "application_endorsements" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "application_challenges" (
+CREATE TABLE IF NOT EXISTS "application_challenges" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"application_id" integer,
 	"candidate_id" integer NOT NULL,
@@ -751,7 +751,7 @@ CREATE TABLE "application_challenges" (
 	"completed_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "challenge_templates" (
+CREATE TABLE IF NOT EXISTS "challenge_templates" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"skill" text NOT NULL,
 	"title" text NOT NULL,
@@ -761,7 +761,7 @@ CREATE TABLE "challenge_templates" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "job_challenges" (
+CREATE TABLE IF NOT EXISTS "job_challenges" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"job_id" integer NOT NULL,
 	"title" text DEFAULT 'Skill challenge' NOT NULL,
@@ -774,7 +774,7 @@ CREATE TABLE "job_challenges" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "candidate_open_windows" (
+CREATE TABLE IF NOT EXISTS "candidate_open_windows" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"candidate_id" integer NOT NULL,
 	"opens_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -782,7 +782,7 @@ CREATE TABLE "candidate_open_windows" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "reverse_offers" (
+CREATE TABLE IF NOT EXISTS "reverse_offers" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"candidate_id" integer NOT NULL,
 	"employer_id" integer NOT NULL,
@@ -799,7 +799,7 @@ CREATE TABLE "reverse_offers" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "alumni_intro_requests" (
+CREATE TABLE IF NOT EXISTS "alumni_intro_requests" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"candidate_id" integer NOT NULL,
 	"job_id" integer NOT NULL,
@@ -810,7 +810,7 @@ CREATE TABLE "alumni_intro_requests" (
 	"responded_at" timestamp with time zone
 );
 --> statement-breakpoint
-CREATE TABLE "whatsapp_message_log" (
+CREATE TABLE IF NOT EXISTS "whatsapp_message_log" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"user_id" integer,
 	"to_number" text NOT NULL,
@@ -822,7 +822,7 @@ CREATE TABLE "whatsapp_message_log" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "candidate_growth_repings" (
+CREATE TABLE IF NOT EXISTS "candidate_growth_repings" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"candidate_id" integer NOT NULL,
 	"employer_id" integer NOT NULL,
@@ -832,7 +832,7 @@ CREATE TABLE "candidate_growth_repings" (
 	"quarter_key" text NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "candidate_growth_skills" (
+CREATE TABLE IF NOT EXISTS "candidate_growth_skills" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"candidate_id" integer NOT NULL,
 	"skill" text NOT NULL,
@@ -846,14 +846,14 @@ CREATE TABLE "candidate_growth_skills" (
 	CONSTRAINT "candidate_growth_skills_status_check" CHECK (status in ('active','completed','dismissed','superseded'))
 );
 --> statement-breakpoint
-CREATE TABLE "employer_sla_breaches" (
+CREATE TABLE IF NOT EXISTS "employer_sla_breaches" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"employer_id" integer NOT NULL,
 	"application_id" integer NOT NULL,
 	"breached_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "employer_daily_decks" (
+CREATE TABLE IF NOT EXISTS "employer_daily_decks" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"employer_id" integer NOT NULL,
 	"deck_date" text NOT NULL,
@@ -861,7 +861,7 @@ CREATE TABLE "employer_daily_decks" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "employer_dismissed_candidates" (
+CREATE TABLE IF NOT EXISTS "employer_dismissed_candidates" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"employer_id" integer NOT NULL,
 	"candidate_id" integer NOT NULL,
@@ -870,7 +870,7 @@ CREATE TABLE "employer_dismissed_candidates" (
 	"dismissed_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "institution_api_keys" (
+CREATE TABLE IF NOT EXISTS "institution_api_keys" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"institution_id" integer NOT NULL,
 	"label" text NOT NULL,
@@ -883,7 +883,7 @@ CREATE TABLE "institution_api_keys" (
 	CONSTRAINT "institution_api_keys_hashed_key_unique" UNIQUE("hashed_key")
 );
 --> statement-breakpoint
-CREATE TABLE "webhook_events" (
+CREATE TABLE IF NOT EXISTS "webhook_events" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"provider" text NOT NULL,
 	"event_id" text NOT NULL,
@@ -894,7 +894,7 @@ CREATE TABLE "webhook_events" (
 	"error" text
 );
 --> statement-breakpoint
-CREATE TABLE "payments" (
+CREATE TABLE IF NOT EXISTS "payments" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"provider" text NOT NULL,
 	"external_ref" text NOT NULL,
@@ -908,199 +908,371 @@ CREATE TABLE "payments" (
 	"finalized_at" timestamp with time zone
 );
 --> statement-breakpoint
-ALTER TABLE "institution_departments" ADD CONSTRAINT "institution_departments_institution_id_institutions_id_fk" FOREIGN KEY ("institution_id") REFERENCES "public"."institutions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "institution_departments" ADD CONSTRAINT "institution_departments_faculty_id_institution_faculties_id_fk" FOREIGN KEY ("faculty_id") REFERENCES "public"."institution_faculties"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "institution_facilities" ADD CONSTRAINT "institution_facilities_institution_id_institutions_id_fk" FOREIGN KEY ("institution_id") REFERENCES "public"."institutions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "institution_faculties" ADD CONSTRAINT "institution_faculties_institution_id_institutions_id_fk" FOREIGN KEY ("institution_id") REFERENCES "public"."institutions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "institutions" ADD CONSTRAINT "institutions_account_manager_id_users_id_fk" FOREIGN KEY ("account_manager_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "employers" ADD CONSTRAINT "employers_account_manager_id_users_id_fk" FOREIGN KEY ("account_manager_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "candidate_institutions" ADD CONSTRAINT "candidate_institutions_department_id_institution_departments_id_fk" FOREIGN KEY ("department_id") REFERENCES "public"."institution_departments"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "users" ADD CONSTRAINT "users_assigned_department_id_institution_departments_id_fk" FOREIGN KEY ("assigned_department_id") REFERENCES "public"."institution_departments"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "users" ADD CONSTRAINT "users_assigned_faculty_id_institution_faculties_id_fk" FOREIGN KEY ("assigned_faculty_id") REFERENCES "public"."institution_faculties"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "admin_role_permissions" ADD CONSTRAINT "admin_role_permissions_role_id_admin_roles_id_fk" FOREIGN KEY ("role_id") REFERENCES "public"."admin_roles"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "admin_roles" ADD CONSTRAINT "admin_roles_employer_id_employers_id_fk" FOREIGN KEY ("employer_id") REFERENCES "public"."employers"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "admin_roles" ADD CONSTRAINT "admin_roles_institution_id_institutions_id_fk" FOREIGN KEY ("institution_id") REFERENCES "public"."institutions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "notifications" ADD CONSTRAINT "notifications_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "interview_invites" ADD CONSTRAINT "interview_invites_application_id_applications_id_fk" FOREIGN KEY ("application_id") REFERENCES "public"."applications"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "interview_invites" ADD CONSTRAINT "interview_invites_employer_id_employers_id_fk" FOREIGN KEY ("employer_id") REFERENCES "public"."employers"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "interview_invites" ADD CONSTRAINT "interview_invites_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "interview_time_slots" ADD CONSTRAINT "interview_time_slots_invite_id_interview_invites_id_fk" FOREIGN KEY ("invite_id") REFERENCES "public"."interview_invites"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "profile_view_notifications" ADD CONSTRAINT "profile_view_notifications_candidate_id_candidates_id_fk" FOREIGN KEY ("candidate_id") REFERENCES "public"."candidates"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "profile_view_notifications" ADD CONSTRAINT "profile_view_notifications_employer_id_employers_id_fk" FOREIGN KEY ("employer_id") REFERENCES "public"."employers"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "profile_views" ADD CONSTRAINT "profile_views_candidate_id_candidates_id_fk" FOREIGN KEY ("candidate_id") REFERENCES "public"."candidates"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "profile_views" ADD CONSTRAINT "profile_views_viewer_user_id_users_id_fk" FOREIGN KEY ("viewer_user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "profile_views" ADD CONSTRAINT "profile_views_employer_id_employers_id_fk" FOREIGN KEY ("employer_id") REFERENCES "public"."employers"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "candidate_references" ADD CONSTRAINT "candidate_references_candidate_id_candidates_id_fk" FOREIGN KEY ("candidate_id") REFERENCES "public"."candidates"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "candidate_references" ADD CONSTRAINT "candidate_references_hidden_by_users_id_fk" FOREIGN KEY ("hidden_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "candidate_skill_verifications" ADD CONSTRAINT "candidate_skill_verifications_candidate_id_candidates_id_fk" FOREIGN KEY ("candidate_id") REFERENCES "public"."candidates"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "candidate_skill_verifications" ADD CONSTRAINT "candidate_skill_verifications_institution_id_institutions_id_fk" FOREIGN KEY ("institution_id") REFERENCES "public"."institutions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "candidate_skill_verifications" ADD CONSTRAINT "candidate_skill_verifications_issued_by_users_id_fk" FOREIGN KEY ("issued_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "candidate_skill_verifications" ADD CONSTRAINT "candidate_skill_verifications_revoked_by_users_id_fk" FOREIGN KEY ("revoked_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "application_status_history" ADD CONSTRAINT "application_status_history_application_id_applications_id_fk" FOREIGN KEY ("application_id") REFERENCES "public"."applications"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "application_status_history" ADD CONSTRAINT "application_status_history_changed_by_users_id_fk" FOREIGN KEY ("changed_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "candidate_saved_searches" ADD CONSTRAINT "candidate_saved_searches_candidate_id_candidates_id_fk" FOREIGN KEY ("candidate_id") REFERENCES "public"."candidates"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "candidate_weekly_digests" ADD CONSTRAINT "candidate_weekly_digests_candidate_id_candidates_id_fk" FOREIGN KEY ("candidate_id") REFERENCES "public"."candidates"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "employer_message_templates" ADD CONSTRAINT "employer_message_templates_employer_id_employers_id_fk" FOREIGN KEY ("employer_id") REFERENCES "public"."employers"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "employer_message_templates" ADD CONSTRAINT "employer_message_templates_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "employer_outreach_messages" ADD CONSTRAINT "employer_outreach_messages_employer_id_employers_id_fk" FOREIGN KEY ("employer_id") REFERENCES "public"."employers"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "employer_outreach_messages" ADD CONSTRAINT "employer_outreach_messages_sender_user_id_users_id_fk" FOREIGN KEY ("sender_user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "employer_outreach_messages" ADD CONSTRAINT "employer_outreach_messages_candidate_id_candidates_id_fk" FOREIGN KEY ("candidate_id") REFERENCES "public"."candidates"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "employer_outreach_messages" ADD CONSTRAINT "employer_outreach_messages_pool_id_employer_talent_pools_id_fk" FOREIGN KEY ("pool_id") REFERENCES "public"."employer_talent_pools"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "employer_outreach_messages" ADD CONSTRAINT "employer_outreach_messages_template_id_employer_message_templates_id_fk" FOREIGN KEY ("template_id") REFERENCES "public"."employer_message_templates"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "employer_talent_pool_members" ADD CONSTRAINT "employer_talent_pool_members_pool_id_employer_talent_pools_id_fk" FOREIGN KEY ("pool_id") REFERENCES "public"."employer_talent_pools"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "employer_talent_pool_members" ADD CONSTRAINT "employer_talent_pool_members_candidate_id_candidates_id_fk" FOREIGN KEY ("candidate_id") REFERENCES "public"."candidates"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "employer_talent_pool_members" ADD CONSTRAINT "employer_talent_pool_members_added_by_users_id_fk" FOREIGN KEY ("added_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "employer_talent_pools" ADD CONSTRAINT "employer_talent_pools_employer_id_employers_id_fk" FOREIGN KEY ("employer_id") REFERENCES "public"."employers"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "employer_talent_pools" ADD CONSTRAINT "employer_talent_pools_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "candidate_cohort_members" ADD CONSTRAINT "candidate_cohort_members_cohort_id_candidate_cohorts_id_fk" FOREIGN KEY ("cohort_id") REFERENCES "public"."candidate_cohorts"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "candidate_cohort_members" ADD CONSTRAINT "candidate_cohort_members_candidate_id_candidates_id_fk" FOREIGN KEY ("candidate_id") REFERENCES "public"."candidates"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "candidate_cohorts" ADD CONSTRAINT "candidate_cohorts_institution_id_institutions_id_fk" FOREIGN KEY ("institution_id") REFERENCES "public"."institutions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "employer_reviews" ADD CONSTRAINT "employer_reviews_employer_id_employers_id_fk" FOREIGN KEY ("employer_id") REFERENCES "public"."employers"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "employer_reviews" ADD CONSTRAINT "employer_reviews_candidate_id_candidates_id_fk" FOREIGN KEY ("candidate_id") REFERENCES "public"."candidates"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "employer_reviews" ADD CONSTRAINT "employer_reviews_institution_id_institutions_id_fk" FOREIGN KEY ("institution_id") REFERENCES "public"."institutions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "employer_reviews" ADD CONSTRAINT "employer_reviews_moderated_by_users_id_fk" FOREIGN KEY ("moderated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "mentorship_requests" ADD CONSTRAINT "mentorship_requests_requester_candidate_id_candidates_id_fk" FOREIGN KEY ("requester_candidate_id") REFERENCES "public"."candidates"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "mentorship_requests" ADD CONSTRAINT "mentorship_requests_mentor_candidate_id_candidates_id_fk" FOREIGN KEY ("mentor_candidate_id") REFERENCES "public"."candidates"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "mentorship_requests" ADD CONSTRAINT "mentorship_requests_institution_id_institutions_id_fk" FOREIGN KEY ("institution_id") REFERENCES "public"."institutions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "placement_stories" ADD CONSTRAINT "placement_stories_candidate_id_candidates_id_fk" FOREIGN KEY ("candidate_id") REFERENCES "public"."candidates"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "placement_stories" ADD CONSTRAINT "placement_stories_employer_id_employers_id_fk" FOREIGN KEY ("employer_id") REFERENCES "public"."employers"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "placement_stories" ADD CONSTRAINT "placement_stories_institution_id_institutions_id_fk" FOREIGN KEY ("institution_id") REFERENCES "public"."institutions"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "placement_stories" ADD CONSTRAINT "placement_stories_moderated_by_users_id_fk" FOREIGN KEY ("moderated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "candidate_dismissed_jobs" ADD CONSTRAINT "candidate_dismissed_jobs_candidate_id_candidates_id_fk" FOREIGN KEY ("candidate_id") REFERENCES "public"."candidates"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "candidate_dismissed_jobs" ADD CONSTRAINT "candidate_dismissed_jobs_job_id_jobs_id_fk" FOREIGN KEY ("job_id") REFERENCES "public"."jobs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "expo_push_tokens" ADD CONSTRAINT "expo_push_tokens_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "notification_prefs" ADD CONSTRAINT "notification_prefs_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "mock_interviews" ADD CONSTRAINT "mock_interviews_candidate_id_candidates_id_fk" FOREIGN KEY ("candidate_id") REFERENCES "public"."candidates"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "mock_interviews" ADD CONSTRAINT "mock_interviews_job_id_jobs_id_fk" FOREIGN KEY ("job_id") REFERENCES "public"."jobs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "mock_interviews" ADD CONSTRAINT "mock_interviews_application_id_applications_id_fk" FOREIGN KEY ("application_id") REFERENCES "public"."applications"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "application_endorsements" ADD CONSTRAINT "application_endorsements_application_id_applications_id_fk" FOREIGN KEY ("application_id") REFERENCES "public"."applications"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "application_endorsements" ADD CONSTRAINT "application_endorsements_institution_id_institutions_id_fk" FOREIGN KEY ("institution_id") REFERENCES "public"."institutions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "application_endorsements" ADD CONSTRAINT "application_endorsements_endorsed_by_user_id_users_id_fk" FOREIGN KEY ("endorsed_by_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "application_challenges" ADD CONSTRAINT "application_challenges_application_id_applications_id_fk" FOREIGN KEY ("application_id") REFERENCES "public"."applications"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "application_challenges" ADD CONSTRAINT "application_challenges_candidate_id_candidates_id_fk" FOREIGN KEY ("candidate_id") REFERENCES "public"."candidates"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "application_challenges" ADD CONSTRAINT "application_challenges_job_id_jobs_id_fk" FOREIGN KEY ("job_id") REFERENCES "public"."jobs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "job_challenges" ADD CONSTRAINT "job_challenges_job_id_jobs_id_fk" FOREIGN KEY ("job_id") REFERENCES "public"."jobs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "alumni_intro_requests" ADD CONSTRAINT "alumni_intro_requests_candidate_id_candidates_id_fk" FOREIGN KEY ("candidate_id") REFERENCES "public"."candidates"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "alumni_intro_requests" ADD CONSTRAINT "alumni_intro_requests_job_id_jobs_id_fk" FOREIGN KEY ("job_id") REFERENCES "public"."jobs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "alumni_intro_requests" ADD CONSTRAINT "alumni_intro_requests_alumni_user_id_users_id_fk" FOREIGN KEY ("alumni_user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "whatsapp_message_log" ADD CONSTRAINT "whatsapp_message_log_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "candidate_growth_repings" ADD CONSTRAINT "candidate_growth_repings_candidate_id_candidates_id_fk" FOREIGN KEY ("candidate_id") REFERENCES "public"."candidates"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "candidate_growth_repings" ADD CONSTRAINT "candidate_growth_repings_employer_id_employers_id_fk" FOREIGN KEY ("employer_id") REFERENCES "public"."employers"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "candidate_growth_repings" ADD CONSTRAINT "candidate_growth_repings_application_id_applications_id_fk" FOREIGN KEY ("application_id") REFERENCES "public"."applications"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "candidate_growth_skills" ADD CONSTRAINT "candidate_growth_skills_candidate_id_candidates_id_fk" FOREIGN KEY ("candidate_id") REFERENCES "public"."candidates"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "employer_sla_breaches" ADD CONSTRAINT "employer_sla_breaches_employer_id_employers_id_fk" FOREIGN KEY ("employer_id") REFERENCES "public"."employers"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "employer_sla_breaches" ADD CONSTRAINT "employer_sla_breaches_application_id_applications_id_fk" FOREIGN KEY ("application_id") REFERENCES "public"."applications"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "employer_daily_decks" ADD CONSTRAINT "employer_daily_decks_employer_id_employers_id_fk" FOREIGN KEY ("employer_id") REFERENCES "public"."employers"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "employer_dismissed_candidates" ADD CONSTRAINT "employer_dismissed_candidates_employer_id_employers_id_fk" FOREIGN KEY ("employer_id") REFERENCES "public"."employers"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "employer_dismissed_candidates" ADD CONSTRAINT "employer_dismissed_candidates_candidate_id_candidates_id_fk" FOREIGN KEY ("candidate_id") REFERENCES "public"."candidates"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "employer_dismissed_candidates" ADD CONSTRAINT "employer_dismissed_candidates_job_id_jobs_id_fk" FOREIGN KEY ("job_id") REFERENCES "public"."jobs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "institution_dept_inst_idx" ON "institution_departments" USING btree ("institution_id");--> statement-breakpoint
-CREATE INDEX "institution_dept_faculty_idx" ON "institution_departments" USING btree ("faculty_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "institution_dept_inst_name_idx" ON "institution_departments" USING btree ("institution_id","name");--> statement-breakpoint
-CREATE INDEX "institution_facility_inst_idx" ON "institution_facilities" USING btree ("institution_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "institution_facility_inst_name_idx" ON "institution_facilities" USING btree ("institution_id","name");--> statement-breakpoint
-CREATE INDEX "institution_faculty_inst_idx" ON "institution_faculties" USING btree ("institution_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "institution_faculty_inst_name_idx" ON "institution_faculties" USING btree ("institution_id","name");--> statement-breakpoint
-CREATE INDEX "institution_account_manager_idx" ON "institutions" USING btree ("account_manager_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "institution_slug_idx" ON "institutions" USING btree ("slug");--> statement-breakpoint
-CREATE INDEX "employer_account_manager_idx" ON "employers" USING btree ("account_manager_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "candidate_institution_unique" ON "candidate_institutions" USING btree ("candidate_id","institution_id");--> statement-breakpoint
-CREATE INDEX "candidate_institutions_candidate_idx" ON "candidate_institutions" USING btree ("candidate_id");--> statement-breakpoint
-CREATE INDEX "candidate_institutions_institution_idx" ON "candidate_institutions" USING btree ("institution_id");--> statement-breakpoint
-CREATE INDEX "candidate_institutions_inst_dept_idx" ON "candidate_institutions" USING btree ("institution_id","department_id");--> statement-breakpoint
-CREATE INDEX "jobs_tier_idx" ON "jobs" USING btree ("tier","tier_expires_at");--> statement-breakpoint
-CREATE INDEX "applications_applied_at_idx" ON "applications" USING btree ("applied_at");--> statement-breakpoint
-CREATE INDEX "applications_status_updated_at_idx" ON "applications" USING btree ("status","updated_at");--> statement-breakpoint
-CREATE INDEX "applications_candidate_id_idx" ON "applications" USING btree ("candidate_id");--> statement-breakpoint
-CREATE INDEX "applications_job_id_idx" ON "applications" USING btree ("job_id");--> statement-breakpoint
-CREATE INDEX "applications_candidate_status_idx" ON "applications" USING btree ("candidate_id","status");--> statement-breakpoint
-CREATE INDEX "applications_job_status_idx" ON "applications" USING btree ("job_id","status");--> statement-breakpoint
-CREATE UNIQUE INDEX "applications_job_candidate_uniq" ON "applications" USING btree ("job_id","candidate_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "pw_token_unique" ON "password_setup_tokens" USING btree ("token");--> statement-breakpoint
-CREATE INDEX "pending_reg_user_idx" ON "pending_registrations" USING btree ("user_id");--> statement-breakpoint
-CREATE INDEX "IDX_session_expire" ON "session" USING btree ("expire");--> statement-breakpoint
-CREATE UNIQUE INDEX "user_email_unique" ON "users" USING btree ("email");--> statement-breakpoint
-CREATE INDEX "admin_role_perm_role_idx" ON "admin_role_permissions" USING btree ("role_id");--> statement-breakpoint
-CREATE INDEX "admin_roles_scope_idx" ON "admin_roles" USING btree ("scope");--> statement-breakpoint
-CREATE INDEX "admin_roles_employer_idx" ON "admin_roles" USING btree ("employer_id");--> statement-breakpoint
-CREATE INDEX "admin_roles_institution_idx" ON "admin_roles" USING btree ("institution_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "admin_roles_admin_scope_name_unique" ON "admin_roles" USING btree ("name") WHERE "admin_roles"."scope" = 'admin';--> statement-breakpoint
-CREATE UNIQUE INDEX "admin_roles_employer_scope_name_unique" ON "admin_roles" USING btree ("employer_id","name") WHERE "admin_roles"."scope" = 'employer';--> statement-breakpoint
-CREATE UNIQUE INDEX "admin_roles_institution_scope_name_unique" ON "admin_roles" USING btree ("institution_id","name") WHERE "admin_roles"."scope" = 'institution';--> statement-breakpoint
-CREATE INDEX "notif_user_created_idx" ON "notifications" USING btree ("user_id","created_at");--> statement-breakpoint
-CREATE INDEX "notif_user_unread_idx" ON "notifications" USING btree ("user_id","read_at");--> statement-breakpoint
-CREATE INDEX "inst_sub_by_institution_idx" ON "institution_subscriptions" USING btree ("institution_id");--> statement-breakpoint
-CREATE INDEX "emp_sub_by_employer_idx" ON "employer_subscriptions" USING btree ("employer_id");--> statement-breakpoint
-CREATE INDEX "job_tier_payments_job_idx" ON "job_tier_payments" USING btree ("job_id");--> statement-breakpoint
-CREATE INDEX "job_tier_payments_employer_idx" ON "job_tier_payments" USING btree ("employer_id");--> statement-breakpoint
-CREATE INDEX "sponsored_pushes_job_idx" ON "sponsored_job_pushes" USING btree ("job_id");--> statement-breakpoint
-CREATE INDEX "sponsored_pushes_cand_at_idx" ON "sponsored_job_pushes" USING btree ("candidate_id","pushed_at");--> statement-breakpoint
-CREATE UNIQUE INDEX "sponsored_pushes_job_cand_uniq" ON "sponsored_job_pushes" USING btree ("job_id","candidate_id");--> statement-breakpoint
-CREATE INDEX "interview_invites_application_idx" ON "interview_invites" USING btree ("application_id");--> statement-breakpoint
-CREATE INDEX "interview_invites_employer_idx" ON "interview_invites" USING btree ("employer_id");--> statement-breakpoint
-CREATE INDEX "interview_invites_status_idx" ON "interview_invites" USING btree ("status");--> statement-breakpoint
-CREATE INDEX "interview_time_slots_invite_idx" ON "interview_time_slots" USING btree ("invite_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "profile_view_notif_uniq" ON "profile_view_notifications" USING btree ("candidate_id","employer_id");--> statement-breakpoint
-CREATE INDEX "profile_views_candidate_idx" ON "profile_views" USING btree ("candidate_id","viewed_at");--> statement-breakpoint
-CREATE INDEX "profile_views_viewer_idx" ON "profile_views" USING btree ("viewer_user_id","candidate_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "cand_ref_token_unique" ON "candidate_references" USING btree ("token");--> statement-breakpoint
-CREATE INDEX "cand_ref_cand_idx" ON "candidate_references" USING btree ("candidate_id");--> statement-breakpoint
-CREATE INDEX "cand_skill_cand_idx" ON "candidate_skill_verifications" USING btree ("candidate_id");--> statement-breakpoint
-CREATE INDEX "cand_skill_inst_idx" ON "candidate_skill_verifications" USING btree ("institution_id");--> statement-breakpoint
-CREATE INDEX "app_history_app_idx" ON "application_status_history" USING btree ("application_id","changed_at");--> statement-breakpoint
-CREATE INDEX "saved_search_cand_idx" ON "candidate_saved_searches" USING btree ("candidate_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "weekly_digest_unique" ON "candidate_weekly_digests" USING btree ("candidate_id","week_start");--> statement-breakpoint
-CREATE UNIQUE INDEX "ai_request_cache_candidate_kind_key_uniq" ON "ai_request_cache" USING btree ("candidate_id","kind","key_hash");--> statement-breakpoint
-CREATE INDEX "ai_request_cache_candidate_created_idx" ON "ai_request_cache" USING btree ("candidate_id","created_at");--> statement-breakpoint
-CREATE UNIQUE INDEX "employer_message_template_name_idx" ON "employer_message_templates" USING btree ("employer_id","name");--> statement-breakpoint
-CREATE INDEX "employer_outreach_sent_idx" ON "employer_outreach_messages" USING btree ("employer_id","sent_at");--> statement-breakpoint
-CREATE UNIQUE INDEX "employer_talent_pool_member_unique" ON "employer_talent_pool_members" USING btree ("pool_id","candidate_id");--> statement-breakpoint
-CREATE INDEX "employer_talent_pool_member_pool_idx" ON "employer_talent_pool_members" USING btree ("pool_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "employer_talent_pool_name_idx" ON "employer_talent_pools" USING btree ("employer_id","name");--> statement-breakpoint
-CREATE UNIQUE INDEX "candidate_cohort_member_unique" ON "candidate_cohort_members" USING btree ("cohort_id","candidate_id");--> statement-breakpoint
-CREATE INDEX "candidate_cohort_member_cohort_idx" ON "candidate_cohort_members" USING btree ("cohort_id");--> statement-breakpoint
-CREATE INDEX "candidate_cohort_member_candidate_idx" ON "candidate_cohort_members" USING btree ("candidate_id");--> statement-breakpoint
-CREATE INDEX "candidate_cohort_inst_idx" ON "candidate_cohorts" USING btree ("institution_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "candidate_cohort_inst_year_idx" ON "candidate_cohorts" USING btree ("institution_id","year");--> statement-breakpoint
-CREATE UNIQUE INDEX "employer_review_unique" ON "employer_reviews" USING btree ("employer_id","candidate_id");--> statement-breakpoint
-CREATE INDEX "employer_review_employer_status_idx" ON "employer_reviews" USING btree ("employer_id","status");--> statement-breakpoint
-CREATE INDEX "employer_review_status_idx" ON "employer_reviews" USING btree ("status");--> statement-breakpoint
-CREATE UNIQUE INDEX "mentorship_pair_unique" ON "mentorship_requests" USING btree ("requester_candidate_id","mentor_candidate_id");--> statement-breakpoint
-CREATE INDEX "mentorship_mentor_idx" ON "mentorship_requests" USING btree ("mentor_candidate_id");--> statement-breakpoint
-CREATE INDEX "mentorship_requester_idx" ON "mentorship_requests" USING btree ("requester_candidate_id");--> statement-breakpoint
-CREATE INDEX "placement_story_status_idx" ON "placement_stories" USING btree ("status","sort_order");--> statement-breakpoint
-CREATE UNIQUE INDEX "candidate_dismissed_job_unique" ON "candidate_dismissed_jobs" USING btree ("candidate_id","job_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "expo_push_token_unique" ON "expo_push_tokens" USING btree ("token");--> statement-breakpoint
-CREATE INDEX "expo_push_user_idx" ON "expo_push_tokens" USING btree ("user_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "notification_prefs_user_unique" ON "notification_prefs" USING btree ("user_id");--> statement-breakpoint
-CREATE INDEX "mock_interviews_candidate_job_idx" ON "mock_interviews" USING btree ("candidate_id","job_id","completed_at");--> statement-breakpoint
-CREATE UNIQUE INDEX "mock_interviews_one_in_progress_per_job" ON "mock_interviews" USING btree ("candidate_id","job_id") WHERE status = 'in_progress';--> statement-breakpoint
-CREATE UNIQUE INDEX "app_endorsement_unique" ON "application_endorsements" USING btree ("application_id");--> statement-breakpoint
-CREATE INDEX "app_endorsement_inst_idx" ON "application_endorsements" USING btree ("institution_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "application_challenges_candidate_job_uniq" ON "application_challenges" USING btree ("candidate_id","job_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "application_challenges_application_uniq" ON "application_challenges" USING btree ("application_id") WHERE "application_challenges"."application_id" IS NOT NULL;--> statement-breakpoint
-CREATE INDEX "challenge_templates_skill_idx" ON "challenge_templates" USING btree ("skill");--> statement-breakpoint
-CREATE UNIQUE INDEX "job_challenges_job_id_uniq" ON "job_challenges" USING btree ("job_id");--> statement-breakpoint
-CREATE INDEX "candidate_open_windows_candidate_closes_idx" ON "candidate_open_windows" USING btree ("candidate_id","closes_at");--> statement-breakpoint
-CREATE INDEX "reverse_offers_candidate_status_idx" ON "reverse_offers" USING btree ("candidate_id","status");--> statement-breakpoint
-CREATE INDEX "reverse_offers_employer_created_idx" ON "reverse_offers" USING btree ("employer_id","created_at");--> statement-breakpoint
-CREATE INDEX "alumni_intro_alumni_idx" ON "alumni_intro_requests" USING btree ("alumni_user_id","status");--> statement-breakpoint
-CREATE INDEX "alumni_intro_candidate_job_idx" ON "alumni_intro_requests" USING btree ("candidate_id","job_id");--> statement-breakpoint
-CREATE INDEX "alumni_intro_candidate_alumni_idx" ON "alumni_intro_requests" USING btree ("candidate_id","alumni_user_id","created_at");--> statement-breakpoint
-CREATE INDEX "wa_log_user_idx" ON "whatsapp_message_log" USING btree ("user_id");--> statement-breakpoint
-CREATE INDEX "wa_log_created_idx" ON "whatsapp_message_log" USING btree ("created_at");--> statement-breakpoint
-CREATE INDEX "growth_reping_pair_idx" ON "candidate_growth_repings" USING btree ("candidate_id","employer_id","sent_at");--> statement-breakpoint
-CREATE UNIQUE INDEX "growth_reping_quarter_unique_idx" ON "candidate_growth_repings" USING btree ("candidate_id","employer_id","quarter_key");--> statement-breakpoint
-CREATE UNIQUE INDEX "candidate_growth_skills_unique_idx" ON "candidate_growth_skills" USING btree ("candidate_id","skill");--> statement-breakpoint
-CREATE INDEX "candidate_growth_skills_status_idx" ON "candidate_growth_skills" USING btree ("candidate_id","status");--> statement-breakpoint
-CREATE INDEX "sla_breaches_employer_idx" ON "employer_sla_breaches" USING btree ("employer_id","breached_at");--> statement-breakpoint
-CREATE UNIQUE INDEX "sla_breaches_application_uq" ON "employer_sla_breaches" USING btree ("application_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "employer_daily_deck_unique" ON "employer_daily_decks" USING btree ("employer_id","deck_date");--> statement-breakpoint
-CREATE UNIQUE INDEX "employer_dismissed_per_job_unique" ON "employer_dismissed_candidates" USING btree ("employer_id","candidate_id","job_id") WHERE "employer_dismissed_candidates"."job_id" IS NOT NULL;--> statement-breakpoint
-CREATE UNIQUE INDEX "employer_dismissed_per_employer_unique" ON "employer_dismissed_candidates" USING btree ("employer_id","candidate_id") WHERE "employer_dismissed_candidates"."job_id" IS NULL;--> statement-breakpoint
-CREATE INDEX "employer_dismissed_employer_idx" ON "employer_dismissed_candidates" USING btree ("employer_id");--> statement-breakpoint
-CREATE INDEX "institution_api_keys_institution_idx" ON "institution_api_keys" USING btree ("institution_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "webhook_events_provider_event_id_idx" ON "webhook_events" USING btree ("provider","event_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "payments_provider_ref_unique" ON "payments" USING btree ("provider","external_ref");--> statement-breakpoint
-CREATE INDEX "payments_purpose_idx" ON "payments" USING btree ("purpose_type","purpose_id");--> statement-breakpoint
-CREATE INDEX "payments_status_idx" ON "payments" USING btree ("status");
+DO $$ BEGIN
+  ALTER TABLE "institution_departments" ADD CONSTRAINT "institution_departments_institution_id_institutions_id_fk" FOREIGN KEY ("institution_id") REFERENCES "public"."institutions"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "institution_departments" ADD CONSTRAINT "institution_departments_faculty_id_institution_faculties_id_fk" FOREIGN KEY ("faculty_id") REFERENCES "public"."institution_faculties"("id") ON DELETE set null ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "institution_facilities" ADD CONSTRAINT "institution_facilities_institution_id_institutions_id_fk" FOREIGN KEY ("institution_id") REFERENCES "public"."institutions"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "institution_faculties" ADD CONSTRAINT "institution_faculties_institution_id_institutions_id_fk" FOREIGN KEY ("institution_id") REFERENCES "public"."institutions"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "institutions" ADD CONSTRAINT "institutions_account_manager_id_users_id_fk" FOREIGN KEY ("account_manager_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "employers" ADD CONSTRAINT "employers_account_manager_id_users_id_fk" FOREIGN KEY ("account_manager_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "candidate_institutions" ADD CONSTRAINT "candidate_institutions_department_id_institution_departments_id_fk" FOREIGN KEY ("department_id") REFERENCES "public"."institution_departments"("id") ON DELETE set null ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "users" ADD CONSTRAINT "users_assigned_department_id_institution_departments_id_fk" FOREIGN KEY ("assigned_department_id") REFERENCES "public"."institution_departments"("id") ON DELETE set null ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "users" ADD CONSTRAINT "users_assigned_faculty_id_institution_faculties_id_fk" FOREIGN KEY ("assigned_faculty_id") REFERENCES "public"."institution_faculties"("id") ON DELETE set null ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "admin_role_permissions" ADD CONSTRAINT "admin_role_permissions_role_id_admin_roles_id_fk" FOREIGN KEY ("role_id") REFERENCES "public"."admin_roles"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "admin_roles" ADD CONSTRAINT "admin_roles_employer_id_employers_id_fk" FOREIGN KEY ("employer_id") REFERENCES "public"."employers"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "admin_roles" ADD CONSTRAINT "admin_roles_institution_id_institutions_id_fk" FOREIGN KEY ("institution_id") REFERENCES "public"."institutions"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "notifications" ADD CONSTRAINT "notifications_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "interview_invites" ADD CONSTRAINT "interview_invites_application_id_applications_id_fk" FOREIGN KEY ("application_id") REFERENCES "public"."applications"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "interview_invites" ADD CONSTRAINT "interview_invites_employer_id_employers_id_fk" FOREIGN KEY ("employer_id") REFERENCES "public"."employers"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "interview_invites" ADD CONSTRAINT "interview_invites_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "interview_time_slots" ADD CONSTRAINT "interview_time_slots_invite_id_interview_invites_id_fk" FOREIGN KEY ("invite_id") REFERENCES "public"."interview_invites"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "profile_view_notifications" ADD CONSTRAINT "profile_view_notifications_candidate_id_candidates_id_fk" FOREIGN KEY ("candidate_id") REFERENCES "public"."candidates"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "profile_view_notifications" ADD CONSTRAINT "profile_view_notifications_employer_id_employers_id_fk" FOREIGN KEY ("employer_id") REFERENCES "public"."employers"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "profile_views" ADD CONSTRAINT "profile_views_candidate_id_candidates_id_fk" FOREIGN KEY ("candidate_id") REFERENCES "public"."candidates"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "profile_views" ADD CONSTRAINT "profile_views_viewer_user_id_users_id_fk" FOREIGN KEY ("viewer_user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "profile_views" ADD CONSTRAINT "profile_views_employer_id_employers_id_fk" FOREIGN KEY ("employer_id") REFERENCES "public"."employers"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "candidate_references" ADD CONSTRAINT "candidate_references_candidate_id_candidates_id_fk" FOREIGN KEY ("candidate_id") REFERENCES "public"."candidates"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "candidate_references" ADD CONSTRAINT "candidate_references_hidden_by_users_id_fk" FOREIGN KEY ("hidden_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "candidate_skill_verifications" ADD CONSTRAINT "candidate_skill_verifications_candidate_id_candidates_id_fk" FOREIGN KEY ("candidate_id") REFERENCES "public"."candidates"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "candidate_skill_verifications" ADD CONSTRAINT "candidate_skill_verifications_institution_id_institutions_id_fk" FOREIGN KEY ("institution_id") REFERENCES "public"."institutions"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "candidate_skill_verifications" ADD CONSTRAINT "candidate_skill_verifications_issued_by_users_id_fk" FOREIGN KEY ("issued_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "candidate_skill_verifications" ADD CONSTRAINT "candidate_skill_verifications_revoked_by_users_id_fk" FOREIGN KEY ("revoked_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "application_status_history" ADD CONSTRAINT "application_status_history_application_id_applications_id_fk" FOREIGN KEY ("application_id") REFERENCES "public"."applications"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "application_status_history" ADD CONSTRAINT "application_status_history_changed_by_users_id_fk" FOREIGN KEY ("changed_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "candidate_saved_searches" ADD CONSTRAINT "candidate_saved_searches_candidate_id_candidates_id_fk" FOREIGN KEY ("candidate_id") REFERENCES "public"."candidates"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "candidate_weekly_digests" ADD CONSTRAINT "candidate_weekly_digests_candidate_id_candidates_id_fk" FOREIGN KEY ("candidate_id") REFERENCES "public"."candidates"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "employer_message_templates" ADD CONSTRAINT "employer_message_templates_employer_id_employers_id_fk" FOREIGN KEY ("employer_id") REFERENCES "public"."employers"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "employer_message_templates" ADD CONSTRAINT "employer_message_templates_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "employer_outreach_messages" ADD CONSTRAINT "employer_outreach_messages_employer_id_employers_id_fk" FOREIGN KEY ("employer_id") REFERENCES "public"."employers"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "employer_outreach_messages" ADD CONSTRAINT "employer_outreach_messages_sender_user_id_users_id_fk" FOREIGN KEY ("sender_user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "employer_outreach_messages" ADD CONSTRAINT "employer_outreach_messages_candidate_id_candidates_id_fk" FOREIGN KEY ("candidate_id") REFERENCES "public"."candidates"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "employer_outreach_messages" ADD CONSTRAINT "employer_outreach_messages_pool_id_employer_talent_pools_id_fk" FOREIGN KEY ("pool_id") REFERENCES "public"."employer_talent_pools"("id") ON DELETE set null ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "employer_outreach_messages" ADD CONSTRAINT "employer_outreach_messages_template_id_employer_message_templates_id_fk" FOREIGN KEY ("template_id") REFERENCES "public"."employer_message_templates"("id") ON DELETE set null ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "employer_talent_pool_members" ADD CONSTRAINT "employer_talent_pool_members_pool_id_employer_talent_pools_id_fk" FOREIGN KEY ("pool_id") REFERENCES "public"."employer_talent_pools"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "employer_talent_pool_members" ADD CONSTRAINT "employer_talent_pool_members_candidate_id_candidates_id_fk" FOREIGN KEY ("candidate_id") REFERENCES "public"."candidates"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "employer_talent_pool_members" ADD CONSTRAINT "employer_talent_pool_members_added_by_users_id_fk" FOREIGN KEY ("added_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "employer_talent_pools" ADD CONSTRAINT "employer_talent_pools_employer_id_employers_id_fk" FOREIGN KEY ("employer_id") REFERENCES "public"."employers"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "employer_talent_pools" ADD CONSTRAINT "employer_talent_pools_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "candidate_cohort_members" ADD CONSTRAINT "candidate_cohort_members_cohort_id_candidate_cohorts_id_fk" FOREIGN KEY ("cohort_id") REFERENCES "public"."candidate_cohorts"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "candidate_cohort_members" ADD CONSTRAINT "candidate_cohort_members_candidate_id_candidates_id_fk" FOREIGN KEY ("candidate_id") REFERENCES "public"."candidates"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "candidate_cohorts" ADD CONSTRAINT "candidate_cohorts_institution_id_institutions_id_fk" FOREIGN KEY ("institution_id") REFERENCES "public"."institutions"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "employer_reviews" ADD CONSTRAINT "employer_reviews_employer_id_employers_id_fk" FOREIGN KEY ("employer_id") REFERENCES "public"."employers"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "employer_reviews" ADD CONSTRAINT "employer_reviews_candidate_id_candidates_id_fk" FOREIGN KEY ("candidate_id") REFERENCES "public"."candidates"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "employer_reviews" ADD CONSTRAINT "employer_reviews_institution_id_institutions_id_fk" FOREIGN KEY ("institution_id") REFERENCES "public"."institutions"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "employer_reviews" ADD CONSTRAINT "employer_reviews_moderated_by_users_id_fk" FOREIGN KEY ("moderated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "mentorship_requests" ADD CONSTRAINT "mentorship_requests_requester_candidate_id_candidates_id_fk" FOREIGN KEY ("requester_candidate_id") REFERENCES "public"."candidates"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "mentorship_requests" ADD CONSTRAINT "mentorship_requests_mentor_candidate_id_candidates_id_fk" FOREIGN KEY ("mentor_candidate_id") REFERENCES "public"."candidates"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "mentorship_requests" ADD CONSTRAINT "mentorship_requests_institution_id_institutions_id_fk" FOREIGN KEY ("institution_id") REFERENCES "public"."institutions"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "placement_stories" ADD CONSTRAINT "placement_stories_candidate_id_candidates_id_fk" FOREIGN KEY ("candidate_id") REFERENCES "public"."candidates"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "placement_stories" ADD CONSTRAINT "placement_stories_employer_id_employers_id_fk" FOREIGN KEY ("employer_id") REFERENCES "public"."employers"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "placement_stories" ADD CONSTRAINT "placement_stories_institution_id_institutions_id_fk" FOREIGN KEY ("institution_id") REFERENCES "public"."institutions"("id") ON DELETE set null ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "placement_stories" ADD CONSTRAINT "placement_stories_moderated_by_users_id_fk" FOREIGN KEY ("moderated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "candidate_dismissed_jobs" ADD CONSTRAINT "candidate_dismissed_jobs_candidate_id_candidates_id_fk" FOREIGN KEY ("candidate_id") REFERENCES "public"."candidates"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "candidate_dismissed_jobs" ADD CONSTRAINT "candidate_dismissed_jobs_job_id_jobs_id_fk" FOREIGN KEY ("job_id") REFERENCES "public"."jobs"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "expo_push_tokens" ADD CONSTRAINT "expo_push_tokens_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "notification_prefs" ADD CONSTRAINT "notification_prefs_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "mock_interviews" ADD CONSTRAINT "mock_interviews_candidate_id_candidates_id_fk" FOREIGN KEY ("candidate_id") REFERENCES "public"."candidates"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "mock_interviews" ADD CONSTRAINT "mock_interviews_job_id_jobs_id_fk" FOREIGN KEY ("job_id") REFERENCES "public"."jobs"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "mock_interviews" ADD CONSTRAINT "mock_interviews_application_id_applications_id_fk" FOREIGN KEY ("application_id") REFERENCES "public"."applications"("id") ON DELETE set null ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "application_endorsements" ADD CONSTRAINT "application_endorsements_application_id_applications_id_fk" FOREIGN KEY ("application_id") REFERENCES "public"."applications"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "application_endorsements" ADD CONSTRAINT "application_endorsements_institution_id_institutions_id_fk" FOREIGN KEY ("institution_id") REFERENCES "public"."institutions"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "application_endorsements" ADD CONSTRAINT "application_endorsements_endorsed_by_user_id_users_id_fk" FOREIGN KEY ("endorsed_by_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "application_challenges" ADD CONSTRAINT "application_challenges_application_id_applications_id_fk" FOREIGN KEY ("application_id") REFERENCES "public"."applications"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "application_challenges" ADD CONSTRAINT "application_challenges_candidate_id_candidates_id_fk" FOREIGN KEY ("candidate_id") REFERENCES "public"."candidates"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "application_challenges" ADD CONSTRAINT "application_challenges_job_id_jobs_id_fk" FOREIGN KEY ("job_id") REFERENCES "public"."jobs"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "job_challenges" ADD CONSTRAINT "job_challenges_job_id_jobs_id_fk" FOREIGN KEY ("job_id") REFERENCES "public"."jobs"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "alumni_intro_requests" ADD CONSTRAINT "alumni_intro_requests_candidate_id_candidates_id_fk" FOREIGN KEY ("candidate_id") REFERENCES "public"."candidates"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "alumni_intro_requests" ADD CONSTRAINT "alumni_intro_requests_job_id_jobs_id_fk" FOREIGN KEY ("job_id") REFERENCES "public"."jobs"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "alumni_intro_requests" ADD CONSTRAINT "alumni_intro_requests_alumni_user_id_users_id_fk" FOREIGN KEY ("alumni_user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "whatsapp_message_log" ADD CONSTRAINT "whatsapp_message_log_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "candidate_growth_repings" ADD CONSTRAINT "candidate_growth_repings_candidate_id_candidates_id_fk" FOREIGN KEY ("candidate_id") REFERENCES "public"."candidates"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "candidate_growth_repings" ADD CONSTRAINT "candidate_growth_repings_employer_id_employers_id_fk" FOREIGN KEY ("employer_id") REFERENCES "public"."employers"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "candidate_growth_repings" ADD CONSTRAINT "candidate_growth_repings_application_id_applications_id_fk" FOREIGN KEY ("application_id") REFERENCES "public"."applications"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "candidate_growth_skills" ADD CONSTRAINT "candidate_growth_skills_candidate_id_candidates_id_fk" FOREIGN KEY ("candidate_id") REFERENCES "public"."candidates"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "employer_sla_breaches" ADD CONSTRAINT "employer_sla_breaches_employer_id_employers_id_fk" FOREIGN KEY ("employer_id") REFERENCES "public"."employers"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "employer_sla_breaches" ADD CONSTRAINT "employer_sla_breaches_application_id_applications_id_fk" FOREIGN KEY ("application_id") REFERENCES "public"."applications"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "employer_daily_decks" ADD CONSTRAINT "employer_daily_decks_employer_id_employers_id_fk" FOREIGN KEY ("employer_id") REFERENCES "public"."employers"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "employer_dismissed_candidates" ADD CONSTRAINT "employer_dismissed_candidates_employer_id_employers_id_fk" FOREIGN KEY ("employer_id") REFERENCES "public"."employers"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "employer_dismissed_candidates" ADD CONSTRAINT "employer_dismissed_candidates_candidate_id_candidates_id_fk" FOREIGN KEY ("candidate_id") REFERENCES "public"."candidates"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "employer_dismissed_candidates" ADD CONSTRAINT "employer_dismissed_candidates_job_id_jobs_id_fk" FOREIGN KEY ("job_id") REFERENCES "public"."jobs"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "institution_dept_inst_idx" ON "institution_departments" USING btree ("institution_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "institution_dept_faculty_idx" ON "institution_departments" USING btree ("faculty_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "institution_dept_inst_name_idx" ON "institution_departments" USING btree ("institution_id","name");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "institution_facility_inst_idx" ON "institution_facilities" USING btree ("institution_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "institution_facility_inst_name_idx" ON "institution_facilities" USING btree ("institution_id","name");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "institution_faculty_inst_idx" ON "institution_faculties" USING btree ("institution_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "institution_faculty_inst_name_idx" ON "institution_faculties" USING btree ("institution_id","name");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "institution_account_manager_idx" ON "institutions" USING btree ("account_manager_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "institution_slug_idx" ON "institutions" USING btree ("slug");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "employer_account_manager_idx" ON "employers" USING btree ("account_manager_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "candidate_institution_unique" ON "candidate_institutions" USING btree ("candidate_id","institution_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "candidate_institutions_candidate_idx" ON "candidate_institutions" USING btree ("candidate_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "candidate_institutions_institution_idx" ON "candidate_institutions" USING btree ("institution_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "candidate_institutions_inst_dept_idx" ON "candidate_institutions" USING btree ("institution_id","department_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "jobs_tier_idx" ON "jobs" USING btree ("tier","tier_expires_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "applications_applied_at_idx" ON "applications" USING btree ("applied_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "applications_status_updated_at_idx" ON "applications" USING btree ("status","updated_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "applications_candidate_id_idx" ON "applications" USING btree ("candidate_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "applications_job_id_idx" ON "applications" USING btree ("job_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "applications_candidate_status_idx" ON "applications" USING btree ("candidate_id","status");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "applications_job_status_idx" ON "applications" USING btree ("job_id","status");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "applications_job_candidate_uniq" ON "applications" USING btree ("job_id","candidate_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "pw_token_unique" ON "password_setup_tokens" USING btree ("token");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "pending_reg_user_idx" ON "pending_registrations" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" USING btree ("expire");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "user_email_unique" ON "users" USING btree ("email");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "admin_role_perm_role_idx" ON "admin_role_permissions" USING btree ("role_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "admin_roles_scope_idx" ON "admin_roles" USING btree ("scope");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "admin_roles_employer_idx" ON "admin_roles" USING btree ("employer_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "admin_roles_institution_idx" ON "admin_roles" USING btree ("institution_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "admin_roles_admin_scope_name_unique" ON "admin_roles" USING btree ("name") WHERE "admin_roles"."scope" = 'admin';--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "admin_roles_employer_scope_name_unique" ON "admin_roles" USING btree ("employer_id","name") WHERE "admin_roles"."scope" = 'employer';--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "admin_roles_institution_scope_name_unique" ON "admin_roles" USING btree ("institution_id","name") WHERE "admin_roles"."scope" = 'institution';--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "notif_user_created_idx" ON "notifications" USING btree ("user_id","created_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "notif_user_unread_idx" ON "notifications" USING btree ("user_id","read_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "inst_sub_by_institution_idx" ON "institution_subscriptions" USING btree ("institution_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "emp_sub_by_employer_idx" ON "employer_subscriptions" USING btree ("employer_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "job_tier_payments_job_idx" ON "job_tier_payments" USING btree ("job_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "job_tier_payments_employer_idx" ON "job_tier_payments" USING btree ("employer_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "sponsored_pushes_job_idx" ON "sponsored_job_pushes" USING btree ("job_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "sponsored_pushes_cand_at_idx" ON "sponsored_job_pushes" USING btree ("candidate_id","pushed_at");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "sponsored_pushes_job_cand_uniq" ON "sponsored_job_pushes" USING btree ("job_id","candidate_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "interview_invites_application_idx" ON "interview_invites" USING btree ("application_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "interview_invites_employer_idx" ON "interview_invites" USING btree ("employer_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "interview_invites_status_idx" ON "interview_invites" USING btree ("status");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "interview_time_slots_invite_idx" ON "interview_time_slots" USING btree ("invite_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "profile_view_notif_uniq" ON "profile_view_notifications" USING btree ("candidate_id","employer_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "profile_views_candidate_idx" ON "profile_views" USING btree ("candidate_id","viewed_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "profile_views_viewer_idx" ON "profile_views" USING btree ("viewer_user_id","candidate_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "cand_ref_token_unique" ON "candidate_references" USING btree ("token");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "cand_ref_cand_idx" ON "candidate_references" USING btree ("candidate_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "cand_skill_cand_idx" ON "candidate_skill_verifications" USING btree ("candidate_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "cand_skill_inst_idx" ON "candidate_skill_verifications" USING btree ("institution_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "app_history_app_idx" ON "application_status_history" USING btree ("application_id","changed_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "saved_search_cand_idx" ON "candidate_saved_searches" USING btree ("candidate_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "weekly_digest_unique" ON "candidate_weekly_digests" USING btree ("candidate_id","week_start");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "ai_request_cache_candidate_kind_key_uniq" ON "ai_request_cache" USING btree ("candidate_id","kind","key_hash");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ai_request_cache_candidate_created_idx" ON "ai_request_cache" USING btree ("candidate_id","created_at");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "employer_message_template_name_idx" ON "employer_message_templates" USING btree ("employer_id","name");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "employer_outreach_sent_idx" ON "employer_outreach_messages" USING btree ("employer_id","sent_at");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "employer_talent_pool_member_unique" ON "employer_talent_pool_members" USING btree ("pool_id","candidate_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "employer_talent_pool_member_pool_idx" ON "employer_talent_pool_members" USING btree ("pool_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "employer_talent_pool_name_idx" ON "employer_talent_pools" USING btree ("employer_id","name");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "candidate_cohort_member_unique" ON "candidate_cohort_members" USING btree ("cohort_id","candidate_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "candidate_cohort_member_cohort_idx" ON "candidate_cohort_members" USING btree ("cohort_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "candidate_cohort_member_candidate_idx" ON "candidate_cohort_members" USING btree ("candidate_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "candidate_cohort_inst_idx" ON "candidate_cohorts" USING btree ("institution_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "candidate_cohort_inst_year_idx" ON "candidate_cohorts" USING btree ("institution_id","year");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "employer_review_unique" ON "employer_reviews" USING btree ("employer_id","candidate_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "employer_review_employer_status_idx" ON "employer_reviews" USING btree ("employer_id","status");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "employer_review_status_idx" ON "employer_reviews" USING btree ("status");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "mentorship_pair_unique" ON "mentorship_requests" USING btree ("requester_candidate_id","mentor_candidate_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "mentorship_mentor_idx" ON "mentorship_requests" USING btree ("mentor_candidate_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "mentorship_requester_idx" ON "mentorship_requests" USING btree ("requester_candidate_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "placement_story_status_idx" ON "placement_stories" USING btree ("status","sort_order");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "candidate_dismissed_job_unique" ON "candidate_dismissed_jobs" USING btree ("candidate_id","job_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "expo_push_token_unique" ON "expo_push_tokens" USING btree ("token");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "expo_push_user_idx" ON "expo_push_tokens" USING btree ("user_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "notification_prefs_user_unique" ON "notification_prefs" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "mock_interviews_candidate_job_idx" ON "mock_interviews" USING btree ("candidate_id","job_id","completed_at");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "mock_interviews_one_in_progress_per_job" ON "mock_interviews" USING btree ("candidate_id","job_id") WHERE status = 'in_progress';--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "app_endorsement_unique" ON "application_endorsements" USING btree ("application_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "app_endorsement_inst_idx" ON "application_endorsements" USING btree ("institution_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "application_challenges_candidate_job_uniq" ON "application_challenges" USING btree ("candidate_id","job_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "application_challenges_application_uniq" ON "application_challenges" USING btree ("application_id") WHERE "application_challenges"."application_id" IS NOT NULL;--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "challenge_templates_skill_idx" ON "challenge_templates" USING btree ("skill");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "job_challenges_job_id_uniq" ON "job_challenges" USING btree ("job_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "candidate_open_windows_candidate_closes_idx" ON "candidate_open_windows" USING btree ("candidate_id","closes_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "reverse_offers_candidate_status_idx" ON "reverse_offers" USING btree ("candidate_id","status");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "reverse_offers_employer_created_idx" ON "reverse_offers" USING btree ("employer_id","created_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "alumni_intro_alumni_idx" ON "alumni_intro_requests" USING btree ("alumni_user_id","status");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "alumni_intro_candidate_job_idx" ON "alumni_intro_requests" USING btree ("candidate_id","job_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "alumni_intro_candidate_alumni_idx" ON "alumni_intro_requests" USING btree ("candidate_id","alumni_user_id","created_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "wa_log_user_idx" ON "whatsapp_message_log" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "wa_log_created_idx" ON "whatsapp_message_log" USING btree ("created_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "growth_reping_pair_idx" ON "candidate_growth_repings" USING btree ("candidate_id","employer_id","sent_at");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "growth_reping_quarter_unique_idx" ON "candidate_growth_repings" USING btree ("candidate_id","employer_id","quarter_key");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "candidate_growth_skills_unique_idx" ON "candidate_growth_skills" USING btree ("candidate_id","skill");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "candidate_growth_skills_status_idx" ON "candidate_growth_skills" USING btree ("candidate_id","status");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "sla_breaches_employer_idx" ON "employer_sla_breaches" USING btree ("employer_id","breached_at");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "sla_breaches_application_uq" ON "employer_sla_breaches" USING btree ("application_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "employer_daily_deck_unique" ON "employer_daily_decks" USING btree ("employer_id","deck_date");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "employer_dismissed_per_job_unique" ON "employer_dismissed_candidates" USING btree ("employer_id","candidate_id","job_id") WHERE "employer_dismissed_candidates"."job_id" IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "employer_dismissed_per_employer_unique" ON "employer_dismissed_candidates" USING btree ("employer_id","candidate_id") WHERE "employer_dismissed_candidates"."job_id" IS NULL;--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "employer_dismissed_employer_idx" ON "employer_dismissed_candidates" USING btree ("employer_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "institution_api_keys_institution_idx" ON "institution_api_keys" USING btree ("institution_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "webhook_events_provider_event_id_idx" ON "webhook_events" USING btree ("provider","event_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "payments_provider_ref_unique" ON "payments" USING btree ("provider","external_ref");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "payments_purpose_idx" ON "payments" USING btree ("purpose_type","purpose_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "payments_status_idx" ON "payments" USING btree ("status");

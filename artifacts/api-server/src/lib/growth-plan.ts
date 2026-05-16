@@ -318,11 +318,14 @@ export async function listGrowthPlan(
     .from(candidateGrowthSkillsTable)
     .where(eq(candidateGrowthSkillsTable.candidateId, candidateId))
     .orderBy(desc(candidateGrowthSkillsTable.rejectionCount));
+  // Only "active" (always) and "completed" (when requested) are part of
+  // the public API contract — internal states like "dismissed" and
+  // "superseded" must never leak through this serializer.
   return rows
     .filter((r) =>
-      r.status === "dismissed"
-        ? false
-        : includeCompleted || r.status === "active",
+      r.status === "active"
+        ? true
+        : includeCompleted && r.status === "completed",
     )
     .map((r) => {
       const pack = getGrowthResources(r.skill);

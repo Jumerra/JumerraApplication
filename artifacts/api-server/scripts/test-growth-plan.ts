@@ -28,6 +28,7 @@ import {
   usersTable,
 } from "@workspace/db";
 import {
+  listGrowthPlan,
   refreshGrowthPlan,
   repingEmployersForCompletedSkill,
 } from "../src/lib/growth-plan";
@@ -174,6 +175,14 @@ async function main() {
       )
   ).length;
   assert(supersededCount >= 1, "at least one prior active was demoted");
+
+  // Regression: listGrowthPlan must never leak internal states. Even
+  // with includeCompleted=true the response should only contain
+  // "active" / "completed" — never "superseded" or "dismissed".
+  const listed = await listGrowthPlan(candidate.id, { includeCompleted: true });
+  const allowed = new Set(["active", "completed"]);
+  const bad = listed.filter((i) => !allowed.has(i.status));
+  assert(bad.length === 0, "list never exposes superseded/dismissed");
 
   // First reping notifies; second blocked by unique-quarter index.
   const r1 = await repingEmployersForCompletedSkill(candidate.id, "react");

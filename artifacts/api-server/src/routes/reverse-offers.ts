@@ -104,6 +104,26 @@ async function findActiveWindow(
   return row ?? null;
 }
 
+/**
+ * Reconcile the legacy `candidates.open_to_offers` mirror flag for any
+ * candidate whose newest window has already expired. We can't rely on
+ * a scheduled job in this environment, so the discovery endpoint and
+ * the candidate's own window endpoint both call this on read. It's a
+ * single UPDATE and matches a small set of rows in practice.
+ */
+async function sweepExpiredOpenWindows(): Promise<void> {
+  await db.execute(sql`
+    UPDATE candidates
+    SET open_to_offers = false, open_to_offers_since = NULL
+    WHERE open_to_offers = true
+      AND NOT EXISTS (
+        SELECT 1 FROM candidate_open_windows w
+        WHERE w.candidate_id = candidates.id
+          AND w.closes_at > NOW()
+      )
+  `);
+}
+
 // ---------------------------------------------------------------------------
 // Candidate-side: open/close window
 // ---------------------------------------------------------------------------
@@ -193,6 +213,7 @@ router.get("/me/open-window", requireAuth, async (req, res): Promise<void> => {
     res.json(null);
     return;
   }
+  await sweepExpiredOpenWindows();
   const w = await findActiveWindow(user.candidateId);
   res.json(w ? serializeWindow(w) : null);
 });
@@ -215,6 +236,7 @@ router.get("/open-candidates", async (req, res): Promise<void> => {
   }
   const { limit, offset, skill } = parsed.data;
 
+  await sweepExpiredOpenWindows();
   const conditions = [gt(candidateOpenWindowsTable.closesAt, new Date())];
   if (skill) {
     conditions.push(sql`${skill} = ANY(${candidatesTable.skills})`);
@@ -518,6 +540,7 @@ router.post(
         currency: offer.currency,
         salaryMin: offer.salaryMin,
         salaryMax: offer.salaryMax,
+        visibility: "private",
       })
       .returning();
 
@@ -799,6 +822,7 @@ router.post(
         currency: offer.currency,
         salaryMin: offer.salaryMin,
         salaryMax: offer.salaryMax,
+        visibility: "private",
       })
       .returning();
     const [app] = await db

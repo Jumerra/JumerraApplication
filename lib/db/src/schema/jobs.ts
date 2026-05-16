@@ -51,6 +51,13 @@ export const jobsTable = pgTable(
      */
     targetSkills: text("target_skills").array().notNull().default([]),
     targetLocation: text("target_location"),
+    /**
+     * 'public' (default) — appears in marketplace listings and search.
+     * 'private' — does NOT appear in /jobs or matches. Used for the
+     * private bridge-jobs created when a reverse offer is accepted,
+     * so accepted compensation and role detail never leaks publicly.
+     */
+    visibility: text("visibility").notNull().default("public"),
     postedAt: timestamp("posted_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

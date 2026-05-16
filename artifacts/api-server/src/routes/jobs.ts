@@ -95,6 +95,7 @@ router.get("/jobs", async (req, res): Promise<void> => {
     })
     .from(jobsTable)
     .innerJoin(employersTable, eq(jobsTable.employerId, employersTable.id))
+    .where(eq(jobsTable.visibility, "public"))
     .orderBy(desc(tierRank), desc(jobsTable.featured), desc(jobsTable.postedAt));
 
   // Delegate the per-row predicate to the shared helper so the

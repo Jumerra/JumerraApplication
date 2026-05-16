@@ -87,6 +87,7 @@ import type {
   EndorseApplicationRequest,
   Error,
   ForgotPasswordRequest,
+  GenerateChallenge,
   GenerateCvRequest,
   GetInstitutionPlacementAnalyticsParams,
   HealthStatus,
@@ -2917,6 +2918,98 @@ export function useListChallengeTemplates<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Build a default skill challenge for a list of required
+skills (no answer keys). Drives the preview step in the
+employer post-job flow and the sample preview on job detail.
+
+ */
+export const getGenerateChallengePreviewUrl = () => {
+  return `/api/challenges/generate`;
+};
+
+export const generateChallengePreview = async (
+  generateChallenge: GenerateChallenge,
+  options?: RequestInit,
+): Promise<JobChallenge> => {
+  return customFetch<JobChallenge>(getGenerateChallengePreviewUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(generateChallenge),
+  });
+};
+
+export const getGenerateChallengePreviewMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof generateChallengePreview>>,
+    TError,
+    { data: BodyType<GenerateChallenge> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof generateChallengePreview>>,
+  TError,
+  { data: BodyType<GenerateChallenge> },
+  TContext
+> => {
+  const mutationKey = ["generateChallengePreview"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof generateChallengePreview>>,
+    { data: BodyType<GenerateChallenge> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return generateChallengePreview(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type GenerateChallengePreviewMutationResult = NonNullable<
+  Awaited<ReturnType<typeof generateChallengePreview>>
+>;
+export type GenerateChallengePreviewMutationBody = BodyType<GenerateChallenge>;
+export type GenerateChallengePreviewMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Build a default skill challenge for a list of required
+skills (no answer keys). Drives the preview step in the
+employer post-job flow and the sample preview on job detail.
+
+ */
+export const useGenerateChallengePreview = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof generateChallengePreview>>,
+    TError,
+    { data: BodyType<GenerateChallenge> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof generateChallengePreview>>,
+  TError,
+  { data: BodyType<GenerateChallenge> },
+  TContext
+> => {
+  return useMutation(getGenerateChallengePreviewMutationOptions(options));
+};
 
 /**
  * @summary Fetch a job's skill challenge (answer keys stripped).

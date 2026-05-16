@@ -8,6 +8,7 @@
 import type { ApplicationEndorsement } from "./applicationEndorsement";
 import type { ApplicationSource } from "./applicationSource";
 import type { ApplicationStatus } from "./applicationStatus";
+import type { ChallengeBreakdownItem } from "./challengeBreakdownItem";
 import type { MockInterviewBreakdown } from "./mockInterviewBreakdown";
 
 export interface Application {
@@ -46,4 +47,9 @@ X" badge to the employer.
 submission, if the job had a challenge attached.
  */
   challengeScore: number | null;
+  /** Per-question grading detail for the employer review UI:
+[{ index, prompt, chosen, correct, isCorrect }]. Null if
+no challenge was attached or no submission exists.
+ */
+  challengeBreakdown: ChallengeBreakdownItem[] | null;
 }

@@ -5,6 +5,7 @@
  * Talent Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { UpdateJobChallengeOverrides } from "./updateJobChallengeOverrides";
 import type { UpdateJobChallengeQuestionsItem } from "./updateJobChallengeQuestionsItem";
 
 /**
@@ -17,6 +18,12 @@ to regenerate from the job's skills.
 export interface UpdateJobChallenge {
   title?: string;
   passingScore?: number;
+  durationSeconds?: number;
   templateIds?: number[];
+  /** Per-template overrides keyed by template id, used to
+tweak the question count or selection when generating
+from `templateIds`. Free-form pass-through.
+ */
+  overrides?: UpdateJobChallengeOverrides;
   questions?: UpdateJobChallengeQuestionsItem[];
 }

@@ -4,7 +4,11 @@ import {
   useCreateJob,
   useGetJobTierSettings,
   useCreateJobTierCheckout,
+  useListChallengeTemplates,
+  useGenerateChallengePreview,
+  useUpdateJobChallenge,
   getListJobsQueryKey,
+  getListChallengeTemplatesQueryKey,
   getGetEmployerDashboardQueryKey,
   type CreateJob,
 } from "@workspace/api-client-react";
@@ -86,6 +90,23 @@ export default function JobPost() {
   // skills. Default ON — the candidate apply flow gates on the
   // challenge instead of cover notes when one is present.
   const [includeChallenge, setIncludeChallenge] = useState(true);
+  // Employer template-library picker. Selected ids replace the
+  // server-built default after the job is created (via
+  // PUT /jobs/:id/challenge). Empty = accept default.
+  const [pickedTemplateIds, setPickedTemplateIds] = useState<number[]>([]);
+  const { data: templates } = useListChallengeTemplates({
+    query: {
+      queryKey: getListChallengeTemplatesQueryKey(),
+      enabled: includeChallenge,
+    },
+  });
+  const generatePreview = useGenerateChallengePreview();
+  const updateChallenge = useUpdateJobChallenge();
+  const [preview, setPreview] = useState<{
+    title: string;
+    durationSeconds: number;
+    questions: { index: number; prompt: string; options: string[] }[];
+  } | null>(null);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -145,6 +166,21 @@ export default function JobPost() {
 
     try {
       const created = await createJob.mutateAsync({ data: payload });
+      // If the employer picked specific templates, override the
+      // server-built default in a follow-up call. Best-effort —
+      // a failure here doesn't unwind the job creation.
+      if (includeChallenge && pickedTemplateIds.length > 0) {
+        try {
+          await updateChallenge.mutateAsync({
+            id: created.id,
+            data: { templateIds: pickedTemplateIds },
+          });
+        } catch {
+          toast.warning(
+            "Job posted, but we couldn't apply your template picks. You can edit them later.",
+          );
+        }
+      }
       queryClient.invalidateQueries({ queryKey: getListJobsQueryKey() });
       queryClient.invalidateQueries({
         queryKey: getGetEmployerDashboardQueryKey(userId),
@@ -239,22 +275,156 @@ export default function JobPost() {
                   stays one page. The actual question set is
                   customisable later from the job-management screen
                   via PUT /jobs/:id/challenge. */}
-              <div className="rounded-xl border bg-muted/30 p-4 flex items-start gap-4" data-testid="section-include-challenge">
-                <Switch
-                  checked={includeChallenge}
-                  onCheckedChange={setIncludeChallenge}
-                  data-testid="switch-include-challenge"
-                />
-                <div className="flex-1">
-                  <div className="font-semibold flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-primary" /> Add a skill challenge
+              <div
+                className="rounded-xl border bg-muted/30 p-4 space-y-4"
+                data-testid="section-include-challenge"
+              >
+                <div className="flex items-start gap-4">
+                  <Switch
+                    checked={includeChallenge}
+                    onCheckedChange={(v) => {
+                      setIncludeChallenge(v);
+                      if (!v) {
+                        setPickedTemplateIds([]);
+                        setPreview(null);
+                      }
+                    }}
+                    data-testid="switch-include-challenge"
+                  />
+                  <div className="flex-1">
+                    <div className="font-semibold flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-primary" /> Add a skill challenge
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Replaces the cover note with a short quiz built from
+                      your job's skills. Each candidate gets a 0–100 score
+                      you can sort the pipeline by.
+                    </p>
                   </div>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Replaces the cover note with a short quiz built from
-                    your job's skills. Each candidate gets a 0–100 score
-                    you can sort the pipeline by.
-                  </p>
                 </div>
+
+                {includeChallenge ? (
+                  <>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        data-testid="button-preview-challenge"
+                        disabled={generatePreview.isPending}
+                        onClick={async () => {
+                          const skills = (form.getValues("skills") ?? "")
+                            .split(",")
+                            .map((s) => s.trim())
+                            .filter(Boolean);
+                          if (skills.length === 0) {
+                            toast.error(
+                              "Add at least one skill to preview the challenge.",
+                            );
+                            return;
+                          }
+                          try {
+                            const built = await generatePreview.mutateAsync({
+                              data: { skills },
+                            });
+                            setPreview({
+                              title: built.title,
+                              durationSeconds: built.durationSeconds,
+                              questions: built.questions,
+                            });
+                          } catch {
+                            toast.error("Couldn't build a preview right now.");
+                          }
+                        }}
+                      >
+                        {generatePreview.isPending
+                          ? "Building preview..."
+                          : "Preview default challenge"}
+                      </Button>
+                      {preview ? (
+                        <span
+                          className="text-xs text-muted-foreground"
+                          data-testid="text-challenge-duration"
+                        >
+                          {preview.questions.length} questions · ~
+                          {Math.max(1, Math.round(preview.durationSeconds / 60))}{" "}
+                          min
+                        </span>
+                      ) : null}
+                    </div>
+
+                    {preview ? (
+                      <div
+                        className="rounded-lg border bg-background p-3 space-y-2 max-h-64 overflow-y-auto"
+                        data-testid="panel-challenge-preview"
+                      >
+                        {preview.questions.map((q) => (
+                          <div key={q.index} className="text-sm">
+                            <div className="font-medium">
+                              {q.index + 1}. {q.prompt}
+                            </div>
+                            <ul className="ml-5 list-disc text-muted-foreground">
+                              {q.options.map((opt, i) => (
+                                <li key={i}>{opt}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+
+                    {templates && templates.length > 0 ? (
+                      <div className="space-y-2">
+                        <div className="text-sm font-medium">
+                          Customise from the template library
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Tick the templates you want to include. Leave all
+                          unticked to accept the default selection built from
+                          your job's skills.
+                        </p>
+                        <div className="grid sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto">
+                          {templates.map((t) => {
+                            const checked = pickedTemplateIds.includes(t.id);
+                            return (
+                              <label
+                                key={t.id}
+                                className={`flex items-start gap-2 rounded-md border p-2 cursor-pointer text-sm ${
+                                  checked
+                                    ? "border-primary bg-primary/5"
+                                    : "border-border hover:bg-muted/50"
+                                }`}
+                                data-testid={`template-${t.id}`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => {
+                                    setPickedTemplateIds((prev) =>
+                                      prev.includes(t.id)
+                                        ? prev.filter((x) => x !== t.id)
+                                        : [...prev, t.id],
+                                    );
+                                  }}
+                                  className="mt-1"
+                                />
+                                <div className="min-w-0">
+                                  <div className="font-medium truncate">
+                                    {t.title}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {t.skill} · {t.difficulty} ·{" "}
+                                    {t.questionCount} Qs
+                                  </div>
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : null}
+                  </>
+                ) : null}
               </div>
 
               <div className="space-y-4">

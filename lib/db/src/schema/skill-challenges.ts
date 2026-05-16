@@ -31,6 +31,7 @@ export const challengeTemplatesTable = pgTable(
     skill: text("skill").notNull(),
     title: text("title").notNull(),
     description: text("description").notNull().default(""),
+    difficulty: text("difficulty").notNull().default("medium"),
     questions: jsonb("questions").notNull().default(sql`'[]'::jsonb`),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -57,7 +58,14 @@ export const jobChallengesTable = pgTable(
     title: text("title").notNull().default("Skill challenge"),
     questions: jsonb("questions").notNull().default(sql`'[]'::jsonb`),
     passingScore: integer("passing_score").notNull().default(0),
+    /** Estimated time-to-complete in seconds. Surfaced as
+     * "Challenge: ~N min" on the candidate apply gate and job detail. */
+    durationSeconds: integer("duration_seconds").notNull().default(300),
     templateIds: jsonb("template_ids").notNull().default(sql`'[]'::jsonb`),
+    /** Per-question employer overrides — { index, prompt?, options?, correctIndex? }
+     * applied on top of the template snapshot at apply-time. Kept as a
+     * separate array so the original template questions remain auditable. */
+    overrides: jsonb("overrides").notNull().default(sql`'[]'::jsonb`),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -94,7 +102,15 @@ export const applicationChallengesTable = pgTable(
       .references(() => jobsTable.id, { onDelete: "cascade" }),
     score: integer("score").notNull().default(0),
     answers: jsonb("answers").notNull().default(sql`'[]'::jsonb`),
+    /** Per-question grading breakdown:
+     * [{ index, prompt, chosen, correct, isCorrect }]. Surfaced on the
+     * employer application card so reviewers can see WHICH questions
+     * the candidate got right, not just the overall score. */
+    breakdown: jsonb("breakdown").notNull().default(sql`'[]'::jsonb`),
     submittedAt: timestamp("submitted_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    completedAt: timestamp("completed_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
@@ -103,9 +119,14 @@ export const applicationChallengesTable = pgTable(
       t.candidateId,
       t.jobId,
     ),
-    appIdx: index("application_challenges_application_idx").on(
-      t.applicationId,
-    ),
+    /** One submission per application (the submit endpoint enforces
+     * this by short-circuiting on retake; the unique index turns any
+     * race condition into a 23505 we catch and convert to "already
+     * submitted"). Partial so legacy NULL applicationId rows are
+     * excluded from the constraint. */
+    appUniq: uniqueIndex("application_challenges_application_uniq")
+      .on(t.applicationId)
+      .where(sql`${t.applicationId} IS NOT NULL`),
   }),
 );
 
@@ -118,4 +139,12 @@ export type ChallengeQuestion = {
   prompt: string;
   options: string[];
   correctIndex: number;
+};
+
+export type ChallengeBreakdownItem = {
+  index: number;
+  prompt: string;
+  chosen: number;
+  correct: number;
+  isCorrect: boolean;
 };

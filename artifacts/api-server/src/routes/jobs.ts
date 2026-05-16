@@ -216,6 +216,8 @@ router.post(
           title: "Skill challenge",
           questions: built.questions,
           passingScore: 50,
+          // ~45 seconds per MCQ, with a 60s floor.
+          durationSeconds: Math.max(60, built.questions.length * 45),
           templateIds: built.templateIds,
         });
       }

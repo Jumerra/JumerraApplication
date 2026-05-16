@@ -1617,6 +1617,7 @@ export const ListChallengeTemplatesResponseItem = zod.object({
   skill: zod.string(),
   title: zod.string(),
   description: zod.string(),
+  difficulty: zod.enum(["easy", "medium", "hard"]),
   questionCount: zod.number(),
   preview: zod.array(
     zod
@@ -1633,6 +1634,36 @@ export const ListChallengeTemplatesResponse = zod.array(
 );
 
 /**
+ * @summary Build a default skill challenge for a list of required
+skills (no answer keys). Drives the preview step in the
+employer post-job flow and the sample preview on job detail.
+
+ */
+export const GenerateChallengePreviewBody = zod.object({
+  skills: zod.array(zod.string()),
+});
+
+export const GenerateChallengePreviewResponse = zod.object({
+  jobId: zod.number().nullish(),
+  title: zod.string(),
+  passingScore: zod.number(),
+  durationSeconds: zod
+    .number()
+    .describe(
+      'Estimated time-to-complete in seconds. The candidate\napply gate surfaces this as \"Challenge: ~N min\".\n',
+    ),
+  questions: zod.array(
+    zod
+      .object({
+        index: zod.number(),
+        prompt: zod.string(),
+        options: zod.array(zod.string()),
+      })
+      .describe("A single skill-challenge question with answer key stripped."),
+  ),
+});
+
+/**
  * @summary Fetch a job's skill challenge (answer keys stripped).
  */
 export const GetJobChallengeParams = zod.object({
@@ -1640,9 +1671,14 @@ export const GetJobChallengeParams = zod.object({
 });
 
 export const GetJobChallengeResponse = zod.object({
-  jobId: zod.number(),
+  jobId: zod.number().nullish(),
   title: zod.string(),
   passingScore: zod.number(),
+  durationSeconds: zod
+    .number()
+    .describe(
+      'Estimated time-to-complete in seconds. The candidate\napply gate surfaces this as \"Challenge: ~N min\".\n',
+    ),
   questions: zod.array(
     zod
       .object({
@@ -1665,7 +1701,14 @@ export const UpdateJobChallengeBody = zod
   .object({
     title: zod.string().optional(),
     passingScore: zod.number().optional(),
+    durationSeconds: zod.number().optional(),
     templateIds: zod.array(zod.number()).optional(),
+    overrides: zod
+      .record(zod.string(), zod.unknown())
+      .optional()
+      .describe(
+        "Per-template overrides keyed by template id, used to\ntweak the question count or selection when generating\nfrom `templateIds`. Free-form pass-through.\n",
+      ),
     questions: zod
       .array(
         zod.object({
@@ -1681,9 +1724,14 @@ export const UpdateJobChallengeBody = zod
   );
 
 export const UpdateJobChallengeResponse = zod.object({
-  jobId: zod.number(),
+  jobId: zod.number().nullish(),
   title: zod.string(),
   passingScore: zod.number(),
+  durationSeconds: zod
+    .number()
+    .describe(
+      'Estimated time-to-complete in seconds. The candidate\napply gate surfaces this as \"Challenge: ~N min\".\n',
+    ),
   questions: zod.array(
     zod
       .object({
@@ -1720,6 +1768,18 @@ export const SubmitJobChallengeResponse = zod.object({
   correct: zod.number(),
   total: zod.number(),
   alreadySubmitted: zod.boolean(),
+  breakdown: zod
+    .array(
+      zod.object({
+        index: zod.number(),
+        prompt: zod.string(),
+        chosen: zod.number(),
+        isCorrect: zod.boolean(),
+      }),
+    )
+    .describe(
+      "Per-question grading detail returned to the candidate.\nThe answer-key index (`correct`) is omitted server-side\nto prevent answer leakage — only `isCorrect` is included\nso the candidate sees which ones they got right.\n",
+    ),
 });
 
 /**
@@ -1849,6 +1909,24 @@ export const ListApplicationsResponseItem = zod.object({
     .describe(
       "Score 0–100 from the candidate's skill-challenge\nsubmission, if the job had a challenge attached.\n",
     ),
+  challengeBreakdown: zod
+    .array(
+      zod
+        .object({
+          index: zod.number(),
+          prompt: zod.string(),
+          chosen: zod.number(),
+          correct: zod.number(),
+          isCorrect: zod.boolean(),
+        })
+        .describe(
+          "Per-question grading row. `chosen = -1` means the candidate\nskipped the question. Employer-facing only — returned on\nApplication via \/applications.\n",
+        ),
+    )
+    .nullable()
+    .describe(
+      "Per-question grading detail for the employer review UI:\n[{ index, prompt, chosen, correct, isCorrect }]. Null if\nno challenge was attached or no submission exists.\n",
+    ),
 });
 export const ListApplicationsResponse = zod.array(ListApplicationsResponseItem);
 
@@ -1954,6 +2032,24 @@ export const UpdateApplicationStatusResponse = zod.object({
     .nullable()
     .describe(
       "Score 0–100 from the candidate's skill-challenge\nsubmission, if the job had a challenge attached.\n",
+    ),
+  challengeBreakdown: zod
+    .array(
+      zod
+        .object({
+          index: zod.number(),
+          prompt: zod.string(),
+          chosen: zod.number(),
+          correct: zod.number(),
+          isCorrect: zod.boolean(),
+        })
+        .describe(
+          "Per-question grading row. `chosen = -1` means the candidate\nskipped the question. Employer-facing only — returned on\nApplication via \/applications.\n",
+        ),
+    )
+    .nullable()
+    .describe(
+      "Per-question grading detail for the employer review UI:\n[{ index, prompt, chosen, correct, isCorrect }]. Null if\nno challenge was attached or no submission exists.\n",
     ),
 });
 
@@ -2366,6 +2462,24 @@ export const GetEmployerDashboardResponse = zod.object({
         .describe(
           "Score 0–100 from the candidate's skill-challenge\nsubmission, if the job had a challenge attached.\n",
         ),
+      challengeBreakdown: zod
+        .array(
+          zod
+            .object({
+              index: zod.number(),
+              prompt: zod.string(),
+              chosen: zod.number(),
+              correct: zod.number(),
+              isCorrect: zod.boolean(),
+            })
+            .describe(
+              "Per-question grading row. `chosen = -1` means the candidate\nskipped the question. Employer-facing only — returned on\nApplication via \/applications.\n",
+            ),
+        )
+        .nullable()
+        .describe(
+          "Per-question grading detail for the employer review UI:\n[{ index, prompt, chosen, correct, isCorrect }]. Null if\nno challenge was attached or no submission exists.\n",
+        ),
     }),
   ),
 });
@@ -2580,6 +2694,24 @@ export const GetCandidateDashboardResponse = zod.object({
         .nullable()
         .describe(
           "Score 0–100 from the candidate's skill-challenge\nsubmission, if the job had a challenge attached.\n",
+        ),
+      challengeBreakdown: zod
+        .array(
+          zod
+            .object({
+              index: zod.number(),
+              prompt: zod.string(),
+              chosen: zod.number(),
+              correct: zod.number(),
+              isCorrect: zod.boolean(),
+            })
+            .describe(
+              "Per-question grading row. `chosen = -1` means the candidate\nskipped the question. Employer-facing only — returned on\nApplication via \/applications.\n",
+            ),
+        )
+        .nullable()
+        .describe(
+          "Per-question grading detail for the employer review UI:\n[{ index, prompt, chosen, correct, isCorrect }]. Null if\nno challenge was attached or no submission exists.\n",
         ),
     }),
   ),
@@ -3360,6 +3492,24 @@ export const AdminListApplicationsResponse = zod.object({
         .nullable()
         .describe(
           "Score 0–100 from the candidate's skill-challenge\nsubmission, if the job had a challenge attached.\n",
+        ),
+      challengeBreakdown: zod
+        .array(
+          zod
+            .object({
+              index: zod.number(),
+              prompt: zod.string(),
+              chosen: zod.number(),
+              correct: zod.number(),
+              isCorrect: zod.boolean(),
+            })
+            .describe(
+              "Per-question grading row. `chosen = -1` means the candidate\nskipped the question. Employer-facing only — returned on\nApplication via \/applications.\n",
+            ),
+        )
+        .nullable()
+        .describe(
+          "Per-question grading detail for the employer review UI:\n[{ index, prompt, chosen, correct, isCorrect }]. Null if\nno challenge was attached or no submission exists.\n",
         ),
     }),
   ),

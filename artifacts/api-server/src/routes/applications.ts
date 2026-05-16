@@ -77,7 +77,10 @@ async function findLatestFinalisedMockInterview(
   };
 }
 
-async function serializeApplication(applicationId: number) {
+async function serializeApplication(
+  applicationId: number,
+  viewerRole: "candidate" | "employer" | "institution" | "admin",
+) {
   const [row] = await db
     .select({
       application: applicationsTable,
@@ -145,17 +148,57 @@ async function serializeApplication(applicationId: number) {
         }
       : null,
     endorsement,
-    challengeScore: await getChallengeScore(row.application.id),
+    ...(await getChallengeSummary(row.application.id, viewerRole)),
   };
 }
 
-async function getChallengeScore(applicationId: number): Promise<number | null> {
+async function getChallengeSummary(
+  applicationId: number,
+  viewerRole: "candidate" | "employer" | "institution" | "admin",
+): Promise<{
+  challengeScore: number | null;
+  challengeBreakdown: unknown[] | null;
+}> {
   const [row] = await db
-    .select({ score: applicationChallengesTable.score })
+    .select({
+      score: applicationChallengesTable.score,
+      breakdown: applicationChallengesTable.breakdown,
+    })
     .from(applicationChallengesTable)
     .where(eq(applicationChallengesTable.applicationId, applicationId))
     .limit(1);
-  return row ? row.score : null;
+  if (!row) return { challengeScore: null, challengeBreakdown: null };
+  return {
+    challengeScore: row.score,
+    challengeBreakdown: sanitizeBreakdownForViewer(row.breakdown, viewerRole),
+  };
+}
+
+/**
+ * The stored breakdown includes the `correct` answer-key index for
+ * each question (so employers can review which questions a candidate
+ * got wrong). That field is an answer key and must never be returned
+ * to a candidate — it would let them share keys for live challenges.
+ * Employers and admins see the full breakdown; everyone else sees
+ * only the score (null breakdown).
+ */
+function sanitizeBreakdownForViewer(
+  raw: unknown,
+  viewerRole: "candidate" | "employer" | "institution" | "admin",
+): unknown[] | null {
+  if (!Array.isArray(raw)) return null;
+  if (viewerRole === "employer" || viewerRole === "admin") {
+    return raw as unknown[];
+  }
+  // Strip `correct` for any non-employer viewer (candidate /
+  // institution). isCorrect is fine to keep — it tells the
+  // candidate whether they got each one right without revealing
+  // the key.
+  return raw.map((item) => {
+    if (!item || typeof item !== "object") return item;
+    const { correct: _correct, ...rest } = item as Record<string, unknown>;
+    return rest;
+  });
 }
 
 router.get("/applications", requireAuth, async (req, res): Promise<void> => {
@@ -321,27 +364,44 @@ router.get("/applications", requireAuth, async (req, res): Promise<void> => {
     }
   }
 
-  // Bulk-fetch challenge scores for the same applications so the
-  // employer Kanban renders the challenge badge without N+1.
-  const challengeByApp = new Map<number, number>();
+  // Bulk-fetch challenge scores + breakdowns for the same applications
+  // so the employer Kanban renders the badge and the per-question
+  // breakdown without N+1.
+  const challengeByApp = new Map<
+    number,
+    { score: number; breakdown: unknown[] }
+  >();
   if (rows.length > 0) {
     const appIds = rows.map((r) => r.application.id);
     const subs = await db
       .select({
         applicationId: applicationChallengesTable.applicationId,
         score: applicationChallengesTable.score,
+        breakdown: applicationChallengesTable.breakdown,
       })
       .from(applicationChallengesTable)
       .where(inArray(applicationChallengesTable.applicationId, appIds));
     for (const s of subs) {
-      if (s.applicationId != null) challengeByApp.set(s.applicationId, s.score);
+      if (s.applicationId != null) {
+        challengeByApp.set(s.applicationId, {
+          score: s.score,
+          breakdown: Array.isArray(s.breakdown) ? (s.breakdown as unknown[]) : [],
+        });
+      }
     }
   }
 
   const result = rows.map((row) => {
     const mock = mockByPair.get(`${row.candidate.id}:${row.job.id}`) ?? null;
     const endorsement = endorseByApp.get(row.application.id) ?? null;
-    const challengeScore = challengeByApp.get(row.application.id) ?? null;
+    const challengeEntry = challengeByApp.get(row.application.id) ?? null;
+    const challengeScore = challengeEntry?.score ?? null;
+    const challengeBreakdown = challengeEntry
+      ? sanitizeBreakdownForViewer(
+          challengeEntry.breakdown,
+          user.role as "candidate" | "employer" | "institution" | "admin",
+        )
+      : null;
     return {
       id: row.application.id,
       jobId: row.job.id,
@@ -370,6 +430,7 @@ router.get("/applications", requireAuth, async (req, res): Promise<void> => {
         : null,
       endorsement,
       challengeScore,
+      challengeBreakdown,
     };
   });
 
@@ -455,7 +516,10 @@ router.post("/applications", requireAuth, async (req, res): Promise<void> => {
     );
 
   if (existing) {
-    const serialized = await serializeApplication(existing.id);
+    const serialized = await serializeApplication(
+      existing.id,
+      user.role as "candidate" | "employer" | "institution" | "admin",
+    );
     res.status(200).json(serialized);
     return;
   }
@@ -502,7 +566,10 @@ router.post("/applications", requireAuth, async (req, res): Promise<void> => {
     changedBy: req.currentUser?.id ?? null,
   });
 
-  const serialized = await serializeApplication(created.id);
+  const serialized = await serializeApplication(
+    created.id,
+    user.role as "candidate" | "employer" | "institution" | "admin",
+  );
   res.status(201).json(serialized);
 });
 
@@ -594,7 +661,10 @@ router.patch(
     }
   }
 
-  const serialized = await serializeApplication(updated.id);
+  const serialized = await serializeApplication(
+    updated.id,
+    user.role as "candidate" | "employer" | "institution" | "admin",
+  );
   res.json(serialized);
 });
 

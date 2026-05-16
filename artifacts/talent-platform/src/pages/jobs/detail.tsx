@@ -1,9 +1,16 @@
-import { useGetJob, useGetJobMatches, getGetJobMatchesQueryKey } from "@workspace/api-client-react";
+import {
+  useGetJob,
+  useGetJobMatches,
+  useGetJobChallenge,
+  getGetJobMatchesQueryKey,
+  getGetJobChallengeQueryKey,
+} from "@workspace/api-client-react";
 import { Link, useParams } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { MapPin, Building2, Calendar, Banknote, CheckCircle2, UserCircle, Star, Megaphone } from "lucide-react";
+import { MapPin, Building2, Calendar, Banknote, CheckCircle2, UserCircle, Star, Megaphone, Clock } from "lucide-react";
+import { useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { InterviewPrepPanel } from "@/components/InterviewPrepPanel";
 
@@ -18,6 +25,17 @@ export default function JobDetail() {
       enabled: role === "employer" && !!id,
     },
   });
+  // Show "Challenge: ~N min" badge and sample-preview when one is
+  // attached. retry: false because /jobs/:id/challenge returns 404
+  // for jobs without one and we don't want to spam.
+  const { data: challenge } = useGetJobChallenge(Number(id), {
+    query: {
+      queryKey: getGetJobChallengeQueryKey(Number(id)),
+      retry: false,
+      enabled: !!id,
+    },
+  });
+  const [showSample, setShowSample] = useState(false);
 
   if (isLoading) {
     return <div className="container py-12"><div className="animate-pulse h-96 bg-muted rounded-xl" /></div>;
@@ -78,7 +96,62 @@ export default function JobDetail() {
                   {job.currency} {job.salaryMin.toLocaleString()} - {job.salaryMax?.toLocaleString()}
                 </Badge>
               )}
+              {challenge ? (
+                <Badge
+                  variant="outline"
+                  className="px-3 py-1 text-sm font-medium bg-primary/5 text-primary border-primary/30"
+                  data-testid="badge-job-challenge"
+                >
+                  <Clock className="w-4 h-4 mr-2" />
+                  Challenge: ~
+                  {Math.max(1, Math.round(challenge.durationSeconds / 60))} min
+                </Badge>
+              ) : null}
             </div>
+
+            {challenge && (role === "candidate" || !role) ? (
+              <div
+                className="mb-8 rounded-xl border border-primary/20 bg-primary/5 p-4"
+                data-testid="panel-challenge-info"
+              >
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div>
+                    <div className="font-semibold text-primary">
+                      This role uses a skill challenge instead of a cover note
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      A short multiple-choice quiz built from this job's skills.
+                      You'll get a 0–100 score the employer sees on your
+                      application.
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setShowSample((v) => !v)}
+                    data-testid="button-sample-challenge"
+                  >
+                    {showSample ? "Hide sample" : "Preview a sample question"}
+                  </Button>
+                </div>
+                {showSample && challenge.questions.length > 0 ? (
+                  <div
+                    className="mt-3 rounded-md border bg-background p-3"
+                    data-testid="sample-challenge-question"
+                  >
+                    <div className="text-sm font-medium">
+                      {challenge.questions[0]!.prompt}
+                    </div>
+                    <ul className="mt-2 ml-5 list-disc text-sm text-muted-foreground">
+                      {challenge.questions[0]!.options.map((opt, i) => (
+                        <li key={i}>{opt}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
 
             <div className="prose dark:prose-invert max-w-none">
               <h2 className="text-xl font-semibold mb-4">About the Role</h2>

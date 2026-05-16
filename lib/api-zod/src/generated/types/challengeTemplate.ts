@@ -6,12 +6,14 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ChallengeQuestionPublic } from "./challengeQuestionPublic";
+import type { ChallengeTemplateDifficulty } from "./challengeTemplateDifficulty";
 
 export interface ChallengeTemplate {
   id: number;
   skill: string;
   title: string;
   description: string;
+  difficulty: ChallengeTemplateDifficulty;
   questionCount: number;
   preview: ChallengeQuestionPublic[];
 }

@@ -8,8 +8,12 @@
 import type { ChallengeQuestionPublic } from "./challengeQuestionPublic";
 
 export interface JobChallenge {
-  jobId: number;
+  jobId?: number | null;
   title: string;
   passingScore: number;
+  /** Estimated time-to-complete in seconds. The candidate
+apply gate surfaces this as "Challenge: ~N min".
+ */
+  durationSeconds: number;
   questions: ChallengeQuestionPublic[];
 }

@@ -298,10 +298,28 @@ export default function PipelineKanbanPage() {
                               <Badge
                                 variant="outline"
                                 className="text-[10px] px-1.5 py-0 border-amber-500/50 text-amber-700 dark:text-amber-400"
-                                title="Skill-challenge score (0–100)"
+                                title={
+                                  // Per-question breakdown tooltip
+                                  // ("Q1 ✓ · Q2 ✗ · ..."). Lets the
+                                  // reviewer see WHICH questions the
+                                  // candidate got right at a glance.
+                                  Array.isArray(app.challengeBreakdown) &&
+                                  app.challengeBreakdown.length > 0
+                                    ? app.challengeBreakdown
+                                        .map(
+                                          (b) =>
+                                            `Q${b.index + 1} ${b.isCorrect ? "✓" : "✗"}`,
+                                        )
+                                        .join(" · ")
+                                    : "Skill-challenge score (0–100)"
+                                }
                                 data-testid={`badge-challenge-${app.id}`}
                               >
                                 Challenge {app.challengeScore}
+                                {Array.isArray(app.challengeBreakdown) &&
+                                app.challengeBreakdown.length > 0
+                                  ? ` (${app.challengeBreakdown.filter((b) => b.isCorrect).length}/${app.challengeBreakdown.length})`
+                                  : ""}
                               </Badge>
                             ) : null}
                             {app.endorsement ? (

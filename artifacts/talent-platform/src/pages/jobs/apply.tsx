@@ -231,6 +231,16 @@ export default function JobApply() {
                 to the employer instead of a cover note. You can only
                 submit once.
               </p>
+              <div
+                className="mt-2 inline-flex items-center gap-2 text-xs font-medium text-primary"
+                data-testid="text-challenge-duration"
+              >
+                <Badge variant="outline" className="bg-primary/5 border-primary/30">
+                  Challenge: ~
+                  {Math.max(1, Math.round(challenge.durationSeconds / 60))} min
+                  · {challenge.questions.length} questions
+                </Badge>
+              </div>
             </div>
 
             <div className="space-y-6">

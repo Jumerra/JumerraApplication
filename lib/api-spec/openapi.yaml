@@ -621,6 +621,25 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/ChallengeTemplate" }
+  /challenges/generate:
+    post:
+      operationId: generateChallengePreview
+      tags: [jobs]
+      summary: |
+        Build a default skill challenge for a list of required
+        skills (no answer keys). Drives the preview step in the
+        employer post-job flow and the sample preview on job detail.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/GenerateChallenge" }
+      responses:
+        "200":
+          description: Generated preview
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JobChallenge" }
   /jobs/{id}/challenge:
     get:
       operationId: getJobChallenge
@@ -4832,6 +4851,14 @@ components:
           description: |
             Score 0–100 from the candidate's skill-challenge
             submission, if the job had a challenge attached.
+        challengeBreakdown:
+          type: array
+          nullable: true
+          description: |
+            Per-question grading detail for the employer review UI:
+            [{ index, prompt, chosen, correct, isCorrect }]. Null if
+            no challenge was attached or no submission exists.
+          items: { $ref: "#/components/schemas/ChallengeBreakdownItem" }
       required:
         - id
         - jobId
@@ -4854,6 +4881,7 @@ components:
         - mockInterviewBreakdown
         - endorsement
         - challengeScore
+        - challengeBreakdown
 
     ApplicationEndorsement:
       type: object
@@ -4937,13 +4965,18 @@ components:
     JobChallenge:
       type: object
       properties:
-        jobId: { type: integer }
+        jobId: { type: integer, nullable: true }
         title: { type: string }
         passingScore: { type: integer }
+        durationSeconds:
+          type: integer
+          description: |
+            Estimated time-to-complete in seconds. The candidate
+            apply gate surfaces this as "Challenge: ~N min".
         questions:
           type: array
           items: { $ref: "#/components/schemas/ChallengeQuestionPublic" }
-      required: [jobId, title, passingScore, questions]
+      required: [title, passingScore, durationSeconds, questions]
 
     ChallengeTemplate:
       type: object
@@ -4952,11 +4985,36 @@ components:
         skill: { type: string }
         title: { type: string }
         description: { type: string }
+        difficulty:
+          type: string
+          enum: [easy, medium, hard]
         questionCount: { type: integer }
         preview:
           type: array
           items: { $ref: "#/components/schemas/ChallengeQuestionPublic" }
-      required: [id, skill, title, description, questionCount, preview]
+      required: [id, skill, title, description, difficulty, questionCount, preview]
+
+    ChallengeBreakdownItem:
+      type: object
+      description: |
+        Per-question grading row. `chosen = -1` means the candidate
+        skipped the question. Employer-facing only — returned on
+        Application via /applications.
+      properties:
+        index: { type: integer }
+        prompt: { type: string }
+        chosen: { type: integer }
+        correct: { type: integer }
+        isCorrect: { type: boolean }
+      required: [index, prompt, chosen, correct, isCorrect]
+
+    GenerateChallenge:
+      type: object
+      properties:
+        skills:
+          type: array
+          items: { type: string }
+      required: [skills]
 
     SubmitChallenge:
       type: object
@@ -4977,7 +5035,22 @@ components:
         correct: { type: integer }
         total: { type: integer }
         alreadySubmitted: { type: boolean }
-      required: [applicationId, score, correct, total, alreadySubmitted]
+        breakdown:
+          type: array
+          description: |
+            Per-question grading detail returned to the candidate.
+            The answer-key index (`correct`) is omitted server-side
+            to prevent answer leakage — only `isCorrect` is included
+            so the candidate sees which ones they got right.
+          items:
+            type: object
+            properties:
+              index: { type: integer }
+              prompt: { type: string }
+              chosen: { type: integer }
+              isCorrect: { type: boolean }
+            required: [index, prompt, chosen, isCorrect]
+      required: [applicationId, score, correct, total, alreadySubmitted, breakdown]
 
     UpdateJobChallenge:
       type: object
@@ -4989,9 +5062,17 @@ components:
       properties:
         title: { type: string }
         passingScore: { type: integer }
+        durationSeconds: { type: integer }
         templateIds:
           type: array
           items: { type: integer }
+        overrides:
+          type: object
+          description: |
+            Per-template overrides keyed by template id, used to
+            tweak the question count or selection when generating
+            from `templateIds`. Free-form pass-through.
+          additionalProperties: true
         questions:
           type: array
           items:

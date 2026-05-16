@@ -322,6 +322,20 @@ export interface ApplicationEndorsement {
   endorsedAt: string;
 }
 
+/**
+ * Per-question grading row. `chosen = -1` means the candidate
+skipped the question. Employer-facing only — returned on
+Application via /applications.
+
+ */
+export interface ChallengeBreakdownItem {
+  index: number;
+  prompt: string;
+  chosen: number;
+  correct: number;
+  isCorrect: boolean;
+}
+
 export interface Application {
   id: number;
   jobId: number;
@@ -358,6 +372,11 @@ X" badge to the employer.
 submission, if the job had a challenge attached.
  */
   challengeScore: number | null;
+  /** Per-question grading detail for the employer review UI:
+[{ index, prompt, chosen, correct, isCorrect }]. Null if
+no challenge was attached or no submission exists.
+ */
+  challengeBreakdown: ChallengeBreakdownItem[] | null;
 }
 
 export interface AdminApplicationListResponse {
@@ -1457,19 +1476,37 @@ export interface ChallengeQuestionPublic {
 }
 
 export interface JobChallenge {
-  jobId: number;
+  jobId?: number | null;
   title: string;
   passingScore: number;
+  /** Estimated time-to-complete in seconds. The candidate
+apply gate surfaces this as "Challenge: ~N min".
+ */
+  durationSeconds: number;
   questions: ChallengeQuestionPublic[];
 }
+
+export type ChallengeTemplateDifficulty =
+  (typeof ChallengeTemplateDifficulty)[keyof typeof ChallengeTemplateDifficulty];
+
+export const ChallengeTemplateDifficulty = {
+  easy: "easy",
+  medium: "medium",
+  hard: "hard",
+} as const;
 
 export interface ChallengeTemplate {
   id: number;
   skill: string;
   title: string;
   description: string;
+  difficulty: ChallengeTemplateDifficulty;
   questionCount: number;
   preview: ChallengeQuestionPublic[];
+}
+
+export interface GenerateChallenge {
+  skills: string[];
 }
 
 export type SubmitChallengeSource =
@@ -1485,13 +1522,34 @@ export interface SubmitChallenge {
   source?: SubmitChallengeSource;
 }
 
+export type ChallengeSubmissionResultBreakdownItem = {
+  index: number;
+  prompt: string;
+  chosen: number;
+  isCorrect: boolean;
+};
+
 export interface ChallengeSubmissionResult {
   applicationId: number;
   score: number;
   correct: number;
   total: number;
   alreadySubmitted: boolean;
+  /** Per-question grading detail returned to the candidate.
+The answer-key index (`correct`) is omitted server-side
+to prevent answer leakage — only `isCorrect` is included
+so the candidate sees which ones they got right.
+ */
+  breakdown: ChallengeSubmissionResultBreakdownItem[];
 }
+
+/**
+ * Per-template overrides keyed by template id, used to
+tweak the question count or selection when generating
+from `templateIds`. Free-form pass-through.
+
+ */
+export type UpdateJobChallengeOverrides = { [key: string]: unknown };
 
 export type UpdateJobChallengeQuestionsItem = {
   prompt: string;
@@ -1509,7 +1567,13 @@ to regenerate from the job's skills.
 export interface UpdateJobChallenge {
   title?: string;
   passingScore?: number;
+  durationSeconds?: number;
   templateIds?: number[];
+  /** Per-template overrides keyed by template id, used to
+tweak the question count or selection when generating
+from `templateIds`. Free-form pass-through.
+ */
+  overrides?: UpdateJobChallengeOverrides;
   questions?: UpdateJobChallengeQuestionsItem[];
 }
 

@@ -11,7 +11,7 @@ import {
   jobChallengesTable,
   applicationChallengesTable,
 } from "@workspace/db";
-import type { ChallengeQuestion } from "@workspace/db";
+import type { ChallengeQuestion, ChallengeBreakdownItem } from "@workspace/db";
 import { requireAuth } from "../middleware/require-auth";
 import { calculateMatchScore } from "../lib/matching";
 
@@ -64,6 +64,20 @@ export async function buildDefaultChallengeForSkills(
 }
 
 /** Strip `correctIndex` from every question before returning to the candidate. */
+/**
+ * Remove the `correct` answer-key index from a breakdown row before
+ * it leaves the server to a candidate-facing path. `isCorrect` stays
+ * so the candidate can still see which questions they got right; the
+ * exact correct option is never disclosed pre/post submission.
+ */
+function stripCorrect(b: ChallengeBreakdownItem): Omit<
+  ChallengeBreakdownItem,
+  "correct"
+> {
+  const { correct: _correct, ...rest } = b;
+  return rest;
+}
+
 function sanitiseQuestions(qs: ChallengeQuestion[]) {
   return qs.map((q, i) => ({
     index: i,
@@ -72,21 +86,41 @@ function sanitiseQuestions(qs: ChallengeQuestion[]) {
   }));
 }
 
-/** Score answers (array of chosen indices) against the answer key. Returns 0–100. */
+/** Score answers (array of chosen indices) against the answer key.
+ * Returns 0–100 + a per-question breakdown ({ index, prompt, chosen,
+ * correct, isCorrect }) so reviewers can see WHICH questions the
+ * candidate got right, not just the overall score. */
 function gradeAnswers(
   qs: ChallengeQuestion[],
   answers: unknown,
-): { score: number; correct: number; total: number } {
-  if (!Array.isArray(answers) || qs.length === 0) {
-    return { score: 0, correct: 0, total: qs.length };
+): {
+  score: number;
+  correct: number;
+  total: number;
+  breakdown: ChallengeBreakdownItem[];
+} {
+  const breakdown: ChallengeBreakdownItem[] = [];
+  if (qs.length === 0) {
+    return { score: 0, correct: 0, total: 0, breakdown };
   }
-  let correct = 0;
+  const list = Array.isArray(answers) ? answers : [];
+  let correctCount = 0;
   for (let i = 0; i < qs.length; i += 1) {
-    const a = answers[i];
-    if (typeof a === "number" && a === qs[i]!.correctIndex) correct += 1;
+    const a = list[i];
+    const chosen = typeof a === "number" ? a : -1;
+    const correctIdx = qs[i]!.correctIndex;
+    const isCorrect = chosen === correctIdx;
+    if (isCorrect) correctCount += 1;
+    breakdown.push({
+      index: i,
+      prompt: qs[i]!.prompt,
+      chosen,
+      correct: correctIdx,
+      isCorrect,
+    });
   }
-  const score = Math.round((correct / qs.length) * 100);
-  return { score, correct, total: qs.length };
+  const score = Math.round((correctCount / qs.length) * 100);
+  return { score, correct: correctCount, total: qs.length, breakdown };
 }
 
 /**
@@ -110,10 +144,47 @@ router.get(
         skill: t.skill,
         title: t.title,
         description: t.description,
+        difficulty: t.difficulty,
         questionCount: ((t.questions as ChallengeQuestion[]) ?? []).length,
         preview: sanitiseQuestions((t.questions as ChallengeQuestion[]) ?? []),
       })),
     );
+  },
+);
+
+/**
+ * POST /challenges/generate — generator endpoint. Takes a list of
+ * required skills and returns the default challenge selection the
+ * server would auto-attach (sanitised — no answer keys). Drives the
+ * "preview before commit" step in the employer post-job flow and
+ * the candidate sample-preview on the job detail page.
+ */
+router.post(
+  "/challenges/generate",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const me = req.currentUser!;
+    if (me.role !== "employer" && me.role !== "admin" && me.role !== "candidate") {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const Body = z.object({
+      skills: z.array(z.string()).max(20).default([]),
+    });
+    const parsed = Body.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const built = await buildDefaultChallengeForSkills(parsed.data.skills);
+    const durationSeconds = Math.max(60, built.questions.length * 45);
+    res.json({
+      title: "Skill challenge",
+      passingScore: 50,
+      durationSeconds,
+      templateIds: built.templateIds,
+      questions: sanitiseQuestions(built.questions),
+    });
   },
 );
 
@@ -141,6 +212,7 @@ router.get("/jobs/:id/challenge", async (req, res): Promise<void> => {
     jobId,
     title: ch.title,
     passingScore: ch.passingScore,
+    durationSeconds: ch.durationSeconds,
     questions: sanitiseQuestions(qs),
   });
 });
@@ -178,9 +250,13 @@ router.put(
     let questions: ChallengeQuestion[] = [];
     let templateIds: number[] = [];
     const passingScore = Number(req.body?.passingScore ?? 50);
+    const durationSeconds = Number(req.body?.durationSeconds ?? 300);
     const title = typeof req.body?.title === "string" && req.body.title.trim()
       ? req.body.title.trim()
       : "Skill challenge";
+    const overrides = Array.isArray(req.body?.overrides)
+      ? req.body.overrides
+      : [];
 
     if (Array.isArray(req.body?.questions) && req.body.questions.length > 0) {
       questions = (req.body.questions as unknown[])
@@ -231,7 +307,11 @@ router.put(
       title,
       questions,
       passingScore: Number.isFinite(passingScore) ? passingScore : 50,
+      durationSeconds: Number.isFinite(durationSeconds)
+        ? Math.max(60, Math.min(3600, durationSeconds))
+        : 300,
       templateIds,
+      overrides,
     };
 
     let row;
@@ -249,6 +329,7 @@ router.put(
       jobId,
       title: row!.title,
       passingScore: row!.passingScore,
+      durationSeconds: row!.durationSeconds,
       questions: sanitiseQuestions(row!.questions as ChallengeQuestion[]),
     });
   },
@@ -372,18 +453,49 @@ router.post(
             .where(eq(applicationChallengesTable.id, existingSubmission.id));
         }
       }
+      // Re-derive correct/total from the stored breakdown so the
+      // "already submitted" path returns the same shape as a fresh
+      // submission. Falls back to recomputing if the row predates
+      // breakdown storage.
+      const storedBreakdown = Array.isArray(existingSubmission.breakdown)
+        ? (existingSubmission.breakdown as ChallengeBreakdownItem[])
+        : null;
+      const derived =
+        storedBreakdown && storedBreakdown.length > 0
+          ? {
+              breakdown: storedBreakdown,
+              correct: storedBreakdown.filter((b) => b.isCorrect).length,
+              total: storedBreakdown.length,
+            }
+          : (() => {
+              const g = gradeAnswers(
+                qs,
+                (existingSubmission.answers as number[]) ?? [],
+              );
+              return {
+                breakdown: g.breakdown,
+                correct: g.correct,
+                total: g.total,
+              };
+            })();
       res.status(200).json({
         applicationId: applicationId ?? 0,
         score: existingSubmission.score,
-        correct: 0,
-        total: qs.length,
+        correct: derived.correct,
+        total: derived.total,
         alreadySubmitted: true,
+        // Strip the answer key — the candidate is the only caller
+        // of this endpoint and must not see correct indexes.
+        breakdown: derived.breakdown.map(stripCorrect),
       });
       return;
     }
 
     // Grade only on first submission.
-    const { score, correct, total } = gradeAnswers(qs, parsed.data.answers);
+    const { score, correct, total, breakdown } = gradeAnswers(
+      qs,
+      parsed.data.answers,
+    );
     const answersClean = parsed.data.answers.slice(0, qs.length);
     const source = parsed.data.source ?? "browse";
     const { score: matchScore } = calculateMatchScore(
@@ -436,6 +548,7 @@ router.post(
           jobId,
           score,
           answers: answersClean,
+          breakdown,
         });
         return appId;
       });
@@ -452,12 +565,16 @@ router.post(
           ),
         );
       if (latest) {
+        const latestBreakdown = Array.isArray(latest.breakdown)
+          ? (latest.breakdown as ChallengeBreakdownItem[])
+          : [];
         res.status(200).json({
           applicationId: latest.applicationId ?? 0,
           score: latest.score,
-          correct: 0,
-          total: qs.length,
+          correct: latestBreakdown.filter((b) => b.isCorrect).length,
+          total: latestBreakdown.length || qs.length,
           alreadySubmitted: true,
+          breakdown: latestBreakdown.map(stripCorrect),
         });
         return;
       }
@@ -472,6 +589,10 @@ router.post(
       correct,
       total,
       alreadySubmitted: false,
+      // Strip the answer-key index before sending back to the
+      // candidate — they only need to know which questions they
+      // got right (`isCorrect`), not the correct option index.
+      breakdown: breakdown.map(stripCorrect),
     });
   },
 );

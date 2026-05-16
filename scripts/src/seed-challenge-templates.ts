@@ -7,6 +7,7 @@ type Template = {
   skill: string;
   title: string;
   description: string;
+  difficulty?: "easy" | "medium" | "hard";
   questions: Q[];
 };
 
@@ -197,6 +198,245 @@ const TEMPLATES: Template[] = [
       },
     ],
   },
+  {
+    skill: "html",
+    title: "HTML essentials",
+    description: "Semantic markup and accessibility basics.",
+    questions: [
+      {
+        prompt: "Which element should wrap the main, unique content of a page?",
+        options: ["<div>", "<section>", "<main>", "<article>"],
+        correctIndex: 2,
+      },
+      {
+        prompt: "Which attribute associates a <label> with an <input>?",
+        options: ["name", "for", "id", "data-target"],
+        correctIndex: 1,
+      },
+    ],
+  },
+  {
+    skill: "css",
+    title: "CSS fundamentals",
+    description: "Layout, selectors, and the box model.",
+    questions: [
+      {
+        prompt: "Which value of position removes an element from normal flow and anchors it to the nearest positioned ancestor?",
+        options: ["static", "relative", "absolute", "sticky"],
+        correctIndex: 2,
+      },
+      {
+        prompt: "Which selector has the highest specificity?",
+        options: [".btn", "#submit", "button", "[type=submit]"],
+        correctIndex: 1,
+      },
+    ],
+  },
+  {
+    skill: "git",
+    title: "Git basics",
+    description: "Common version-control workflows.",
+    questions: [
+      {
+        prompt: "Which command stages all modified files for commit?",
+        options: ["git stage", "git add .", "git commit -a", "git push"],
+        correctIndex: 1,
+      },
+      {
+        prompt: "Which command shows the commit history?",
+        options: ["git status", "git log", "git diff", "git show"],
+        correctIndex: 1,
+      },
+    ],
+  },
+  {
+    skill: "java",
+    title: "Java fundamentals",
+    description: "Core syntax, OOP, and collections.",
+    questions: [
+      {
+        prompt: "Which keyword prevents a class from being subclassed?",
+        options: ["sealed", "static", "final", "abstract"],
+        correctIndex: 2,
+      },
+      {
+        prompt: "Which collection allows duplicate elements and preserves insertion order?",
+        options: ["HashSet", "TreeSet", "ArrayList", "HashMap"],
+        correctIndex: 2,
+      },
+    ],
+  },
+  {
+    skill: "data analysis",
+    title: "Data analysis basics",
+    description: "Cleaning, summarising, and interpreting data.",
+    questions: [
+      {
+        prompt: "Which measure of central tendency is most robust to outliers?",
+        options: ["Mean", "Median", "Mode", "Range"],
+        correctIndex: 1,
+      },
+      {
+        prompt: "A correlation of -0.9 implies:",
+        options: [
+          "No relationship",
+          "Strong positive relationship",
+          "Strong negative relationship",
+          "Causation in reverse",
+        ],
+        correctIndex: 2,
+      },
+    ],
+  },
+  {
+    skill: "excel",
+    title: "Excel & spreadsheets",
+    description: "Formulas, lookups, and pivots.",
+    questions: [
+      {
+        prompt: "Which function looks up a value in the leftmost column and returns a value from another column?",
+        options: ["INDEX", "MATCH", "VLOOKUP", "OFFSET"],
+        correctIndex: 2,
+      },
+      {
+        prompt: "What does $A$1 mean in a formula?",
+        options: ["Relative reference", "Absolute reference", "Named range", "Comment"],
+        correctIndex: 1,
+      },
+    ],
+  },
+  {
+    skill: "marketing",
+    title: "Marketing fundamentals",
+    description: "Funnels, channels, and metrics.",
+    questions: [
+      {
+        prompt: "Which metric measures the cost to acquire a single paying customer?",
+        options: ["CTR", "CAC", "LTV", "ARPU"],
+        correctIndex: 1,
+      },
+      {
+        prompt: "Which stage of the funnel comes first?",
+        options: ["Conversion", "Retention", "Awareness", "Consideration"],
+        correctIndex: 2,
+      },
+    ],
+  },
+  {
+    skill: "sales",
+    title: "Sales fundamentals",
+    description: "Discovery, qualification, and closing.",
+    questions: [
+      {
+        prompt: "BANT stands for:",
+        options: [
+          "Budget, Authority, Need, Timeline",
+          "Budget, Approval, Negotiation, Tactics",
+          "Brand, Audience, Niche, Trust",
+          "Business, Alignment, Numbers, Trust",
+        ],
+        correctIndex: 0,
+      },
+      {
+        prompt: "The best response to 'send me more info' is usually:",
+        options: [
+          "Send a long PDF immediately",
+          "Drop the lead",
+          "Ask a discovery question to qualify what info would actually help",
+          "Wait a week then follow up",
+        ],
+        correctIndex: 2,
+      },
+    ],
+  },
+  {
+    skill: "design",
+    title: "Visual design basics",
+    description: "Hierarchy, contrast, and layout.",
+    questions: [
+      {
+        prompt: "Which principle helps users scan a layout quickly?",
+        options: ["Symmetry", "Visual hierarchy", "Skeuomorphism", "Parallax"],
+        correctIndex: 1,
+      },
+      {
+        prompt: "Which contrast ratio is the WCAG AA minimum for normal body text?",
+        options: ["2:1", "3:1", "4.5:1", "7:1"],
+        correctIndex: 2,
+      },
+    ],
+  },
+  {
+    skill: "project management",
+    title: "Project management basics",
+    description: "Scope, schedule, and delivery.",
+    questions: [
+      {
+        prompt: "Which artefact lists every deliverable and its acceptance criteria?",
+        options: ["Gantt chart", "RACI", "Scope of work", "Stand-up notes"],
+        correctIndex: 2,
+      },
+      {
+        prompt: "If scope grows mid-project, the right first move is to:",
+        options: [
+          "Silently absorb the work",
+          "Re-baseline scope, schedule, and cost with stakeholders",
+          "Cut quality",
+          "Cancel the project",
+        ],
+        correctIndex: 1,
+      },
+    ],
+  },
+  {
+    skill: "accounting",
+    title: "Accounting basics",
+    description: "Double-entry, statements, and reconciliations.",
+    questions: [
+      {
+        prompt: "The accounting equation is:",
+        options: [
+          "Assets = Revenue − Expenses",
+          "Assets = Liabilities + Equity",
+          "Equity = Cash + Inventory",
+          "Liabilities = Assets − Revenue",
+        ],
+        correctIndex: 1,
+      },
+      {
+        prompt: "Which statement reports financial position at a point in time?",
+        options: ["Income statement", "Cash flow statement", "Balance sheet", "Trial balance"],
+        correctIndex: 2,
+      },
+    ],
+  },
+  {
+    skill: "customer service",
+    title: "Customer-service judgement",
+    description: "De-escalation and resolution.",
+    questions: [
+      {
+        prompt: "A customer is angry and the issue is partly on us. Best opening line?",
+        options: [
+          "It's not really our fault, but…",
+          "Calm down please.",
+          "Thank you for telling us — I'm sorry this happened. Let me look into it now.",
+          "Have you tried turning it off and on?",
+        ],
+        correctIndex: 2,
+      },
+      {
+        prompt: "You can't solve the issue today. The right move is to:",
+        options: [
+          "Promise a fix anyway",
+          "Set a clear next step and an ETA you can keep",
+          "Stop replying",
+          "Escalate without telling the customer",
+        ],
+        correctIndex: 1,
+      },
+    ],
+  },
 ];
 
 async function main() {
@@ -212,6 +452,7 @@ async function main() {
       skill: t.skill,
       title: t.title,
       description: t.description,
+      difficulty: t.difficulty ?? "medium",
       questions: t.questions,
     });
   }

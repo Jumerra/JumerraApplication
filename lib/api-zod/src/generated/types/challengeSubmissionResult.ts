@@ -5,6 +5,7 @@
  * Talent Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { ChallengeSubmissionResultBreakdownItem } from "./challengeSubmissionResultBreakdownItem";
 
 export interface ChallengeSubmissionResult {
   applicationId: number;
@@ -12,4 +13,10 @@ export interface ChallengeSubmissionResult {
   correct: number;
   total: number;
   alreadySubmitted: boolean;
+  /** Per-question grading detail returned to the candidate.
+The answer-key index (`correct`) is omitted server-side
+to prevent answer leakage — only `isCorrect` is included
+so the candidate sees which ones they got right.
+ */
+  breakdown: ChallengeSubmissionResultBreakdownItem[];
 }

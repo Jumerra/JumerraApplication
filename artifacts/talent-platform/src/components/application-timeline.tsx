@@ -37,18 +37,18 @@ export function ApplicationTimeline({ applicationId }: { applicationId: number }
       <CardContent>
         <ol className="space-y-3">
           {data.milestones.map((m, idx) => {
-            const Icon =
-              m.status === "rejected" || m.status === "withdrawn"
-                ? XCircle
-                : m.isReached
-                  ? CheckCircle2
-                  : Circle;
+            const isWithdrawn = m.key === "withdrawn";
+            const Icon = isWithdrawn
+              ? XCircle
+              : m.isReached
+                ? CheckCircle2
+                : Circle;
             return (
-              <li key={`${m.status}-${idx}`} className="flex items-start gap-3">
+              <li key={`${m.key}-${idx}`} className="flex items-start gap-3">
                 <Icon
                   className={cn(
                     "w-5 h-5 mt-0.5 shrink-0",
-                    m.status === "rejected" || m.status === "withdrawn"
+                    isWithdrawn
                       ? "text-destructive"
                       : m.isCurrent
                         ? "text-primary"

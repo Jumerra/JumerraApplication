@@ -5137,29 +5137,44 @@ components:
     ApplicationTimelineMilestone:
       type: object
       properties:
-        status:
+        key:
           type: string
-          enum: [applied, screening, interview, offer, hired, rejected, withdrawn]
+          description: "Stable candidate-facing milestone identifier."
+          enum: [submitted, reviewed, shortlisted, interview, decision, withdrawn]
         label: { type: string }
+        rawStatus:
+          type: string
+          nullable: true
+          description: "Underlying application.status that triggered this milestone, when known."
         reachedAt: { type: string, format: date-time, nullable: true }
         isReached: { type: boolean }
         isCurrent: { type: boolean }
-      required: [status, label, reachedAt, isReached, isCurrent]
+      required: [key, label, rawStatus, reachedAt, isReached, isCurrent]
 
     ApplicationTimeline:
       type: object
       properties:
         applicationId: { type: integer }
         currentStatus: { type: string }
+        currentMilestone:
+          type: string
+          enum: [submitted, reviewed, shortlisted, interview, decision, withdrawn]
         milestones:
           type: array
           items: { $ref: "#/components/schemas/ApplicationTimelineMilestone" }
         etaDays:
           type: integer
           nullable: true
-          description: Median days employers take to move past the current step (null if unknown).
+          description: Data-derived median days employers take to move past the current step across the whole platform's status history (null if not enough signal yet).
+        etaSource:
+          type: string
+          enum: [data, fallback, none]
+          description: "`data` = computed from real status_history medians; `fallback` = bootstrap heuristic used until enough history exists; `none` = terminal/closed."
+        etaSampleSize:
+          type: integer
+          description: Number of historical transitions backing the etaDays median.
         etaLabel: { type: string }
-      required: [applicationId, currentStatus, milestones, etaLabel]
+      required: [applicationId, currentStatus, currentMilestone, milestones, etaSource, etaSampleSize, etaLabel]
 
     SavedSearch:
       type: object
@@ -5168,10 +5183,20 @@ components:
         name: { type: string }
         searchText: { type: string, nullable: true }
         jobType: { type: string, nullable: true }
-        alertsEnabled: { type: boolean }
+        sortBy: { type: string, nullable: true }
+        filters:
+          type: object
+          additionalProperties: true
+          description: "Full saved query state (filters + sort) — opaque to the server, replayed by the client to restore the saved view."
+        emailAlerts: { type: boolean }
+        inAppAlerts: { type: boolean }
+        alertsEnabled:
+          type: boolean
+          description: "Legacy mirror, true when either email or in-app alerts are on."
         createdAt: { type: string, format: date-time }
+        lastAlertedAt: { type: string, format: date-time, nullable: true }
         newMatchCount: { type: integer, description: "Jobs newer than lastSeen still matching the filters." }
-      required: [id, name, searchText, jobType, alertsEnabled, createdAt, newMatchCount]
+      required: [id, name, searchText, jobType, sortBy, filters, emailAlerts, inAppAlerts, alertsEnabled, createdAt, lastAlertedAt, newMatchCount]
 
     CreateSavedSearch:
       type: object
@@ -5182,13 +5207,23 @@ components:
           type: string
           nullable: true
           enum: [full_time, part_time, internship, contract, remote]
-        alertsEnabled: { type: boolean, default: true }
+        sortBy: { type: string, nullable: true }
+        filters:
+          type: object
+          additionalProperties: true
+        emailAlerts: { type: boolean, default: true }
+        inAppAlerts: { type: boolean, default: true }
       required: [name]
 
     UpdateSavedSearch:
       type: object
       properties:
         name: { type: string, minLength: 1, maxLength: 80 }
-        alertsEnabled: { type: boolean }
+        emailAlerts: { type: boolean }
+        inAppAlerts: { type: boolean }
+        sortBy: { type: string, nullable: true }
+        filters:
+          type: object
+          additionalProperties: true
         markSeen: { type: boolean, description: "Reset lastSeenJobId to current max." }
 

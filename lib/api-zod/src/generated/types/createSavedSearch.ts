@@ -5,6 +5,7 @@
  * Talent Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { CreateSavedSearchFilters } from "./createSavedSearchFilters";
 import type { CreateSavedSearchJobType } from "./createSavedSearchJobType";
 
 export interface CreateSavedSearch {
@@ -15,5 +16,8 @@ export interface CreateSavedSearch {
   name: string;
   searchText?: string | null;
   jobType?: CreateSavedSearchJobType;
-  alertsEnabled?: boolean;
+  sortBy?: string | null;
+  filters?: CreateSavedSearchFilters;
+  emailAlerts?: boolean;
+  inAppAlerts?: boolean;
 }

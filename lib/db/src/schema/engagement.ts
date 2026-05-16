@@ -30,8 +30,18 @@ export const candidateSavedSearchesTable = pgTable(
     name: text("name").notNull(),
     searchText: text("search_text"),
     jobType: text("job_type"),
+    /** Full UI query state (filters + sort) as JSON, so saved searches can
+     *  round-trip every facet the jobs page exposes — not just the two
+     *  fields we project out for the alert-matching SQL. */
+    filtersJson: text("filters_json").notNull().default("{}"),
+    sortBy: text("sort_by"),
+    /** Per-channel alert preferences. `alertsEnabled` is kept as a
+     *  legacy mirror for older clients, derived as (email OR inApp). */
+    emailAlerts: boolean("email_alerts").notNull().default(true),
+    inAppAlerts: boolean("in_app_alerts").notNull().default(true),
     alertsEnabled: boolean("alerts_enabled").notNull().default(true),
     lastSeenJobId: integer("last_seen_job_id").notNull().default(0),
+    lastAlertedAt: timestamp("last_alerted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -106,6 +116,12 @@ export const candidateWeeklyDigestsTable = pgTable(
     generatedAt: timestamp("generated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    /** Set when the email helper successfully hands off to a provider.
+     *  Stays NULL when the provider is not configured (current
+     *  default), so we can later replay digests that were generated
+     *  but not yet emailed. */
+    emailSentAt: timestamp("email_sent_at", { withTimezone: true }),
+    emailSendResult: text("email_send_result"),
   },
   (t) => ({
     weeklyDigestUnique: uniqueIndex("weekly_digest_unique").on(

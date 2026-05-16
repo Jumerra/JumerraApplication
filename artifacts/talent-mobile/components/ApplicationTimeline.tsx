@@ -45,7 +45,7 @@ export function ApplicationTimeline({
       </Text>
       <View style={styles.list}>
         {data.milestones.map((m, idx) => {
-          const isTerminal = m.status === "rejected" || m.status === "withdrawn";
+          const isTerminal = m.key === "withdrawn";
           const iconName = isTerminal
             ? "x-circle"
             : m.isReached
@@ -59,7 +59,7 @@ export function ApplicationTimeline({
                 ? colors.primary
                 : colors.mutedForeground;
           return (
-            <View key={`${m.status}-${idx}`} style={styles.row}>
+            <View key={`${m.key}-${idx}`} style={styles.row}>
               <View style={styles.iconCol}>
                 <Feather
                   name={iconName as never}

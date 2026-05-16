@@ -5,11 +5,14 @@
  * Talent Platform API
  * OpenAPI spec version: 0.1.0
  */
-import type { ApplicationTimelineMilestoneStatus } from "./applicationTimelineMilestoneStatus";
+import type { ApplicationTimelineMilestoneKey } from "./applicationTimelineMilestoneKey";
 
 export interface ApplicationTimelineMilestone {
-  status: ApplicationTimelineMilestoneStatus;
+  /** Stable candidate-facing milestone identifier. */
+  key: ApplicationTimelineMilestoneKey;
   label: string;
+  /** Underlying application.status that triggered this milestone, when known. */
+  rawStatus: string | null;
   reachedAt: Date | null;
   isReached: boolean;
   isCurrent: boolean;

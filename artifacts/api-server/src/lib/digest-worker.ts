@@ -29,6 +29,7 @@ import {
 } from "@workspace/db";
 import { logger } from "./logger";
 import { calculateMatchScore } from "./matching";
+import { sendEngagementEmail } from "./email";
 
 function weekStartUTC(d = new Date()): Date {
   const out = new Date(
@@ -129,7 +130,7 @@ async function runDigestForCandidate(
     newMatchesJson: JSON.stringify(newMatches),
   });
 
-  // In-app notification (best effort)
+  // In-app notification + email handoff (both best effort).
   try {
     const [candUser] = await db
       .select({ userId: usersTable.id, email: usersTable.email })
@@ -143,13 +144,45 @@ async function runDigestForCandidate(
         body: `${profileViews} profile views · ${applicationsSent} applications · ${newMatches.length} new matches`,
         link: "/account/dashboard",
       });
-      // Email stub — see lib/email.ts; intentionally a no-op until a
-      // provider is configured. We log only the candidate id, never the
-      // address, mirroring the policy in lib/email.ts.
-      logger.info(
-        { candidateId },
-        "Weekly digest email pending (provider not configured)",
-      );
+
+      // Hand off to the engagement-email helper. Today this is a stub
+      // that returns { sent: false, reason: "email-not-configured" }
+      // — but routing through the helper means the day a provider is
+      // wired up the worker starts sending automatically with no
+      // changes here. We persist the outcome on the digest row so a
+      // future replay job can pick up rows where sent_at is still
+      // null but email_send_result is "email-not-configured".
+      const emailLines = [
+        `Hi,`,
+        ``,
+        `Here is your weekly engagement summary on Jumerra (week of ${fmtDate(weekStart)}):`,
+        `  • ${profileViews} profile view${profileViews === 1 ? "" : "s"}`,
+        `  • ${applicationsSent} application${applicationsSent === 1 ? "" : "s"} sent`,
+        `  • ${interviewsScheduled} interview${interviewsScheduled === 1 ? "" : "s"} scheduled`,
+        `  • ${newMatches.length} new job match${newMatches.length === 1 ? "" : "es"}`,
+        ``,
+        `Sign in to Jumerra to see the full breakdown.`,
+      ];
+      const result = await sendEngagementEmail({
+        to: candUser.email,
+        kind: "weekly_digest",
+        subject: `Your week on Jumerra`,
+        body: emailLines.join("\n"),
+        candidateId,
+        logger,
+      });
+      await db
+        .update(candidateWeeklyDigestsTable)
+        .set({
+          emailSentAt: result.sent ? new Date() : null,
+          emailSendResult: result.sent ? `sent:${result.provider}` : `pending:${result.reason}`,
+        })
+        .where(
+          and(
+            eq(candidateWeeklyDigestsTable.candidateId, candidateId),
+            eq(candidateWeeklyDigestsTable.weekStart, fmtDate(weekStart)),
+          ),
+        );
     }
   } catch (err) {
     logger.warn({ err, candidateId }, "Failed to enqueue weekly digest notification");
@@ -190,6 +223,9 @@ export async function runWeeklyDigestSweep(): Promise<void> {
 async function runSavedSearchAlertsForOne(
   search: typeof candidateSavedSearchesTable.$inferSelect,
 ): Promise<void> {
+  // Skip immediately if both channels are off — nothing to do.
+  if (!search.emailAlerts && !search.inAppAlerts) return;
+
   const conds = [gt(jobsTable.id, search.lastSeenJobId)];
   if (search.jobType) conds.push(eq(jobsTable.type, search.jobType));
   if (search.searchText && search.searchText.trim()) {
@@ -203,26 +239,52 @@ async function runSavedSearchAlertsForOne(
     .limit(10);
   if (matches.length === 0) return;
 
-  // Push lastSeenJobId forward so we don't re-notify on the next sweep.
+  // Push lastSeenJobId forward so we don't re-notify on the next sweep,
+  // and stamp lastAlertedAt so the UI can show "alerted X ago".
   const newMaxId = Math.max(...matches.map((m) => m.id));
   await db
     .update(candidateSavedSearchesTable)
-    .set({ lastSeenJobId: newMaxId })
+    .set({ lastSeenJobId: newMaxId, lastAlertedAt: new Date() })
     .where(eq(candidateSavedSearchesTable.id, search.id));
 
   try {
     const [candUser] = await db
-      .select({ userId: usersTable.id })
+      .select({ userId: usersTable.id, email: usersTable.email })
       .from(usersTable)
       .where(eq(usersTable.candidateId, search.candidateId));
-    if (candUser) {
-      const sample = matches.slice(0, 2).map((m) => m.title).join(", ");
+    if (!candUser) return;
+
+    const title = `${matches.length} new job${matches.length === 1 ? "" : "s"} match "${search.name}"`;
+    const sample = matches.slice(0, 2).map((m) => m.title).join(", ");
+
+    if (search.inAppAlerts) {
       await db.insert(notificationsTable).values({
         userId: candUser.userId,
         kind: "saved_search_alert",
-        title: `${matches.length} new job${matches.length === 1 ? "" : "s"} match "${search.name}"`,
+        title,
         body: sample,
         link: "/jobs",
+      });
+    }
+
+    if (search.emailAlerts) {
+      const emailBody = [
+        `Hi,`,
+        ``,
+        `${title}.`,
+        ``,
+        `Newest matches:`,
+        ...matches.slice(0, 5).map((m) => `  • ${m.title}`),
+        ``,
+        `Sign in to Jumerra to see the full list.`,
+      ].join("\n");
+      await sendEngagementEmail({
+        to: candUser.email,
+        kind: "saved_search_alert",
+        subject: title,
+        body: emailBody,
+        candidateId: search.candidateId,
+        logger,
       });
     }
   } catch (err) {
@@ -234,6 +296,9 @@ async function runSavedSearchAlertsForOne(
 }
 
 export async function runSavedSearchAlertSweep(): Promise<void> {
+  // Sweep any saved search where at least one channel is enabled.
+  // (`alertsEnabled` is the legacy "any-channel" mirror maintained by
+  // the routes in routes/engagement.ts.)
   const searches = await db
     .select()
     .from(candidateSavedSearchesTable)

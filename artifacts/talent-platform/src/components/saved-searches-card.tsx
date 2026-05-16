@@ -19,9 +19,17 @@ import { useToast } from "@/hooks/use-toast";
 export function SavedSearchesCard({
   candidateId,
   currentFilters,
+  currentSortBy,
 }: {
   candidateId: number;
-  currentFilters: { searchText?: string; jobType?: string };
+  /** Full UI query state (every facet on the jobs page); we save it as
+   *  an opaque JSON blob so the saved search can fully restore the
+   *  view, not just the two fields the alert SQL filters on. */
+  currentFilters: Record<string, unknown> & {
+    searchText?: string;
+    jobType?: string;
+  };
+  currentSortBy?: string;
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -59,7 +67,13 @@ export function SavedSearchesCard({
         name: name.trim(),
         searchText: currentFilters.searchText ?? null,
         jobType: (currentFilters.jobType as never) ?? null,
-        alertsEnabled: true,
+        sortBy: currentSortBy ?? null,
+        // Persist the entire current query state so the saved view is
+        // fully restorable, not just the two columns the alert
+        // matcher projects out.
+        filters: currentFilters,
+        emailAlerts: true,
+        inAppAlerts: true,
       },
     });
   };
@@ -106,31 +120,44 @@ export function SavedSearchesCard({
                     {s.newMatchCount} new
                   </Badge>
                 ) : null}
-                <button
-                  type="button"
-                  onClick={() =>
-                    updateMut.mutate({
-                      id: candidateId,
-                      searchId: s.id,
-                      data: { alertsEnabled: !s.alertsEnabled },
-                    })
-                  }
-                  className="text-muted-foreground hover:text-primary"
-                  aria-label={s.alertsEnabled ? "Mute alerts" : "Enable alerts"}
+                <div
+                  className="flex items-center gap-3 mr-1"
+                  aria-label="Alert channels"
                 >
-                  {s.alertsEnabled ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
-                </button>
-                <Switch
-                  checked={s.alertsEnabled}
-                  onCheckedChange={(checked) =>
-                    updateMut.mutate({
-                      id: candidateId,
-                      searchId: s.id,
-                      data: { alertsEnabled: checked },
-                    })
-                  }
-                  aria-label="Toggle alerts"
-                />
+                  <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Switch
+                      checked={s.inAppAlerts}
+                      onCheckedChange={(checked) =>
+                        updateMut.mutate({
+                          id: candidateId,
+                          searchId: s.id,
+                          data: { inAppAlerts: checked },
+                        })
+                      }
+                      aria-label="Toggle in-app alerts"
+                    />
+                    {s.inAppAlerts ? (
+                      <Bell className="w-3.5 h-3.5" />
+                    ) : (
+                      <BellOff className="w-3.5 h-3.5" />
+                    )}
+                    <span>In-app</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Switch
+                      checked={s.emailAlerts}
+                      onCheckedChange={(checked) =>
+                        updateMut.mutate({
+                          id: candidateId,
+                          searchId: s.id,
+                          data: { emailAlerts: checked },
+                        })
+                      }
+                      aria-label="Toggle email alerts"
+                    />
+                    <span>Email</span>
+                  </label>
+                </div>
                 <button
                   type="button"
                   onClick={() =>

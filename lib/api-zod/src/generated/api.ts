@@ -4313,18 +4313,33 @@ export const GetApplicationTimelineParams = zod.object({
 export const GetApplicationTimelineResponse = zod.object({
   applicationId: zod.number(),
   currentStatus: zod.string(),
+  currentMilestone: zod.enum([
+    "submitted",
+    "reviewed",
+    "shortlisted",
+    "interview",
+    "decision",
+    "withdrawn",
+  ]),
   milestones: zod.array(
     zod.object({
-      status: zod.enum([
-        "applied",
-        "screening",
-        "interview",
-        "offer",
-        "hired",
-        "rejected",
-        "withdrawn",
-      ]),
+      key: zod
+        .enum([
+          "submitted",
+          "reviewed",
+          "shortlisted",
+          "interview",
+          "decision",
+          "withdrawn",
+        ])
+        .describe("Stable candidate-facing milestone identifier."),
       label: zod.string(),
+      rawStatus: zod
+        .string()
+        .nullable()
+        .describe(
+          "Underlying application.status that triggered this milestone, when known.",
+        ),
       reachedAt: zod.coerce.date().nullable(),
       isReached: zod.boolean(),
       isCurrent: zod.boolean(),
@@ -4334,8 +4349,16 @@ export const GetApplicationTimelineResponse = zod.object({
     .number()
     .nullish()
     .describe(
-      "Median days employers take to move past the current step (null if unknown).",
+      "Data-derived median days employers take to move past the current step across the whole platform's status history (null if not enough signal yet).",
     ),
+  etaSource: zod
+    .enum(["data", "fallback", "none"])
+    .describe(
+      "`data` = computed from real status_history medians; `fallback` = bootstrap heuristic used until enough history exists; `none` = terminal\/closed.",
+    ),
+  etaSampleSize: zod
+    .number()
+    .describe("Number of historical transitions backing the etaDays median."),
   etaLabel: zod.string(),
 });
 
@@ -4351,8 +4374,19 @@ export const ListSavedSearchesResponseItem = zod.object({
   name: zod.string(),
   searchText: zod.string().nullable(),
   jobType: zod.string().nullable(),
-  alertsEnabled: zod.boolean(),
+  sortBy: zod.string().nullable(),
+  filters: zod
+    .record(zod.string(), zod.unknown())
+    .describe(
+      "Full saved query state (filters + sort) — opaque to the server, replayed by the client to restore the saved view.",
+    ),
+  emailAlerts: zod.boolean(),
+  inAppAlerts: zod.boolean(),
+  alertsEnabled: zod
+    .boolean()
+    .describe("Legacy mirror, true when either email or in-app alerts are on."),
   createdAt: zod.coerce.date(),
+  lastAlertedAt: zod.coerce.date().nullable(),
   newMatchCount: zod
     .number()
     .describe("Jobs newer than lastSeen still matching the filters."),
@@ -4370,7 +4404,8 @@ export const CreateSavedSearchParams = zod.object({
 
 export const createSavedSearchBodyNameMax = 80;
 
-export const createSavedSearchBodyAlertsEnabledDefault = true;
+export const createSavedSearchBodyEmailAlertsDefault = true;
+export const createSavedSearchBodyInAppAlertsDefault = true;
 
 export const CreateSavedSearchBody = zod.object({
   name: zod.string().min(1).max(createSavedSearchBodyNameMax),
@@ -4378,9 +4413,10 @@ export const CreateSavedSearchBody = zod.object({
   jobType: zod
     .enum(["full_time", "part_time", "internship", "contract", "remote"])
     .nullish(),
-  alertsEnabled: zod
-    .boolean()
-    .default(createSavedSearchBodyAlertsEnabledDefault),
+  sortBy: zod.string().nullish(),
+  filters: zod.record(zod.string(), zod.unknown()).optional(),
+  emailAlerts: zod.boolean().default(createSavedSearchBodyEmailAlertsDefault),
+  inAppAlerts: zod.boolean().default(createSavedSearchBodyInAppAlertsDefault),
 });
 
 /**
@@ -4395,7 +4431,10 @@ export const updateSavedSearchBodyNameMax = 80;
 
 export const UpdateSavedSearchBody = zod.object({
   name: zod.string().min(1).max(updateSavedSearchBodyNameMax).optional(),
-  alertsEnabled: zod.boolean().optional(),
+  emailAlerts: zod.boolean().optional(),
+  inAppAlerts: zod.boolean().optional(),
+  sortBy: zod.string().nullish(),
+  filters: zod.record(zod.string(), zod.unknown()).optional(),
   markSeen: zod
     .boolean()
     .optional()
@@ -4407,8 +4446,19 @@ export const UpdateSavedSearchResponse = zod.object({
   name: zod.string(),
   searchText: zod.string().nullable(),
   jobType: zod.string().nullable(),
-  alertsEnabled: zod.boolean(),
+  sortBy: zod.string().nullable(),
+  filters: zod
+    .record(zod.string(), zod.unknown())
+    .describe(
+      "Full saved query state (filters + sort) — opaque to the server, replayed by the client to restore the saved view.",
+    ),
+  emailAlerts: zod.boolean(),
+  inAppAlerts: zod.boolean(),
+  alertsEnabled: zod
+    .boolean()
+    .describe("Legacy mirror, true when either email or in-app alerts are on."),
   createdAt: zod.coerce.date(),
+  lastAlertedAt: zod.coerce.date().nullable(),
   newMatchCount: zod
     .number()
     .describe("Jobs newer than lastSeen still matching the filters."),

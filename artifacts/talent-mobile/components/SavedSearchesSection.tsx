@@ -22,10 +22,21 @@ import { useColors } from "@/hooks/useColors";
 
 type Props = {
   candidateId: number;
-  currentFilters: { searchText?: string; jobType?: string };
+  /** Opaque snapshot of the search screen's full query state. Saved as
+   *  a JSON blob server-side so the saved search can fully restore
+   *  every facet, not just the two columns the alert matcher uses. */
+  currentFilters: Record<string, unknown> & {
+    searchText?: string;
+    jobType?: string;
+  };
+  currentSortBy?: string;
 };
 
-export function SavedSearchesSection({ candidateId, currentFilters }: Props) {
+export function SavedSearchesSection({
+  candidateId,
+  currentFilters,
+  currentSortBy,
+}: Props) {
   const colors = useColors();
   const qc = useQueryClient();
   const queryKey = getListSavedSearchesQueryKey(candidateId);
@@ -58,7 +69,10 @@ export function SavedSearchesSection({ candidateId, currentFilters }: Props) {
           name: name.trim(),
           searchText: currentFilters.searchText ?? null,
           jobType: (currentFilters.jobType as never) ?? null,
-          alertsEnabled: true,
+          sortBy: currentSortBy ?? null,
+          filters: currentFilters,
+          emailAlerts: true,
+          inAppAlerts: true,
         },
       },
       { onSuccess: () => setName("") },
@@ -142,16 +156,48 @@ export function SavedSearchesSection({ candidateId, currentFilters }: Props) {
               {s.newMatchCount > 0 ? `  ·  ${s.newMatchCount} new` : ""}
             </Text>
           </View>
-          <Switch
-            value={s.alertsEnabled}
-            onValueChange={(checked) =>
-              updateMut.mutate({
-                id: candidateId,
-                searchId: s.id,
-                data: { alertsEnabled: checked },
-              })
-            }
-          />
+          <View style={styles.channelStack}>
+            <View style={styles.channelRow}>
+              <Text
+                style={[
+                  styles.channelLabel,
+                  { color: colors.mutedForeground },
+                ]}
+              >
+                In-app
+              </Text>
+              <Switch
+                value={s.inAppAlerts}
+                onValueChange={(checked) =>
+                  updateMut.mutate({
+                    id: candidateId,
+                    searchId: s.id,
+                    data: { inAppAlerts: checked },
+                  })
+                }
+              />
+            </View>
+            <View style={styles.channelRow}>
+              <Text
+                style={[
+                  styles.channelLabel,
+                  { color: colors.mutedForeground },
+                ]}
+              >
+                Email
+              </Text>
+              <Switch
+                value={s.emailAlerts}
+                onValueChange={(checked) =>
+                  updateMut.mutate({
+                    id: candidateId,
+                    searchId: s.id,
+                    data: { emailAlerts: checked },
+                  })
+                }
+              />
+            </View>
+          </View>
           <Pressable
             onPress={() =>
               deleteMut.mutate({ id: candidateId, searchId: s.id })
@@ -219,5 +265,19 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_500Medium",
     fontSize: 12,
     marginTop: 2,
+  },
+  channelStack: {
+    gap: 4,
+  },
+  channelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  channelLabel: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 11,
+    minWidth: 36,
+    textAlign: "right",
   },
 });

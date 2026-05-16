@@ -5,14 +5,22 @@
  * Talent Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { SavedSearchFilters } from "./savedSearchFilters";
 
 export interface SavedSearch {
   id: number;
   name: string;
   searchText: string | null;
   jobType: string | null;
+  sortBy: string | null;
+  /** Full saved query state (filters + sort) — opaque to the server, replayed by the client to restore the saved view. */
+  filters: SavedSearchFilters;
+  emailAlerts: boolean;
+  inAppAlerts: boolean;
+  /** Legacy mirror, true when either email or in-app alerts are on. */
   alertsEnabled: boolean;
   createdAt: Date;
+  lastAlertedAt: Date | null;
   /** Jobs newer than lastSeen still matching the filters. */
   newMatchCount: number;
 }

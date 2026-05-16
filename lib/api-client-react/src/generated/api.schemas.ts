@@ -2281,43 +2281,89 @@ export interface CandidateWeeklyDigestResponse {
   digest: CandidateWeeklyDigest | null;
 }
 
-export type ApplicationTimelineMilestoneStatus =
-  (typeof ApplicationTimelineMilestoneStatus)[keyof typeof ApplicationTimelineMilestoneStatus];
+/**
+ * Stable candidate-facing milestone identifier.
+ */
+export type ApplicationTimelineMilestoneKey =
+  (typeof ApplicationTimelineMilestoneKey)[keyof typeof ApplicationTimelineMilestoneKey];
 
-export const ApplicationTimelineMilestoneStatus = {
-  applied: "applied",
-  screening: "screening",
+export const ApplicationTimelineMilestoneKey = {
+  submitted: "submitted",
+  reviewed: "reviewed",
+  shortlisted: "shortlisted",
   interview: "interview",
-  offer: "offer",
-  hired: "hired",
-  rejected: "rejected",
+  decision: "decision",
   withdrawn: "withdrawn",
 } as const;
 
 export interface ApplicationTimelineMilestone {
-  status: ApplicationTimelineMilestoneStatus;
+  /** Stable candidate-facing milestone identifier. */
+  key: ApplicationTimelineMilestoneKey;
   label: string;
+  /** Underlying application.status that triggered this milestone, when known. */
+  rawStatus: string | null;
   reachedAt: string | null;
   isReached: boolean;
   isCurrent: boolean;
 }
 
+export type ApplicationTimelineCurrentMilestone =
+  (typeof ApplicationTimelineCurrentMilestone)[keyof typeof ApplicationTimelineCurrentMilestone];
+
+export const ApplicationTimelineCurrentMilestone = {
+  submitted: "submitted",
+  reviewed: "reviewed",
+  shortlisted: "shortlisted",
+  interview: "interview",
+  decision: "decision",
+  withdrawn: "withdrawn",
+} as const;
+
+/**
+ * `data` = computed from real status_history medians; `fallback` = bootstrap heuristic used until enough history exists; `none` = terminal/closed.
+ */
+export type ApplicationTimelineEtaSource =
+  (typeof ApplicationTimelineEtaSource)[keyof typeof ApplicationTimelineEtaSource];
+
+export const ApplicationTimelineEtaSource = {
+  data: "data",
+  fallback: "fallback",
+  none: "none",
+} as const;
+
 export interface ApplicationTimeline {
   applicationId: number;
   currentStatus: string;
+  currentMilestone: ApplicationTimelineCurrentMilestone;
   milestones: ApplicationTimelineMilestone[];
-  /** Median days employers take to move past the current step (null if unknown). */
+  /** Data-derived median days employers take to move past the current step across the whole platform's status history (null if not enough signal yet). */
   etaDays?: number | null;
+  /** `data` = computed from real status_history medians; `fallback` = bootstrap heuristic used until enough history exists; `none` = terminal/closed. */
+  etaSource: ApplicationTimelineEtaSource;
+  /** Number of historical transitions backing the etaDays median. */
+  etaSampleSize: number;
   etaLabel: string;
 }
+
+/**
+ * Full saved query state (filters + sort) — opaque to the server, replayed by the client to restore the saved view.
+ */
+export type SavedSearchFilters = { [key: string]: unknown };
 
 export interface SavedSearch {
   id: number;
   name: string;
   searchText: string | null;
   jobType: string | null;
+  sortBy: string | null;
+  /** Full saved query state (filters + sort) — opaque to the server, replayed by the client to restore the saved view. */
+  filters: SavedSearchFilters;
+  emailAlerts: boolean;
+  inAppAlerts: boolean;
+  /** Legacy mirror, true when either email or in-app alerts are on. */
   alertsEnabled: boolean;
   createdAt: string;
+  lastAlertedAt: string | null;
   /** Jobs newer than lastSeen still matching the filters. */
   newMatchCount: number;
 }
@@ -2334,6 +2380,8 @@ export const CreateSavedSearchJobType = {
   remote: "remote",
 } as const;
 
+export type CreateSavedSearchFilters = { [key: string]: unknown };
+
 export interface CreateSavedSearch {
   /**
    * @minLength 1
@@ -2342,8 +2390,13 @@ export interface CreateSavedSearch {
   name: string;
   searchText?: string | null;
   jobType?: CreateSavedSearchJobType;
-  alertsEnabled?: boolean;
+  sortBy?: string | null;
+  filters?: CreateSavedSearchFilters;
+  emailAlerts?: boolean;
+  inAppAlerts?: boolean;
 }
+
+export type UpdateSavedSearchFilters = { [key: string]: unknown };
 
 export interface UpdateSavedSearch {
   /**
@@ -2351,7 +2404,10 @@ export interface UpdateSavedSearch {
    * @maxLength 80
    */
   name?: string;
-  alertsEnabled?: boolean;
+  emailAlerts?: boolean;
+  inAppAlerts?: boolean;
+  sortBy?: string | null;
+  filters?: UpdateSavedSearchFilters;
   /** Reset lastSeenJobId to current max. */
   markSeen?: boolean;
 }

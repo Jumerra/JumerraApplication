@@ -5,6 +5,7 @@
  * Talent Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { UpdateSavedSearchFilters } from "./updateSavedSearchFilters";
 
 export interface UpdateSavedSearch {
   /**
@@ -12,7 +13,10 @@ export interface UpdateSavedSearch {
    * @maxLength 80
    */
   name?: string;
-  alertsEnabled?: boolean;
+  emailAlerts?: boolean;
+  inAppAlerts?: boolean;
+  sortBy?: string | null;
+  filters?: UpdateSavedSearchFilters;
   /** Reset lastSeenJobId to current max. */
   markSeen?: boolean;
 }

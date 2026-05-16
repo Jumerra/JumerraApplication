@@ -5,13 +5,20 @@
  * Talent Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { ApplicationTimelineCurrentMilestone } from "./applicationTimelineCurrentMilestone";
+import type { ApplicationTimelineEtaSource } from "./applicationTimelineEtaSource";
 import type { ApplicationTimelineMilestone } from "./applicationTimelineMilestone";
 
 export interface ApplicationTimeline {
   applicationId: number;
   currentStatus: string;
+  currentMilestone: ApplicationTimelineCurrentMilestone;
   milestones: ApplicationTimelineMilestone[];
-  /** Median days employers take to move past the current step (null if unknown). */
+  /** Data-derived median days employers take to move past the current step across the whole platform's status history (null if not enough signal yet). */
   etaDays?: number | null;
+  /** `data` = computed from real status_history medians; `fallback` = bootstrap heuristic used until enough history exists; `none` = terminal/closed. */
+  etaSource: ApplicationTimelineEtaSource;
+  /** Number of historical transitions backing the etaDays median. */
+  etaSampleSize: number;
   etaLabel: string;
 }

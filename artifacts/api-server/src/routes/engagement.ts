@@ -32,33 +32,137 @@ function canActOnCandidate(user: User | undefined, candidateId: number): boolean
   return false;
 }
 
-const STATUS_ORDER = [
-  "applied",
-  "screening",
+/**
+ * Candidate-facing milestone vocabulary.
+ *
+ * The raw `applications.status` enum mixes employer pipeline states
+ * (screening, offer) with terminal outcomes (hired, rejected) and uses
+ * names that don't track how a candidate thinks about progress. The
+ * timeline endpoint exposes a stable, candidate-facing 5-step
+ * progression instead — Submitted → Reviewed → Shortlisted →
+ * Interview → Decision — and a separate `withdrawn` leaf that's
+ * appended only when applicable.
+ *
+ * `MILESTONE_REACHED_AT` is the source of truth for "has the
+ * application reached this milestone yet?". For each milestone we list
+ * the raw statuses that imply it (an interview means we were
+ * shortlisted, hired implies we reached Decision, etc.).
+ */
+const MILESTONE_KEYS = [
+  "submitted",
+  "reviewed",
+  "shortlisted",
   "interview",
-  "offer",
-  "hired",
+  "decision",
 ] as const;
+type MilestoneKey = (typeof MILESTONE_KEYS)[number];
 
-const STATUS_LABEL: Record<string, string> = {
-  applied: "Applied",
-  screening: "Screening",
+const MILESTONE_LABEL: Record<MilestoneKey | "withdrawn", string> = {
+  submitted: "Submitted",
+  reviewed: "Reviewed",
+  shortlisted: "Shortlisted",
   interview: "Interview",
-  offer: "Offer",
-  hired: "Hired",
-  rejected: "Rejected",
+  decision: "Decision",
   withdrawn: "Withdrawn",
 };
 
-// Heuristic median ETA per current step. We don't have enough signal
-// yet to infer this from history; once enough rows accumulate the
-// digest worker will overwrite this with empirical medians.
-const ETA_DAYS_BY_STATUS: Record<string, number> = {
+// For each milestone, the raw statuses that imply it has been reached.
+// Order matters here only for selecting the *earliest* status that
+// triggered the milestone (used to attribute reachedAt timestamps).
+const MILESTONE_TRIGGERS: Record<MilestoneKey, readonly string[]> = {
+  submitted: ["applied"],
+  reviewed: ["screening", "interview", "offer", "hired"],
+  shortlisted: ["interview", "offer", "hired"],
+  interview: ["interview", "offer", "hired"],
+  decision: ["offer", "hired", "rejected"],
+};
+
+function rawStatusToCurrentMilestone(status: string): MilestoneKey | "withdrawn" {
+  if (status === "withdrawn") return "withdrawn";
+  if (status === "offer" || status === "hired" || status === "rejected") return "decision";
+  if (status === "interview") return "interview";
+  if (status === "screening") return "reviewed";
+  return "submitted";
+}
+
+// ---------------------------------------------------------------------------
+// Data-derived ETA medians
+// ---------------------------------------------------------------------------
+// Walk every application's status_history in chronological order; for
+// each consecutive pair (prev → next) record the elapsed days against
+// `prev.status`. The median across all such observations is "how long
+// employers typically spend in this step before moving on". We cache
+// the result for an hour so a flurry of timeline requests doesn't
+// re-scan the history table on every call.
+//
+// `ETA_FALLBACK_DAYS` is used only until we have at least
+// `ETA_MIN_SAMPLES` real observations for a given status — newly
+// deployed installs would otherwise show "Awaiting next step" for
+// every active application, which is worse UX than a sane default.
+
+const ETA_TTL_MS = 60 * 60 * 1000;
+const ETA_MIN_SAMPLES = 3;
+const ETA_FALLBACK_DAYS: Record<string, number> = {
   applied: 5,
   screening: 4,
   interview: 7,
   offer: 3,
 };
+
+interface EtaMedians {
+  computedAt: number;
+  byStatus: Map<string, { days: number; n: number }>;
+}
+let etaCache: EtaMedians | null = null;
+
+async function getEtaMedians(): Promise<EtaMedians["byStatus"]> {
+  if (etaCache && Date.now() - etaCache.computedAt < ETA_TTL_MS) {
+    return etaCache.byStatus;
+  }
+  const rows = await db
+    .select({
+      appId: applicationStatusHistoryTable.applicationId,
+      status: applicationStatusHistoryTable.status,
+      changedAt: applicationStatusHistoryTable.changedAt,
+    })
+    .from(applicationStatusHistoryTable)
+    .orderBy(
+      applicationStatusHistoryTable.applicationId,
+      applicationStatusHistoryTable.changedAt,
+    );
+
+  const samples = new Map<string, number[]>();
+  let prev: (typeof rows)[number] | null = null;
+  for (const r of rows) {
+    if (prev && prev.appId === r.appId) {
+      const days = (r.changedAt.getTime() - prev.changedAt.getTime()) / 86_400_000;
+      if (days >= 0 && days < 365) {
+        const arr = samples.get(prev.status) ?? [];
+        arr.push(days);
+        samples.set(prev.status, arr);
+      }
+    }
+    prev = r;
+  }
+
+  const byStatus = new Map<string, { days: number; n: number }>();
+  for (const [status, arr] of samples) {
+    const sorted = [...arr].sort((a, b) => a - b);
+    const mid = sorted.length >>> 1;
+    const median =
+      sorted.length % 2 === 0
+        ? (sorted[mid - 1] + sorted[mid]) / 2
+        : sorted[mid];
+    byStatus.set(status, { days: Math.max(1, Math.round(median)), n: arr.length });
+  }
+  etaCache = { computedAt: Date.now(), byStatus };
+  return byStatus;
+}
+
+/** Exported so the worker / tests can drop the cache after seeding. */
+export function invalidateEtaMediansCache(): void {
+  etaCache = null;
+}
 
 // ---------------------------------------------------------------------------
 // GET /candidates/:id/score-breakdown
@@ -320,72 +424,110 @@ router.get("/applications/:id/timeline", async (req, res): Promise<void> => {
     .where(eq(applicationStatusHistoryTable.applicationId, id))
     .orderBy(applicationStatusHistoryTable.changedAt);
 
-  // Build a map status -> earliest reachedAt.
-  const reachedAt = new Map<string, Date>();
-  // Implicit "applied" milestone from appliedAt.
-  reachedAt.set("applied", row.app.appliedAt);
+  // Build a map of raw status -> earliest reachedAt timestamp.
+  // Always seed "applied" from the application's appliedAt so older
+  // applications (created before status_history existed) still show
+  // the Submitted milestone instead of an empty timeline.
+  const rawReachedAt = new Map<string, Date>();
+  rawReachedAt.set("applied", row.app.appliedAt);
   for (const h of history) {
-    if (!reachedAt.has(h.status)) reachedAt.set(h.status, h.changedAt);
+    if (!rawReachedAt.has(h.status)) rawReachedAt.set(h.status, h.changedAt);
   }
-  // Force the current status to be marked reached even if it preceded
-  // the table's existence and never made it into history.
-  if (!reachedAt.has(row.app.status)) {
-    reachedAt.set(row.app.status, row.app.updatedAt);
+  // If the current status never made it into history, fall back to
+  // the application's updatedAt so the current milestone is visible.
+  if (!rawReachedAt.has(row.app.status)) {
+    rawReachedAt.set(row.app.status, row.app.updatedAt);
   }
 
   const isTerminalRejected = row.app.status === "rejected";
   const isTerminalWithdrawn = row.app.status === "withdrawn";
+  const currentMilestone = rawStatusToCurrentMilestone(row.app.status);
 
-  type Milestone = {
-    status: string;
+  type MilestoneOut = {
+    key: MilestoneKey | "withdrawn";
     label: string;
+    rawStatus: string | null;
     reachedAt: string | null;
     isReached: boolean;
     isCurrent: boolean;
   };
-  const milestones: Milestone[] = STATUS_ORDER.map((status) => {
-    const at = reachedAt.get(status) ?? null;
+
+  const milestones: MilestoneOut[] = MILESTONE_KEYS.map((key) => {
+    // Earliest raw status that triggered this milestone, with its time.
+    let bestAt: Date | null = null;
+    let bestStatus: string | null = null;
+    for (const trigger of MILESTONE_TRIGGERS[key]) {
+      const at = rawReachedAt.get(trigger);
+      if (at && (bestAt === null || at < bestAt)) {
+        bestAt = at;
+        bestStatus = trigger;
+      }
+    }
     return {
-      status,
-      label: STATUS_LABEL[status] ?? status,
-      reachedAt: at ? at.toISOString() : null,
-      isReached: !!at,
-      isCurrent: status === row.app.status,
+      key,
+      label: MILESTONE_LABEL[key],
+      rawStatus: bestStatus,
+      reachedAt: bestAt ? bestAt.toISOString() : null,
+      isReached: bestAt !== null,
+      isCurrent: key === currentMilestone,
     };
   });
 
-  // Append a terminal rejected/withdrawn pseudo-milestone if applicable.
-  if (isTerminalRejected || isTerminalWithdrawn) {
-    const term = isTerminalRejected ? "rejected" : "withdrawn";
+  if (isTerminalWithdrawn) {
     milestones.push({
-      status: term,
-      label: STATUS_LABEL[term] ?? term,
-      reachedAt:
-        (reachedAt.get(term) ?? row.app.updatedAt).toISOString(),
+      key: "withdrawn",
+      label: MILESTONE_LABEL.withdrawn,
+      rawStatus: "withdrawn",
+      reachedAt: (rawReachedAt.get("withdrawn") ?? row.app.updatedAt).toISOString(),
       isReached: true,
       isCurrent: true,
     });
   }
 
+  // ----- ETA: data-derived median, with fallback for cold start -----
   let etaDays: number | null = null;
+  let etaSource: "data" | "fallback" | "none" = "none";
+  let etaSampleSize = 0;
   let etaLabel = "";
+
   if (isTerminalRejected || isTerminalWithdrawn) {
-    etaLabel = "This application is closed.";
+    etaLabel = isTerminalRejected
+      ? "This application has been closed by the employer."
+      : "You withdrew this application.";
   } else if (row.app.status === "hired") {
     etaLabel = "You're hired — congratulations!";
   } else {
-    const days = ETA_DAYS_BY_STATUS[row.app.status] ?? null;
-    if (days != null) {
-      etaDays = days;
-      const since = reachedAt.get(row.app.status) ?? row.app.updatedAt;
+    const medians = await getEtaMedians();
+    const observed = medians.get(row.app.status);
+    let pickedDays: number | null = null;
+    if (observed && observed.n >= ETA_MIN_SAMPLES) {
+      pickedDays = observed.days;
+      etaSource = "data";
+      etaSampleSize = observed.n;
+    } else {
+      const fb = ETA_FALLBACK_DAYS[row.app.status];
+      if (fb != null) {
+        pickedDays = fb;
+        etaSource = "fallback";
+        etaSampleSize = observed?.n ?? 0;
+      }
+    }
+
+    if (pickedDays != null) {
+      etaDays = pickedDays;
+      const since = rawReachedAt.get(row.app.status) ?? row.app.updatedAt;
       const elapsed = Math.floor(
-        (Date.now() - since.getTime()) / (1000 * 60 * 60 * 24),
+        (Date.now() - since.getTime()) / 86_400_000,
       );
-      const remaining = Math.max(0, days - elapsed);
+      const remaining = Math.max(0, pickedDays - elapsed);
+      const sourceQualifier =
+        etaSource === "data"
+          ? ` (median across ${etaSampleSize} similar applications)`
+          : "";
       etaLabel =
         remaining === 0
-          ? "Employer response is due any day now."
-          : `Typical employer response: ${remaining} day${remaining === 1 ? "" : "s"}.`;
+          ? `Employer response is due any day now${sourceQualifier}.`
+          : `Most employers respond in ${pickedDays} day${pickedDays === 1 ? "" : "s"}${sourceQualifier}.`;
     } else {
       etaLabel = "Awaiting next step.";
     }
@@ -394,8 +536,11 @@ router.get("/applications/:id/timeline", async (req, res): Promise<void> => {
   res.json({
     applicationId: id,
     currentStatus: row.app.status,
+    currentMilestone,
     milestones,
     etaDays,
+    etaSource,
+    etaSampleSize,
     etaLabel,
   });
 });
@@ -421,6 +566,18 @@ async function newMatchCount(
   return Number(row?.count ?? 0);
 }
 
+function parseFiltersJson(raw: string | null | undefined): Record<string, unknown> {
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : {};
+  } catch {
+    return {};
+  }
+}
+
 function serializeSavedSearch(
   s: typeof candidateSavedSearchesTable.$inferSelect,
   newCount: number,
@@ -430,8 +587,13 @@ function serializeSavedSearch(
     name: s.name,
     searchText: s.searchText,
     jobType: s.jobType,
+    sortBy: s.sortBy,
+    filters: parseFiltersJson(s.filtersJson),
+    emailAlerts: s.emailAlerts,
+    inAppAlerts: s.inAppAlerts,
     alertsEnabled: s.alertsEnabled,
     createdAt: s.createdAt.toISOString(),
+    lastAlertedAt: s.lastAlertedAt ? s.lastAlertedAt.toISOString() : null,
     newMatchCount: newCount,
   };
 }
@@ -478,6 +640,8 @@ router.post(
       .from(jobsTable);
     const lastSeenJobId = Number(maxRow?.maxId ?? 0);
 
+    const emailAlerts = parsed.data.emailAlerts ?? true;
+    const inAppAlerts = parsed.data.inAppAlerts ?? true;
     const [created] = await db
       .insert(candidateSavedSearchesTable)
       .values({
@@ -485,7 +649,13 @@ router.post(
         name: parsed.data.name,
         searchText: parsed.data.searchText ?? null,
         jobType: parsed.data.jobType ?? null,
-        alertsEnabled: parsed.data.alertsEnabled ?? true,
+        sortBy: parsed.data.sortBy ?? null,
+        filtersJson: JSON.stringify(parsed.data.filters ?? {}),
+        emailAlerts,
+        inAppAlerts,
+        // Legacy mirror so older clients reading `alertsEnabled` still
+        // see whether *any* alert channel is on.
+        alertsEnabled: emailAlerts || inAppAlerts,
         lastSeenJobId,
       })
       .returning();
@@ -525,8 +695,21 @@ router.patch(
 
     const updates: Partial<typeof candidateSavedSearchesTable.$inferInsert> = {};
     if (parsed.data.name !== undefined) updates.name = parsed.data.name;
-    if (parsed.data.alertsEnabled !== undefined)
-      updates.alertsEnabled = parsed.data.alertsEnabled;
+    if (parsed.data.sortBy !== undefined) updates.sortBy = parsed.data.sortBy;
+    if (parsed.data.filters !== undefined)
+      updates.filtersJson = JSON.stringify(parsed.data.filters);
+
+    const nextEmail = parsed.data.emailAlerts ?? existing.emailAlerts;
+    const nextInApp = parsed.data.inAppAlerts ?? existing.inAppAlerts;
+    if (parsed.data.emailAlerts !== undefined) updates.emailAlerts = nextEmail;
+    if (parsed.data.inAppAlerts !== undefined) updates.inAppAlerts = nextInApp;
+    if (
+      parsed.data.emailAlerts !== undefined ||
+      parsed.data.inAppAlerts !== undefined
+    ) {
+      // Keep legacy mirror in sync with whichever channel is on.
+      updates.alertsEnabled = nextEmail || nextInApp;
+    }
     if (parsed.data.markSeen) {
       const [maxRow] = await db
         .select({ maxId: sql<number>`coalesce(max(${jobsTable.id}), 0)::int` })

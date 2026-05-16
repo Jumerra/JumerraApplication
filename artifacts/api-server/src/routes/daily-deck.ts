@@ -77,6 +77,73 @@ function localDeckDate(timeZone: string, refreshHour: number): string {
 }
 
 /**
+ * Ensures `candidateId` is present in today's cached deck for the
+ * employer. Used by the undo endpoints so that resurfacing a
+ * previously shortlisted/dismissed candidate is consistent across
+ * devices and sessions — the GET handler already filters the cached
+ * order against `excludeIds`, so once the candidate is no longer
+ * excluded and is in the cached list, every fresh deck fetch will
+ * surface them again.
+ *
+ * If today's deck hasn't been generated yet there is nothing to
+ * patch — the next GET will rank the candidate in naturally now that
+ * the exclusion has been lifted. If the candidate is already present
+ * in the cached order, this is a no-op (preserving their original
+ * position). Otherwise they are prepended so the recruiter sees them
+ * first on the next deck load (most useful when the deck had been
+ * fully consumed and shows "Done for today").
+ */
+async function ensureCandidateInTodaysDeck(
+  employer: typeof employersTable.$inferSelect,
+  candidateId: number,
+  log: { warn: (obj: unknown, msg: string) => void },
+) {
+  const deckDate = localDeckDate(
+    employer.dailyDeckTimezone ?? "UTC",
+    employer.dailyDeckRefreshHour ?? 0,
+  );
+  try {
+    const [cached] = await db
+      .select()
+      .from(employerDailyDecksTable)
+      .where(
+        and(
+          eq(employerDailyDecksTable.employerId, employer.id),
+          eq(employerDailyDecksTable.deckDate, deckDate),
+        ),
+      )
+      .limit(1);
+    if (!cached) return;
+    const ids = cached.candidateIds ?? [];
+    if (ids.includes(candidateId)) return;
+    // Verify the candidate actually exists before persisting their id
+    // into the cached deck — undo handlers don't always validate
+    // existence up-front (a stale client id is a 200 no-op), and we
+    // don't want repeated bogus undo calls to bloat `candidate_ids`
+    // with phantom ids that the GET hydration would silently drop.
+    const [exists] = await db
+      .select({ id: candidatesTable.id })
+      .from(candidatesTable)
+      .where(eq(candidatesTable.id, candidateId))
+      .limit(1);
+    if (!exists) return;
+    // Cap the cached list so pathological undo loops can't grow the
+    // JSONB row unbounded. DECK_SIZE is the natural daily ceiling, but
+    // we allow a little headroom for legitimate backfills (yesterday's
+    // dismissals undone today land here). Anything past the cap is the
+    // oldest tail, which the user has already swiped through.
+    const MAX_CACHED_DECK = DECK_SIZE * 3;
+    const next = [candidateId, ...ids].slice(0, MAX_CACHED_DECK);
+    await db
+      .update(employerDailyDecksTable)
+      .set({ candidateIds: next })
+      .where(eq(employerDailyDecksTable.id, cached.id));
+  } catch (err) {
+    log.warn({ err }, "daily-deck: backfill on undo failed");
+  }
+}
+
+/**
  * Resolves the signed-in employer or writes the appropriate error.
  * Returns null on failure (response already sent).
  */
@@ -581,6 +648,8 @@ router.delete(
       req.log.warn({ err }, "daily-deck: notification retract failed");
     }
 
+    await ensureCandidateInTodaysDeck(employer, candidateId, req.log);
+
     res.json({ ok: true });
   },
 );
@@ -700,6 +769,8 @@ router.delete(
             : eq(employerDismissedCandidatesTable.jobId, jobId),
         ),
       );
+
+    await ensureCandidateInTodaysDeck(employer, candidateId, req.log);
 
     res.json({ ok: true });
   },

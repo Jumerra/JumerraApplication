@@ -212,13 +212,26 @@ export function DailyDeckCard() {
         body,
       });
       if (!res.ok) throw new Error("undo failed");
-      setIndex((i) => (i > swipedIndex ? swipedIndex : i));
       setHistory((h) =>
         h.filter(
           (e) => !(e.item.candidate.id === item.candidate.id && e.action === action),
         ),
       );
       toast.success(`Restored ${item.candidate.fullName}`, { id: toastId });
+      // Refetch the deck from the server. This is the canonical source
+      // of truth post-undo: it surfaces the restored candidate even if
+      // the deck had been fully consumed (the "Done for today" state)
+      // and it keeps other tabs / devices consistent — the server has
+      // already ensured the candidate is back in today's cached deck.
+      // The fresh fetch starts the deck at index 0, so the restored
+      // candidate appears immediately (prepended server-side if not
+      // already in the cached order).
+      await loadDeck();
+      // Fall back to the in-memory rewind only if the refetch somehow
+      // failed to put us back on or before the swiped position — this
+      // preserves the smooth single-tab UX when the network call
+      // succeeded but returned an unexpectedly different ordering.
+      setIndex((i) => (i > swipedIndex ? swipedIndex : i));
     } catch {
       toast.error("Could not undo — please refresh", { id: toastId });
     }

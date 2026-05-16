@@ -1,6 +1,7 @@
 import { Feather } from "@expo/vector-icons";
+import type { MatchBreakdown } from "@workspace/api-client-react";
 import { Image } from "expo-image";
-import React from "react";
+import React, { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { useColors } from "@/hooks/useColors";
@@ -9,6 +10,7 @@ import { formatSalary } from "@/lib/format";
 import { JobTypeBadge } from "./JobTypeBadge";
 import { MatchScoreBadge } from "./MatchScoreBadge";
 import { TierBadge } from "./TierBadge";
+import { WhyMatched } from "./WhyMatched";
 
 type Props = {
   title: string;
@@ -17,6 +19,7 @@ type Props = {
   location?: string;
   type: string;
   matchScore?: number;
+  matchBreakdown?: MatchBreakdown;
   salaryMin?: number | null;
   salaryMax?: number | null;
   currency?: string;
@@ -31,6 +34,7 @@ export function JobCard({
   location,
   type,
   matchScore,
+  matchBreakdown,
   salaryMin,
   salaryMax,
   currency,
@@ -39,6 +43,7 @@ export function JobCard({
 }: Props) {
   const colors = useColors();
   const salary = formatSalary(salaryMin, salaryMax, currency);
+  const [whyOpen, setWhyOpen] = useState(false);
 
   return (
     <Pressable
@@ -115,6 +120,36 @@ export function JobCard({
           <Text style={[styles.salaryText, { color: colors.primary }]}>{salary}</Text>
         </View>
       ) : null}
+
+      {matchBreakdown ? (
+        <View style={{ marginTop: 4 }}>
+          <Pressable
+            onPress={(e) => {
+              e.stopPropagation?.();
+              setWhyOpen((v) => !v);
+            }}
+            hitSlop={6}
+            style={({ pressed }) => [
+              styles.whyToggle,
+              { opacity: pressed ? 0.6 : 1 },
+            ]}
+          >
+            <Feather
+              name={whyOpen ? "chevron-up" : "chevron-down"}
+              size={12}
+              color={colors.primary}
+            />
+            <Text style={[styles.whyToggleText, { color: colors.primary }]}>
+              {whyOpen ? "Hide" : "Why we matched you"}
+            </Text>
+          </Pressable>
+          {whyOpen ? (
+            <View style={{ marginTop: 8 }}>
+              <WhyMatched breakdown={matchBreakdown} />
+            </View>
+          ) : null}
+        </View>
+      ) : null}
     </Pressable>
   );
 }
@@ -177,5 +212,16 @@ const styles = StyleSheet.create({
   salaryText: {
     fontFamily: "Inter_600SemiBold",
     fontSize: 13,
+  },
+  whyToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    alignSelf: "flex-start",
+    paddingVertical: 4,
+  },
+  whyToggleText: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 12,
   },
 });

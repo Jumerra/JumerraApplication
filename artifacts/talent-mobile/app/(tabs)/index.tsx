@@ -186,6 +186,7 @@ export default function DiscoverScreen() {
                 location={item.location}
                 type={item.type}
                 matchScore={item.matchScore}
+                matchBreakdown={item.matchBreakdown}
                 salaryMin={item.salaryMin}
                 salaryMax={item.salaryMax}
                 currency={item.currency}

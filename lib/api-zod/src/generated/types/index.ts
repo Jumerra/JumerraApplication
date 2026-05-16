@@ -86,6 +86,8 @@ export * from "./employerSubscriptionLegacyStatus";
 export * from "./employerSubscriptionSettings";
 export * from "./employerSubscriptionStatus";
 export * from "./employerSubscriptionStatusStatus";
+export * from "./error";
+export * from "./errorCode";
 export * from "./experienceEntry";
 export * from "./experienceEntryEmploymentType";
 export * from "./experienceEntryInput";

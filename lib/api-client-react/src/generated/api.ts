@@ -63,6 +63,7 @@ import type {
   EmployerSubscriptionLegacyStatus,
   EmployerSubscriptionSettings,
   EmployerSubscriptionStatus,
+  Error,
   ForgotPasswordRequest,
   GenerateCvRequest,
   HealthStatus,
@@ -8437,7 +8438,7 @@ export const createBoostCheckout = async (
 };
 
 export const getCreateBoostCheckoutMutationOptions = <
-  TError = ErrorType<void>,
+  TError = ErrorType<Error>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -8479,13 +8480,13 @@ export type CreateBoostCheckoutMutationResult = NonNullable<
 >;
 export type CreateBoostCheckoutMutationBody =
   BodyType<CreateBoostCheckoutRequest>;
-export type CreateBoostCheckoutMutationError = ErrorType<void>;
+export type CreateBoostCheckoutMutationError = ErrorType<Error>;
 
 /**
  * @summary Create a Stripe Checkout Session to boost this candidate
  */
 export const useCreateBoostCheckout = <
-  TError = ErrorType<void>,
+  TError = ErrorType<Error>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -8524,7 +8525,7 @@ export const verifyBoostCheckout = async (
 };
 
 export const getVerifyBoostCheckoutMutationOptions = <
-  TError = ErrorType<void>,
+  TError = ErrorType<Error>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -8566,13 +8567,13 @@ export type VerifyBoostCheckoutMutationResult = NonNullable<
 >;
 export type VerifyBoostCheckoutMutationBody =
   BodyType<VerifyBoostCheckoutRequest>;
-export type VerifyBoostCheckoutMutationError = ErrorType<void>;
+export type VerifyBoostCheckoutMutationError = ErrorType<Error>;
 
 /**
  * @summary Verify a Stripe Checkout Session and apply the boost on success
  */
 export const useVerifyBoostCheckout = <
-  TError = ErrorType<void>,
+  TError = ErrorType<Error>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -10282,7 +10283,7 @@ export const createCvCheckout = async (
 };
 
 export const getCreateCvCheckoutMutationOptions = <
-  TError = ErrorType<void>,
+  TError = ErrorType<Error>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -10323,13 +10324,13 @@ export type CreateCvCheckoutMutationResult = NonNullable<
   Awaited<ReturnType<typeof createCvCheckout>>
 >;
 export type CreateCvCheckoutMutationBody = BodyType<CreateBoostCheckoutRequest>;
-export type CreateCvCheckoutMutationError = ErrorType<void>;
+export type CreateCvCheckoutMutationError = ErrorType<Error>;
 
 /**
  * @summary Create a Stripe Checkout Session to unlock the AI CV Builder
  */
 export const useCreateCvCheckout = <
-  TError = ErrorType<void>,
+  TError = ErrorType<Error>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -10368,7 +10369,7 @@ export const verifyCvCheckout = async (
 };
 
 export const getVerifyCvCheckoutMutationOptions = <
-  TError = ErrorType<void>,
+  TError = ErrorType<Error>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -10409,13 +10410,13 @@ export type VerifyCvCheckoutMutationResult = NonNullable<
   Awaited<ReturnType<typeof verifyCvCheckout>>
 >;
 export type VerifyCvCheckoutMutationBody = BodyType<VerifyBoostCheckoutRequest>;
-export type VerifyCvCheckoutMutationError = ErrorType<void>;
+export type VerifyCvCheckoutMutationError = ErrorType<Error>;
 
 /**
  * @summary Verify a Stripe Checkout Session and unlock the AI CV Builder
  */
 export const useVerifyCvCheckout = <
-  TError = ErrorType<void>,
+  TError = ErrorType<Error>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<

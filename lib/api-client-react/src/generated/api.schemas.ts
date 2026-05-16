@@ -5,6 +5,55 @@
  * Talent Platform API
  * OpenAPI spec version: 0.1.0
  */
+/**
+ * Stable error code. The list below enumerates the codes currently
+emitted by the Stripe-backed checkout-session creation endpoints
+(`createBoostCheckout`, `createCvCheckout`). The corresponding
+verify endpoints (`verifyBoostCheckout`, `verifyCvCheckout`) only
+emit `internal_error` today; their other 4xx responses omit
+`code`. Other endpoints may add new codes over time, so clients
+should treat unknown values defensively.
+
+ */
+export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
+
+export const ErrorCode = {
+  stripe_token_missing: "stripe_token_missing",
+  stripe_connector_unreachable: "stripe_connector_unreachable",
+  stripe_connector_status: "stripe_connector_status",
+  stripe_not_configured: "stripe_not_configured",
+  stripe_connection_error: "stripe_connection_error",
+  stripe_auth_error: "stripe_auth_error",
+  stripe_rate_limited: "stripe_rate_limited",
+  stripe_invalid_request: "stripe_invalid_request",
+  stripe_api_error: "stripe_api_error",
+  stripe_permission_error: "stripe_permission_error",
+  stripe_error: "stripe_error",
+  stripe_no_url: "stripe_no_url",
+  internal_error: "internal_error",
+} as const;
+
+/**
+ * Standard error response body. The `error` field is a human-readable
+message safe to surface in the UI. The `code` field, when present,
+is a stable machine-readable identifier clients can branch on (e.g.
+to pick an alert title or decide whether retrying makes sense).
+Endpoints that don't yet emit a structured code may omit `code`.
+
+ */
+export interface Error {
+  error: string;
+  /** Stable error code. The list below enumerates the codes currently
+emitted by the Stripe-backed checkout-session creation endpoints
+(`createBoostCheckout`, `createCvCheckout`). The corresponding
+verify endpoints (`verifyBoostCheckout`, `verifyCvCheckout`) only
+emit `internal_error` today; their other 4xx responses omit
+`code`. Other endpoints may add new codes over time, so clients
+should treat unknown values defensively.
+ */
+  code?: ErrorCode;
+}
+
 export interface HealthStatus {
   status: string;
 }

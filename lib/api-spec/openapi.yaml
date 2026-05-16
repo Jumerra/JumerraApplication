@@ -1884,9 +1884,44 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CreateBoostCheckoutResponse" }
-        "400": { description: Boost is currently disabled or invalid input }
-        "403": { description: Not allowed }
-        "404": { description: Candidate not found }
+        "400":
+          description: Boost is currently disabled or invalid input
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
+          description: Not allowed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Candidate not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "500":
+          description: Unexpected server error while creating the checkout session
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "502":
+          description: |
+            Stripe rejected the checkout request or returned no checkout URL.
+            `code` is one of `stripe_invalid_request`, `stripe_api_error`,
+            `stripe_permission_error`, `stripe_error`, or `stripe_no_url`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "503":
+          description: |
+            Stripe or the Replit Stripe connector is unavailable / not
+            configured. `code` is one of `stripe_token_missing`,
+            `stripe_connector_unreachable`, `stripe_connector_status`,
+            `stripe_not_configured`, `stripe_connection_error`,
+            `stripe_auth_error`, or `stripe_rate_limited`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
 
   /boost/checkout/verify:
     post:
@@ -1904,8 +1939,26 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/VerifyBoostCheckoutResponse" }
-        "400": { description: Invalid input }
-        "404": { description: Session not found }
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
+          description: Not allowed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Session not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "500":
+          description: Verification failed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
 
   /candidates/{id}/profile-views:
     get:
@@ -2299,9 +2352,44 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CreateBoostCheckoutResponse" }
-        "400": { description: Feature disabled or invalid input }
-        "403": { description: Not allowed }
-        "404": { description: Candidate not found }
+        "400":
+          description: Feature disabled or invalid input
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
+          description: Not allowed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Candidate not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "500":
+          description: Unexpected server error while creating the checkout session
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "502":
+          description: |
+            Stripe rejected the checkout request or returned no checkout URL.
+            `code` is one of `stripe_invalid_request`, `stripe_api_error`,
+            `stripe_permission_error`, `stripe_error`, or `stripe_no_url`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "503":
+          description: |
+            Stripe or the Replit Stripe connector is unavailable / not
+            configured. `code` is one of `stripe_token_missing`,
+            `stripe_connector_unreachable`, `stripe_connector_status`,
+            `stripe_not_configured`, `stripe_connection_error`,
+            `stripe_auth_error`, or `stripe_rate_limited`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
 
   /cv/checkout/verify:
     post:
@@ -2319,8 +2407,26 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/VerifyCvCheckoutResponse" }
-        "400": { description: Invalid input }
-        "404": { description: Session not found }
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
+          description: Not allowed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Session not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "500":
+          description: Verification failed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
 
   /candidates/{id}/cv:
     get:
@@ -2446,6 +2552,42 @@ paths:
 
 components:
   schemas:
+    Error:
+      type: object
+      description: |
+        Standard error response body. The `error` field is a human-readable
+        message safe to surface in the UI. The `code` field, when present,
+        is a stable machine-readable identifier clients can branch on (e.g.
+        to pick an alert title or decide whether retrying makes sense).
+        Endpoints that don't yet emit a structured code may omit `code`.
+      properties:
+        error: { type: string }
+        code:
+          type: string
+          description: |
+            Stable error code. The list below enumerates the codes currently
+            emitted by the Stripe-backed checkout-session creation endpoints
+            (`createBoostCheckout`, `createCvCheckout`). The corresponding
+            verify endpoints (`verifyBoostCheckout`, `verifyCvCheckout`) only
+            emit `internal_error` today; their other 4xx responses omit
+            `code`. Other endpoints may add new codes over time, so clients
+            should treat unknown values defensively.
+          enum:
+            - stripe_token_missing
+            - stripe_connector_unreachable
+            - stripe_connector_status
+            - stripe_not_configured
+            - stripe_connection_error
+            - stripe_auth_error
+            - stripe_rate_limited
+            - stripe_invalid_request
+            - stripe_api_error
+            - stripe_permission_error
+            - stripe_error
+            - stripe_no_url
+            - internal_error
+      required: [error]
+
     HealthStatus:
       type: object
       properties:

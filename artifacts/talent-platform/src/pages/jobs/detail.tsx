@@ -133,9 +133,16 @@ export default function JobDetail() {
           <Card className="sticky top-24 shadow-md border-primary/10">
             <CardContent className="p-6">
               <div className="space-y-6">
-                <Button className="w-full h-12 text-lg font-medium" asChild>
-                  <Link href={`/apply/${job.id}`}>Apply Now</Link>
-                </Button>
+                {role === "candidate" || !role ? (
+                  <Button className="w-full h-12 text-lg font-medium" asChild>
+                    <Link href={`/apply/${job.id}`}>Apply Now</Link>
+                  </Button>
+                ) : (
+                  <div className="rounded-md border border-dashed border-muted-foreground/30 bg-muted/40 p-3 text-center text-sm text-muted-foreground">
+                    Only candidates can apply for jobs. You're signed in as
+                    a {role}.
+                  </div>
+                )}
                 
                 <div className="pt-6 border-t space-y-4">
                   <div className="flex items-center justify-between text-sm">

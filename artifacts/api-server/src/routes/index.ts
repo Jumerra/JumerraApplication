@@ -28,6 +28,7 @@ import aiRouter from "./ai";
 import employerPoolsRouter from "./employer-pools";
 import institutionAnalyticsRouter from "./institution-analytics";
 import networkRouter from "./network";
+import meRouter from "./me";
 import { requireAuth } from "../middleware/require-auth";
 
 const router: IRouter = Router();
@@ -38,6 +39,7 @@ const router: IRouter = Router();
 // router (which owns this path) is mounted before the candidates gate
 // below to make the order explicit.
 router.use(networkRouter);
+router.use(meRouter);
 
 router.use("/candidates", requireAuth);
 router.use("/applications", requireAuth);

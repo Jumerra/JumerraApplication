@@ -128,6 +128,10 @@ function RootLayoutNav() {
         name="interview/[id]"
         options={{ headerTitle: "Interview" }}
       />
+      <Stack.Screen
+        name="notification-preferences"
+        options={{ presentation: "modal", headerTitle: "Notifications" }}
+      />
     </Stack>
   );
 }

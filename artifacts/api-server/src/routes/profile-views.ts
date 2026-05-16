@@ -4,12 +4,12 @@ import { db } from "@workspace/db";
 import {
   candidatesTable,
   employersTable,
-  notificationsTable,
   profileViewNotificationsTable,
   profileViewsTable,
   usersTable,
 } from "@workspace/db/schema";
 import { requireAuth } from "../middleware/require-auth";
+import { sendNotification } from "../lib/notifier";
 
 const router: IRouter = Router();
 
@@ -103,12 +103,14 @@ export async function recordProfileView(opts: {
       .where(eq(employersTable.id, employerId));
     if (!employer) return;
 
-    await db.insert(notificationsTable).values({
+    await sendNotification({
       userId: candidateUserId,
       kind: "profile_viewed",
       title: `${employer.name} viewed your profile`,
       body: "Open your dashboard to see who's checking you out.",
       link: "/account/profile-views",
+      category: "profileViewed",
+      data: { employerId },
     });
   } catch {
     // ignore — never break the profile read

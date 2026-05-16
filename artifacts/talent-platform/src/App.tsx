@@ -71,6 +71,7 @@ import ForgotPasswordPage from "@/pages/auth/forgot-password";
 import ChangePasswordPage from "@/pages/account/change-password";
 import ProfilePage from "@/pages/account/profile";
 import ProfileViewsPage from "@/pages/account/profile-views";
+import NotificationsPage from "@/pages/account/notifications";
 import ApplicationDetailPage from "@/pages/account/application-detail";
 import CandidateMentorsPage from "@/pages/dashboard/candidate-mentors";
 import CandidateMentorRequestsPage from "@/pages/dashboard/candidate-mentor-requests";
@@ -235,6 +236,7 @@ function Router() {
         <Route path="/account/profile" component={ProfilePage} />
         <Route path="/account/password" component={ChangePasswordPage} />
         <Route path="/account/profile-views" component={ProfileViewsPage} />
+        <Route path="/account/notifications" component={NotificationsPage} />
         
         <Route component={NotFound} />
       </Switch>

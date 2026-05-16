@@ -3,6 +3,7 @@ import React, { useEffect } from "react";
 import { View } from "react-native";
 
 import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { PushRegistrar } from "@/components/PushRegistrar";
 import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -45,5 +46,10 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     );
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      {user ? <PushRegistrar /> : null}
+      {children}
+    </>
+  );
 }

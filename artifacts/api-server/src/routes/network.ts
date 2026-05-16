@@ -9,13 +9,13 @@ import {
   employersTable,
   applicationsTable,
   jobsTable,
-  notificationsTable,
   usersTable,
   mentorshipRequestsTable,
   employerReviewsTable,
   placementStoriesTable,
 } from "@workspace/db";
 import { requireAuth, requireAdmin } from "../middleware/require-auth";
+import { sendNotification } from "../lib/notifier";
 
 const router: IRouter = Router();
 
@@ -344,12 +344,13 @@ router.post(
       // by email outside the platform).
       const mentorUserId = await findUserIdForCandidate(mentorCandidateId);
       if (mentorUserId != null) {
-        await db.insert(notificationsTable).values({
+        await sendNotification({
           userId: mentorUserId,
           kind: "mentor_request",
           title: `${me.fullName} asked to connect`,
           body: message.slice(0, 280),
           link: `/dashboard/candidate/mentor-requests`,
+          category: "strongMatch",
         });
       }
 
@@ -524,7 +525,7 @@ router.patch(
       existing.requesterCandidateId,
     );
     if (requesterUserId != null) {
-      await db.insert(notificationsTable).values({
+      await sendNotification({
         userId: requesterUserId,
         kind: "mentor_request_response",
         title:
@@ -536,6 +537,7 @@ router.patch(
             ? "You can now reach out by email — check your mentor inbox."
             : "",
         link: `/dashboard/candidate/mentor-requests`,
+        category: "strongMatch",
       });
     }
 

@@ -149,6 +149,30 @@ export default function ProfileScreen() {
     >
       <View style={styles.editButtonRow}>
         <Pressable
+          onPress={() => router.push("/notification-preferences")}
+          style={({ pressed }) => [
+            {
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 10,
+              paddingVertical: 10,
+              paddingHorizontal: 14,
+              borderRadius: colors.radius,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.card,
+              marginBottom: 10,
+              opacity: pressed ? 0.7 : 1,
+            },
+          ]}
+        >
+          <Feather name="bell" size={16} color={colors.primary} />
+          <Text style={{ flex: 1, color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 14 }}>
+            Notification preferences
+          </Text>
+          <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+        </Pressable>
+        <Pressable
           onPress={() => router.push("/profile-edit")}
           style={({ pressed }) => [
             styles.editButton,

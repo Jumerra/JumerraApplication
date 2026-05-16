@@ -14,7 +14,7 @@
  * deployment shape.
  */
 
-import { and, desc, eq, gt, gte, lt, sql } from "drizzle-orm";
+import { and, desc, eq, gt, gte, isNull, lt, lte, or, sql } from "drizzle-orm";
 import {
   db,
   applicationsTable,
@@ -22,6 +22,8 @@ import {
   candidatesTable,
   candidateSavedSearchesTable,
   candidateWeeklyDigestsTable,
+  interviewInvitesTable,
+  interviewTimeSlotsTable,
   jobsTable,
   employersTable,
   notificationsTable,
@@ -31,6 +33,7 @@ import {
 import { logger } from "./logger";
 import { calculateMatchScore } from "./matching";
 import { sendEngagementEmail } from "./email";
+import { sendNotificationToCandidate } from "./notifier";
 import { jobMatchesFilters, savedSearchToFilters } from "./job-filters";
 
 /**
@@ -377,10 +380,114 @@ export async function runSavedSearchAlertSweep(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Interview reminder sweep (T-24h and T-1h)
+// ---------------------------------------------------------------------------
+
+/**
+ * Runs every 5 minutes. For each accepted interview whose chosen slot
+ * starts in the next 24h or 1h, sends a candidate reminder push +
+ * in-app notification, then stamps `reminded24At` / `reminded1At` so
+ * we don't re-send.
+ *
+ * The lookahead window is ±5 minutes around the scheduler tick to
+ * cover small drift, since the cron runs at 5-minute intervals.
+ */
+export async function runInterviewReminderSweep(): Promise<void> {
+  const now = new Date();
+  const T24_LOWER = new Date(now.getTime() + 24 * 60 * 60 * 1000 - 5 * 60 * 1000);
+  const T24_UPPER = new Date(now.getTime() + 24 * 60 * 60 * 1000 + 5 * 60 * 1000);
+  const T1_LOWER = new Date(now.getTime() + 60 * 60 * 1000 - 5 * 60 * 1000);
+  const T1_UPPER = new Date(now.getTime() + 60 * 60 * 1000 + 5 * 60 * 1000);
+
+  // Pull accepted invites with their selected slot's startsAt.
+  const rows = await db
+    .select({
+      inviteId: interviewInvitesTable.id,
+      candidateId: applicationsTable.candidateId,
+      jobTitle: jobsTable.title,
+      employerName: employersTable.name,
+      startsAt: interviewTimeSlotsTable.startsAt,
+      reminded24At: interviewInvitesTable.reminded24At,
+      reminded1At: interviewInvitesTable.reminded1At,
+    })
+    .from(interviewInvitesTable)
+    .innerJoin(
+      interviewTimeSlotsTable,
+      eq(interviewTimeSlotsTable.id, interviewInvitesTable.selectedSlotId),
+    )
+    .innerJoin(
+      applicationsTable,
+      eq(applicationsTable.id, interviewInvitesTable.applicationId),
+    )
+    .innerJoin(jobsTable, eq(jobsTable.id, applicationsTable.jobId))
+    .innerJoin(employersTable, eq(employersTable.id, jobsTable.employerId))
+    .where(
+      and(
+        eq(interviewInvitesTable.status, "accepted"),
+        or(
+          and(
+            gte(interviewTimeSlotsTable.startsAt, T1_LOWER),
+            lte(interviewTimeSlotsTable.startsAt, T24_UPPER),
+          ),
+        ),
+      ),
+    );
+
+  let fired = 0;
+  for (const r of rows) {
+    const startMs = r.startsAt.getTime();
+    const due24 =
+      !r.reminded24At &&
+      startMs >= T24_LOWER.getTime() &&
+      startMs <= T24_UPPER.getTime();
+    const due1 =
+      !r.reminded1At &&
+      startMs >= T1_LOWER.getTime() &&
+      startMs <= T1_UPPER.getTime();
+
+    if (!due24 && !due1) continue;
+
+    const when = due24 ? "tomorrow" : "in 1 hour";
+    try {
+      await sendNotificationToCandidate(r.candidateId, {
+        kind: "interview_reminder",
+        title: `Interview ${when}`,
+        body: `Your interview with ${r.employerName} for "${r.jobTitle}" starts ${when}.`,
+        link: `/interviews/${r.inviteId}`,
+        category: "interviewReminder",
+        data: { inviteId: r.inviteId, when: due24 ? "T-24h" : "T-1h" },
+      });
+
+      // Mark dedup. Use a single update so both flags can flip in the
+      // same write if both windows happen to be due (unlikely but safe).
+      await db
+        .update(interviewInvitesTable)
+        .set({
+          ...(due24 ? { reminded24At: new Date() } : {}),
+          ...(due1 ? { reminded1At: new Date() } : {}),
+        })
+        .where(eq(interviewInvitesTable.id, r.inviteId));
+      fired += 1;
+    } catch (err) {
+      logger.warn(
+        { err, inviteId: r.inviteId },
+        "interview reminder dispatch failed",
+      );
+    }
+  }
+  if (fired > 0) {
+    logger.info({ fired }, "Interview reminder sweep dispatched");
+  }
+  // Quiet noop guard: keep `isNull` import alive even if not used directly.
+  void isNull;
+}
+
+// ---------------------------------------------------------------------------
 // Scheduler
 // ---------------------------------------------------------------------------
 
 const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
+const FIVE_MIN_MS = 5 * 60 * 1000;
 let started = false;
 
 export function startEngagementScheduler(): void {
@@ -400,6 +507,14 @@ export function startEngagementScheduler(): void {
     }
   };
 
+  const reminderTick = async () => {
+    try {
+      await runInterviewReminderSweep();
+    } catch (err) {
+      logger.error({ err }, "Interview reminder sweep crashed");
+    }
+  };
+
   // Defer initial sweep so it doesn't block boot.
   setTimeout(() => {
     void sweep();
@@ -407,4 +522,13 @@ export function startEngagementScheduler(): void {
   setInterval(() => {
     void sweep();
   }, SIX_HOURS_MS).unref();
+
+  // Interview reminders run on a tighter cadence so the T-1h window
+  // doesn't drift more than 5m late.
+  setTimeout(() => {
+    void reminderTick();
+  }, 60_000);
+  setInterval(() => {
+    void reminderTick();
+  }, FIVE_MIN_MS).unref();
 }

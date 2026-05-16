@@ -47,6 +47,12 @@ export const interviewInvitesTable = pgTable(
     selectedSlotId: integer("selected_slot_id"),
     declineReason: text("decline_reason").notNull().default(""),
     respondedAt: timestamp("responded_at", { withTimezone: true }),
+    // Per-invite dedup markers for the cron-driven candidate reminders.
+    // Set the first time the T-24h / T-1h reminder fires so subsequent
+    // ticks skip the same invite. Cleared back to NULL would re-arm the
+    // reminder; we never do that.
+    reminded24At: timestamp("reminded_24_at", { withTimezone: true }),
+    reminded1At: timestamp("reminded_1_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

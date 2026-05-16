@@ -7,9 +7,8 @@ import {
   jobsTable,
   candidatesTable,
   employersTable,
-  notificationsTable,
-  usersTable,
 } from "@workspace/db";
+import { sendNotificationToCandidate } from "../lib/notifier";
 import {
   ListApplicationsQueryParams,
   CreateApplicationBody,
@@ -295,19 +294,14 @@ router.patch(
     });
     // Notify the candidate (best-effort; never block the response).
     try {
-      const [candUser] = await db
-        .select({ userId: usersTable.id })
-        .from(usersTable)
-        .where(eq(usersTable.candidateId, prev.candidateId));
-      if (candUser) {
-        await db.insert(notificationsTable).values({
-          userId: candUser.userId,
-          kind: "application_status_changed",
-          title: `Your application moved to ${parsed.data.status}`,
-          body: "Tap to see the next step in your timeline.",
-          link: `/account/applications/${updated.id}`,
-        });
-      }
+      await sendNotificationToCandidate(prev.candidateId, {
+        kind: "application_status_changed",
+        title: `Your application moved to ${parsed.data.status}`,
+        body: "Tap to see the next step in your timeline.",
+        link: `/account/applications/${updated.id}`,
+        category: "applicationStatus",
+        data: { applicationId: updated.id, status: parsed.data.status },
+      });
     } catch (err) {
       req.log.warn({ err }, "Failed to enqueue status-change notification");
     }

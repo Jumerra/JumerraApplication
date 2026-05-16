@@ -8,10 +8,10 @@ import {
   jobsTable,
   candidatesTable,
   employersTable,
-  notificationsTable,
   usersTable,
 } from "@workspace/db";
 import { requireAuth } from "../middleware/require-auth";
+import { sendNotification } from "../lib/notifier";
 
 const router: IRouter = Router();
 
@@ -257,6 +257,7 @@ router.post(
         .limit(1);
       const candidateUserId = candUserRows[0]?.userId ?? null;
 
+      const pendingNotifs: Parameters<typeof sendNotification>[0][] = [];
       const newInviteId = await db.transaction(async (tx) => {
         const [inserted] = await tx
           .insert(interviewInvitesTable)
@@ -289,16 +290,28 @@ router.post(
           .where(eq(applicationsTable.id, applicationId));
 
         if (candidateUserId) {
-          await tx.insert(notificationsTable).values({
+          pendingNotifs.push({
             userId: candidateUserId,
             kind: "interview_invite",
+            // Fall through to applicationStatus category so users who
+            // disable the "interview reminder" nudge still receive the
+            // initial invite alert.
             title: "Interview invitation",
             body: `You've been invited to interview for "${appRow.jobTitle}". Pick a time slot.`,
             link: `/interviews/${inviteId}`,
+            category: "applicationStatus",
+            data: { inviteId },
           });
         }
         return inviteId;
       });
+
+      // Dispatch buffered notifications after the tx commits, so we
+      // don't fire pushes for a notification whose backing row was
+      // rolled back.
+      for (const n of pendingNotifs) {
+        await sendNotification(n).catch(() => {});
+      }
 
       const serialized = await serializeInviteById(newInviteId);
       res.status(201).json(serialized);
@@ -522,6 +535,7 @@ router.post("/interview-invites/:id/accept", requireAuth, async (req, res) => {
       return;
     }
 
+    const pendingNotifs: Parameters<typeof sendNotification>[0][] = [];
     const flipResult = await db.transaction(async (tx) => {
       // Atomic: only the request that flips proposed->accepted gets to
       // record the chosen slot.
@@ -550,16 +564,22 @@ router.post("/interview-invites/:id/accept", requireAuth, async (req, res) => {
       // Notify the employer who created the invite (so they see
       // the response in their bell).
       if (ctx.invite.createdByUserId !== null) {
-        await tx.insert(notificationsTable).values({
+        pendingNotifs.push({
           userId: ctx.invite.createdByUserId,
           kind: "interview_accepted",
           title: "Interview accepted",
           body: `${ctx.candidate.fullName} accepted the interview for "${ctx.job.title}".`,
           link: `/interviews/${inviteId}`,
+          category: "applicationStatus",
+          data: { inviteId },
         });
       }
       return true;
     });
+
+    for (const n of pendingNotifs) {
+      await sendNotification(n).catch(() => {});
+    }
 
     if (!flipResult) {
       // Someone else changed the invite while our pre-check was
@@ -627,6 +647,7 @@ router.post("/interview-invites/:id/decline", requireAuth, async (req, res) => {
       return;
     }
 
+    const pendingNotifs: Parameters<typeof sendNotification>[0][] = [];
     const flipResult = await db.transaction(async (tx) => {
       const flipped = await tx
         .update(interviewInvitesTable)
@@ -645,7 +666,7 @@ router.post("/interview-invites/:id/decline", requireAuth, async (req, res) => {
       if (flipped.length === 0) return false;
 
       if (ctx.invite.createdByUserId !== null) {
-        await tx.insert(notificationsTable).values({
+        pendingNotifs.push({
           userId: ctx.invite.createdByUserId,
           kind: "interview_declined",
           title: "Interview declined",
@@ -653,10 +674,16 @@ router.post("/interview-invites/:id/decline", requireAuth, async (req, res) => {
             ? `${ctx.candidate.fullName} declined the interview for "${ctx.job.title}": ${reason}`
             : `${ctx.candidate.fullName} declined the interview for "${ctx.job.title}".`,
           link: `/interviews/${inviteId}`,
+          category: "applicationStatus",
+          data: { inviteId },
         });
       }
       return true;
     });
+
+    for (const n of pendingNotifs) {
+      await sendNotification(n).catch(() => {});
+    }
 
     if (!flipResult) {
       const fresh = await loadInviteContext(inviteId);
@@ -719,6 +746,7 @@ router.post("/interview-invites/:id/cancel", requireAuth, async (req, res) => {
       return;
     }
 
+    const pendingNotifs: Parameters<typeof sendNotification>[0][] = [];
     const flipResult = await db.transaction(async (tx) => {
       const flipped = await tx
         .update(interviewInvitesTable)
@@ -740,16 +768,22 @@ router.post("/interview-invites/:id/cancel", requireAuth, async (req, res) => {
         .limit(1);
       const candidateUserId = candUserRows[0]?.userId;
       if (candidateUserId) {
-        await tx.insert(notificationsTable).values({
+        pendingNotifs.push({
           userId: candidateUserId,
           kind: "interview_cancelled",
           title: "Interview cancelled",
           body: `The interview invitation for "${ctx.job.title}" was cancelled by the employer.`,
           link: `/interviews/${inviteId}`,
+          category: "applicationStatus",
+          data: { inviteId },
         });
       }
       return true;
     });
+
+    for (const n of pendingNotifs) {
+      await sendNotification(n).catch(() => {});
+    }
 
     if (!flipResult) {
       const fresh = await loadInviteContext(inviteId);

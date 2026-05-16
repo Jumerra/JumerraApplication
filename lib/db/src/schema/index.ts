@@ -22,3 +22,4 @@ export * from "./ai-engagement";
 export * from "./employer-pools";
 export * from "./cohorts";
 export * from "./network";
+export * from "./mobile";

@@ -24,6 +24,10 @@ function NativeTabLayout() {
         <Icon sf={{ default: "briefcase", selected: "briefcase.fill" }} />
         <Label>Applications</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="inbox">
+        <Icon sf={{ default: "tray", selected: "tray.fill" }} />
+        <Label>Inbox</Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="profile">
         <Icon sf={{ default: "person.circle", selected: "person.circle.fill" }} />
         <Label>Profile</Label>
@@ -107,6 +111,18 @@ function ClassicTabLayout() {
               <SymbolView name="briefcase" tintColor={color} size={24} />
             ) : (
               <Feather name="briefcase" size={22} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
+        name="inbox"
+        options={{
+          title: "Inbox",
+          tabBarIcon: ({ color }) =>
+            isIOS ? (
+              <SymbolView name="tray" tintColor={color} size={24} />
+            ) : (
+              <Feather name="inbox" size={22} color={color} />
             ),
         }}
       />

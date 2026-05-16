@@ -9,6 +9,12 @@ export const applicationsTable = pgTable(
     status: text("status").notNull().default("applied"),
     matchScore: integer("match_score").notNull().default(0),
     coverNote: text("cover_note").notNull().default(""),
+    /**
+     * Sort index within a Kanban column. Lower = higher in the column.
+     * Defaults to 0 (new applications appear at the top of "Applied").
+     * Updated by the employer Kanban via PATCH /applications/:id.
+     */
+    boardOrder: integer("board_order").notNull().default(0),
     appliedAt: timestamp("applied_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

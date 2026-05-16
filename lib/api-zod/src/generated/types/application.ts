@@ -20,6 +20,7 @@ export interface Application {
   status: ApplicationStatus;
   matchScore: number;
   coverNote: string;
+  boardOrder: number;
   appliedAt: Date;
   updatedAt: Date;
 }

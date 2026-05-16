@@ -43,6 +43,10 @@ import CvReturnPage from "@/pages/cv/return";
 import CvBuilderPage from "@/pages/cv/builder";
 import InstitutionSubscriptionPage from "@/pages/dashboard/institution-subscription";
 import EmployerSubscriptionPage from "@/pages/dashboard/employer-subscription";
+import TalentPoolsPage from "@/pages/dashboard/employer/pools";
+import TalentPoolDetailPage from "@/pages/dashboard/employer/pool-detail";
+import MessageTemplatesPage from "@/pages/dashboard/employer/templates";
+import PipelineKanbanPage from "@/pages/dashboard/employer/kanban";
 import EmployerSubscriptionReturnPage from "@/pages/employer-subscription/return";
 import InstitutionSubscriptionReturnPage from "@/pages/institution-subscription/return";
 import AdminAccountManagersPage from "@/pages/dashboard/admin/account-managers";
@@ -182,6 +186,18 @@ function Router() {
         </Route>
         <Route path="/dashboard/admin/roles">
           <AdminLayout><AdminRolesPage /></AdminLayout>
+        </Route>
+        <Route path="/dashboard/employer/pipeline">
+          <EmployerLayout><PipelineKanbanPage /></EmployerLayout>
+        </Route>
+        <Route path="/dashboard/employer/talent-pools/:poolId">
+          <EmployerLayout><TalentPoolDetailPage /></EmployerLayout>
+        </Route>
+        <Route path="/dashboard/employer/talent-pools">
+          <EmployerLayout><TalentPoolsPage /></EmployerLayout>
+        </Route>
+        <Route path="/dashboard/employer/templates">
+          <EmployerLayout><MessageTemplatesPage /></EmployerLayout>
         </Route>
         <Route path="/dashboard/employer/staff">
           <EmployerLayout><StaffPage /></EmployerLayout>

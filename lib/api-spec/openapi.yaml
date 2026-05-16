@@ -44,6 +44,8 @@ tags:
     description: Interview scheduling between employer and candidate
   - name: ai
     description: Candidate-facing AI helpers (cover-note draft, interview prep, CV critique)
+  - name: employer-pools
+    description: Employer-private talent pools, message templates, and bulk outreach
 paths:
   /healthz:
     get:
@@ -2786,6 +2788,215 @@ paths:
       responses:
         "204": { description: Deleted }
 
+  /employers/{id}/talent-pools:
+    get:
+      operationId: listTalentPools
+      tags: [employer-pools]
+      summary: List the employer's saved Talent Pools
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Pools
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/TalentPool" }
+        "403": { description: Not allowed }
+    post:
+      operationId: createTalentPool
+      tags: [employer-pools]
+      summary: Create a new Talent Pool
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateTalentPoolRequest" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TalentPool" }
+        "403": { description: Not allowed }
+        "409": { description: Pool name already exists }
+
+  /employers/{id}/talent-pools/{poolId}:
+    get:
+      operationId: getTalentPool
+      tags: [employer-pools]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+        - in: path
+          name: poolId
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Pool with members
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TalentPoolDetail" }
+        "404": { description: Not found }
+    delete:
+      operationId: deleteTalentPool
+      tags: [employer-pools]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+        - in: path
+          name: poolId
+          required: true
+          schema: { type: integer }
+      responses:
+        "204": { description: Deleted }
+        "404": { description: Not found }
+
+  /employers/{id}/talent-pools/{poolId}/members:
+    post:
+      operationId: addTalentPoolMembers
+      tags: [employer-pools]
+      summary: Add one or more candidates to a pool (idempotent per candidate)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+        - in: path
+          name: poolId
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AddTalentPoolMembersRequest" }
+      responses:
+        "200":
+          description: Pool with refreshed member list
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TalentPoolDetail" }
+
+  /employers/{id}/talent-pools/{poolId}/members/{candidateId}:
+    delete:
+      operationId: removeTalentPoolMember
+      tags: [employer-pools]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+        - in: path
+          name: poolId
+          required: true
+          schema: { type: integer }
+        - in: path
+          name: candidateId
+          required: true
+          schema: { type: integer }
+      responses:
+        "204": { description: Removed }
+
+  /employers/{id}/message-templates:
+    get:
+      operationId: listMessageTemplates
+      tags: [employer-pools]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Templates
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/MessageTemplate" }
+    post:
+      operationId: createMessageTemplate
+      tags: [employer-pools]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateMessageTemplateRequest" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessageTemplate" }
+        "409": { description: Template name already exists }
+
+  /employers/{id}/message-templates/{templateId}:
+    delete:
+      operationId: deleteMessageTemplate
+      tags: [employer-pools]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+        - in: path
+          name: templateId
+          required: true
+          schema: { type: integer }
+      responses:
+        "204": { description: Deleted }
+
+  /employers/{id}/outreach:
+    post:
+      operationId: sendOutreach
+      tags: [employer-pools]
+      summary: Bulk-send a templated message to a set of candidates
+      description: |
+        Renders the supplied body (or template) per recipient, replacing
+        `{{firstName}}`, `{{jobTitle}}`, and `{{employerName}}`. Writes an
+        in-app notification to each candidate. Email delivery is queued
+        (currently stubbed). Per-org daily cap (default 200/day) is
+        enforced server-side.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SendOutreachRequest" }
+      responses:
+        "200":
+          description: Outreach result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SendOutreachResponse" }
+        "400": { description: Validation failed }
+        "403": { description: Not allowed }
+        "429": { description: Daily outreach cap reached }
+
 components:
   schemas:
     Error:
@@ -4167,6 +4378,7 @@ components:
           enum: [applied, screening, interview, offer, hired, rejected, withdrawn]
         matchScore: { type: integer }
         coverNote: { type: string }
+        boardOrder: { type: integer }
         appliedAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
       required:
@@ -4182,6 +4394,7 @@ components:
         - status
         - matchScore
         - coverNote
+        - boardOrder
         - appliedAt
         - updatedAt
 
@@ -4195,11 +4408,17 @@ components:
 
     UpdateApplication:
       type: object
+      description: |
+        At least one of `status` or `boardOrder` must be supplied.
+        `boardOrder` lets the employer Kanban persist drag-and-drop sort
+        within a column.
       properties:
         status:
           type: string
           enum: [applied, screening, interview, offer, hired, rejected, withdrawn]
-      required: [status]
+        boardOrder:
+          type: integer
+          description: New sort index within the destination column. Lower = higher in the column.
 
     InterviewTimeSlot:
       type: object
@@ -5408,3 +5627,116 @@ components:
           additionalProperties: true
         markSeen: { type: boolean, description: "Reset lastSeenJobId to current max." }
 
+
+    TalentPool:
+      type: object
+      properties:
+        id: { type: integer }
+        employerId: { type: integer }
+        name: { type: string }
+        description: { type: string }
+        memberCount: { type: integer }
+        createdAt: { type: string, format: date-time }
+      required: [id, employerId, name, description, memberCount, createdAt]
+
+    TalentPoolMember:
+      type: object
+      properties:
+        candidateId: { type: integer }
+        candidateName: { type: string }
+        candidateAvatarUrl: { type: string }
+        headline: { type: string }
+        location: { type: string }
+        talentScore: { type: integer }
+        openToOffers: { type: boolean }
+        tags:
+          type: array
+          items: { type: string }
+        addedAt: { type: string, format: date-time }
+      required:
+        - candidateId
+        - candidateName
+        - candidateAvatarUrl
+        - headline
+        - location
+        - talentScore
+        - openToOffers
+        - tags
+        - addedAt
+
+    TalentPoolDetail:
+      allOf:
+        - $ref: "#/components/schemas/TalentPool"
+        - type: object
+          properties:
+            members:
+              type: array
+              items: { $ref: "#/components/schemas/TalentPoolMember" }
+          required: [members]
+
+    CreateTalentPoolRequest:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+        description: { type: string, maxLength: 500 }
+      required: [name]
+
+    AddTalentPoolMembersRequest:
+      type: object
+      properties:
+        candidateIds:
+          type: array
+          items: { type: integer }
+          minItems: 1
+          maxItems: 200
+        tags:
+          type: array
+          description: Optional tags applied to every newly-added candidate.
+          items: { type: string, minLength: 1, maxLength: 40 }
+      required: [candidateIds]
+
+    MessageTemplate:
+      type: object
+      properties:
+        id: { type: integer }
+        employerId: { type: integer }
+        name: { type: string }
+        subject: { type: string }
+        body: { type: string }
+        createdAt: { type: string, format: date-time }
+      required: [id, employerId, name, subject, body, createdAt]
+
+    CreateMessageTemplateRequest:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+        subject: { type: string, maxLength: 200 }
+        body: { type: string, minLength: 1, maxLength: 4000 }
+      required: [name, body]
+
+    SendOutreachRequest:
+      type: object
+      description: |
+        Either `templateId` or (`subject` + `body`) must be provided.
+        Recipients are specified directly via `candidateIds` or by
+        passing a `poolId` (sends to every member of that pool).
+      properties:
+        candidateIds:
+          type: array
+          items: { type: integer }
+          maxItems: 200
+        poolId: { type: integer }
+        templateId: { type: integer }
+        subject: { type: string, maxLength: 200 }
+        body: { type: string, maxLength: 4000 }
+        jobId:
+          type: integer
+          description: Optional — used to expand `{{jobTitle}}`. Must belong to the employer.
+
+    SendOutreachResponse:
+      type: object
+      properties:
+        sent: { type: integer }
+        skipped: { type: integer }
+        remainingToday: { type: integer }
+      required: [sent, skipped, remainingToday]

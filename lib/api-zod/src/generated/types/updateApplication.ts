@@ -7,6 +7,14 @@
  */
 import type { UpdateApplicationStatus } from "./updateApplicationStatus";
 
+/**
+ * At least one of `status` or `boardOrder` must be supplied.
+`boardOrder` lets the employer Kanban persist drag-and-drop sort
+within a column.
+
+ */
 export interface UpdateApplication {
-  status: UpdateApplicationStatus;
+  status?: UpdateApplicationStatus;
+  /** New sort index within the destination column. Lower = higher in the column. */
+  boardOrder?: number;
 }

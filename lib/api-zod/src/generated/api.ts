@@ -1688,6 +1688,7 @@ export const ListApplicationsResponseItem = zod.object({
   ]),
   matchScore: zod.number(),
   coverNote: zod.string(),
+  boardOrder: zod.number(),
   appliedAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
 });
@@ -1703,17 +1704,29 @@ export const UpdateApplicationStatusParams = zod.object({
   id: zod.coerce.number(),
 });
 
-export const UpdateApplicationStatusBody = zod.object({
-  status: zod.enum([
-    "applied",
-    "screening",
-    "interview",
-    "offer",
-    "hired",
-    "rejected",
-    "withdrawn",
-  ]),
-});
+export const UpdateApplicationStatusBody = zod
+  .object({
+    status: zod
+      .enum([
+        "applied",
+        "screening",
+        "interview",
+        "offer",
+        "hired",
+        "rejected",
+        "withdrawn",
+      ])
+      .optional(),
+    boardOrder: zod
+      .number()
+      .optional()
+      .describe(
+        "New sort index within the destination column. Lower = higher in the column.",
+      ),
+  })
+  .describe(
+    "At least one of `status` or `boardOrder` must be supplied.\n`boardOrder` lets the employer Kanban persist drag-and-drop sort\nwithin a column.\n",
+  );
 
 export const UpdateApplicationStatusResponse = zod.object({
   id: zod.number(),
@@ -1736,6 +1749,7 @@ export const UpdateApplicationStatusResponse = zod.object({
   ]),
   matchScore: zod.number(),
   coverNote: zod.string(),
+  boardOrder: zod.number(),
   appliedAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
 });
@@ -2107,6 +2121,7 @@ export const GetEmployerDashboardResponse = zod.object({
       ]),
       matchScore: zod.number(),
       coverNote: zod.string(),
+      boardOrder: zod.number(),
       appliedAt: zod.coerce.date(),
       updatedAt: zod.coerce.date(),
     }),
@@ -2282,6 +2297,7 @@ export const GetCandidateDashboardResponse = zod.object({
       ]),
       matchScore: zod.number(),
       coverNote: zod.string(),
+      boardOrder: zod.number(),
       appliedAt: zod.coerce.date(),
       updatedAt: zod.coerce.date(),
     }),
@@ -3022,6 +3038,7 @@ export const AdminListApplicationsResponse = zod.object({
       ]),
       matchScore: zod.number(),
       coverNote: zod.string(),
+      boardOrder: zod.number(),
       appliedAt: zod.coerce.date(),
       updatedAt: zod.coerce.date(),
     }),
@@ -4581,4 +4598,213 @@ export const UpdateSavedSearchResponse = zod.object({
 export const DeleteSavedSearchParams = zod.object({
   id: zod.coerce.number(),
   searchId: zod.coerce.number(),
+});
+
+/**
+ * @summary List the employer's saved Talent Pools
+ */
+export const ListTalentPoolsParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ListTalentPoolsResponseItem = zod.object({
+  id: zod.number(),
+  employerId: zod.number(),
+  name: zod.string(),
+  description: zod.string(),
+  memberCount: zod.number(),
+  createdAt: zod.coerce.date(),
+});
+export const ListTalentPoolsResponse = zod.array(ListTalentPoolsResponseItem);
+
+/**
+ * @summary Create a new Talent Pool
+ */
+export const CreateTalentPoolParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const createTalentPoolBodyNameMax = 80;
+
+export const createTalentPoolBodyDescriptionMax = 500;
+
+export const CreateTalentPoolBody = zod.object({
+  name: zod.string().min(1).max(createTalentPoolBodyNameMax),
+  description: zod.string().max(createTalentPoolBodyDescriptionMax).optional(),
+});
+
+export const GetTalentPoolParams = zod.object({
+  id: zod.coerce.number(),
+  poolId: zod.coerce.number(),
+});
+
+export const GetTalentPoolResponse = zod
+  .object({
+    id: zod.number(),
+    employerId: zod.number(),
+    name: zod.string(),
+    description: zod.string(),
+    memberCount: zod.number(),
+    createdAt: zod.coerce.date(),
+  })
+  .and(
+    zod.object({
+      members: zod.array(
+        zod.object({
+          candidateId: zod.number(),
+          candidateName: zod.string(),
+          candidateAvatarUrl: zod.string(),
+          headline: zod.string(),
+          location: zod.string(),
+          talentScore: zod.number(),
+          openToOffers: zod.boolean(),
+          tags: zod.array(zod.string()),
+          addedAt: zod.coerce.date(),
+        }),
+      ),
+    }),
+  );
+
+export const DeleteTalentPoolParams = zod.object({
+  id: zod.coerce.number(),
+  poolId: zod.coerce.number(),
+});
+
+/**
+ * @summary Add one or more candidates to a pool (idempotent per candidate)
+ */
+export const AddTalentPoolMembersParams = zod.object({
+  id: zod.coerce.number(),
+  poolId: zod.coerce.number(),
+});
+
+export const addTalentPoolMembersBodyCandidateIdsMax = 200;
+
+export const addTalentPoolMembersBodyTagsItemMax = 40;
+
+export const AddTalentPoolMembersBody = zod.object({
+  candidateIds: zod
+    .array(zod.number())
+    .min(1)
+    .max(addTalentPoolMembersBodyCandidateIdsMax),
+  tags: zod
+    .array(zod.string().min(1).max(addTalentPoolMembersBodyTagsItemMax))
+    .optional()
+    .describe("Optional tags applied to every newly-added candidate."),
+});
+
+export const AddTalentPoolMembersResponse = zod
+  .object({
+    id: zod.number(),
+    employerId: zod.number(),
+    name: zod.string(),
+    description: zod.string(),
+    memberCount: zod.number(),
+    createdAt: zod.coerce.date(),
+  })
+  .and(
+    zod.object({
+      members: zod.array(
+        zod.object({
+          candidateId: zod.number(),
+          candidateName: zod.string(),
+          candidateAvatarUrl: zod.string(),
+          headline: zod.string(),
+          location: zod.string(),
+          talentScore: zod.number(),
+          openToOffers: zod.boolean(),
+          tags: zod.array(zod.string()),
+          addedAt: zod.coerce.date(),
+        }),
+      ),
+    }),
+  );
+
+export const RemoveTalentPoolMemberParams = zod.object({
+  id: zod.coerce.number(),
+  poolId: zod.coerce.number(),
+  candidateId: zod.coerce.number(),
+});
+
+export const ListMessageTemplatesParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ListMessageTemplatesResponseItem = zod.object({
+  id: zod.number(),
+  employerId: zod.number(),
+  name: zod.string(),
+  subject: zod.string(),
+  body: zod.string(),
+  createdAt: zod.coerce.date(),
+});
+export const ListMessageTemplatesResponse = zod.array(
+  ListMessageTemplatesResponseItem,
+);
+
+export const CreateMessageTemplateParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const createMessageTemplateBodyNameMax = 80;
+
+export const createMessageTemplateBodySubjectMax = 200;
+
+export const createMessageTemplateBodyBodyMax = 4000;
+
+export const CreateMessageTemplateBody = zod.object({
+  name: zod.string().min(1).max(createMessageTemplateBodyNameMax),
+  subject: zod.string().max(createMessageTemplateBodySubjectMax).optional(),
+  body: zod.string().min(1).max(createMessageTemplateBodyBodyMax),
+});
+
+export const DeleteMessageTemplateParams = zod.object({
+  id: zod.coerce.number(),
+  templateId: zod.coerce.number(),
+});
+
+/**
+ * Renders the supplied body (or template) per recipient, replacing
+`{{firstName}}`, `{{jobTitle}}`, and `{{employerName}}`. Writes an
+in-app notification to each candidate. Email delivery is queued
+(currently stubbed). Per-org daily cap (default 200/day) is
+enforced server-side.
+
+ * @summary Bulk-send a templated message to a set of candidates
+ */
+export const SendOutreachParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const sendOutreachBodyCandidateIdsMax = 200;
+
+export const sendOutreachBodySubjectMax = 200;
+
+export const sendOutreachBodyBodyMax = 4000;
+
+export const SendOutreachBody = zod
+  .object({
+    candidateIds: zod
+      .array(zod.number())
+      .max(sendOutreachBodyCandidateIdsMax)
+      .optional(),
+    poolId: zod.number().optional(),
+    templateId: zod.number().optional(),
+    subject: zod.string().max(sendOutreachBodySubjectMax).optional(),
+    body: zod.string().max(sendOutreachBodyBodyMax).optional(),
+    jobId: zod
+      .number()
+      .optional()
+      .describe(
+        "Optional — used to expand `{{jobTitle}}`. Must belong to the employer.",
+      ),
+  })
+  .describe(
+    "Either `templateId` or (`subject` + `body`) must be provided.\nRecipients are specified directly via `candidateIds` or by\npassing a `poolId` (sends to every member of that pool).\n",
+  );
+
+export const SendOutreachResponse = zod.object({
+  sent: zod.number(),
+  skipped: zod.number(),
+  remainingToday: zod.number(),
 });

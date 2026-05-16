@@ -50,20 +50,59 @@ async function serializeApplication(applicationId: number) {
     status: row.application.status,
     matchScore: row.application.matchScore,
     coverNote: row.application.coverNote,
+    boardOrder: row.application.boardOrder,
     appliedAt: row.application.appliedAt.toISOString(),
     updatedAt: row.application.updatedAt.toISOString(),
   };
 }
 
-router.get("/applications", async (req, res): Promise<void> => {
+router.get("/applications", requireAuth, async (req, res): Promise<void> => {
   const params = ListApplicationsQueryParams.safeParse(req.query);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
 
+  const user = req.currentUser!;
   const conditions = [];
-  if (params.data.candidateId) conditions.push(eq(applicationsTable.candidateId, params.data.candidateId));
+
+  // Server-side tenant scoping. Never trust client-supplied
+  // candidateId/employerId for authorization — they may only narrow
+  // results within the caller's own scope.
+  if (user.role === "candidate") {
+    if (!user.candidateId) {
+      res.json([]);
+      return;
+    }
+    conditions.push(eq(applicationsTable.candidateId, user.candidateId));
+  } else if (user.role === "employer") {
+    if (!user.employerId) {
+      res.json([]);
+      return;
+    }
+    conditions.push(eq(jobsTable.employerId, user.employerId));
+  } else if (user.role !== "admin") {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+
+  // Optional client-supplied narrowing — only applied if compatible
+  // with the caller's scope (admin can use any; employer/candidate are
+  // already constrained above so further filters are safe).
+  if (params.data.candidateId) {
+    if (user.role === "candidate" && params.data.candidateId !== user.candidateId) {
+      res.json([]);
+      return;
+    }
+    conditions.push(eq(applicationsTable.candidateId, params.data.candidateId));
+  }
+  if (params.data.employerId) {
+    if (user.role === "employer" && params.data.employerId !== user.employerId) {
+      res.json([]);
+      return;
+    }
+    conditions.push(eq(jobsTable.employerId, params.data.employerId));
+  }
   if (params.data.jobId) conditions.push(eq(applicationsTable.jobId, params.data.jobId));
   if (params.data.status) conditions.push(eq(applicationsTable.status, params.data.status));
 
@@ -81,7 +120,7 @@ router.get("/applications", async (req, res): Promise<void> => {
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .orderBy(desc(applicationsTable.appliedAt));
 
-  let result = rows.map((row) => ({
+  const result = rows.map((row) => ({
     id: row.application.id,
     jobId: row.job.id,
     jobTitle: row.job.title,
@@ -94,13 +133,10 @@ router.get("/applications", async (req, res): Promise<void> => {
     status: row.application.status,
     matchScore: row.application.matchScore,
     coverNote: row.application.coverNote,
+    boardOrder: row.application.boardOrder,
     appliedAt: row.application.appliedAt.toISOString(),
     updatedAt: row.application.updatedAt.toISOString(),
   }));
-
-  if (params.data.employerId) {
-    result = result.filter((r) => r.employerId === params.data.employerId);
-  }
 
   res.json(result);
 });
@@ -231,9 +267,18 @@ router.patch(
     .from(applicationsTable)
     .where(eq(applicationsTable.id, params.data.id));
 
+  const setPatch: { status?: string; boardOrder?: number } = {};
+  if (parsed.data.status !== undefined) setPatch.status = parsed.data.status;
+  if (parsed.data.boardOrder !== undefined)
+    setPatch.boardOrder = parsed.data.boardOrder;
+  if (Object.keys(setPatch).length === 0) {
+    res.status(400).json({ error: "No fields to update" });
+    return;
+  }
+
   const [updated] = await db
     .update(applicationsTable)
-    .set({ status: parsed.data.status })
+    .set(setPatch)
     .where(eq(applicationsTable.id, params.data.id))
     .returning();
 
@@ -242,7 +287,7 @@ router.patch(
     return;
   }
 
-  if (prev && prev.status !== parsed.data.status) {
+  if (prev && parsed.data.status && prev.status !== parsed.data.status) {
     await db.insert(applicationStatusHistoryTable).values({
       applicationId: updated.id,
       status: parsed.data.status,

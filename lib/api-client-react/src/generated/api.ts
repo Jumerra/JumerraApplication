@@ -19,6 +19,7 @@ import type {
 import type {
   AcceptInterviewInviteRequest,
   ActivityItem,
+  AddTalentPoolMembersRequest,
   AdminAccountManagersResponse,
   AdminAccountsResponse,
   AdminApplicationListResponse,
@@ -62,8 +63,10 @@ import type {
   CreateJob,
   CreateJobTierCheckoutRequest,
   CreateJobTierCheckoutResponse,
+  CreateMessageTemplateRequest,
   CreatePartnerRequest,
   CreateSavedSearch,
+  CreateTalentPoolRequest,
   CvSettings,
   DeclineInterviewInviteRequest,
   Employer,
@@ -109,6 +112,7 @@ import type {
   LoginRequest,
   LogoutUser200,
   MatchBreakdown,
+  MessageTemplate,
   MigrateLegacyEmployerSubscriptionsResponse,
   OkResponse,
   OnboardRequest,
@@ -127,6 +131,8 @@ import type {
   RequestReferenceRequest,
   SalaryInsight,
   SavedSearch,
+  SendOutreachRequest,
+  SendOutreachResponse,
   SetBackgroundCheckRequest,
   SetEmployerVerifiedRequest,
   SetEmployerVerifiedResponse,
@@ -137,6 +143,8 @@ import type {
   StaffListResponse,
   StaffMemberResponse,
   SubmitReferenceRequest,
+  TalentPool,
+  TalentPoolDetail,
   UpdateApplication,
   UpdateBoostSettingsRequest,
   UpdateCandidate,
@@ -11916,4 +11924,852 @@ export const useDeleteSavedSearch = <
   TContext
 > => {
   return useMutation(getDeleteSavedSearchMutationOptions(options));
+};
+
+/**
+ * @summary List the employer's saved Talent Pools
+ */
+export const getListTalentPoolsUrl = (id: number) => {
+  return `/api/employers/${id}/talent-pools`;
+};
+
+export const listTalentPools = async (
+  id: number,
+  options?: RequestInit,
+): Promise<TalentPool[]> => {
+  return customFetch<TalentPool[]>(getListTalentPoolsUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListTalentPoolsQueryKey = (id: number) => {
+  return [`/api/employers/${id}/talent-pools`] as const;
+};
+
+export const getListTalentPoolsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listTalentPools>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listTalentPools>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListTalentPoolsQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listTalentPools>>> = ({
+    signal,
+  }) => listTalentPools(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listTalentPools>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListTalentPoolsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listTalentPools>>
+>;
+export type ListTalentPoolsQueryError = ErrorType<void>;
+
+/**
+ * @summary List the employer's saved Talent Pools
+ */
+
+export function useListTalentPools<
+  TData = Awaited<ReturnType<typeof listTalentPools>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listTalentPools>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListTalentPoolsQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a new Talent Pool
+ */
+export const getCreateTalentPoolUrl = (id: number) => {
+  return `/api/employers/${id}/talent-pools`;
+};
+
+export const createTalentPool = async (
+  id: number,
+  createTalentPoolRequest: CreateTalentPoolRequest,
+  options?: RequestInit,
+): Promise<TalentPool> => {
+  return customFetch<TalentPool>(getCreateTalentPoolUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createTalentPoolRequest),
+  });
+};
+
+export const getCreateTalentPoolMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createTalentPool>>,
+    TError,
+    { id: number; data: BodyType<CreateTalentPoolRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createTalentPool>>,
+  TError,
+  { id: number; data: BodyType<CreateTalentPoolRequest> },
+  TContext
+> => {
+  const mutationKey = ["createTalentPool"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createTalentPool>>,
+    { id: number; data: BodyType<CreateTalentPoolRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return createTalentPool(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateTalentPoolMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createTalentPool>>
+>;
+export type CreateTalentPoolMutationBody = BodyType<CreateTalentPoolRequest>;
+export type CreateTalentPoolMutationError = ErrorType<void>;
+
+/**
+ * @summary Create a new Talent Pool
+ */
+export const useCreateTalentPool = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createTalentPool>>,
+    TError,
+    { id: number; data: BodyType<CreateTalentPoolRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createTalentPool>>,
+  TError,
+  { id: number; data: BodyType<CreateTalentPoolRequest> },
+  TContext
+> => {
+  return useMutation(getCreateTalentPoolMutationOptions(options));
+};
+
+export const getGetTalentPoolUrl = (id: number, poolId: number) => {
+  return `/api/employers/${id}/talent-pools/${poolId}`;
+};
+
+export const getTalentPool = async (
+  id: number,
+  poolId: number,
+  options?: RequestInit,
+): Promise<TalentPoolDetail> => {
+  return customFetch<TalentPoolDetail>(getGetTalentPoolUrl(id, poolId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetTalentPoolQueryKey = (id: number, poolId: number) => {
+  return [`/api/employers/${id}/talent-pools/${poolId}`] as const;
+};
+
+export const getGetTalentPoolQueryOptions = <
+  TData = Awaited<ReturnType<typeof getTalentPool>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  poolId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getTalentPool>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetTalentPoolQueryKey(id, poolId);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getTalentPool>>> = ({
+    signal,
+  }) => getTalentPool(id, poolId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!(id && poolId),
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getTalentPool>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetTalentPoolQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getTalentPool>>
+>;
+export type GetTalentPoolQueryError = ErrorType<void>;
+
+export function useGetTalentPool<
+  TData = Awaited<ReturnType<typeof getTalentPool>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  poolId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getTalentPool>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetTalentPoolQueryOptions(id, poolId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getDeleteTalentPoolUrl = (id: number, poolId: number) => {
+  return `/api/employers/${id}/talent-pools/${poolId}`;
+};
+
+export const deleteTalentPool = async (
+  id: number,
+  poolId: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteTalentPoolUrl(id, poolId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteTalentPoolMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteTalentPool>>,
+    TError,
+    { id: number; poolId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteTalentPool>>,
+  TError,
+  { id: number; poolId: number },
+  TContext
+> => {
+  const mutationKey = ["deleteTalentPool"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteTalentPool>>,
+    { id: number; poolId: number }
+  > = (props) => {
+    const { id, poolId } = props ?? {};
+
+    return deleteTalentPool(id, poolId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteTalentPoolMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteTalentPool>>
+>;
+
+export type DeleteTalentPoolMutationError = ErrorType<void>;
+
+export const useDeleteTalentPool = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteTalentPool>>,
+    TError,
+    { id: number; poolId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteTalentPool>>,
+  TError,
+  { id: number; poolId: number },
+  TContext
+> => {
+  return useMutation(getDeleteTalentPoolMutationOptions(options));
+};
+
+/**
+ * @summary Add one or more candidates to a pool (idempotent per candidate)
+ */
+export const getAddTalentPoolMembersUrl = (id: number, poolId: number) => {
+  return `/api/employers/${id}/talent-pools/${poolId}/members`;
+};
+
+export const addTalentPoolMembers = async (
+  id: number,
+  poolId: number,
+  addTalentPoolMembersRequest: AddTalentPoolMembersRequest,
+  options?: RequestInit,
+): Promise<TalentPoolDetail> => {
+  return customFetch<TalentPoolDetail>(getAddTalentPoolMembersUrl(id, poolId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(addTalentPoolMembersRequest),
+  });
+};
+
+export const getAddTalentPoolMembersMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addTalentPoolMembers>>,
+    TError,
+    { id: number; poolId: number; data: BodyType<AddTalentPoolMembersRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof addTalentPoolMembers>>,
+  TError,
+  { id: number; poolId: number; data: BodyType<AddTalentPoolMembersRequest> },
+  TContext
+> => {
+  const mutationKey = ["addTalentPoolMembers"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof addTalentPoolMembers>>,
+    { id: number; poolId: number; data: BodyType<AddTalentPoolMembersRequest> }
+  > = (props) => {
+    const { id, poolId, data } = props ?? {};
+
+    return addTalentPoolMembers(id, poolId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AddTalentPoolMembersMutationResult = NonNullable<
+  Awaited<ReturnType<typeof addTalentPoolMembers>>
+>;
+export type AddTalentPoolMembersMutationBody =
+  BodyType<AddTalentPoolMembersRequest>;
+export type AddTalentPoolMembersMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Add one or more candidates to a pool (idempotent per candidate)
+ */
+export const useAddTalentPoolMembers = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addTalentPoolMembers>>,
+    TError,
+    { id: number; poolId: number; data: BodyType<AddTalentPoolMembersRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof addTalentPoolMembers>>,
+  TError,
+  { id: number; poolId: number; data: BodyType<AddTalentPoolMembersRequest> },
+  TContext
+> => {
+  return useMutation(getAddTalentPoolMembersMutationOptions(options));
+};
+
+export const getRemoveTalentPoolMemberUrl = (
+  id: number,
+  poolId: number,
+  candidateId: number,
+) => {
+  return `/api/employers/${id}/talent-pools/${poolId}/members/${candidateId}`;
+};
+
+export const removeTalentPoolMember = async (
+  id: number,
+  poolId: number,
+  candidateId: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(
+    getRemoveTalentPoolMemberUrl(id, poolId, candidateId),
+    {
+      ...options,
+      method: "DELETE",
+    },
+  );
+};
+
+export const getRemoveTalentPoolMemberMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removeTalentPoolMember>>,
+    TError,
+    { id: number; poolId: number; candidateId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof removeTalentPoolMember>>,
+  TError,
+  { id: number; poolId: number; candidateId: number },
+  TContext
+> => {
+  const mutationKey = ["removeTalentPoolMember"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof removeTalentPoolMember>>,
+    { id: number; poolId: number; candidateId: number }
+  > = (props) => {
+    const { id, poolId, candidateId } = props ?? {};
+
+    return removeTalentPoolMember(id, poolId, candidateId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RemoveTalentPoolMemberMutationResult = NonNullable<
+  Awaited<ReturnType<typeof removeTalentPoolMember>>
+>;
+
+export type RemoveTalentPoolMemberMutationError = ErrorType<unknown>;
+
+export const useRemoveTalentPoolMember = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removeTalentPoolMember>>,
+    TError,
+    { id: number; poolId: number; candidateId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof removeTalentPoolMember>>,
+  TError,
+  { id: number; poolId: number; candidateId: number },
+  TContext
+> => {
+  return useMutation(getRemoveTalentPoolMemberMutationOptions(options));
+};
+
+export const getListMessageTemplatesUrl = (id: number) => {
+  return `/api/employers/${id}/message-templates`;
+};
+
+export const listMessageTemplates = async (
+  id: number,
+  options?: RequestInit,
+): Promise<MessageTemplate[]> => {
+  return customFetch<MessageTemplate[]>(getListMessageTemplatesUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListMessageTemplatesQueryKey = (id: number) => {
+  return [`/api/employers/${id}/message-templates`] as const;
+};
+
+export const getListMessageTemplatesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listMessageTemplates>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listMessageTemplates>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListMessageTemplatesQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listMessageTemplates>>
+  > = ({ signal }) => listMessageTemplates(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listMessageTemplates>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListMessageTemplatesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listMessageTemplates>>
+>;
+export type ListMessageTemplatesQueryError = ErrorType<unknown>;
+
+export function useListMessageTemplates<
+  TData = Awaited<ReturnType<typeof listMessageTemplates>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listMessageTemplates>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListMessageTemplatesQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getCreateMessageTemplateUrl = (id: number) => {
+  return `/api/employers/${id}/message-templates`;
+};
+
+export const createMessageTemplate = async (
+  id: number,
+  createMessageTemplateRequest: CreateMessageTemplateRequest,
+  options?: RequestInit,
+): Promise<MessageTemplate> => {
+  return customFetch<MessageTemplate>(getCreateMessageTemplateUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createMessageTemplateRequest),
+  });
+};
+
+export const getCreateMessageTemplateMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createMessageTemplate>>,
+    TError,
+    { id: number; data: BodyType<CreateMessageTemplateRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createMessageTemplate>>,
+  TError,
+  { id: number; data: BodyType<CreateMessageTemplateRequest> },
+  TContext
+> => {
+  const mutationKey = ["createMessageTemplate"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createMessageTemplate>>,
+    { id: number; data: BodyType<CreateMessageTemplateRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return createMessageTemplate(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateMessageTemplateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createMessageTemplate>>
+>;
+export type CreateMessageTemplateMutationBody =
+  BodyType<CreateMessageTemplateRequest>;
+export type CreateMessageTemplateMutationError = ErrorType<void>;
+
+export const useCreateMessageTemplate = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createMessageTemplate>>,
+    TError,
+    { id: number; data: BodyType<CreateMessageTemplateRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createMessageTemplate>>,
+  TError,
+  { id: number; data: BodyType<CreateMessageTemplateRequest> },
+  TContext
+> => {
+  return useMutation(getCreateMessageTemplateMutationOptions(options));
+};
+
+export const getDeleteMessageTemplateUrl = (id: number, templateId: number) => {
+  return `/api/employers/${id}/message-templates/${templateId}`;
+};
+
+export const deleteMessageTemplate = async (
+  id: number,
+  templateId: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteMessageTemplateUrl(id, templateId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteMessageTemplateMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteMessageTemplate>>,
+    TError,
+    { id: number; templateId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteMessageTemplate>>,
+  TError,
+  { id: number; templateId: number },
+  TContext
+> => {
+  const mutationKey = ["deleteMessageTemplate"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteMessageTemplate>>,
+    { id: number; templateId: number }
+  > = (props) => {
+    const { id, templateId } = props ?? {};
+
+    return deleteMessageTemplate(id, templateId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteMessageTemplateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteMessageTemplate>>
+>;
+
+export type DeleteMessageTemplateMutationError = ErrorType<unknown>;
+
+export const useDeleteMessageTemplate = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteMessageTemplate>>,
+    TError,
+    { id: number; templateId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteMessageTemplate>>,
+  TError,
+  { id: number; templateId: number },
+  TContext
+> => {
+  return useMutation(getDeleteMessageTemplateMutationOptions(options));
+};
+
+/**
+ * Renders the supplied body (or template) per recipient, replacing
+`{{firstName}}`, `{{jobTitle}}`, and `{{employerName}}`. Writes an
+in-app notification to each candidate. Email delivery is queued
+(currently stubbed). Per-org daily cap (default 200/day) is
+enforced server-side.
+
+ * @summary Bulk-send a templated message to a set of candidates
+ */
+export const getSendOutreachUrl = (id: number) => {
+  return `/api/employers/${id}/outreach`;
+};
+
+export const sendOutreach = async (
+  id: number,
+  sendOutreachRequest: SendOutreachRequest,
+  options?: RequestInit,
+): Promise<SendOutreachResponse> => {
+  return customFetch<SendOutreachResponse>(getSendOutreachUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(sendOutreachRequest),
+  });
+};
+
+export const getSendOutreachMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendOutreach>>,
+    TError,
+    { id: number; data: BodyType<SendOutreachRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof sendOutreach>>,
+  TError,
+  { id: number; data: BodyType<SendOutreachRequest> },
+  TContext
+> => {
+  const mutationKey = ["sendOutreach"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof sendOutreach>>,
+    { id: number; data: BodyType<SendOutreachRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return sendOutreach(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SendOutreachMutationResult = NonNullable<
+  Awaited<ReturnType<typeof sendOutreach>>
+>;
+export type SendOutreachMutationBody = BodyType<SendOutreachRequest>;
+export type SendOutreachMutationError = ErrorType<void>;
+
+/**
+ * @summary Bulk-send a templated message to a set of candidates
+ */
+export const useSendOutreach = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendOutreach>>,
+    TError,
+    { id: number; data: BodyType<SendOutreachRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof sendOutreach>>,
+  TError,
+  { id: number; data: BodyType<SendOutreachRequest> },
+  TContext
+> => {
+  return useMutation(getSendOutreachMutationOptions(options));
 };

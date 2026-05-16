@@ -307,6 +307,7 @@ export interface Application {
   status: ApplicationStatus;
   matchScore: number;
   coverNote: string;
+  boardOrder: number;
   appliedAt: string;
   updatedAt: string;
 }
@@ -1359,8 +1360,16 @@ export const UpdateApplicationStatus = {
   withdrawn: "withdrawn",
 } as const;
 
+/**
+ * At least one of `status` or `boardOrder` must be supplied.
+`boardOrder` lets the employer Kanban persist drag-and-drop sort
+within a column.
+
+ */
 export interface UpdateApplication {
-  status: UpdateApplicationStatus;
+  status?: UpdateApplicationStatus;
+  /** New sort index within the destination column. Lower = higher in the column. */
+  boardOrder?: number;
 }
 
 export interface InterviewTimeSlot {
@@ -2475,6 +2484,100 @@ export interface UpdateSavedSearch {
   filters?: UpdateSavedSearchFilters;
   /** Reset lastSeenJobId to current max. */
   markSeen?: boolean;
+}
+
+export interface TalentPool {
+  id: number;
+  employerId: number;
+  name: string;
+  description: string;
+  memberCount: number;
+  createdAt: string;
+}
+
+export interface TalentPoolMember {
+  candidateId: number;
+  candidateName: string;
+  candidateAvatarUrl: string;
+  headline: string;
+  location: string;
+  talentScore: number;
+  openToOffers: boolean;
+  tags: string[];
+  addedAt: string;
+}
+
+export type TalentPoolDetail = TalentPool & {
+  members: TalentPoolMember[];
+};
+
+export interface CreateTalentPoolRequest {
+  /**
+   * @minLength 1
+   * @maxLength 80
+   */
+  name: string;
+  /** @maxLength 500 */
+  description?: string;
+}
+
+export interface AddTalentPoolMembersRequest {
+  /**
+   * @minItems 1
+   * @maxItems 200
+   */
+  candidateIds: number[];
+  /** Optional tags applied to every newly-added candidate. */
+  tags?: string[];
+}
+
+export interface MessageTemplate {
+  id: number;
+  employerId: number;
+  name: string;
+  subject: string;
+  body: string;
+  createdAt: string;
+}
+
+export interface CreateMessageTemplateRequest {
+  /**
+   * @minLength 1
+   * @maxLength 80
+   */
+  name: string;
+  /** @maxLength 200 */
+  subject?: string;
+  /**
+   * @minLength 1
+   * @maxLength 4000
+   */
+  body: string;
+}
+
+/**
+ * Either `templateId` or (`subject` + `body`) must be provided.
+Recipients are specified directly via `candidateIds` or by
+passing a `poolId` (sends to every member of that pool).
+
+ */
+export interface SendOutreachRequest {
+  /** @maxItems 200 */
+  candidateIds?: number[];
+  poolId?: number;
+  templateId?: number;
+  /** @maxLength 200 */
+  subject?: string;
+  /** @maxLength 4000 */
+  body?: string;
+  /** Optional — used to expand `{{jobTitle}}`. Must belong to the employer. */
+  jobId?: number;
+}
+
+export interface SendOutreachResponse {
+  sent: number;
+  skipped: number;
+  remainingToday: number;
 }
 
 export type ListCandidatesParams = {

@@ -25,6 +25,7 @@ import profileViewsRouter from "./profile-views";
 import trustRouter from "./trust";
 import engagementRouter from "./engagement";
 import aiRouter from "./ai";
+import employerPoolsRouter from "./employer-pools";
 import { requireAuth } from "../middleware/require-auth";
 
 const router: IRouter = Router();
@@ -72,6 +73,7 @@ router.use(profileViewsRouter);
 router.use(trustRouter);
 router.use(engagementRouter);
 router.use(aiRouter);
+router.use(employerPoolsRouter);
 router.use(candidatesRouter);
 router.use(employersRouter);
 router.use(institutionsRouter);

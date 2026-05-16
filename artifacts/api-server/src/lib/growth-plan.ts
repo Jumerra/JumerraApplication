@@ -101,8 +101,6 @@ export async function refreshGrowthPlan(
     }
   }
 
-  if (counts.size === 0) return [];
-
   // Pull every existing row so we can skip ones the candidate
   // dismissed or already completed.
   const existing = await db
@@ -110,6 +108,21 @@ export async function refreshGrowthPlan(
     .from(candidateGrowthSkillsTable)
     .where(eq(candidateGrowthSkillsTable.candidateId, candidateId));
   const byKey = new Map(existing.map((r) => [r.skill.toLowerCase(), r]));
+
+  // No relevant rejections in the 90-day window: demote any leftover
+  // actives so the UI reflects truly recent patterns instead of stale
+  // ones from months ago.
+  if (counts.size === 0) {
+    for (const prev of existing) {
+      if (prev.status === "active") {
+        await db
+          .update(candidateGrowthSkillsTable)
+          .set({ status: "superseded", addedAt: new Date() })
+          .where(eq(candidateGrowthSkillsTable.id, prev.id));
+      }
+    }
+    return [];
+  }
 
   // Rank by frequency desc, then alphabetically for stability. Skip
   // already-dismissed; bump rejectionCount on active rows; keep
@@ -158,6 +171,11 @@ export async function refreshGrowthPlan(
           // candidate has been working against it. Otherwise set one.
           targetDate: prev.targetDate ?? targetDate,
           status: "active",
+          // Touch addedAt so the GET /me/growth-plan staleness gate
+          // (newest active addedAt < 7d ago) reflects "last analyzed",
+          // not "first created". Without this, every request after day
+          // 7 would re-run the analyser even though nothing changed.
+          addedAt: new Date(),
         })
         .where(eq(candidateGrowthSkillsTable.id, prev.id));
     } else {
@@ -211,7 +229,10 @@ export async function repingEmployersForCompletedSkill(
         eq(applicationsTable.status, "rejected"),
         gte(applicationsTable.updatedAt, since),
       ),
-    );
+    )
+    // Most-recent rejection per employer wins the "anchor" application
+    // for the re-ping (link/job title in the notification body).
+    .orderBy(desc(applicationsTable.updatedAt));
 
   // Filter to jobs that actually required the skill (case-insensitive).
   const matching = rows.filter((r) =>

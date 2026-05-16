@@ -17,7 +17,7 @@ import {
 } from "@workspace/api-zod";
 import { calculateMatchScore } from "../lib/matching";
 import { sendNotificationToCandidate } from "../lib/notifier";
-import { requireAuth } from "../middleware/require-auth";
+import { requireAuth, attachUser } from "../middleware/require-auth";
 import { requirePermission } from "../lib/permissions";
 import { sweepExpiredJobTiers } from "./job-tier";
 import { jobMatchesFilters } from "../lib/job-filters";
@@ -230,7 +230,7 @@ router.post(
   res.status(201).json(serializeJob(created, employer ?? { name: "", logoUrl: "" }, 0));
 });
 
-router.get("/jobs/:id", async (req, res): Promise<void> => {
+router.get("/jobs/:id", attachUser, async (req, res): Promise<void> => {
   const params = GetJobParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });

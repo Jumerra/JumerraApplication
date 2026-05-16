@@ -1,0 +1,33 @@
+I've grouped ideas by impact. Tell me which clusters resonate and I'll build them.
+
+1. Trust & verification (highest moat — you already own institutions)
+Verified Skills Badges: short institution-issued or quiz-issued micro-credentials shown on the profile and in employer search filters. You already have institution affiliations — extend to "Python — verified by KNUST CS, Mar 2026."
+Reference Requests: candidate clicks "Request reference" → email/in-app to a lecturer or past employer → 3-question structured form → green "Verified Reference" pill on profile. Pure differentiator vs LinkedIn.
+Background-check status flag (manual at first, integration later) per candidate, visible to employers.
+2. Candidate engagement loops (so they keep coming back)
+Talent Score breakdown + "How to improve" panel: explain the score, show 3 concrete actions ("Add 2 more skills", "Get an institution verification", "Complete an assessment"). Right now the score is opaque.
+Weekly "Your week" digest: views, applications, interviews scheduled, new matched jobs — sent in-app and via email. Drives DAU.
+Application status timeline with employer-side milestones (Submitted → Reviewed → Shortlisted → Interview → Decision) and ETA promises ("Most employers respond in 5 days").
+Saved searches with alerts: candidate saves a query, gets notified when a matching job is posted.
+3. AI features that actually use your data (differentiation)
+AI cover-note draft per application using the candidate profile + job description (you already have OpenAI integration available).
+AI interview prep: 5 likely questions for this job + STAR-format answer scaffold using the candidate's experience.
+AI resume critique in the CV builder — concrete, line-level feedback.
+Smart job-fit explainer: "Why we matched you" — show which 3 skills + which experience drove the score.
+4. Employer-side superpowers (drives paid conversion)
+Talent Pools / saved candidate lists: tag candidates as "Strong - 2027 grads", message them in bulk later.
+Pipeline Kanban for an opening (Applied / Screening / Interview / Offer) with drag-and-drop.
+Bulk-message + templated outreach to shortlists.
+"Looking" signal: candidates flag themselves as "Open to offers" and employers can filter on it (LinkedIn's #OpenToWork done well).
+5. Institution-side superpowers (drives institution adoption)
+Placement analytics dashboard: real-time % placed, top employers hiring our students, salary medians by department, time-to-first-job. You have the data already.
+Cohort tracking: tag the 2026 graduating class, watch their placement curve.
+Employer leaderboard per institution: "Top employers of our students this year."
+6. Network effect / community
+Alumni mentorship matching: connect current students with alumni from the same institution who are now employed.
+Company pages with employee reviews (institution-scoped to start — "What KNUST grads say about working at MTN").
+Student stories / placement spotlights on the marketplace homepage — social proof + great SEO.
+7. Mobile-only gems
+Swipe-to-apply feed (Tinder-style) for jobs the AI says are strong fits.
+One-tap apply with the saved profile/CV.
+Push notifications for: new match, application status change, interview reminder, profile view (boosted only — already partially built).

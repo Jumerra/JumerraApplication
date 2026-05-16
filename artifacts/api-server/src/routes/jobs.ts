@@ -14,6 +14,7 @@ import {
   GetJobMatchesParams,
 } from "@workspace/api-zod";
 import { calculateMatchScore } from "../lib/matching";
+import { sendNotificationToCandidate } from "../lib/notifier";
 import { requireAuth } from "../middleware/require-auth";
 import { requirePermission } from "../lib/permissions";
 import { sweepExpiredJobTiers } from "./job-tier";
@@ -157,6 +158,45 @@ router.post(
     .select({ name: employersTable.name, logoUrl: employersTable.logoUrl })
     .from(employersTable)
     .where(eq(employersTable.id, created.employerId));
+
+  // Fan-out "strong match" push to candidates whose saved profile
+  // scores >= 70% against the new job. Capped + best-effort so a
+  // slow notifier never blocks the POST response.
+  void (async () => {
+    try {
+      const cands = await db
+        .select({
+          id: candidatesTable.id,
+          skills: candidatesTable.skills,
+          yearsExperience: candidatesTable.yearsExperience,
+          talentScore: candidatesTable.talentScore,
+        })
+        .from(candidatesTable);
+      const employerName = employer?.name ?? "An employer";
+      let dispatched = 0;
+      for (const c of cands) {
+        if (dispatched >= 100) break; // safety cap per posting
+        const { score } = calculateMatchScore(
+          created.skills,
+          c.skills,
+          c.yearsExperience,
+          c.talentScore,
+        );
+        if (score < 70) continue;
+        await sendNotificationToCandidate(c.id, {
+          kind: "strong_match",
+          title: "New strong match",
+          body: `${employerName} just posted "${created.title}" — you're a ${Math.round(score)}% match.`,
+          link: `/jobs/${created.id}`,
+          category: "strongMatch",
+          data: { jobId: created.id, score: Math.round(score) },
+        }).catch(() => {});
+        dispatched += 1;
+      }
+    } catch {
+      // best-effort
+    }
+  })();
 
   res.status(201).json(serializeJob(created, employer ?? { name: "", logoUrl: "" }, 0));
 });

@@ -4,6 +4,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Sparkles,
   Heart,
   X,
@@ -13,6 +20,11 @@ import {
   GraduationCap,
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  useListTalentPools,
+  getListTalentPoolsQueryKey,
+} from "@workspace/api-client-react";
+import { useAuth } from "@/lib/auth";
 
 type DeckItem = {
   candidate: {
@@ -44,6 +56,8 @@ type DeckResponse = {
 const SWIPE_THRESHOLD = 120;
 
 export function DailyDeckCard() {
+  const { sessionUser } = useAuth();
+  const employerId = sessionUser?.employerId ?? 0;
   const [data, setData] = useState<DeckResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -52,6 +66,19 @@ export function DailyDeckCard() {
   const [history, setHistory] = useState<
     { item: DeckItem; action: "shortlist" | "dismiss" }[]
   >([]);
+  const [selectedPoolId, setSelectedPoolId] = useState<string>("default");
+
+  const { data: pools } = useListTalentPools(employerId, {
+    query: {
+      enabled: employerId > 0,
+      queryKey: getListTalentPoolsQueryKey(employerId),
+    },
+  });
+  const selectedPoolName =
+    selectedPoolId === "default"
+      ? "Daily picks"
+      : (pools?.find((p) => String(p.id) === selectedPoolId)?.name ??
+        "Daily picks");
 
   const loadDeck = async () => {
     setLoading(true);
@@ -99,11 +126,17 @@ export function DailyDeckCard() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             jobId: current.bestJobId ?? undefined,
+            poolId:
+              selectedPoolId === "default"
+                ? undefined
+                : Number(selectedPoolId),
           }),
         },
       );
       if (!res.ok) throw new Error("shortlist failed");
-      toast.success(`${current.candidate.fullName} added to Daily picks`);
+      toast.success(
+        `${current.candidate.fullName} added to ${selectedPoolName}`,
+      );
       setHistory((h) => [...h, { item: current, action: "shortlist" }]);
       setIndex((i) => i + 1);
     } catch {
@@ -159,8 +192,8 @@ export function DailyDeckCard() {
   return (
     <Card className="shadow-sm overflow-hidden" data-testid="card-daily-deck">
       <CardContent className="p-6 space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
             <h2 className="text-lg font-semibold flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-primary" />
               Daily picks
@@ -171,8 +204,29 @@ export function DailyDeckCard() {
                 : "Post a role to see candidates matched to your hiring needs."}
             </p>
           </div>
-          <div className="text-xs text-muted-foreground">
-            {remaining > 0 ? `${remaining} left today` : "Done for today"}
+          <div className="flex flex-col items-end gap-1 shrink-0">
+            <Select
+              value={selectedPoolId}
+              onValueChange={setSelectedPoolId}
+            >
+              <SelectTrigger
+                className="h-8 w-[180px] text-xs"
+                data-testid="select-deck-pool"
+              >
+                <SelectValue placeholder="Save to pool" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="default">Daily picks</SelectItem>
+                {pools?.map((p) => (
+                  <SelectItem key={p.id} value={String(p.id)}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="text-xs text-muted-foreground">
+              {remaining > 0 ? `${remaining} left today` : "Done for today"}
+            </div>
           </div>
         </div>
 

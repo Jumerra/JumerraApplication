@@ -170,6 +170,27 @@ export default function TalentPoolDetailPage() {
               <DialogTitle>Send outreach to pool</DialogTitle>
             </DialogHeader>
             <div className="space-y-3">
+              <div className="rounded-md border bg-muted/30 px-3 py-2 text-sm">
+                <span className="font-medium">{pool.memberCount}</span>{" "}
+                recipient{pool.memberCount === 1 ? "" : "s"} from pool
+                <span className="font-medium"> {pool.name}</span>
+                {pool.members.length > 0 ? (
+                  <span className="text-muted-foreground">
+                    {" "}
+                    — e.g.{" "}
+                    {pool.members
+                      .slice(0, 3)
+                      .map((m) => m.candidateName)
+                      .join(", ")}
+                    {pool.members.length > 3
+                      ? `, +${pool.members.length - 3} more`
+                      : ""}
+                  </span>
+                ) : null}
+                <p className="text-xs text-muted-foreground mt-1">
+                  Capped at 200/day per organization.
+                </p>
+              </div>
               {templates && templates.length > 0 ? (
                 <div>
                   <label className="text-sm font-medium">

@@ -2,11 +2,15 @@ import {
   useListCandidates,
   useListTalentPools,
   useAddTalentPoolMembers,
+  useSendOutreach,
+  useListMessageTemplates,
   getGetTalentPoolQueryKey,
   getListTalentPoolsQueryKey,
+  getListMessageTemplatesQueryKey,
 } from "@workspace/api-client-react";
 import { Link } from "wouter";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,6 +38,7 @@ import {
   BadgeCheck,
   ShieldCheck,
   Users2,
+  Send,
   X,
 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -54,6 +59,11 @@ export default function CandidatesList() {
   const [poolDialogOpen, setPoolDialogOpen] = useState(false);
   const [chosenPoolId, setChosenPoolId] = useState<string>("");
   const [tagInput, setTagInput] = useState("");
+  const [outreachOpen, setOutreachOpen] = useState(false);
+  const [outreachTemplateId, setOutreachTemplateId] = useState("");
+  const [outreachSubject, setOutreachSubject] = useState("");
+  const [outreachBody, setOutreachBody] = useState("");
+  const [outreachConfirm, setOutreachConfirm] = useState(false);
 
   const { data: candidates, isLoading } = useListCandidates({
     search: search || undefined,
@@ -67,6 +77,72 @@ export default function CandidatesList() {
     },
   });
   const addMembers = useAddTalentPoolMembers();
+  const sendOutreach = useSendOutreach();
+  const { data: templates } = useListMessageTemplates(employerId, {
+    query: {
+      enabled: isEmployer && employerId > 0,
+      queryKey: getListMessageTemplatesQueryKey(employerId),
+    },
+  });
+
+  const selectedCandidates = useMemo(
+    () => (candidates ?? []).filter((c) => selected.has(c.id)),
+    [candidates, selected],
+  );
+
+  const onPickOutreachTemplate = (id: string) => {
+    setOutreachTemplateId(id);
+    const t = templates?.find((tt) => String(tt.id) === id);
+    if (t) {
+      setOutreachSubject(t.subject);
+      setOutreachBody(t.body);
+    }
+  };
+
+  const onSendOutreach = () => {
+    if (!outreachBody.trim()) {
+      toast.error("Message body is required");
+      return;
+    }
+    if (!outreachConfirm) {
+      setOutreachConfirm(true);
+      return;
+    }
+    sendOutreach.mutate(
+      {
+        id: employerId,
+        data: {
+          candidateIds: selectedIds,
+          subject: outreachSubject || undefined,
+          body: outreachBody,
+          templateId: outreachTemplateId
+            ? Number(outreachTemplateId)
+            : undefined,
+        },
+      },
+      {
+        onSuccess: (resp) => {
+          toast.success(
+            `Sent ${resp.sent} message${resp.sent === 1 ? "" : "s"}` +
+              (resp.skipped > 0 ? ` (${resp.skipped} skipped)` : ""),
+          );
+          setOutreachOpen(false);
+          setOutreachConfirm(false);
+          setOutreachSubject("");
+          setOutreachBody("");
+          setOutreachTemplateId("");
+          setSelected(new Set());
+        },
+        onError: (err: unknown) => {
+          const msg =
+            (err as { response?: { data?: { error?: string } } })?.response
+              ?.data?.error ?? "Could not send messages";
+          toast.error(msg);
+          setOutreachConfirm(false);
+        },
+      },
+    );
+  };
 
   const selectedIds = useMemo(() => Array.from(selected), [selected]);
 
@@ -179,6 +255,14 @@ export default function CandidatesList() {
             </Button>
             <Button
               size="sm"
+              variant="outline"
+              onClick={() => setOutreachOpen(true)}
+              data-testid="button-bulk-outreach-shortlist"
+            >
+              <Send className="w-4 h-4 mr-2" /> Send outreach
+            </Button>
+            <Button
+              size="sm"
               onClick={() => setPoolDialogOpen(true)}
               data-testid="button-add-to-pool"
             >
@@ -187,6 +271,153 @@ export default function CandidatesList() {
           </div>
         </div>
       ) : null}
+
+      <Dialog
+        open={outreachOpen}
+        onOpenChange={(o) => {
+          setOutreachOpen(o);
+          if (!o) setOutreachConfirm(false);
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {outreachConfirm
+                ? `Send to ${selectedIds.length} candidate${
+                    selectedIds.length === 1 ? "" : "s"
+                  }?`
+                : `Outreach ${selectedIds.length} selected candidate${
+                    selectedIds.length === 1 ? "" : "s"
+                  }`}
+            </DialogTitle>
+          </DialogHeader>
+          {outreachConfirm ? (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Recipients (capped at 200/day per organization):
+              </p>
+              <div className="max-h-48 overflow-y-auto rounded-md border bg-muted/30 p-2 space-y-1">
+                {selectedCandidates.map((c) => (
+                  <div
+                    key={c.id}
+                    className="flex items-center justify-between text-sm py-1 px-2 rounded hover:bg-background"
+                  >
+                    <span className="truncate">{c.fullName}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelected((prev) => {
+                          const n = new Set(prev);
+                          n.delete(c.id);
+                          return n;
+                        });
+                      }}
+                      className="text-xs text-muted-foreground hover:text-destructive ml-2"
+                      data-testid={`button-remove-recipient-${c.id}`}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="rounded-md border p-3 bg-muted/20">
+                <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">
+                  Subject
+                </p>
+                <p className="text-sm font-medium">
+                  {outreachSubject || "(no subject)"}
+                </p>
+                <p className="text-xs uppercase tracking-wider text-muted-foreground mt-2 mb-1">
+                  Body preview
+                </p>
+                <p className="text-sm whitespace-pre-wrap line-clamp-6">
+                  {outreachBody}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {templates && templates.length > 0 ? (
+                <div>
+                  <label className="text-sm font-medium">
+                    Template (optional)
+                  </label>
+                  <Select
+                    value={outreachTemplateId}
+                    onValueChange={onPickOutreachTemplate}
+                  >
+                    <SelectTrigger data-testid="select-shortlist-template">
+                      <SelectValue placeholder="Pick a template…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {templates.map((t) => (
+                        <SelectItem key={t.id} value={String(t.id)}>
+                          {t.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
+              <div>
+                <label className="text-sm font-medium">Subject</label>
+                <Input
+                  value={outreachSubject}
+                  onChange={(e) => setOutreachSubject(e.target.value)}
+                  data-testid="input-shortlist-outreach-subject"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Body</label>
+                <Textarea
+                  value={outreachBody}
+                  onChange={(e) => setOutreachBody(e.target.value)}
+                  rows={8}
+                  placeholder="Hi {{firstName}}, ..."
+                  data-testid="input-shortlist-outreach-body"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Supports <code>{`{{firstName}}`}</code>{" "}
+                  <code>{`{{employerName}}`}</code>{" "}
+                  <code>{`{{jobTitle}}`}</code>.
+                </p>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            {outreachConfirm ? (
+              <>
+                <Button
+                  variant="ghost"
+                  onClick={() => setOutreachConfirm(false)}
+                  data-testid="button-shortlist-back"
+                >
+                  Back to edit
+                </Button>
+                <Button
+                  onClick={onSendOutreach}
+                  disabled={
+                    sendOutreach.isPending || selectedIds.length === 0
+                  }
+                  data-testid="button-confirm-send-outreach"
+                >
+                  {sendOutreach.isPending
+                    ? "Sending…"
+                    : `Confirm & send to ${selectedIds.length}`}
+                </Button>
+              </>
+            ) : (
+              <Button
+                onClick={onSendOutreach}
+                disabled={!outreachBody.trim()}
+                data-testid="button-review-outreach"
+              >
+                Review recipients →
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {isLoading ? (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">

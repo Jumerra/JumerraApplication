@@ -245,7 +245,7 @@ export function isCandidateLocalMondayNineAM(
   return weekday === "Mon" && hour === 9;
 }
 
-async function runDigestForCandidate(
+export async function runDigestForCandidate(
   candidateId: number,
   weekStart: Date,
   weekEnd: Date,

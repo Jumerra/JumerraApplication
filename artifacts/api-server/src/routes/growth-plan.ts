@@ -260,14 +260,9 @@ router.post("/me/growth-plan/:skill/add", requireAuth, async (req, res) => {
     res.status(403).json({ error: "Only candidates have a growth plan" });
     return;
   }
-  const raw = String(req.params.skill ?? "");
-  let skill: string;
-  try {
-    skill = decodeURIComponent(raw).trim().toLowerCase();
-  } catch {
-    res.status(400).json({ error: "Malformed skill path parameter" });
-    return;
-  }
+  // Express already URL-decodes path params, so trust req.params.skill
+  // directly and just normalize/bound it.
+  const skill = String(req.params.skill ?? "").trim().toLowerCase();
   if (!skill || skill.length > 80) {
     res.status(400).json({ error: "Invalid skill" });
     return;

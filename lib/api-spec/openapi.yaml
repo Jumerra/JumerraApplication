@@ -3902,6 +3902,25 @@ paths:
         "404": { description: Not found }
         "409": { description: Cannot finalise }
 
+  /me/career-constellation:
+    get:
+      operationId: getMyCareerConstellation
+      tags: [me]
+      summary: Aggregated role nodes with the candidate's missing-skill distance
+      description: |
+        Returns the candidate's current skills plus a list of role
+        clusters (jobs grouped by normalized title) the candidate is
+        0, 1, or 2 skills away from. Used by the dashboard's Career
+        Constellation graph and the mobile list view.
+      responses:
+        "200":
+          description: Constellation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CareerConstellation" }
+        "401": { description: Not authenticated }
+        "403": { description: Only candidates have a career constellation }
+
   /me/growth-plan:
     get:
       operationId: getMyGrowthPlan
@@ -3923,6 +3942,30 @@ paths:
                   items:
                     type: array
                     items: { $ref: "#/components/schemas/GrowthPlanItem" }
+        "401": { description: Not authenticated }
+        "403": { description: Only candidates have a growth plan }
+
+  /me/growth-plan/{skill}/add:
+    post:
+      operationId: addGrowthSkill
+      tags: [growth-plan]
+      summary: Add a skill to the candidate's growth plan
+      description: |
+        Surfaced by the Career Constellation "Add to growth plan" button.
+        Idempotent — re-adding flips a dismissed or completed row back
+        to active.
+      parameters:
+        - in: path
+          name: skill
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Added
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
+        "400": { description: Invalid skill }
         "401": { description: Not authenticated }
         "403": { description: Only candidates have a growth plan }
 
@@ -6961,6 +7004,56 @@ components:
         ok: { type: boolean }
         verified: { type: boolean }
       required: [ok, verified]
+
+    ConstellationJobSample:
+      type: object
+      properties:
+        jobId: { type: integer }
+        title: { type: string }
+        employerName: { type: string }
+        missingSkills:
+          type: array
+          items: { type: string }
+      required: [jobId, title, employerName, missingSkills]
+
+    ConstellationRole:
+      type: object
+      properties:
+        title: { type: string }
+        jobCount: { type: integer }
+        requiredSkills:
+          type: array
+          items: { type: string }
+        matchedSkills:
+          type: array
+          items: { type: string }
+        missingSkills:
+          type: array
+          items: { type: string }
+        distance: { type: integer }
+        sampleJobs:
+          type: array
+          items: { $ref: "#/components/schemas/ConstellationJobSample" }
+      required:
+        - title
+        - jobCount
+        - requiredSkills
+        - matchedSkills
+        - missingSkills
+        - distance
+        - sampleJobs
+
+    CareerConstellation:
+      type: object
+      properties:
+        candidateSkills:
+          type: array
+          items: { type: string }
+        roles:
+          type: array
+          items: { $ref: "#/components/schemas/ConstellationRole" }
+        generatedAt: { type: string, format: date-time }
+      required: [candidateSkills, roles, generatedAt]
 
     AssignAccountManagerResponse:
       type: object

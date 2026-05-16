@@ -6564,6 +6564,37 @@ export const FinaliseMockInterviewResponse = zod.object({
 });
 
 /**
+ * Returns the candidate's current skills plus a list of role
+clusters (jobs grouped by normalized title) the candidate is
+0, 1, or 2 skills away from. Used by the dashboard's Career
+Constellation graph and the mobile list view.
+
+ * @summary Aggregated role nodes with the candidate's missing-skill distance
+ */
+export const GetMyCareerConstellationResponse = zod.object({
+  candidateSkills: zod.array(zod.string()),
+  roles: zod.array(
+    zod.object({
+      title: zod.string(),
+      jobCount: zod.number(),
+      requiredSkills: zod.array(zod.string()),
+      matchedSkills: zod.array(zod.string()),
+      missingSkills: zod.array(zod.string()),
+      distance: zod.number(),
+      sampleJobs: zod.array(
+        zod.object({
+          jobId: zod.number(),
+          title: zod.string(),
+          employerName: zod.string(),
+          missingSkills: zod.array(zod.string()),
+        }),
+      ),
+    }),
+  ),
+  generatedAt: zod.coerce.date(),
+});
+
+/**
  * Returns the active and completed skills in the candidate's growth
 plan. If no plan exists yet, or the newest active row is older
 than 7 days, the analyser is run inline to refresh it.
@@ -6591,6 +6622,21 @@ export const GetMyGrowthPlanResponse = zod.object({
       estMinutes: zod.number(),
     }),
   ),
+});
+
+/**
+ * Surfaced by the Career Constellation "Add to growth plan" button.
+Idempotent — re-adding flips a dismissed or completed row back
+to active.
+
+ * @summary Add a skill to the candidate's growth plan
+ */
+export const AddGrowthSkillParams = zod.object({
+  skill: zod.coerce.string(),
+});
+
+export const AddGrowthSkillResponse = zod.object({
+  ok: zod.boolean(),
 });
 
 /**

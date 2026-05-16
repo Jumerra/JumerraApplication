@@ -2770,6 +2770,29 @@ export interface WhatsappConfirmResponse {
   verified: boolean;
 }
 
+export interface ConstellationJobSample {
+  jobId: number;
+  title: string;
+  employerName: string;
+  missingSkills: string[];
+}
+
+export interface ConstellationRole {
+  title: string;
+  jobCount: number;
+  requiredSkills: string[];
+  matchedSkills: string[];
+  missingSkills: string[];
+  distance: number;
+  sampleJobs: ConstellationJobSample[];
+}
+
+export interface CareerConstellation {
+  candidateSkills: string[];
+  roles: ConstellationRole[];
+  generatedAt: string;
+}
+
 export interface AssignAccountManagerResponse {
   ok: boolean;
   accountManagerId: number | null;

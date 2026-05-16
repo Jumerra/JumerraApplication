@@ -15,6 +15,7 @@ import {
   db,
   usersTable,
 } from "@workspace/db";
+import { invalidateConstellationCache } from "../lib/career-constellation";
 import { requireAuth } from "../middleware/require-auth";
 import {
   listGrowthPlan,
@@ -238,5 +239,55 @@ router.post(
     res.json({ ok: true });
   },
 );
+
+/**
+ * POST /me/growth-plan/:skill/add — manually add a skill to the plan.
+ *
+ * Surfaced from the Career Constellation graph's "Add to growth plan"
+ * button so candidates can self-direct their plan without waiting for
+ * the rejection-driven analyser. Idempotent: a re-add of an active
+ * skill is a no-op; re-adding a dismissed/completed skill flips it
+ * back to active.
+ */
+router.post("/me/growth-plan/:skill/add", requireAuth, async (req, res) => {
+  const userId = (req.session as { userId?: number }).userId;
+  if (!userId) {
+    res.status(401).json({ error: "Not authenticated" });
+    return;
+  }
+  const candidateId = await getMyCandidateId(userId);
+  if (!candidateId) {
+    res.status(403).json({ error: "Only candidates have a growth plan" });
+    return;
+  }
+  const raw = String(req.params.skill ?? "");
+  let skill: string;
+  try {
+    skill = decodeURIComponent(raw).trim().toLowerCase();
+  } catch {
+    res.status(400).json({ error: "Malformed skill path parameter" });
+    return;
+  }
+  if (!skill || skill.length > 80) {
+    res.status(400).json({ error: "Invalid skill" });
+    return;
+  }
+
+  await db
+    .insert(candidateGrowthSkillsTable)
+    .values({ candidateId, skill, status: "active" })
+    .onConflictDoUpdate({
+      target: [
+        candidateGrowthSkillsTable.candidateId,
+        candidateGrowthSkillsTable.skill,
+      ],
+      set: { status: "active", dismissedAt: null, completedAt: null },
+    });
+
+  // Skills set isn't changing here, but the candidate's gap profile
+  // is — clear the cache so the constellation re-fetches fresh.
+  invalidateConstellationCache(candidateId);
+  res.json({ ok: true });
+});
 
 export default router;

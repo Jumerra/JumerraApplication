@@ -56,6 +56,7 @@ import type {
   CandidateMatch,
   CandidateScoreBreakdown,
   CandidateWeeklyDigestResponse,
+  CareerConstellation,
   ChallengeSubmissionResult,
   ChallengeTemplate,
   ChangePasswordRequest,
@@ -16672,6 +16673,87 @@ export const useFinaliseMockInterview = <
 };
 
 /**
+ * Returns the candidate's current skills plus a list of role
+clusters (jobs grouped by normalized title) the candidate is
+0, 1, or 2 skills away from. Used by the dashboard's Career
+Constellation graph and the mobile list view.
+
+ * @summary Aggregated role nodes with the candidate's missing-skill distance
+ */
+export const getGetMyCareerConstellationUrl = () => {
+  return `/api/me/career-constellation`;
+};
+
+export const getMyCareerConstellation = async (
+  options?: RequestInit,
+): Promise<CareerConstellation> => {
+  return customFetch<CareerConstellation>(getGetMyCareerConstellationUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetMyCareerConstellationQueryKey = () => {
+  return [`/api/me/career-constellation`] as const;
+};
+
+export const getGetMyCareerConstellationQueryOptions = <
+  TData = Awaited<ReturnType<typeof getMyCareerConstellation>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getMyCareerConstellation>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetMyCareerConstellationQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getMyCareerConstellation>>
+  > = ({ signal }) => getMyCareerConstellation({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getMyCareerConstellation>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetMyCareerConstellationQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getMyCareerConstellation>>
+>;
+export type GetMyCareerConstellationQueryError = ErrorType<void>;
+
+/**
+ * @summary Aggregated role nodes with the candidate's missing-skill distance
+ */
+
+export function useGetMyCareerConstellation<
+  TData = Awaited<ReturnType<typeof getMyCareerConstellation>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getMyCareerConstellation>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetMyCareerConstellationQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
  * Returns the active and completed skills in the candidate's growth
 plan. If no plan exists yet, or the newest active row is older
 than 7 days, the analyser is run inline to refresh it.
@@ -16749,6 +16831,94 @@ export function useGetMyGrowthPlan<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * Surfaced by the Career Constellation "Add to growth plan" button.
+Idempotent — re-adding flips a dismissed or completed row back
+to active.
+
+ * @summary Add a skill to the candidate's growth plan
+ */
+export const getAddGrowthSkillUrl = (skill: string) => {
+  return `/api/me/growth-plan/${skill}/add`;
+};
+
+export const addGrowthSkill = async (
+  skill: string,
+  options?: RequestInit,
+): Promise<OkResponse> => {
+  return customFetch<OkResponse>(getAddGrowthSkillUrl(skill), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getAddGrowthSkillMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addGrowthSkill>>,
+    TError,
+    { skill: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof addGrowthSkill>>,
+  TError,
+  { skill: string },
+  TContext
+> => {
+  const mutationKey = ["addGrowthSkill"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof addGrowthSkill>>,
+    { skill: string }
+  > = (props) => {
+    const { skill } = props ?? {};
+
+    return addGrowthSkill(skill, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AddGrowthSkillMutationResult = NonNullable<
+  Awaited<ReturnType<typeof addGrowthSkill>>
+>;
+
+export type AddGrowthSkillMutationError = ErrorType<void>;
+
+/**
+ * @summary Add a skill to the candidate's growth plan
+ */
+export const useAddGrowthSkill = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addGrowthSkill>>,
+    TError,
+    { skill: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof addGrowthSkill>>,
+  TError,
+  { skill: string },
+  TContext
+> => {
+  return useMutation(getAddGrowthSkillMutationOptions(options));
+};
 
 /**
  * @summary Mark a growth-plan skill complete and re-ping past employers

@@ -26,6 +26,7 @@ import { useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { WhyMatched } from "@/components/WhyMatched";
 import { GrowthPlanCard } from "@/components/GrowthPlanCard";
+import { CareerConstellationCard } from "@/components/CareerConstellationCard";
 import type { JobMatch } from "@workspace/api-client-react";
 
 function RecommendedJobRow({ job }: { job: JobMatch }) {
@@ -405,6 +406,8 @@ export default function CandidateDashboard() {
       <IntroRequestsCard candidateId={id} />
 
       <GrowthPlanCard />
+
+      <CareerConstellationCard />
 
 
       <div className="grid lg:grid-cols-3 gap-8">

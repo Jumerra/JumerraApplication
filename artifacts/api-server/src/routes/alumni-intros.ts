@@ -377,16 +377,17 @@ router.post(
     let created: typeof alumniIntroRequestsTable.$inferSelect | null = null;
     let throttleError: string | null = null;
     await db.transaction(async (tx) => {
-      // Take a row-level lock on any prior rows that count toward
-      // either throttle dimension. A concurrent tx running the same
-      // SELECT will block until this commits.
-      await tx.execute(sql`
-        SELECT id
-        FROM ${alumniIntroRequestsTable}
-        WHERE candidate_id = ${myCandidateId}
-          AND (job_id = ${jobId} OR alumni_user_id = ${alumniUserId})
-        FOR UPDATE
-      `);
+      // Take transaction-scoped advisory locks keyed on the throttle
+      // dimensions. This serializes concurrent first-time requests
+      // (where there are no prior rows for `SELECT ... FOR UPDATE`
+      // to lock) so two parallel inserts cannot both pass the cap
+      // and the 30-day check. Locks release automatically on commit.
+      await tx.execute(
+        sql`SELECT pg_advisory_xact_lock(${myCandidateId}::bigint, ${jobId}::bigint)`,
+      );
+      await tx.execute(
+        sql`SELECT pg_advisory_xact_lock(${myCandidateId}::bigint, ${alumniUserId}::bigint)`,
+      );
 
       const perJobRows = await tx
         .select({ id: alumniIntroRequestsTable.id })

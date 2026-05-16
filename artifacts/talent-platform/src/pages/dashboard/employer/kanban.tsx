@@ -366,7 +366,7 @@ export default function PipelineKanbanPage() {
                               const introEndos = (
                                 app as unknown as {
                                   introEndorsements?: Array<{
-                                    id: number;
+                                    alumniUserId: number;
                                     alumniName: string;
                                     alumniAvatarUrl: string | null;
                                     response: string | null;
@@ -377,7 +377,7 @@ export default function PipelineKanbanPage() {
                                 return null;
                               return introEndos.map((endo) => (
                                 <Badge
-                                  key={endo.id}
+                                  key={endo.alumniUserId}
                                   variant="outline"
                                   className="text-[10px] px-1.5 py-0 border-sky-500/50 text-sky-700 dark:text-sky-400"
                                   title={
@@ -385,7 +385,7 @@ export default function PipelineKanbanPage() {
                                       ? `${endo.alumniName}: ${endo.response}`
                                       : `Warm intro from ${endo.alumniName}`
                                   }
-                                  data-testid={`badge-intro-${app.id}-${endo.id}`}
+                                  data-testid={`badge-intro-${app.id}-${endo.alumniUserId}`}
                                 >
                                   Intro from {endo.alumniName}
                                 </Badge>

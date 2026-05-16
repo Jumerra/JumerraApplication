@@ -26,6 +26,7 @@ import { StatusPill } from "@/components/StatusPill";
 import { TierBadge } from "@/components/TierBadge";
 import { useAuth } from "@/hooks/useAuth";
 import { useColors } from "@/hooks/useColors";
+import { InterviewPrepCard } from "@/components/InterviewPrepCard";
 import { formatSalary } from "@/lib/format";
 
 export default function JobDetailScreen() {
@@ -233,6 +234,12 @@ export default function JobDetailScreen() {
                   </View>
                 ))}
               </View>
+            </Section>
+          ) : null}
+
+          {isCandidate && candidateId > 0 ? (
+            <Section title="Interview prep">
+              <InterviewPrepCard candidateId={candidateId} jobId={jobId} />
             </Section>
           ) : null}
 

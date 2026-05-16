@@ -28,6 +28,11 @@ import type {
   AdminResetUserPassword200,
   AdminSetUserStatus200,
   AdminUserStatusUpdate,
+  AiCoverNoteRequest,
+  AiCoverNoteResponse,
+  AiCvCritiqueResponse,
+  AiInterviewPrepRequest,
+  AiInterviewPrepResponse,
   Application,
   ApplicationTimeline,
   AssignAccountManagerRequest,
@@ -10439,6 +10444,264 @@ export const useVerifyCvCheckout = <
   TContext
 > => {
   return useMutation(getVerifyCvCheckoutMutationOptions(options));
+};
+
+/**
+ * @summary Draft a personalised cover note for a job application
+ */
+export const getAiDraftCoverNoteUrl = (id: number) => {
+  return `/api/candidates/${id}/ai/cover-note`;
+};
+
+export const aiDraftCoverNote = async (
+  id: number,
+  aiCoverNoteRequest: AiCoverNoteRequest,
+  options?: RequestInit,
+): Promise<AiCoverNoteResponse> => {
+  return customFetch<AiCoverNoteResponse>(getAiDraftCoverNoteUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(aiCoverNoteRequest),
+  });
+};
+
+export const getAiDraftCoverNoteMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof aiDraftCoverNote>>,
+    TError,
+    { id: number; data: BodyType<AiCoverNoteRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof aiDraftCoverNote>>,
+  TError,
+  { id: number; data: BodyType<AiCoverNoteRequest> },
+  TContext
+> => {
+  const mutationKey = ["aiDraftCoverNote"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof aiDraftCoverNote>>,
+    { id: number; data: BodyType<AiCoverNoteRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return aiDraftCoverNote(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AiDraftCoverNoteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof aiDraftCoverNote>>
+>;
+export type AiDraftCoverNoteMutationBody = BodyType<AiCoverNoteRequest>;
+export type AiDraftCoverNoteMutationError = ErrorType<void>;
+
+/**
+ * @summary Draft a personalised cover note for a job application
+ */
+export const useAiDraftCoverNote = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof aiDraftCoverNote>>,
+    TError,
+    { id: number; data: BodyType<AiCoverNoteRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof aiDraftCoverNote>>,
+  TError,
+  { id: number; data: BodyType<AiCoverNoteRequest> },
+  TContext
+> => {
+  return useMutation(getAiDraftCoverNoteMutationOptions(options));
+};
+
+/**
+ * @summary Generate interview practice questions with STAR scaffolds for a job
+ */
+export const getAiInterviewPrepUrl = (id: number) => {
+  return `/api/candidates/${id}/ai/interview-prep`;
+};
+
+export const aiInterviewPrep = async (
+  id: number,
+  aiInterviewPrepRequest: AiInterviewPrepRequest,
+  options?: RequestInit,
+): Promise<AiInterviewPrepResponse> => {
+  return customFetch<AiInterviewPrepResponse>(getAiInterviewPrepUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(aiInterviewPrepRequest),
+  });
+};
+
+export const getAiInterviewPrepMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof aiInterviewPrep>>,
+    TError,
+    { id: number; data: BodyType<AiInterviewPrepRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof aiInterviewPrep>>,
+  TError,
+  { id: number; data: BodyType<AiInterviewPrepRequest> },
+  TContext
+> => {
+  const mutationKey = ["aiInterviewPrep"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof aiInterviewPrep>>,
+    { id: number; data: BodyType<AiInterviewPrepRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return aiInterviewPrep(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AiInterviewPrepMutationResult = NonNullable<
+  Awaited<ReturnType<typeof aiInterviewPrep>>
+>;
+export type AiInterviewPrepMutationBody = BodyType<AiInterviewPrepRequest>;
+export type AiInterviewPrepMutationError = ErrorType<void>;
+
+/**
+ * @summary Generate interview practice questions with STAR scaffolds for a job
+ */
+export const useAiInterviewPrep = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof aiInterviewPrep>>,
+    TError,
+    { id: number; data: BodyType<AiInterviewPrepRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof aiInterviewPrep>>,
+  TError,
+  { id: number; data: BodyType<AiInterviewPrepRequest> },
+  TContext
+> => {
+  return useMutation(getAiInterviewPrepMutationOptions(options));
+};
+
+/**
+ * @summary Section-level critique of the candidate profile / CV
+ */
+export const getAiCvCritiqueUrl = (id: number) => {
+  return `/api/candidates/${id}/ai/cv-critique`;
+};
+
+export const aiCvCritique = async (
+  id: number,
+  options?: RequestInit,
+): Promise<AiCvCritiqueResponse> => {
+  return customFetch<AiCvCritiqueResponse>(getAiCvCritiqueUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getAiCvCritiqueMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof aiCvCritique>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof aiCvCritique>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["aiCvCritique"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof aiCvCritique>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return aiCvCritique(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AiCvCritiqueMutationResult = NonNullable<
+  Awaited<ReturnType<typeof aiCvCritique>>
+>;
+
+export type AiCvCritiqueMutationError = ErrorType<void>;
+
+/**
+ * @summary Section-level critique of the candidate profile / CV
+ */
+export const useAiCvCritique = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof aiCvCritique>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof aiCvCritique>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getAiCvCritiqueMutationOptions(options));
 };
 
 /**

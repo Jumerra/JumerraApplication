@@ -4073,6 +4073,72 @@ export const VerifyCvCheckoutResponse = zod.object({
 });
 
 /**
+ * @summary Draft a personalised cover note for a job application
+ */
+export const AiDraftCoverNoteParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AiDraftCoverNoteBody = zod.object({
+  jobId: zod.number(),
+});
+
+export const AiDraftCoverNoteResponse = zod.object({
+  draft: zod.string(),
+  fromCache: zod.boolean(),
+});
+
+/**
+ * @summary Generate interview practice questions with STAR scaffolds for a job
+ */
+export const AiInterviewPrepParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AiInterviewPrepBody = zod.object({
+  jobId: zod.number(),
+});
+
+export const AiInterviewPrepResponse = zod.object({
+  questions: zod.array(
+    zod.object({
+      question: zod.string(),
+      scaffold: zod.object({
+        situation: zod.string(),
+        task: zod.string(),
+        action: zod.string(),
+        result: zod.string(),
+      }),
+    }),
+  ),
+  fromCache: zod.boolean(),
+});
+
+/**
+ * @summary Section-level critique of the candidate profile / CV
+ */
+export const AiCvCritiqueParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AiCvCritiqueResponse = zod.object({
+  sections: zod.array(
+    zod.object({
+      section: zod.string(),
+      items: zod.array(
+        zod.object({
+          severity: zod.enum(["info", "suggestion", "warning"]),
+          message: zod.string(),
+          suggestion: zod.string(),
+        }),
+      ),
+    }),
+  ),
+  overall: zod.string(),
+  fromCache: zod.boolean(),
+});
+
+/**
  * @summary Read the latest AI-generated CV for this candidate
  */
 export const GetCandidateCvParams = zod.object({

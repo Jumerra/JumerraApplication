@@ -42,6 +42,8 @@ tags:
     description: Admin-managed "Our Partners" landing-page section
   - name: interviews
     description: Interview scheduling between employer and candidate
+  - name: ai
+    description: Candidate-facing AI helpers (cover-note draft, interview prep, CV critique)
 paths:
   /healthz:
     get:
@@ -2427,6 +2429,79 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
+
+  /candidates/{id}/ai/cover-note:
+    post:
+      operationId: aiDraftCoverNote
+      tags: [ai, candidates]
+      summary: Draft a personalised cover note for a job application
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AiCoverNoteRequest" }
+      responses:
+        "200":
+          description: Drafted cover note
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AiCoverNoteResponse" }
+        "403": { description: Not allowed }
+        "404": { description: Candidate or job not found }
+        "429": { description: Daily AI limit reached }
+        "503": { description: AI service unavailable }
+
+  /candidates/{id}/ai/interview-prep:
+    post:
+      operationId: aiInterviewPrep
+      tags: [ai, candidates]
+      summary: Generate interview practice questions with STAR scaffolds for a job
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AiInterviewPrepRequest" }
+      responses:
+        "200":
+          description: Practice questions
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AiInterviewPrepResponse" }
+        "403": { description: Not allowed }
+        "404": { description: Candidate or job not found }
+        "429": { description: Daily AI limit reached }
+        "503": { description: AI service unavailable }
+
+  /candidates/{id}/ai/cv-critique:
+    post:
+      operationId: aiCvCritique
+      tags: [ai, candidates]
+      summary: Section-level critique of the candidate profile / CV
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Section feedback
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AiCvCritiqueResponse" }
+        "403": { description: Not allowed }
+        "404": { description: Candidate not found }
+        "429": { description: Daily AI limit reached }
+        "503": { description: AI service unavailable }
 
   /candidates/{id}/cv:
     get:
@@ -4895,6 +4970,77 @@ components:
           format: date-time
           nullable: true
       required: [unlocked, cvText, generatedAt]
+
+    AiCoverNoteRequest:
+      type: object
+      properties:
+        jobId: { type: integer }
+      required: [jobId]
+
+    AiCoverNoteResponse:
+      type: object
+      properties:
+        draft: { type: string }
+        fromCache: { type: boolean }
+      required: [draft, fromCache]
+
+    AiInterviewPrepRequest:
+      type: object
+      properties:
+        jobId: { type: integer }
+      required: [jobId]
+
+    AiInterviewPrepQuestion:
+      type: object
+      properties:
+        question: { type: string }
+        scaffold:
+          type: object
+          properties:
+            situation: { type: string }
+            task: { type: string }
+            action: { type: string }
+            result: { type: string }
+          required: [situation, task, action, result]
+      required: [question, scaffold]
+
+    AiInterviewPrepResponse:
+      type: object
+      properties:
+        questions:
+          type: array
+          items: { $ref: "#/components/schemas/AiInterviewPrepQuestion" }
+        fromCache: { type: boolean }
+      required: [questions, fromCache]
+
+    AiCvCritiqueItem:
+      type: object
+      properties:
+        severity:
+          type: string
+          enum: [info, suggestion, warning]
+        message: { type: string }
+        suggestion: { type: string }
+      required: [severity, message, suggestion]
+
+    AiCvCritiqueSection:
+      type: object
+      properties:
+        section: { type: string }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/AiCvCritiqueItem" }
+      required: [section, items]
+
+    AiCvCritiqueResponse:
+      type: object
+      properties:
+        sections:
+          type: array
+          items: { $ref: "#/components/schemas/AiCvCritiqueSection" }
+        overall: { type: string }
+        fromCache: { type: boolean }
+      required: [sections, overall, fromCache]
 
     UpdateSiteContentRequest:
       type: object

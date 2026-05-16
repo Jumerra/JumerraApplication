@@ -2078,6 +2078,62 @@ export interface CandidateCvResponse {
   generatedAt: string | null;
 }
 
+export interface AiCoverNoteRequest {
+  jobId: number;
+}
+
+export interface AiCoverNoteResponse {
+  draft: string;
+  fromCache: boolean;
+}
+
+export interface AiInterviewPrepRequest {
+  jobId: number;
+}
+
+export type AiInterviewPrepQuestionScaffold = {
+  situation: string;
+  task: string;
+  action: string;
+  result: string;
+};
+
+export interface AiInterviewPrepQuestion {
+  question: string;
+  scaffold: AiInterviewPrepQuestionScaffold;
+}
+
+export interface AiInterviewPrepResponse {
+  questions: AiInterviewPrepQuestion[];
+  fromCache: boolean;
+}
+
+export type AiCvCritiqueItemSeverity =
+  (typeof AiCvCritiqueItemSeverity)[keyof typeof AiCvCritiqueItemSeverity];
+
+export const AiCvCritiqueItemSeverity = {
+  info: "info",
+  suggestion: "suggestion",
+  warning: "warning",
+} as const;
+
+export interface AiCvCritiqueItem {
+  severity: AiCvCritiqueItemSeverity;
+  message: string;
+  suggestion: string;
+}
+
+export interface AiCvCritiqueSection {
+  section: string;
+  items: AiCvCritiqueItem[];
+}
+
+export interface AiCvCritiqueResponse {
+  sections: AiCvCritiqueSection[];
+  overall: string;
+  fromCache: boolean;
+}
+
 export type UpdateSiteContentRequestItemsItemType =
   (typeof UpdateSiteContentRequestItemsItemType)[keyof typeof UpdateSiteContentRequestItemsItemType];
 

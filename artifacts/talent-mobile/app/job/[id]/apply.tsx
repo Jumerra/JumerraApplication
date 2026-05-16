@@ -2,9 +2,11 @@ import { Feather } from "@expo/vector-icons";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   getListApplicationsQueryKey,
+  useAiDraftCoverNote,
   useCreateApplication,
   useGetJob,
 } from "@workspace/api-client-react";
+import { useAuth } from "@/hooks/useAuth";
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import { router, useLocalSearchParams } from "expo-router";
@@ -38,6 +40,9 @@ export default function ApplyScreen() {
 
   const { data: job, isLoading, isError } = useGetJob(jobId);
   const createMutation = useCreateApplication();
+  const draftMutation = useAiDraftCoverNote();
+  const { user } = useAuth();
+  const candidateId = user?.candidateId ?? 0;
 
   const [coverNote, setCoverNote] = useState("");
   const trimmedLength = coverNote.trim().length;
@@ -175,9 +180,68 @@ export default function ApplyScreen() {
         </View>
 
         <View style={{ gap: 8 }}>
-          <Text style={[styles.label, { color: colors.foreground }]}>
-            Cover note
-          </Text>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 8,
+            }}
+          >
+            <Text style={[styles.label, { color: colors.foreground }]}>
+              Cover note
+            </Text>
+            {candidateId > 0 ? (
+              <Pressable
+                disabled={draftMutation.isPending}
+                onPress={() => {
+                  draftMutation.mutate(
+                    { id: candidateId, data: { jobId } },
+                    {
+                      onSuccess: (resp) => {
+                        setCoverNote(resp.draft.slice(0, MAX_LENGTH));
+                        if (Platform.OS !== "web") {
+                          Haptics.selectionAsync().catch(() => {});
+                        }
+                      },
+                      onError: (err: unknown) => {
+                        Alert.alert(
+                          "Couldn't draft",
+                          err instanceof Error
+                            ? err.message
+                            : "AI draft failed. Try again later.",
+                        );
+                      },
+                    },
+                  );
+                }}
+                style={({ pressed }) => [
+                  {
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 6,
+                    paddingHorizontal: 12,
+                    paddingVertical: 8,
+                    borderRadius: colors.radius,
+                    borderWidth: 1,
+                    borderColor: colors.primary,
+                    opacity: pressed || draftMutation.isPending ? 0.7 : 1,
+                  },
+                ]}
+              >
+                <Feather name="zap" size={14} color={colors.primary} />
+                <Text
+                  style={{
+                    color: colors.primary,
+                    fontFamily: "Inter_600SemiBold",
+                    fontSize: 12,
+                  }}
+                >
+                  {draftMutation.isPending ? "Drafting…" : "Draft with AI"}
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
           <Text style={[styles.helper, { color: colors.mutedForeground }]}>
             Tell {job.employerName} why you'd be a great fit for this role.
           </Text>

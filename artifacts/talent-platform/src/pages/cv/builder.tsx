@@ -25,6 +25,7 @@ import {
   Lock,
   AlertCircle,
 } from "lucide-react";
+import { CvCritiquePanel } from "@/components/CvCritiquePanel";
 
 export default function CvBuilderPage() {
   const { userId, role, sessionUser } = useAuth();
@@ -178,6 +179,8 @@ export default function CvBuilderPage() {
           </div>
         </CardContent>
       </Card>
+
+      <CvCritiquePanel candidateId={candidateId} />
 
       {cv?.cvText && (
         <Card>

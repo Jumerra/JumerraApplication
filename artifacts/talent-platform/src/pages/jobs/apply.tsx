@@ -1,4 +1,4 @@
-import { useGetJob, useCreateApplication, getListApplicationsQueryKey, getGetCandidateDashboardQueryKey, getGetJobQueryKey } from "@workspace/api-client-react";
+import { useGetJob, useCreateApplication, useAiDraftCoverNote, getListApplicationsQueryKey, getGetCandidateDashboardQueryKey, getGetJobQueryKey } from "@workspace/api-client-react";
 import { Link, useParams, useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { useQueryClient } from "@tanstack/react-query";
@@ -10,7 +10,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { ArrowLeft, MapPin, Banknote } from "lucide-react";
+import { ArrowLeft, MapPin, Banknote, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 const formSchema = z.object({
@@ -24,6 +24,7 @@ export default function JobApply() {
   const queryClient = useQueryClient();
   const { data: job, isLoading } = useGetJob(Number(jobId));
   const applyMutation = useCreateApplication();
+  const draftMutation = useAiDraftCoverNote();
   
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -61,6 +62,31 @@ export default function JobApply() {
         toast.error("Failed to submit application. Have you already applied?");
       }
     });
+  };
+
+  const onDraft = () => {
+    if (!userId) return;
+    draftMutation.mutate(
+      { id: userId, data: { jobId: Number(jobId) } },
+      {
+        onSuccess: (resp) => {
+          form.setValue("coverNote", resp.draft, {
+            shouldValidate: true,
+            shouldDirty: true,
+          });
+          toast.success(
+            resp.fromCache
+              ? "Loaded your saved AI draft"
+              : "Draft ready — tweak it to make it yours.",
+          );
+        },
+        onError: (err: unknown) => {
+          const message =
+            err instanceof Error ? err.message : "Couldn't draft a cover note";
+          toast.error(message);
+        },
+      },
+    );
   };
 
   return (
@@ -104,13 +130,28 @@ export default function JobApply() {
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <FormField control={form.control} name="coverNote" render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-base font-semibold">Cover Note</FormLabel>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Why are you a great fit for this role? What makes you excited about {job.employerName}?
-                  </p>
+                  <div className="flex items-center justify-between gap-4 flex-wrap">
+                    <div>
+                      <FormLabel className="text-base font-semibold">Cover Note</FormLabel>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Why are you a great fit for this role? What makes you excited about {job.employerName}?
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={onDraft}
+                      disabled={draftMutation.isPending}
+                      data-testid="button-ai-draft-cover-note"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 mr-1.5" />
+                      {draftMutation.isPending ? "Drafting..." : "Draft with AI"}
+                    </Button>
+                  </div>
                   <FormControl>
                     <Textarea 
-                      className="min-h-[250px] resize-y" 
+                      className="min-h-[250px] resize-y mt-3" 
                       placeholder="I'm excited to apply for this role because..." 
                       {...field} 
                     />

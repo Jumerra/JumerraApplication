@@ -24,6 +24,7 @@ import interviewsRouter from "./interviews";
 import profileViewsRouter from "./profile-views";
 import trustRouter from "./trust";
 import engagementRouter from "./engagement";
+import aiRouter from "./ai";
 import { requireAuth } from "../middleware/require-auth";
 
 const router: IRouter = Router();
@@ -70,6 +71,7 @@ router.use(interviewsRouter);
 router.use(profileViewsRouter);
 router.use(trustRouter);
 router.use(engagementRouter);
+router.use(aiRouter);
 router.use(candidatesRouter);
 router.use(employersRouter);
 router.use(institutionsRouter);

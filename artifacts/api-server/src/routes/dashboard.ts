@@ -423,7 +423,7 @@ router.get("/dashboard/candidate/:id", async (req, res): Promise<void> => {
   const recommendedJobs = allJobs
     .filter(({ job }) => !appliedJobIds.has(job.id))
     .map(({ job, employer }) => {
-      const { score, matchedSkills } = calculateMatchScore(
+      const breakdown = calculateMatchScore(
         job.skills,
         candidate.skills,
         candidate.yearsExperience,
@@ -439,8 +439,9 @@ router.get("/dashboard/candidate/:id", async (req, res): Promise<void> => {
         salaryMin: job.salaryMin,
         salaryMax: job.salaryMax,
         currency: job.currency,
-        matchScore: score,
-        matchedSkills,
+        matchScore: breakdown.score,
+        matchedSkills: breakdown.matchedSkills,
+        matchBreakdown: breakdown,
       };
     })
     .sort((a, b) => b.matchScore - a.matchScore)

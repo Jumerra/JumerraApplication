@@ -18,6 +18,54 @@ import { TalentScoreBreakdown } from "@/components/talent-score-breakdown";
 import { WeeklyDigestCard } from "@/components/weekly-digest-card";
 import { CvCard } from "@/components/cv-card";
 import { PendingInterviewInvitesCard } from "@/components/pending-interview-invites-card";
+import { useState } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
+import { WhyMatched } from "@/components/WhyMatched";
+import type { JobMatch } from "@workspace/api-client-react";
+
+function RecommendedJobRow({ job }: { job: JobMatch }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div
+      className="group bg-card rounded-xl p-4 shadow-sm border border-border/50 hover:border-primary/50 transition-all"
+      data-testid={`recommended-job-${job.jobId}`}
+    >
+      <div className="flex gap-3">
+        <Link href={`/jobs/${job.jobId}`} className="shrink-0">
+          <img src={job.employerLogoUrl} alt="" className="w-10 h-10 rounded-lg bg-muted object-cover border" />
+        </Link>
+        <div className="flex-1 min-w-0">
+          <Link href={`/jobs/${job.jobId}`} className="block">
+            <p className="font-bold text-sm truncate group-hover:text-primary transition-colors">{job.title}</p>
+            <p className="text-xs text-muted-foreground">{job.employerName}</p>
+          </Link>
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <span className="text-xs font-medium text-green-600 dark:text-green-400">
+              {job.salaryMin ? `${job.currency} ${(job.salaryMin/1000).toFixed(0)}k+` : job.location}
+            </span>
+            <Badge variant="secondary" className="bg-primary/10 text-primary text-[10px] px-1.5 py-0 h-5">
+              {job.matchScore}% Match
+            </Badge>
+          </div>
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            className="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
+            data-testid={`why-matched-toggle-${job.jobId}`}
+          >
+            {open ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            Why we matched you
+          </button>
+          {open && (
+            <div className="mt-2 pt-3 border-t">
+              <WhyMatched breakdown={job.matchBreakdown} />
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function ProfileViewsCard({ candidateId }: { candidateId: number }) {
   const { data: candidate } = useGetCandidate(candidateId, {
@@ -295,23 +343,7 @@ export default function CandidateDashboard() {
               {dashboard.recommendedJobs.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Add more skills to get recommendations.</p>
               ) : dashboard.recommendedJobs.map(job => (
-                <div key={job.jobId} className="group bg-card rounded-xl p-4 shadow-sm border border-border/50 hover:border-primary/50 transition-all cursor-pointer" onClick={() => window.location.href = `/jobs/${job.jobId}`}>
-                  <div className="flex gap-3">
-                    <img src={job.employerLogoUrl} alt="" className="w-10 h-10 rounded-lg bg-muted object-cover border" />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-bold text-sm truncate group-hover:text-primary transition-colors">{job.title}</p>
-                      <p className="text-xs text-muted-foreground">{job.employerName}</p>
-                      <div className="mt-2 flex items-center justify-between">
-                        <span className="text-xs font-medium text-green-600 dark:text-green-400">
-                          {job.salaryMin ? `${job.currency} ${(job.salaryMin/1000).toFixed(0)}k+` : job.location}
-                        </span>
-                        <Badge variant="secondary" className="bg-primary/10 text-primary text-[10px] px-1.5 py-0 h-5">
-                          {job.matchScore}% Match
-                        </Badge>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <RecommendedJobRow key={job.jobId} job={job} />
               ))}
             </CardContent>
           </Card>

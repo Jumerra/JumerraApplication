@@ -5,10 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MapPin, Building2, Calendar, Banknote, CheckCircle2, UserCircle, Star, Megaphone } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { InterviewPrepPanel } from "@/components/InterviewPrepPanel";
 
 export default function JobDetail() {
   const { id } = useParams();
-  const { role } = useAuth();
+  const { role, userId } = useAuth();
   
   const { data: job, isLoading } = useGetJob(Number(id));
   const { data: matches } = useGetJobMatches(Number(id), {
@@ -105,6 +106,12 @@ export default function JobDetail() {
                 ))}
               </ul>
               
+              {role === "candidate" && userId && job.id && (
+                <div className="mt-8 not-prose">
+                  <InterviewPrepPanel candidateId={userId} jobId={job.id} />
+                </div>
+              )}
+
               {job.benefits?.length > 0 && (
                 <>
                   <h2 className="text-xl font-semibold mt-8 mb-4">Benefits</h2>

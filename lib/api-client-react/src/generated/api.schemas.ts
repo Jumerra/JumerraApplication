@@ -1453,8 +1453,8 @@ export interface JobMatch {
   matchScore: number;
   matchedSkills: string[];
   matchBreakdown: MatchBreakdown;
-  tier: JobMatchTier;
-  tierExpiresAt: string | null;
+  tier?: JobMatchTier;
+  tierExpiresAt?: string | null;
 }
 
 export type PlatformStatsApplicationsByStatusItem = {

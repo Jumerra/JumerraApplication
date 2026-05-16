@@ -22,6 +22,6 @@ export interface JobMatch {
   matchScore: number;
   matchedSkills: string[];
   matchBreakdown: MatchBreakdown;
-  tier: JobMatchTier;
-  tierExpiresAt: Date | null;
+  tier?: JobMatchTier;
+  tierExpiresAt?: Date | null;
 }

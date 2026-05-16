@@ -1643,8 +1643,8 @@ export const GetCandidateRecommendationsResponseItem = zod.object({
     .describe(
       'Transparent breakdown of why a candidate scored a particular\nmatch against a job (or vice versa). The score is a weighted\nsum: skills 65%, experience 15%, talent 20%. The \"Pct\" fields\nare 0-100 raw component scores; the \"Contribution\" fields are\neach component\'s already-weighted contribution to the final\nscore (so they sum to roughly the displayed match score).\n',
     ),
-  tier: zod.enum(["free", "promoted", "sponsored"]),
-  tierExpiresAt: zod.coerce.date().nullable(),
+  tier: zod.enum(["free", "promoted", "sponsored"]).optional(),
+  tierExpiresAt: zod.coerce.date().nullish(),
 });
 export const GetCandidateRecommendationsResponse = zod.array(
   GetCandidateRecommendationsResponseItem,
@@ -2256,8 +2256,8 @@ export const GetCandidateDashboardResponse = zod.object({
         .describe(
           'Transparent breakdown of why a candidate scored a particular\nmatch against a job (or vice versa). The score is a weighted\nsum: skills 65%, experience 15%, talent 20%. The \"Pct\" fields\nare 0-100 raw component scores; the \"Contribution\" fields are\neach component\'s already-weighted contribution to the final\nscore (so they sum to roughly the displayed match score).\n',
         ),
-      tier: zod.enum(["free", "promoted", "sponsored"]),
-      tierExpiresAt: zod.coerce.date().nullable(),
+      tier: zod.enum(["free", "promoted", "sponsored"]).optional(),
+      tierExpiresAt: zod.coerce.date().nullish(),
     }),
   ),
   recentApplications: zod.array(

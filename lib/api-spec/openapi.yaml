@@ -3989,8 +3989,6 @@ components:
         - matchScore
         - matchedSkills
         - matchBreakdown
-        - tier
-        - tierExpiresAt
 
     MatchBreakdown:
       type: object

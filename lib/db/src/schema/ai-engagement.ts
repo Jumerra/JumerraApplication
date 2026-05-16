@@ -24,7 +24,17 @@ export const aiRequestCacheTable = pgTable(
     kind: text("kind").notNull(),
     keyHash: text("key_hash").notNull(),
     output: jsonb("output").notNull(),
+    // Number of upstream AI invocations that have been attempted for
+    // this cache row. Incremented on every retry (including failed
+    // attempts that left the row in `_pending` state) so the daily
+    // quota is computed from `SUM(attempts)`, not `COUNT(*)`. This
+    // prevents callers from burning through Anthropic credits by
+    // hammering the same key after a parse/model failure.
+    attempts: integer("attempts").notNull().default(1),
     createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
   },

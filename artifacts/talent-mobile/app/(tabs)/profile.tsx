@@ -36,6 +36,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { EmptyState } from "@/components/EmptyState";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { SkillChip } from "@/components/SkillChip";
+import { CvCritiqueCard } from "@/components/CvCritiqueCard";
 import { useAuth } from "@/hooks/useAuth";
 import { useColors } from "@/hooks/useColors";
 import { avatarSrc } from "@/lib/avatar";
@@ -427,6 +428,10 @@ export default function ProfileScreen() {
       ) : null}
 
       <PremiumSection candidateId={candidateId} />
+
+      <View style={styles.section}>
+        <CvCritiqueCard candidateId={candidateId} />
+      </View>
 
       <SignOutButton onPress={onSignOut} pending={signOutPending} />
     </ScrollView>

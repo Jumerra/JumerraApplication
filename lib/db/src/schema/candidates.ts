@@ -40,14 +40,16 @@ export const candidatesTable = pgTable("candidates", {
   // directory. When true, other verified members of the same institution
   // can see them in the mentor browser and send a one-shot intro request.
   alumniMentorOptin: boolean("alumni_mentor_optin").notNull().default(false),
-  // Per-user opt-out from the warm-intro flow (Task #74). When false,
-  // the candidate is excluded from /jobs/:id/alumni-at-employer and no
-  // incoming intro requests can be created against them. Defaults true
-  // so existing alumni are surfaced. Mirrors `allow_intro_requests`
-  // on `users` for the rare role-mismatch case (e.g. employer staff
-  // who were once candidates) — we read this column for the candidate
-  // row but the dedicated user column on auth is what gates incoming
-  // requests at the API boundary.
+  // Opt-out from the warm-intro flow (Task #74). When false, the
+  // candidate is excluded from /jobs/:id/alumni-at-employer and no
+  // incoming intro requests can be created against them. Defaults
+  // true so existing alumni are surfaced. The original task spec
+  // called for this column on `users`, but it lives on `candidates`
+  // because only candidate accounts can ever be alumni-as-target
+  // (employer/institution staff never appear in alumni rosters);
+  // gating at the candidate row is therefore both sufficient and
+  // unambiguous. The API enforces it on both create and respond
+  // paths in routes/alumni-intros.ts.
   allowIntroRequests: boolean("allow_intro_requests").notNull().default(true),
   aiCvUnlocked: boolean("ai_cv_unlocked").notNull().default(false),
   aiCvUnlockedAt: timestamp("ai_cv_unlocked_at", { withTimezone: true }),

@@ -1,9 +1,12 @@
+import { useState, useMemo } from "react";
 import {
+  customFetch,
   useGetCandidateWeeklyDigest,
   getGetCandidateWeeklyDigestQueryKey,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { CalendarRange, Eye, Send, Calendar, Target } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { CalendarRange, Eye, Send, Calendar, Target, X } from "lucide-react";
 import { Link } from "wouter";
 
 export function WeeklyDigestCard({ candidateId }: { candidateId: number }) {
@@ -15,6 +18,28 @@ export function WeeklyDigestCard({ candidateId }: { candidateId: number }) {
   });
 
   const digest = data?.digest ?? null;
+  const [dismissedIds, setDismissedIds] = useState<Set<number>>(new Set());
+
+  const visibleMatches = useMemo(() => {
+    if (!digest) return [];
+    return digest.newMatches
+      .filter((m) => !dismissedIds.has(m.jobId))
+      .slice(0, 5);
+  }, [digest, dismissedIds]);
+
+  const handleDismiss = (jobId: number) => {
+    setDismissedIds((prev) => {
+      const next = new Set(prev);
+      next.add(jobId);
+      return next;
+    });
+    customFetch("/api/me/feed/dismiss", {
+      method: "POST",
+      body: JSON.stringify({ jobId }),
+    }).catch(() => {
+      // best-effort: keep it hidden locally even if persistence fails
+    });
+  };
 
   if (!digest) {
     return (
@@ -57,17 +82,21 @@ export function WeeklyDigestCard({ candidateId }: { candidateId: number }) {
             </div>
           ))}
         </div>
-        {digest.newMatches.length > 0 ? (
+        {visibleMatches.length > 0 ? (
           <div className="space-y-2">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-              <Target className="w-3 h-3" /> New matches this week
+              <Target className="w-3 h-3" /> Top picks this week
             </p>
-            <ul className="space-y-1.5">
-              {digest.newMatches.slice(0, 3).map((m) => (
-                <li key={m.jobId}>
+            <ul className="space-y-2" data-testid="weekly-digest-top-picks">
+              {visibleMatches.map((m) => (
+                <li
+                  key={m.jobId}
+                  className="rounded-md border bg-card p-2.5 space-y-2"
+                  data-testid={`weekly-digest-match-${m.jobId}`}
+                >
                   <Link
                     to={`/jobs/${m.jobId}`}
-                    className="flex items-center justify-between gap-3 rounded-md p-2 hover:bg-accent text-sm"
+                    className="flex items-center justify-between gap-3 text-sm hover:text-primary"
                   >
                     <div className="min-w-0 flex-1">
                       <p className="font-medium truncate">{m.title}</p>
@@ -77,10 +106,36 @@ export function WeeklyDigestCard({ candidateId }: { candidateId: number }) {
                       {m.matchScore}% match
                     </span>
                   </Link>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      asChild
+                      size="sm"
+                      className="h-7 px-2.5 text-xs"
+                      data-testid={`weekly-digest-apply-${m.jobId}`}
+                    >
+                      <Link to={`/jobs/${m.jobId}/apply`}>
+                        <Send className="w-3 h-3 mr-1" /> Apply
+                      </Link>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 px-2.5 text-xs"
+                      onClick={() => handleDismiss(m.jobId)}
+                      data-testid={`weekly-digest-dismiss-${m.jobId}`}
+                    >
+                      <X className="w-3 h-3 mr-1" /> Dismiss
+                    </Button>
+                  </div>
                 </li>
               ))}
             </ul>
           </div>
+        ) : digest.newMatches.length > 0 ? (
+          <p className="text-xs text-muted-foreground">
+            You've cleared this week's picks. New ones land next Monday.
+          </p>
         ) : null}
       </CardContent>
     </Card>

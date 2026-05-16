@@ -1,5 +1,10 @@
 import { Feather } from "@expo/vector-icons";
-import { customFetch } from "@workspace/api-client-react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+  customFetch,
+  getListTalentPoolsQueryKey,
+  useListTalentPools,
+} from "@workspace/api-client-react";
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import { Stack } from "expo-router";
@@ -13,6 +18,8 @@ import React, {
 import {
   Animated,
   Dimensions,
+  FlatList,
+  Modal,
   PanResponder,
   Platform,
   Pressable,
@@ -78,10 +85,16 @@ const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.28;
 const ROTATE_RANGE = 12;
 const SNACKBAR_DURATION_MS = 5000;
 
+const DEFAULT_POOL_VALUE = "default";
+
+const poolPrefStorageKey = (employerId: number) =>
+  `jumerra:dailyDeck:poolId:${employerId}`;
+
 export default function EmployerDeckScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const employerId = user?.employerId ?? 0;
 
   const [data, setData] = useState<DeckResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -89,6 +102,81 @@ export default function EmployerDeckScreen() {
   const [index, setIndex] = useState(0);
   const [busy, setBusy] = useState(false);
   const [snackbar, setSnackbar] = useState<SnackbarState | null>(null);
+  // Pool selection. `DEFAULT_POOL_VALUE` means "let the server pick the
+  // per-employer / per-role default pool". Any other value is the
+  // stringified `talent_pools.id` the employer wants right-swipes to
+  // route into. Persisted per-employer via AsyncStorage so the choice
+  // survives app launches (mirrors the web `localStorage` behavior).
+  const [selectedPoolId, setSelectedPoolId] =
+    useState<string>(DEFAULT_POOL_VALUE);
+  const [poolPickerOpen, setPoolPickerOpen] = useState(false);
+
+  const { data: pools } = useListTalentPools(employerId, {
+    query: {
+      enabled: employerId > 0,
+      queryKey: getListTalentPoolsQueryKey(employerId),
+    },
+  });
+
+  // Hydrate the saved pool preference once the user (and therefore
+  // employerId) is known. Stored under a per-employer key so swapping
+  // accounts on the same device doesn't leak the previous owner's
+  // choice.
+  useEffect(() => {
+    if (employerId <= 0) return;
+    let cancelled = false;
+    AsyncStorage.getItem(poolPrefStorageKey(employerId))
+      .then((stored) => {
+        if (cancelled) return;
+        if (stored) setSelectedPoolId(stored);
+      })
+      .catch(() => {
+        // ignore — fall back to default
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [employerId]);
+
+  // If the previously-saved pool has been deleted server-side, fall
+  // back to the default so the picker doesn't get stuck on a stale id.
+  useEffect(() => {
+    if (selectedPoolId === DEFAULT_POOL_VALUE) return;
+    if (!pools) return;
+    const stillExists = pools.some((p) => String(p.id) === selectedPoolId);
+    if (!stillExists) {
+      setSelectedPoolId(DEFAULT_POOL_VALUE);
+      if (employerId > 0) {
+        AsyncStorage.removeItem(poolPrefStorageKey(employerId)).catch(() => {});
+      }
+    }
+  }, [pools, selectedPoolId, employerId]);
+
+  const persistPoolChoice = useCallback(
+    (next: string) => {
+      setSelectedPoolId(next);
+      if (employerId <= 0) return;
+      const key = poolPrefStorageKey(employerId);
+      if (next === DEFAULT_POOL_VALUE) {
+        AsyncStorage.removeItem(key).catch(() => {});
+      } else {
+        AsyncStorage.setItem(key, next).catch(() => {});
+      }
+    },
+    [employerId],
+  );
+
+  const selectedPoolName = useMemo(() => {
+    if (selectedPoolId === DEFAULT_POOL_VALUE) return "Daily picks";
+    return (
+      pools?.find((p) => String(p.id) === selectedPoolId)?.name ?? "Daily picks"
+    );
+  }, [pools, selectedPoolId]);
+
+  // Numeric pool id to send to the API on shortlist/undo. `undefined`
+  // means "use the server-side default pool".
+  const selectedPoolIdNumeric: number | undefined =
+    selectedPoolId === DEFAULT_POOL_VALUE ? undefined : Number(selectedPoolId);
 
   const pan = useRef(new Animated.ValueXY()).current;
   const snackbarTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -202,6 +290,11 @@ export default function EmployerDeckScreen() {
 
   const performShortlist = useCallback(
     async (item: DeckItem, swipedIndex: number) => {
+      // Snapshot the chosen pool *at swipe time* so a later picker
+      // change can't poison the in-flight POST or its matching undo
+      // (the undo DELETE must target the same pool the POST landed in).
+      const poolIdAtSwipe = selectedPoolIdNumeric;
+      const poolNameAtSwipe = selectedPoolName;
       try {
         const res = await customFetch<ShortlistResponse>(
           `/api/me/daily-deck/${item.candidate.id}/shortlist`,
@@ -210,16 +303,21 @@ export default function EmployerDeckScreen() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               jobId: item.bestJobId ?? undefined,
+              poolId: poolIdAtSwipe,
             }),
           },
         );
+        // Prefer the server-echoed poolId for undo — it's authoritative
+        // (e.g. when the client sent undefined and the server resolved
+        // the per-role default).
+        const undoPoolId = res.poolId ?? poolIdAtSwipe;
         showSnackbar({
-          message: `${item.candidate.fullName} added to your shortlist`,
+          message: `${item.candidate.fullName} added to ${poolNameAtSwipe}`,
           onUndo:
-            res.poolId != null
+            undoPoolId != null
               ? () =>
                   undoSwipe(swipedIndex, item, "shortlist", {
-                    poolId: res.poolId,
+                    poolId: undoPoolId,
                   })
               : null,
         });
@@ -231,7 +329,13 @@ export default function EmployerDeckScreen() {
         });
       }
     },
-    [rollbackAdvance, showSnackbar, undoSwipe],
+    [
+      rollbackAdvance,
+      selectedPoolIdNumeric,
+      selectedPoolName,
+      showSnackbar,
+      undoSwipe,
+    ],
   );
 
   const performDismiss = useCallback(
@@ -406,14 +510,48 @@ export default function EmployerDeckScreen() {
         <Text style={[styles.title, { color: colors.foreground }]}>
           Daily picks
         </Text>
-        <Text
-          style={{
-            color: colors.mutedForeground,
-            fontFamily: "Inter_500Medium",
-          }}
-        >
-          {data ? Math.max(data.items.length - index, 0) : 0} left today
-        </Text>
+        <View style={{ alignItems: "flex-end" }}>
+          <Pressable
+            onPress={() => setPoolPickerOpen(true)}
+            testID="employer-deck-pool-picker"
+            accessibilityRole="button"
+            accessibilityLabel={`Save to ${selectedPoolName}`}
+            style={[
+              styles.poolBtn,
+              { backgroundColor: colors.muted, borderColor: colors.border },
+            ]}
+          >
+            <Feather name="folder" size={12} color={colors.mutedForeground} />
+            <Text
+              numberOfLines={1}
+              style={{
+                marginLeft: 6,
+                marginRight: 4,
+                maxWidth: 140,
+                color: colors.foreground,
+                fontFamily: "Inter_600SemiBold",
+                fontSize: 12,
+              }}
+            >
+              {selectedPoolName}
+            </Text>
+            <Feather
+              name="chevron-down"
+              size={14}
+              color={colors.mutedForeground}
+            />
+          </Pressable>
+          <Text
+            style={{
+              marginTop: 4,
+              color: colors.mutedForeground,
+              fontFamily: "Inter_500Medium",
+              fontSize: 12,
+            }}
+          >
+            {data ? Math.max(data.items.length - index, 0) : 0} left today
+          </Text>
+        </View>
       </View>
 
       {current ? (
@@ -552,6 +690,103 @@ export default function EmployerDeckScreen() {
           </View>
         </View>
       ) : null}
+
+      <Modal
+        visible={poolPickerOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setPoolPickerOpen(false)}
+      >
+        <Pressable
+          style={styles.pickerBackdrop}
+          onPress={() => setPoolPickerOpen(false)}
+        >
+          {/* Inner Pressable swallows taps on the sheet itself so they
+              don't bubble up to the backdrop and dismiss the modal. */}
+          <Pressable
+            onPress={() => {}}
+            style={[
+              styles.pickerSheet,
+              {
+                backgroundColor: colors.background,
+                borderColor: colors.border,
+                paddingBottom: insets.bottom + 16,
+              },
+            ]}
+          >
+            <View style={styles.pickerHandle}>
+              <View
+                style={{
+                  width: 36,
+                  height: 4,
+                  borderRadius: 2,
+                  backgroundColor: colors.border,
+                }}
+              />
+            </View>
+            <Text style={[styles.pickerTitle, { color: colors.foreground }]}>
+              Save right-swipes to
+            </Text>
+            <Text
+              style={{
+                paddingHorizontal: 20,
+                color: colors.mutedForeground,
+                fontFamily: "Inter_400Regular",
+                fontSize: 13,
+                marginBottom: 8,
+              }}
+            >
+              Choose where shortlisted candidates land. We'll remember this for
+              next time.
+            </Text>
+            <FlatList
+              data={[
+                { id: DEFAULT_POOL_VALUE, name: "Daily picks (default)" },
+                ...(pools ?? []).map((p) => ({
+                  id: String(p.id),
+                  name: p.name,
+                })),
+              ]}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => {
+                const isSelected = item.id === selectedPoolId;
+                return (
+                  <Pressable
+                    onPress={() => {
+                      persistPoolChoice(item.id);
+                      setPoolPickerOpen(false);
+                    }}
+                    testID={`employer-deck-pool-option-${item.id}`}
+                    style={({ pressed }) => [
+                      styles.pickerRow,
+                      {
+                        borderBottomColor: colors.border,
+                        backgroundColor: pressed ? colors.muted : "transparent",
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={{
+                        flex: 1,
+                        color: colors.foreground,
+                        fontFamily: isSelected
+                          ? "Inter_700Bold"
+                          : "Inter_500Medium",
+                        fontSize: 15,
+                      }}
+                    >
+                      {item.name}
+                    </Text>
+                    {isSelected ? (
+                      <Feather name="check" size={18} color={colors.primary} />
+                    ) : null}
+                  </Pressable>
+                );
+              }}
+            />
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -841,5 +1076,39 @@ const styles = StyleSheet.create({
   snackbarAction: {
     paddingHorizontal: 12,
     paddingVertical: 8,
+  },
+  poolBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  pickerBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  pickerSheet: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderTopWidth: 1,
+    maxHeight: "75%",
+  },
+  pickerHandle: { alignItems: "center", paddingTop: 8, paddingBottom: 4 },
+  pickerTitle: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 18,
+    paddingHorizontal: 20,
+    paddingTop: 4,
+    paddingBottom: 4,
+  },
+  pickerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
 });

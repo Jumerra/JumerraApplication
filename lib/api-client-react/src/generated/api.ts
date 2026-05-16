@@ -107,6 +107,7 @@ import type {
   ListRegistrationsParams,
   LoginRequest,
   LogoutUser200,
+  MatchBreakdown,
   MigrateLegacyEmployerSubscriptionsResponse,
   OkResponse,
   OnboardRequest,
@@ -10619,6 +10620,98 @@ export const useAiInterviewPrep = <
 > => {
   return useMutation(getAiInterviewPrepMutationOptions(options));
 };
+
+/**
+ * @summary Per-(candidate, job) match breakdown for the "Why we matched you" explainer
+ */
+export const getGetCandidateJobMatchUrl = (id: number, jobId: number) => {
+  return `/api/candidates/${id}/match/${jobId}`;
+};
+
+export const getCandidateJobMatch = async (
+  id: number,
+  jobId: number,
+  options?: RequestInit,
+): Promise<MatchBreakdown> => {
+  return customFetch<MatchBreakdown>(getGetCandidateJobMatchUrl(id, jobId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetCandidateJobMatchQueryKey = (id: number, jobId: number) => {
+  return [`/api/candidates/${id}/match/${jobId}`] as const;
+};
+
+export const getGetCandidateJobMatchQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCandidateJobMatch>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  jobId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCandidateJobMatch>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetCandidateJobMatchQueryKey(id, jobId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getCandidateJobMatch>>
+  > = ({ signal }) =>
+    getCandidateJobMatch(id, jobId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!(id && jobId),
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCandidateJobMatch>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetCandidateJobMatchQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCandidateJobMatch>>
+>;
+export type GetCandidateJobMatchQueryError = ErrorType<void>;
+
+/**
+ * @summary Per-(candidate, job) match breakdown for the "Why we matched you" explainer
+ */
+
+export function useGetCandidateJobMatch<
+  TData = Awaited<ReturnType<typeof getCandidateJobMatch>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  jobId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCandidateJobMatch>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetCandidateJobMatchQueryOptions(id, jobId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Section-level critique of the candidate profile / CV

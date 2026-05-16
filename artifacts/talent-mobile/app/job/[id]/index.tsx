@@ -27,6 +27,11 @@ import { TierBadge } from "@/components/TierBadge";
 import { useAuth } from "@/hooks/useAuth";
 import { useColors } from "@/hooks/useColors";
 import { InterviewPrepCard } from "@/components/InterviewPrepCard";
+import { WhyMatched } from "@/components/WhyMatched";
+import {
+  getGetCandidateJobMatchQueryKey,
+  useGetCandidateJobMatch,
+} from "@workspace/api-client-react";
 import { formatSalary } from "@/lib/format";
 
 export default function JobDetailScreen() {
@@ -234,6 +239,12 @@ export default function JobDetailScreen() {
                   </View>
                 ))}
               </View>
+            </Section>
+          ) : null}
+
+          {isCandidate && candidateId > 0 ? (
+            <Section title="Why we matched you">
+              <MatchExplainer candidateId={candidateId} jobId={jobId} />
             </Section>
           ) : null}
 
@@ -492,3 +503,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
 });
+
+function MatchExplainer({ candidateId, jobId }: { candidateId: number; jobId: number }) {
+  const { data, isLoading } = useGetCandidateJobMatch(candidateId, jobId, {
+    query: {
+      queryKey: getGetCandidateJobMatchQueryKey(candidateId, jobId),
+      enabled: candidateId > 0 && jobId > 0,
+    },
+  });
+  if (isLoading || !data) return null;
+  return <WhyMatched breakdown={data} />;
+}

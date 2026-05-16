@@ -2482,6 +2482,29 @@ paths:
         "429": { description: Daily AI limit reached }
         "503": { description: AI service unavailable }
 
+  /candidates/{id}/match/{jobId}:
+    get:
+      operationId: getCandidateJobMatch
+      tags: [candidates]
+      summary: Per-(candidate, job) match breakdown for the "Why we matched you" explainer
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+        - in: path
+          name: jobId
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Match breakdown
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MatchBreakdown" }
+        "403": { description: Not allowed }
+        "404": { description: Candidate or job not found }
+
   /candidates/{id}/ai/cv-critique:
     post:
       operationId: aiCvCritique

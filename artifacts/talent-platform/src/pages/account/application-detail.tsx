@@ -5,9 +5,12 @@ import {
 } from "@workspace/api-client-react";
 import { useAuth } from "@/lib/auth";
 import { ApplicationTimeline } from "@/components/application-timeline";
+import { InterviewPrepPanel } from "@/components/InterviewPrepPanel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft } from "lucide-react";
+
+const PREP_STATUSES = new Set(["screening", "interview", "offer", "hired"]);
 
 export default function ApplicationDetailPage() {
   const params = useParams<{ id: string }>();
@@ -47,6 +50,9 @@ export default function ApplicationDetailPage() {
             </Link>
           </CardContent>
         </Card>
+      ) : null}
+      {app && candidateId > 0 && PREP_STATUSES.has(app.status) ? (
+        <InterviewPrepPanel candidateId={candidateId} jobId={app.jobId} />
       ) : null}
       {applicationId > 0 ? <ApplicationTimeline applicationId={applicationId} /> : null}
     </div>

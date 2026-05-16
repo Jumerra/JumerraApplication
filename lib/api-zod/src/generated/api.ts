@@ -4115,6 +4115,30 @@ export const AiInterviewPrepResponse = zod.object({
 });
 
 /**
+ * @summary Per-(candidate, job) match breakdown for the "Why we matched you" explainer
+ */
+export const GetCandidateJobMatchParams = zod.object({
+  id: zod.coerce.number(),
+  jobId: zod.coerce.number(),
+});
+
+export const GetCandidateJobMatchResponse = zod
+  .object({
+    skillCoveragePct: zod.number(),
+    experiencePct: zod.number(),
+    talentPct: zod.number(),
+    skillContribution: zod.number(),
+    experienceContribution: zod.number(),
+    talentContribution: zod.number(),
+    matchedSkills: zod.array(zod.string()),
+    missingSkills: zod.array(zod.string()),
+    summary: zod.string(),
+  })
+  .describe(
+    'Transparent breakdown of why a candidate scored a particular\nmatch against a job (or vice versa). The score is a weighted\nsum: skills 65%, experience 15%, talent 20%. The \"Pct\" fields\nare 0-100 raw component scores; the \"Contribution\" fields are\neach component\'s already-weighted contribution to the final\nscore (so they sum to roughly the displayed match score).\n',
+  );
+
+/**
  * @summary Section-level critique of the candidate profile / CV
  */
 export const AiCvCritiqueParams = zod.object({

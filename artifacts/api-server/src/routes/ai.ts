@@ -9,6 +9,7 @@ import {
   educationTable,
 } from "@workspace/db";
 import { requireAuth } from "../middleware/require-auth";
+import { calculateMatchScore } from "../lib/matching";
 import {
   aiCachedJson,
   AiRateLimitError,
@@ -256,6 +257,41 @@ Respond with JSON exactly:
     }
   },
 );
+
+router.get("/candidates/:id/match/:jobId", requireAuth, async (req, res) => {
+  try {
+    const candidateId = Number(req.params.id);
+    const jobId = Number(req.params.jobId);
+    if (!Number.isInteger(candidateId) || candidateId <= 0 || !Number.isInteger(jobId) || jobId <= 0) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    if (!ensureOwnerOrAdmin(candidateId, req.currentUser!)) {
+      res.status(403).json({ error: "Not allowed" });
+      return;
+    }
+    const [candRow, jobRow] = await Promise.all([
+      db.select().from(candidatesTable).where(eq(candidatesTable.id, candidateId)).limit(1),
+      db.select().from(jobsTable).where(eq(jobsTable.id, jobId)).limit(1),
+    ]);
+    const candidate = candRow[0];
+    const job = jobRow[0];
+    if (!candidate || !job) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+    const breakdown = calculateMatchScore(
+      job.skills,
+      candidate.skills,
+      candidate.yearsExperience,
+      candidate.talentScore,
+    );
+    res.json(breakdown);
+  } catch (err) {
+    req.log.error({ err }, "match breakdown failed");
+    res.status(500).json({ error: "Failed" });
+  }
+});
 
 router.post(
   "/candidates/:id/ai/cv-critique",

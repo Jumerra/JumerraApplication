@@ -9,8 +9,11 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-n
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ApplicationTimeline } from "@/components/ApplicationTimeline";
+import { InterviewPrepCard } from "@/components/InterviewPrepCard";
 import { useAuth } from "@/hooks/useAuth";
 import { useColors } from "@/hooks/useColors";
+
+const PREP_STATUSES = new Set(["screening", "interview", "offer", "hired"]);
 
 const WEB_TOP_INSET = Platform.OS === "web" ? 67 : 0;
 
@@ -77,6 +80,10 @@ export default function ApplicationDetailScreen() {
             </Text>
           </Pressable>
         </View>
+      ) : null}
+
+      {app && candidateId > 0 && PREP_STATUSES.has(app.status) ? (
+        <InterviewPrepCard candidateId={candidateId} jobId={app.jobId} />
       ) : null}
 
       {applicationId > 0 ? (

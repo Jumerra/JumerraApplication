@@ -39,6 +39,13 @@ import { SkillChip } from "@/components/SkillChip";
 import { useAuth } from "@/hooks/useAuth";
 import { useColors } from "@/hooks/useColors";
 import { avatarSrc } from "@/lib/avatar";
+import {
+  buildCancelUrl as buildCancelUrlPure,
+  buildSuccessUrl as buildSuccessUrlPure,
+  buildWebOrigin,
+  getDeepLinkPrefix as getDeepLinkPrefixPure,
+} from "@/lib/checkout-urls";
+import { runMobileCheckoutFlow } from "@/lib/checkout-flow";
 
 const WEB_TOP_INSET = Platform.OS === "web" ? 67 : 0;
 
@@ -840,47 +847,35 @@ function formatPriceMobile(cents: number, currency: string): string {
 }
 
 function getWebOrigin(): string {
-  if (Platform.OS === "web") return window.location.origin;
-  const raw = process.env.EXPO_PUBLIC_DOMAIN;
-  if (!raw) {
-    throw new Error(
-      "EXPO_PUBLIC_DOMAIN is not configured. Cannot start checkout.",
-    );
-  }
-  // Tolerate misconfigured env values like "https://example.com" or
-  // trailing slashes — the rest of the app expects a bare host.
-  const domain = raw.replace(/^https?:\/\//, "").replace(/\/+$/, "");
-  return `https://${domain}`;
+  return buildWebOrigin({
+    isWeb: Platform.OS === "web",
+    windowOrigin: Platform.OS === "web" ? window.location.origin : null,
+    envDomain: process.env.EXPO_PUBLIC_DOMAIN ?? null,
+  });
 }
 
-// On native, build a deep-link URL the in-app browser can hand back to
-// the app via openAuthSessionAsync. On web, returns null (we just use
-// window.location.href for redirects).
 function getDeepLinkPrefix(suffix: string): string | null {
-  if (Platform.OS === "web") return null;
-  return Linking.createURL(suffix.replace(/^\//, ""));
+  return getDeepLinkPrefixPure({
+    isWeb: Platform.OS === "web",
+    suffix,
+    createUrl: (path) => Linking.createURL(path),
+  });
 }
 
 function buildSuccessUrl(suffix: string): string {
-  const origin = getWebOrigin();
-  const base = `${origin}${suffix}?session_id={CHECKOUT_SESSION_ID}`;
-  if (Platform.OS === "web") return base;
-  // Native: tell the web return page to bounce back into the app via a
-  // deep link instead of rendering its own confirmation UI.
-  const deepLink = getDeepLinkPrefix(suffix);
-  if (!deepLink) return base;
-  return `${base}&mobile_redirect=${encodeURIComponent(deepLink)}`;
+  return buildSuccessUrlPure({
+    suffix,
+    origin: getWebOrigin(),
+    deepLink: getDeepLinkPrefix(suffix),
+  });
 }
 
 function buildCancelUrl(suffix: string): string {
-  const origin = getWebOrigin();
-  if (Platform.OS === "web") return `${origin}/dashboard/candidate`;
-  // Reuse the return page so it bounces back to the app with a
-  // cancelled marker — keeps the in-app browser from getting stuck on
-  // the web dashboard after the user cancels Stripe.
-  const deepLink = getDeepLinkPrefix(suffix);
-  if (!deepLink) return `${origin}/dashboard/candidate`;
-  return `${origin}${suffix}?cancelled=1&mobile_redirect=${encodeURIComponent(deepLink)}`;
+  return buildCancelUrlPure({
+    suffix,
+    origin: getWebOrigin(),
+    deepLink: getDeepLinkPrefix(suffix),
+  });
 }
 
 // Network failures from `fetch` look different on RN vs the web. We
@@ -1064,34 +1059,29 @@ function PremiumSection({ candidateId }: { candidateId: number }) {
   ) => {
     setBusy(kind);
     try {
-      const { checkoutUrl, sessionId } = await createUrl({
-        successUrl: buildSuccessUrl(suffix),
-        cancelUrl: buildCancelUrl(suffix),
-      });
+      const successUrl = buildSuccessUrl(suffix);
+      const cancelUrl = buildCancelUrl(suffix);
       if (Platform.OS === "web") {
+        // On web we don't have an in-app browser to bounce back; just
+        // create the session and navigate.
+        const { checkoutUrl } = await createUrl({ successUrl, cancelUrl });
         window.location.href = checkoutUrl;
         return;
       }
-      const deepLink = getDeepLinkPrefix(suffix) ?? Linking.createURL("");
-      const result = await WebBrowser.openAuthSessionAsync(
-        checkoutUrl,
-        deepLink,
-      );
-      if (result.type !== "success") {
-        // User dismissed the browser without reaching the success URL.
-        return;
-      }
-      const parsed = Linking.parse(result.url);
-      const cancelled = parsed.queryParams?.cancelled;
-      if (cancelled === "1") {
-        // User clicked "Back" on Stripe; cancel URL bounced us home.
-        return;
-      }
-      const fromUrl = parsed.queryParams?.session_id;
-      const sid =
-        typeof fromUrl === "string" && fromUrl.length > 0 ? fromUrl : sessionId;
-      await verify(sid);
-      await refreshAll();
+      await runMobileCheckoutFlow({
+        successUrl,
+        cancelUrl,
+        deepLink: getDeepLinkPrefix(suffix) ?? Linking.createURL(""),
+        createCheckout: createUrl,
+        openAuthSession: (url, redirect) =>
+          WebBrowser.openAuthSessionAsync(url, redirect),
+        parseReturnUrl: (url) => {
+          const parsed = Linking.parse(url);
+          return { queryParams: parsed.queryParams ?? null };
+        },
+        verify,
+        onVerified: refreshAll,
+      });
     } catch (err) {
       const { title, message } = describeApiError(err, {
         title: "Checkout failed",

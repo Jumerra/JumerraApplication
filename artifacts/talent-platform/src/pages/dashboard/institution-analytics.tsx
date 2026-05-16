@@ -33,6 +33,7 @@ import {
   Banknote,
   Clock,
   Lock,
+  Stamp,
   TrendingUp,
 } from "lucide-react";
 import {
@@ -236,6 +237,12 @@ export default function InstitutionAnalyticsPage() {
           icon={<Building2 className="h-5 w-5" />}
           label="Top employers"
           value={String(analytics.topEmployers.length)}
+        />
+        <KpiCard
+          icon={<Stamp className="h-5 w-5" />}
+          label="Endorsements this year"
+          value={analytics.endorsementsThisYear.toLocaleString()}
+          sub="co-signed applications"
         />
       </div>
 

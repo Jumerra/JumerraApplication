@@ -237,6 +237,20 @@ export default function PipelineKanbanPage() {
                                 AI {app.mockInterviewScore}
                               </Badge>
                             ) : null}
+                            {app.endorsement ? (
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] px-1.5 py-0 border-emerald-500/50 text-emerald-700 dark:text-emerald-400"
+                                title={
+                                  app.endorsement.note
+                                    ? `${app.endorsement.institutionName}: ${app.endorsement.note}`
+                                    : `Endorsed by ${app.endorsement.institutionName}`
+                                }
+                                data-testid={`badge-endorsement-${app.id}`}
+                              >
+                                Verified by {app.endorsement.institutionName}
+                              </Badge>
+                            ) : null}
                           </div>
                         </CardContent>
                       </Card>

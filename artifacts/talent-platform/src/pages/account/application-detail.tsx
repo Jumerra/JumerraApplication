@@ -8,7 +8,7 @@ import { ApplicationTimeline } from "@/components/application-timeline";
 import { InterviewPrepPanel } from "@/components/InterviewPrepPanel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Sparkles } from "lucide-react";
+import { ArrowLeft, Sparkles, Stamp } from "lucide-react";
 
 const PREP_STATUSES = new Set(["screening", "interview", "offer", "hired"]);
 
@@ -49,6 +49,25 @@ export default function ApplicationDetailPage() {
               View job posting
             </Link>
           </CardContent>
+        </Card>
+      ) : null}
+      {app?.endorsement ? (
+        <Card
+          className="border-emerald-500/30 bg-emerald-500/5"
+          data-testid={`endorsement-card-${app.id}`}
+        >
+          <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Stamp className="w-4 h-4 text-emerald-600" /> Verified by{" "}
+              {app.endorsement.institutionName}
+            </CardTitle>
+            <Badge className="bg-emerald-600 text-white">Endorsed</Badge>
+          </CardHeader>
+          {app.endorsement.note ? (
+            <CardContent className="text-sm text-muted-foreground">
+              "{app.endorsement.note}"
+            </CardContent>
+          ) : null}
         </Card>
       ) : null}
       {app && typeof app.mockInterviewScore === "number" ? (

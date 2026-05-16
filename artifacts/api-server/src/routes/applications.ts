@@ -4,9 +4,11 @@ import {
   db,
   applicationsTable,
   applicationStatusHistoryTable,
+  applicationEndorsementsTable,
   jobsTable,
   candidatesTable,
   employersTable,
+  institutionsTable,
   mockInterviewsTable,
 } from "@workspace/db";
 import { sendNotificationToCandidate } from "../lib/notifier";
@@ -92,6 +94,28 @@ async function serializeApplication(applicationId: number) {
     row.candidate.id,
     row.job.id,
   );
+  const [endorseRow] = await db
+    .select({
+      institutionId: applicationEndorsementsTable.institutionId,
+      institutionName: institutionsTable.name,
+      note: applicationEndorsementsTable.note,
+      createdAt: applicationEndorsementsTable.createdAt,
+    })
+    .from(applicationEndorsementsTable)
+    .innerJoin(
+      institutionsTable,
+      eq(institutionsTable.id, applicationEndorsementsTable.institutionId),
+    )
+    .where(eq(applicationEndorsementsTable.applicationId, row.application.id))
+    .limit(1);
+  const endorsement = endorseRow
+    ? {
+        institutionId: endorseRow.institutionId,
+        institutionName: endorseRow.institutionName,
+        note: endorseRow.note,
+        endorsedAt: endorseRow.createdAt.toISOString(),
+      }
+    : null;
   return {
     id: row.application.id,
     jobId: row.job.id,
@@ -118,6 +142,7 @@ async function serializeApplication(applicationId: number) {
           culture: mock.scoreCulture,
         }
       : null,
+    endorsement,
   };
 }
 
@@ -247,8 +272,46 @@ router.get("/applications", requireAuth, async (req, res): Promise<void> => {
     }
   }
 
+  // Bulk-fetch endorsements for the same applications so the
+  // employer Kanban renders the "Verified by X" badge without N+1.
+  const endorseByApp = new Map<
+    number,
+    {
+      institutionId: number;
+      institutionName: string;
+      note: string | null;
+      endorsedAt: string;
+    }
+  >();
+  if (rows.length > 0) {
+    const appIds = rows.map((r) => r.application.id);
+    const endorseRows = await db
+      .select({
+        applicationId: applicationEndorsementsTable.applicationId,
+        institutionId: applicationEndorsementsTable.institutionId,
+        institutionName: institutionsTable.name,
+        note: applicationEndorsementsTable.note,
+        createdAt: applicationEndorsementsTable.createdAt,
+      })
+      .from(applicationEndorsementsTable)
+      .innerJoin(
+        institutionsTable,
+        eq(institutionsTable.id, applicationEndorsementsTable.institutionId),
+      )
+      .where(inArray(applicationEndorsementsTable.applicationId, appIds));
+    for (const e of endorseRows) {
+      endorseByApp.set(e.applicationId, {
+        institutionId: e.institutionId,
+        institutionName: e.institutionName,
+        note: e.note,
+        endorsedAt: e.createdAt.toISOString(),
+      });
+    }
+  }
+
   const result = rows.map((row) => {
     const mock = mockByPair.get(`${row.candidate.id}:${row.job.id}`) ?? null;
+    const endorsement = endorseByApp.get(row.application.id) ?? null;
     return {
       id: row.application.id,
       jobId: row.job.id,
@@ -275,6 +338,7 @@ router.get("/applications", requireAuth, async (req, res): Promise<void> => {
             culture: mock.scoreCulture,
           }
         : null,
+      endorsement,
     };
   });
 

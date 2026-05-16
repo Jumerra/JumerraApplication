@@ -1713,6 +1713,17 @@ export const ListApplicationsResponseItem = zod.object({
       culture: zod.number(),
     })
     .nullable(),
+  endorsement: zod
+    .object({
+      institutionId: zod.number(),
+      institutionName: zod.string(),
+      note: zod.string().nullable(),
+      endorsedAt: zod.coerce.date(),
+    })
+    .nullable()
+    .describe(
+      'Institution co-sign on this application, if any. The\nendorsing institution\'s name is shown as a \"Verified by\nX\" badge to the employer.\n',
+    ),
 });
 export const ListApplicationsResponse = zod.array(ListApplicationsResponseItem);
 
@@ -1802,6 +1813,17 @@ export const UpdateApplicationStatusResponse = zod.object({
       culture: zod.number(),
     })
     .nullable(),
+  endorsement: zod
+    .object({
+      institutionId: zod.number(),
+      institutionName: zod.string(),
+      note: zod.string().nullable(),
+      endorsedAt: zod.coerce.date(),
+    })
+    .nullable()
+    .describe(
+      'Institution co-sign on this application, if any. The\nendorsing institution\'s name is shown as a \"Verified by\nX\" badge to the employer.\n',
+    ),
 });
 
 /**
@@ -2196,6 +2218,17 @@ export const GetEmployerDashboardResponse = zod.object({
           culture: zod.number(),
         })
         .nullable(),
+      endorsement: zod
+        .object({
+          institutionId: zod.number(),
+          institutionName: zod.string(),
+          note: zod.string().nullable(),
+          endorsedAt: zod.coerce.date(),
+        })
+        .nullable()
+        .describe(
+          'Institution co-sign on this application, if any. The\nendorsing institution\'s name is shown as a \"Verified by\nX\" badge to the employer.\n',
+        ),
     }),
   ),
 });
@@ -2394,6 +2427,17 @@ export const GetCandidateDashboardResponse = zod.object({
           culture: zod.number(),
         })
         .nullable(),
+      endorsement: zod
+        .object({
+          institutionId: zod.number(),
+          institutionName: zod.string(),
+          note: zod.string().nullable(),
+          endorsedAt: zod.coerce.date(),
+        })
+        .nullable()
+        .describe(
+          'Institution co-sign on this application, if any. The\nendorsing institution\'s name is shown as a \"Verified by\nX\" badge to the employer.\n',
+        ),
     }),
   ),
 });
@@ -3157,6 +3201,17 @@ export const AdminListApplicationsResponse = zod.object({
           culture: zod.number(),
         })
         .nullable(),
+      endorsement: zod
+        .object({
+          institutionId: zod.number(),
+          institutionName: zod.string(),
+          note: zod.string().nullable(),
+          endorsedAt: zod.coerce.date(),
+        })
+        .nullable()
+        .describe(
+          'Institution co-sign on this application, if any. The\nendorsing institution\'s name is shown as a \"Verified by\nX\" badge to the employer.\n',
+        ),
     }),
   ),
 });
@@ -4926,6 +4981,66 @@ export const SendOutreachResponse = zod.object({
 });
 
 /**
+ * @summary Applications submitted by students in the caller's institution
+scope (owner/registrar = org-wide; dean = faculty; HoD =
+department) that are still awaiting an endorsement.
+
+ */
+export const ListPendingEndorsementsParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ListPendingEndorsementsResponseItem = zod
+  .object({
+    applicationId: zod.number(),
+    candidateId: zod.number(),
+    candidateName: zod.string(),
+    candidateAvatarUrl: zod.string(),
+    candidateHeadline: zod.string(),
+    departmentId: zod.number().nullable(),
+    departmentName: zod.string().nullable(),
+    jobId: zod.number(),
+    jobTitle: zod.string(),
+    employerId: zod.number(),
+    employerName: zod.string(),
+    employerLogoUrl: zod.string(),
+    matchScore: zod.number(),
+    appliedAt: zod.coerce.date(),
+  })
+  .describe(
+    "An application awaiting institution co-sign. Returned to\ninstitution staff scoped to their faculty\/department.\n",
+  );
+export const ListPendingEndorsementsResponse = zod.array(
+  ListPendingEndorsementsResponseItem,
+);
+
+/**
+ * @summary Endorse an application as institution staff (co-sign).
+ */
+export const EndorseApplicationParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const endorseApplicationBodyNoteMax = 280;
+
+export const EndorseApplicationBody = zod.object({
+  note: zod
+    .string()
+    .max(endorseApplicationBodyNoteMax)
+    .optional()
+    .describe(
+      "Optional one-line note shown to the employer alongside the badge.",
+    ),
+});
+
+/**
+ * @summary Remove an existing endorsement (owner/registrar or the original endorser).
+ */
+export const UnendorseApplicationParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
  * @summary Placement analytics for an institution (scoped to caller's faculty/department).
  */
 export const GetInstitutionPlacementAnalyticsParams = zod.object({
@@ -4963,6 +5078,11 @@ export const GetInstitutionPlacementAnalyticsResponse = zod.object({
     .boolean()
     .describe(
       "True when the institution does not have an active premium subscription; analytics are zeroed out in that case.",
+    ),
+  endorsementsThisYear: zod
+    .number()
+    .describe(
+      "Number of applications endorsed (co-signed) by this\ninstitution in the current academic year. Counts every\nendorsed application by a student in the caller's scope,\nregardless of hire outcome.\n",
     ),
 });
 

@@ -30,6 +30,7 @@ import institutionAnalyticsRouter from "./institution-analytics";
 import networkRouter from "./network";
 import meRouter from "./me";
 import mockInterviewsRouter from "./mock-interviews";
+import applicationEndorsementsRouter from "./application-endorsements";
 import { requireAuth } from "../middleware/require-auth";
 
 const router: IRouter = Router();
@@ -102,6 +103,11 @@ router.use(employerPoolsRouter);
 // the /institutions/:id/analytics/* and /cohorts/* routes are matched
 // here instead of falling through to the legacy router.
 router.use(institutionAnalyticsRouter);
+// Mount the endorsements router BEFORE institutionsRouter / applicationsRouter
+// so its /institutions/:id/pending-endorsements and /applications/:id/endorse
+// routes match here instead of falling through to the generic 404 within
+// the legacy routers.
+router.use(applicationEndorsementsRouter);
 router.use(candidatesRouter);
 router.use(employersRouter);
 router.use(institutionsRouter);

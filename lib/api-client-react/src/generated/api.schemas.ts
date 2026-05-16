@@ -315,6 +315,13 @@ export interface MockInterviewBreakdown {
   culture: number;
 }
 
+export interface ApplicationEndorsement {
+  institutionId: number;
+  institutionName: string;
+  note: string | null;
+  endorsedAt: string;
+}
+
 export interface Application {
   id: number;
   jobId: number;
@@ -342,6 +349,11 @@ prioritize replies to high-intent applicants. Defaults to
   /** Overall mock-interview score 0–100, if any. */
   mockInterviewScore: number | null;
   mockInterviewBreakdown: MockInterviewBreakdown | null;
+  /** Institution co-sign on this application, if any. The
+endorsing institution's name is shown as a "Verified by
+X" badge to the employer.
+ */
+  endorsement: ApplicationEndorsement | null;
 }
 
 export interface AdminApplicationListResponse {
@@ -1371,6 +1383,36 @@ export interface CreateJob {
   targetSkills?: string[];
   /** Optional location targeting filter for Sponsored push. */
   targetLocation?: string | null;
+}
+
+/**
+ * An application awaiting institution co-sign. Returned to
+institution staff scoped to their faculty/department.
+
+ */
+export interface PendingEndorsementApplication {
+  applicationId: number;
+  candidateId: number;
+  candidateName: string;
+  candidateAvatarUrl: string;
+  candidateHeadline: string;
+  departmentId: number | null;
+  departmentName: string | null;
+  jobId: number;
+  jobTitle: string;
+  employerId: number;
+  employerName: string;
+  employerLogoUrl: string;
+  matchScore: number;
+  appliedAt: string;
+}
+
+export interface EndorseApplicationRequest {
+  /**
+   * Optional one-line note shown to the employer alongside the badge.
+   * @maxLength 280
+   */
+  note?: string;
 }
 
 /**
@@ -2653,6 +2695,12 @@ export interface InstitutionPlacementAnalytics {
   salaryMediansByDepartment: InstitutionSalaryByDepartment[];
   /** True when the institution does not have an active premium subscription; analytics are zeroed out in that case. */
   placementsLocked: boolean;
+  /** Number of applications endorsed (co-signed) by this
+institution in the current academic year. Counts every
+endorsed application by a student in the caller's scope,
+regardless of hire outcome.
+ */
+  endorsementsThisYear: number;
 }
 
 export interface InstitutionEmployersLeaderboard {

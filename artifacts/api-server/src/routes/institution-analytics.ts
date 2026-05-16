@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import {
+  applicationEndorsementsTable,
   applicationsTable,
   candidateCohortMembersTable,
   candidateCohortsTable,
@@ -12,6 +13,7 @@ import {
   institutionsTable,
   jobsTable,
 } from "@workspace/db";
+import { gte, lt } from "drizzle-orm";
 import { isOrgOwnerOrRegistrar, requireAuth } from "../middleware/require-auth";
 import {
   getScopedStudentIds,
@@ -149,6 +151,7 @@ router.get(
         hires: number;
       }>,
       placementsLocked,
+      endorsementsThisYear: 0,
     };
 
     if (placementsLocked || studentIds.length === 0) {
@@ -325,6 +328,27 @@ router.get(
     }
     const medianTimeToFirstJobDays = median(ttfjDays);
 
+    // Endorsements issued by this institution against in-scope
+    // students within the current academic year. Counted regardless
+    // of hire outcome so coordinators can see how active the team is.
+    const endorseRows = await db
+      .select({
+        applicationId: applicationEndorsementsTable.applicationId,
+      })
+      .from(applicationEndorsementsTable)
+      .innerJoin(
+        applicationsTable,
+        eq(applicationsTable.id, applicationEndorsementsTable.applicationId),
+      )
+      .where(
+        and(
+          eq(applicationEndorsementsTable.institutionId, institutionId),
+          inArray(applicationsTable.candidateId, studentIds),
+          gte(applicationEndorsementsTable.createdAt, ayStart),
+          lt(applicationEndorsementsTable.createdAt, ayEnd),
+        ),
+      );
+
     res.json({
       institutionId,
       totalStudents: studentIds.length,
@@ -334,6 +358,7 @@ router.get(
       topEmployers,
       salaryMediansByDepartment,
       placementsLocked: false,
+      endorsementsThisYear: endorseRows.length,
     });
   },
 );

@@ -18,4 +18,10 @@ export interface InstitutionPlacementAnalytics {
   salaryMediansByDepartment: InstitutionSalaryByDepartment[];
   /** True when the institution does not have an active premium subscription; analytics are zeroed out in that case. */
   placementsLocked: boolean;
+  /** Number of applications endorsed (co-signed) by this
+institution in the current academic year. Counts every
+endorsed application by a student in the caller's scope,
+regardless of hire outcome.
+ */
+  endorsementsThisYear: number;
 }

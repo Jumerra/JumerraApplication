@@ -20,7 +20,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import { Users, GraduationCap, Building2, Banknote, Briefcase, Link2, ShieldCheck, ShieldAlert, Loader2, BookOpen, Building, Pencil, ArrowRight, Crown, Lock } from "lucide-react";
+import { Users, GraduationCap, Building2, Banknote, Briefcase, Link2, ShieldCheck, ShieldAlert, Loader2, BookOpen, Building, Pencil, ArrowRight, Crown, Lock, Stamp } from "lucide-react";
 import { Link } from "wouter";
 import { institutionKindLabel, academicUnitTerms } from "@/lib/institution-kinds";
 import { IssueSkillVerificationDialog } from "@/components/issue-skill-verification-dialog";
@@ -201,6 +201,27 @@ export default function InstitutionDashboard() {
                     <p className="text-sm text-muted-foreground">
                       {departments.length} listed
                       {isOwner ? " · manage" : ""}
+                    </p>
+                  </div>
+                </div>
+                <ArrowRight className="w-4 h-4 text-muted-foreground" />
+              </CardContent>
+            </Link>
+          </Card>
+          <Card className="shadow-sm hover:shadow-md transition-shadow">
+            <Link
+              href="/dashboard/institution/endorsements"
+              className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-xl"
+            >
+              <CardContent className="p-6 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-11 h-11 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                    <Stamp className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="font-semibold">Pending endorsements</p>
+                    <p className="text-sm text-muted-foreground">
+                      Co-sign your students' active applications
                     </p>
                   </div>
                 </div>

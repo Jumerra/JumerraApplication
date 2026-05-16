@@ -40,6 +40,7 @@ import type {
   AnswerMockInterviewBody,
   AnswerMockInterviewResponse,
   Application,
+  ApplicationEndorsement,
   ApplicationTimeline,
   AssignAccountManagerRequest,
   AssignAccountManagerResponse,
@@ -81,6 +82,7 @@ import type {
   EmployerSubscriptionLegacyStatus,
   EmployerSubscriptionSettings,
   EmployerSubscriptionStatus,
+  EndorseApplicationRequest,
   Error,
   ForgotPasswordRequest,
   GenerateCvRequest,
@@ -133,6 +135,7 @@ import type {
   OwnReferenceRequest,
   Partner,
   PartnerSettings,
+  PendingEndorsementApplication,
   PlatformStats,
   ProfileUpdateRequest,
   ProfileViewsResponse,
@@ -12786,6 +12789,276 @@ export const useSendOutreach = <
   TContext
 > => {
   return useMutation(getSendOutreachMutationOptions(options));
+};
+
+/**
+ * @summary Applications submitted by students in the caller's institution
+scope (owner/registrar = org-wide; dean = faculty; HoD =
+department) that are still awaiting an endorsement.
+
+ */
+export const getListPendingEndorsementsUrl = (id: number) => {
+  return `/api/institutions/${id}/pending-endorsements`;
+};
+
+export const listPendingEndorsements = async (
+  id: number,
+  options?: RequestInit,
+): Promise<PendingEndorsementApplication[]> => {
+  return customFetch<PendingEndorsementApplication[]>(
+    getListPendingEndorsementsUrl(id),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListPendingEndorsementsQueryKey = (id: number) => {
+  return [`/api/institutions/${id}/pending-endorsements`] as const;
+};
+
+export const getListPendingEndorsementsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listPendingEndorsements>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listPendingEndorsements>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListPendingEndorsementsQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listPendingEndorsements>>
+  > = ({ signal }) =>
+    listPendingEndorsements(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listPendingEndorsements>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListPendingEndorsementsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listPendingEndorsements>>
+>;
+export type ListPendingEndorsementsQueryError = ErrorType<void>;
+
+/**
+ * @summary Applications submitted by students in the caller's institution
+scope (owner/registrar = org-wide; dean = faculty; HoD =
+department) that are still awaiting an endorsement.
+
+ */
+
+export function useListPendingEndorsements<
+  TData = Awaited<ReturnType<typeof listPendingEndorsements>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listPendingEndorsements>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListPendingEndorsementsQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Endorse an application as institution staff (co-sign).
+ */
+export const getEndorseApplicationUrl = (id: number) => {
+  return `/api/applications/${id}/endorse`;
+};
+
+export const endorseApplication = async (
+  id: number,
+  endorseApplicationRequest?: EndorseApplicationRequest,
+  options?: RequestInit,
+): Promise<ApplicationEndorsement> => {
+  return customFetch<ApplicationEndorsement>(getEndorseApplicationUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(endorseApplicationRequest),
+  });
+};
+
+export const getEndorseApplicationMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof endorseApplication>>,
+    TError,
+    { id: number; data: BodyType<EndorseApplicationRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof endorseApplication>>,
+  TError,
+  { id: number; data: BodyType<EndorseApplicationRequest> },
+  TContext
+> => {
+  const mutationKey = ["endorseApplication"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof endorseApplication>>,
+    { id: number; data: BodyType<EndorseApplicationRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return endorseApplication(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type EndorseApplicationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof endorseApplication>>
+>;
+export type EndorseApplicationMutationBody =
+  BodyType<EndorseApplicationRequest>;
+export type EndorseApplicationMutationError = ErrorType<void>;
+
+/**
+ * @summary Endorse an application as institution staff (co-sign).
+ */
+export const useEndorseApplication = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof endorseApplication>>,
+    TError,
+    { id: number; data: BodyType<EndorseApplicationRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof endorseApplication>>,
+  TError,
+  { id: number; data: BodyType<EndorseApplicationRequest> },
+  TContext
+> => {
+  return useMutation(getEndorseApplicationMutationOptions(options));
+};
+
+/**
+ * @summary Remove an existing endorsement (owner/registrar or the original endorser).
+ */
+export const getUnendorseApplicationUrl = (id: number) => {
+  return `/api/applications/${id}/endorse`;
+};
+
+export const unendorseApplication = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getUnendorseApplicationUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getUnendorseApplicationMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof unendorseApplication>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof unendorseApplication>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["unendorseApplication"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof unendorseApplication>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return unendorseApplication(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UnendorseApplicationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof unendorseApplication>>
+>;
+
+export type UnendorseApplicationMutationError = ErrorType<void>;
+
+/**
+ * @summary Remove an existing endorsement (owner/registrar or the original endorser).
+ */
+export const useUnendorseApplication = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof unendorseApplication>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof unendorseApplication>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getUnendorseApplicationMutationOptions(options));
 };
 
 /**

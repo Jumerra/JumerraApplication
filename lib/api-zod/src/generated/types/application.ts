@@ -5,6 +5,7 @@
  * Talent Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { ApplicationEndorsement } from "./applicationEndorsement";
 import type { ApplicationSource } from "./applicationSource";
 import type { ApplicationStatus } from "./applicationStatus";
 import type { MockInterviewBreakdown } from "./mockInterviewBreakdown";
@@ -36,4 +37,9 @@ prioritize replies to high-intent applicants. Defaults to
   /** Overall mock-interview score 0–100, if any. */
   mockInterviewScore: number | null;
   mockInterviewBreakdown: MockInterviewBreakdown | null;
+  /** Institution co-sign on this application, if any. The
+endorsing institution's name is shown as a "Verified by
+X" badge to the employer.
+ */
+  endorsement: ApplicationEndorsement | null;
 }

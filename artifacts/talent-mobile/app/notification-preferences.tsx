@@ -21,6 +21,7 @@ type Prefs = {
   applicationStatus: boolean;
   interviewReminder: boolean;
   profileViewed: boolean;
+  weeklyDigest: boolean;
 };
 
 const ROWS: { key: keyof Prefs; title: string; body: string }[] = [
@@ -44,6 +45,11 @@ const ROWS: { key: keyof Prefs; title: string; body: string }[] = [
     title: "Profile views (Boost)",
     body: "Notify me when an employer views my profile while my Boost is active.",
   },
+  {
+    key: "weeklyDigest",
+    title: "Weekly digest",
+    body: "Every Monday, send a recap of my week plus my top 5 new job matches.",
+  },
 ];
 
 export default function NotificationPreferencesScreen() {
@@ -66,6 +72,7 @@ export default function NotificationPreferencesScreen() {
             applicationStatus: true,
             interviewReminder: true,
             profileViewed: true,
+            weeklyDigest: true,
           });
       })
       .finally(() => {

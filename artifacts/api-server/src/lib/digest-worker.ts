@@ -19,6 +19,7 @@ import {
   db,
   applicationsTable,
   applicationStatusHistoryTable,
+  candidateDismissedJobsTable,
   candidatesTable,
   candidateSavedSearchesTable,
   candidateWeeklyDigestsTable,
@@ -26,6 +27,7 @@ import {
   interviewTimeSlotsTable,
   jobsTable,
   employersTable,
+  notificationPrefsTable,
   notificationsTable,
   profileViewsTable,
   usersTable,
@@ -37,49 +39,231 @@ import { sendNotificationToCandidate } from "./notifier";
 import { jobMatchesFilters, savedSearchToFilters } from "./job-filters";
 
 /**
- * Returns the most-recently-completed Monday→Sunday window in UTC.
+ * Resolve the actual UTC instant for a wall-clock local date in `tz`.
  *
- * `start` is inclusive (the previous Monday at 00:00:00 UTC); `end` is
- * exclusive (the *current* week's Monday at 00:00:00 UTC). Using a
- * complete, closed window means:
- *   - Every metric query is bounded on both sides (`>= start AND < end`)
- *     so a digest generated at any point during the current week
- *     covers exactly one full week of activity.
- *   - The (candidateId, weekStart) unique index can write the row once
- *     and never need an in-place update — the underlying data for that
- *     window is frozen by the time we run.
+ * We can't ask `Intl.DateTimeFormat` to *parse* a local-time string,
+ * but we can ask it to format any UTC instant in `tz`. So we
+ * pre-construct the date as if it were UTC, ask how `tz` would render
+ * that instant, derive the offset from the delta, subtract it, and
+ * refine once to absorb DST transitions that straddle midnight.
  */
-function previousCompleteWeekUTC(d = new Date()): { start: Date; end: Date } {
-  const today = new Date(
-    Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()),
+function localToUtc(
+  tz: string,
+  year: number,
+  month: number,
+  day: number,
+  hour = 0,
+  minute = 0,
+  second = 0,
+): Date {
+  const asUtcMs = Date.UTC(year, month - 1, day, hour, minute, second);
+  const offsetAt = (d: Date): number => {
+    const dtf = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      hour12: false,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+    const parts = dtf.formatToParts(d);
+    const get = (t: string) =>
+      Number(parts.find((p) => p.type === t)?.value ?? "0");
+    let h = get("hour");
+    // ICU sometimes formats midnight as 24 with hour12:false.
+    if (h === 24) h = 0;
+    const renderedAsUtc = Date.UTC(
+      get("year"),
+      get("month") - 1,
+      get("day"),
+      h,
+      get("minute"),
+      get("second"),
+    );
+    return renderedAsUtc - d.getTime();
+  };
+  const guess = new Date(asUtcMs);
+  const off1 = offsetAt(guess);
+  const refined = new Date(asUtcMs - off1);
+  const off2 = offsetAt(refined);
+  return new Date(asUtcMs - off2);
+}
+
+function pad2(n: number): string {
+  return n < 10 ? `0${n}` : `${n}`;
+}
+
+/**
+ * Returns the most-recently-completed Monday→Monday window in the
+ * *candidate's* local timezone, expressed in absolute UTC instants
+ * suitable for `>=`/`<` predicates against `timestamptz` columns.
+ *
+ * `start` is inclusive (the previous local Monday at 00:00 local);
+ * `end` is exclusive (the current local Monday at 00:00 local).
+ *
+ * `localWeekStartDate` is the wall-clock YYYY-MM-DD of `start` in the
+ * candidate's timezone. We use it as the digest table's idempotency
+ * key so that, e.g., the same candidate in Tokyo on local Mon Dec 4
+ * and the same candidate in Honolulu on local Mon Dec 4 get distinct
+ * rows when their local weeks don't line up to the same UTC date.
+ *
+ * Falls back to UTC when `tz` is null/empty/invalid.
+ */
+export function previousCompleteWeekLocal(
+  tz: string | null | undefined,
+  now: Date = new Date(),
+): { start: Date; end: Date; localWeekStartDate: string } {
+  // When tz is null/empty or fails IANA parsing, normalize to UTC for
+  // *both* the formatToParts call below and the subsequent localToUtc
+  // calls — otherwise the fallback `parts` would be UTC-derived but
+  // `localToUtc(safeTz, …)` would still throw RangeError.
+  let safeTz = tz && tz.length > 0 ? tz : "UTC";
+  let parts: Intl.DateTimeFormatPart[];
+  try {
+    parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: safeTz,
+      weekday: "short",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(now);
+  } catch {
+    safeTz = "UTC";
+    parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "UTC",
+      weekday: "short",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(now);
+  }
+  const get = (t: string) =>
+    parts.find((p) => p.type === t)?.value ?? "";
+  const weekday = get("weekday");
+  const year = Number(get("year"));
+  const month = Number(get("month"));
+  const day = Number(get("day"));
+
+  const weekdayMap: Record<string, number> = {
+    Sun: 0,
+    Mon: 1,
+    Tue: 2,
+    Wed: 3,
+    Thu: 4,
+    Fri: 5,
+    Sat: 6,
+  };
+  const dow = weekdayMap[weekday] ?? 1;
+  const daysSinceMonday = dow === 0 ? 6 : dow - 1;
+
+  // Walk back to local Monday-of-this-week and previous-Monday using
+  // calendar arithmetic on a *UTC-anchored* date that ignores the
+  // tz — we only care about the Y/M/D components.
+  const localToday = new Date(Date.UTC(year, month - 1, day));
+  const curLocalMonday = new Date(
+    localToday.getTime() - daysSinceMonday * 86_400_000,
   );
-  // 0=Sun..6=Sat. Days since the Monday that *started* the current week.
-  const dow = today.getUTCDay();
-  const offsetToCurMonday = dow === 0 ? 6 : dow - 1;
-  const end = new Date(today);
-  end.setUTCDate(today.getUTCDate() - offsetToCurMonday); // current Monday
-  const start = new Date(end);
-  start.setUTCDate(end.getUTCDate() - 7); // previous Monday
-  return { start, end };
+  const prevLocalMonday = new Date(curLocalMonday.getTime() - 7 * 86_400_000);
+
+  const end = localToUtc(
+    safeTz,
+    curLocalMonday.getUTCFullYear(),
+    curLocalMonday.getUTCMonth() + 1,
+    curLocalMonday.getUTCDate(),
+  );
+  const start = localToUtc(
+    safeTz,
+    prevLocalMonday.getUTCFullYear(),
+    prevLocalMonday.getUTCMonth() + 1,
+    prevLocalMonday.getUTCDate(),
+  );
+
+  const localWeekStartDate = `${prevLocalMonday.getUTCFullYear()}-${pad2(prevLocalMonday.getUTCMonth() + 1)}-${pad2(prevLocalMonday.getUTCDate())}`;
+  return { start, end, localWeekStartDate };
 }
 
 function fmtDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+/**
+ * Resolve a candidate's local weekday + hour using their stored IANA
+ * timezone. Falls back to UTC when the timezone is missing or invalid.
+ * The weekly digest dispatch only runs when this returns
+ * `{ weekday: "Mon", hour: 9 }` — i.e. the hourly sweep tick that
+ * lands inside the candidate's local Monday-9-AM window.
+ */
+function localWeekdayAndHour(
+  timezone: string | null | undefined,
+  now: Date = new Date(),
+): { weekday: string; hour: number } {
+  const tz = timezone && timezone.length > 0 ? timezone : "UTC";
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      weekday: "short",
+      hour: "numeric",
+      hour12: false,
+    }).formatToParts(now);
+    const weekday = parts.find((p) => p.type === "weekday")?.value ?? "";
+    const hourRaw = parts.find((p) => p.type === "hour")?.value ?? "0";
+    // `hour12: false` can emit "24" at midnight in some ICU versions.
+    const hourNum = Number(hourRaw) % 24;
+    return { weekday, hour: hourNum };
+  } catch {
+    // Bad IANA id — pretend UTC. We tolerate this rather than throw so
+    // a single bad row can't take down the whole sweep.
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "UTC",
+      weekday: "short",
+      hour: "numeric",
+      hour12: false,
+    }).formatToParts(now);
+    const weekday = parts.find((p) => p.type === "weekday")?.value ?? "";
+    const hourRaw = parts.find((p) => p.type === "hour")?.value ?? "0";
+    return { weekday, hour: Number(hourRaw) % 24 };
+  }
+}
+
+/**
+ * Returns true if `now` lands inside the candidate's local Monday
+ * 09:00–09:59 window. The hourly sweep tick + the
+ * (candidateId, weekStart) unique index together guarantee at most one
+ * delivery per candidate per week.
+ *
+ * `WEEKLY_DIGEST_FORCE=true` short-circuits the gate so deploy-time
+ * smoke tests and local development can fire on demand.
+ */
+export function isCandidateLocalMondayNineAM(
+  timezone: string | null | undefined,
+  now: Date = new Date(),
+): boolean {
+  if (process.env.WEEKLY_DIGEST_FORCE === "true") return true;
+  const { weekday, hour } = localWeekdayAndHour(timezone, now);
+  return weekday === "Mon" && hour === 9;
+}
+
 async function runDigestForCandidate(
   candidateId: number,
   weekStart: Date,
   weekEnd: Date,
+  weekStartKey: string,
 ): Promise<void> {
   // Idempotency check via unique index — skip if already generated.
+  // `weekStartKey` is the *local* week-start date in the candidate's
+  // timezone; passing it in (rather than recomputing from `weekStart`
+  // which is a UTC instant) keeps the idempotency key aligned with the
+  // candidate's local week even when their local Monday 00:00 falls on
+  // a different UTC calendar day than UTC Monday 00:00.
   const [existing] = await db
     .select({ id: candidateWeeklyDigestsTable.id })
     .from(candidateWeeklyDigestsTable)
     .where(
       and(
         eq(candidateWeeklyDigestsTable.candidateId, candidateId),
-        eq(candidateWeeklyDigestsTable.weekStart, fmtDate(weekStart)),
+        eq(candidateWeeklyDigestsTable.weekStart, weekStartKey),
       ),
     );
   if (existing) return;
@@ -141,17 +325,45 @@ async function runDigestForCandidate(
     );
   const interviewsScheduled = interviewRows.length;
 
-  // -- New top job matches -----------------------------------------------
+  // -- Top unseen job matches --------------------------------------------
+  // Mirror the /me/feed ranking: score every open job for this candidate
+  // (not just the ones posted this week — a job posted three weeks ago
+  // that the candidate has never seen is still a "strong new match" from
+  // their perspective), then exclude jobs they have already applied to,
+  // dismissed in For-You, or that we surfaced in a prior week's digest.
+  // We keep the top 5 — the spec's "top 5 unseen matches".
   const allJobs = await db
     .select({ job: jobsTable, employer: employersTable })
     .from(jobsTable)
     .innerJoin(employersTable, eq(employersTable.id, jobsTable.employerId))
-    .where(
-      and(gte(jobsTable.postedAt, weekStart), lt(jobsTable.postedAt, weekEnd)),
-    )
-    .limit(50);
+    .limit(500);
+
+  const appliedRows = await db
+    .select({ jobId: applicationsTable.jobId })
+    .from(applicationsTable)
+    .where(eq(applicationsTable.candidateId, candidateId));
+  const dismissedRows = await db
+    .select({ jobId: candidateDismissedJobsTable.jobId })
+    .from(candidateDismissedJobsTable)
+    .where(eq(candidateDismissedJobsTable.candidateId, candidateId));
+  const priorDigests = await db
+    .select({ json: candidateWeeklyDigestsTable.newMatchesJson })
+    .from(candidateWeeklyDigestsTable)
+    .where(eq(candidateWeeklyDigestsTable.candidateId, candidateId));
+  const seenJobIds = new Set<number>();
+  for (const r of appliedRows) seenJobIds.add(r.jobId);
+  for (const r of dismissedRows) seenJobIds.add(r.jobId);
+  for (const d of priorDigests) {
+    try {
+      const list = JSON.parse(d.json) as { jobId: number }[];
+      for (const m of list) seenJobIds.add(m.jobId);
+    } catch {
+      // ignore malformed legacy rows
+    }
+  }
 
   const newMatches = allJobs
+    .filter(({ job }) => !seenJobIds.has(job.id))
     .map(({ job, employer }) => {
       const { score } = calculateMatchScore(
         job.skills,
@@ -159,41 +371,69 @@ async function runDigestForCandidate(
         candidate.yearsExperience,
         candidate.talentScore,
       );
+      const tier = (job.tier ?? "free") as "free" | "promoted" | "sponsored";
+      const tierBias = tier === "sponsored" ? 25 : tier === "promoted" ? 10 : 0;
       return {
         jobId: job.id,
         title: job.title,
         employerName: employer.name,
-        matchScore: score,
+        matchScore: Math.min(100, score + tierBias),
       };
     })
     .sort((a, b) => b.matchScore - a.matchScore)
-    // Spec: digest surfaces exactly 3 newly matched jobs. Web and
-    // mobile both render the full list — no client-side trimming.
-    .slice(0, 3);
+    .slice(0, 5);
 
   await db.insert(candidateWeeklyDigestsTable).values({
     candidateId,
-    weekStart: fmtDate(weekStart),
+    weekStart: weekStartKey,
     profileViews,
     applicationsSent,
     interviewsScheduled,
     newMatchesJson: JSON.stringify(newMatches),
   });
 
-  // In-app notification + email handoff (both best effort).
+  // In-app + push notification + email handoff (all best effort).
+  // The `weeklyDigest` preference gates *delivery* (push + email), not
+  // the digest row itself — the dashboard "Your week" card should keep
+  // showing stats for opted-out candidates too. `sendNotificationToCandidate`
+  // always writes the in-app row and only suppresses push when the
+  // category pref is off, which matches the rest of the notifier.
   try {
     const [candUser] = await db
       .select({ userId: usersTable.id, email: usersTable.email })
       .from(usersTable)
       .where(eq(usersTable.candidateId, candidateId));
     if (candUser) {
-      await db.insert(notificationsTable).values({
-        userId: candUser.userId,
-        kind: "weekly_digest",
-        title: `Your week on Jumerra`,
-        body: `${profileViews} profile views · ${applicationsSent} applications · ${newMatches.length} new matches`,
-        link: "/account/dashboard",
-      });
+      const [prefRow] = await db
+        .select({ weeklyDigest: notificationPrefsTable.weeklyDigest })
+        .from(notificationPrefsTable)
+        .where(eq(notificationPrefsTable.userId, candUser.userId))
+        .limit(1);
+      const wantsDigest = prefRow?.weeklyDigest ?? true;
+
+      if (wantsDigest) {
+        const topLine = newMatches[0]
+          ? ` Top pick: ${newMatches[0].title} at ${newMatches[0].employerName} (${newMatches[0].matchScore}%).`
+          : "";
+        await sendNotificationToCandidate(candidateId, {
+          kind: "weekly_digest",
+          title: `Your week on Jumerra: ${newMatches.length} new match${newMatches.length === 1 ? "" : "es"}`,
+          body: `${profileViews} profile views · ${applicationsSent} applications.${topLine}`,
+          link: "/account/dashboard",
+          category: "weeklyDigest",
+          data: { weekStart: weekStartKey },
+        });
+      } else {
+        // Pref off: still keep an in-app row so the inbox + dashboard
+        // card reflect the week, just without push/email.
+        await db.insert(notificationsTable).values({
+          userId: candUser.userId,
+          kind: "weekly_digest",
+          title: `Your week on Jumerra`,
+          body: `${profileViews} profile views · ${applicationsSent} applications · ${newMatches.length} new matches`,
+          link: "/account/dashboard",
+        });
+      }
 
       // Hand off to the engagement-email helper. Today this is a stub
       // that returns { sent: false, reason: "email-not-configured" }
@@ -205,22 +445,31 @@ async function runDigestForCandidate(
       const emailLines = [
         `Hi,`,
         ``,
-        `Here is your weekly engagement summary on Jumerra (week of ${fmtDate(weekStart)}):`,
+        `Here is your weekly engagement summary on Jumerra (week of ${weekStartKey}):`,
         `  • ${profileViews} profile view${profileViews === 1 ? "" : "s"}`,
         `  • ${applicationsSent} application${applicationsSent === 1 ? "" : "s"} sent`,
         `  • ${interviewsScheduled} interview${interviewsScheduled === 1 ? "" : "s"} scheduled`,
         `  • ${newMatches.length} new job match${newMatches.length === 1 ? "" : "es"}`,
-        ``,
-        `Sign in to Jumerra to see the full breakdown.`,
       ];
-      const result = await sendEngagementEmail({
-        to: candUser.email,
-        kind: "weekly_digest",
-        subject: `Your week on Jumerra`,
-        body: emailLines.join("\n"),
-        candidateId,
-        logger,
-      });
+      if (newMatches.length > 0) {
+        emailLines.push(``, `Your strongest new matches:`);
+        for (const m of newMatches) {
+          emailLines.push(
+            `  • ${m.title} at ${m.employerName} — ${m.matchScore}% match`,
+          );
+        }
+      }
+      emailLines.push(``, `Sign in to Jumerra to see the full breakdown.`);
+      const result = wantsDigest
+        ? await sendEngagementEmail({
+            to: candUser.email,
+            kind: "weekly_digest",
+            subject: `Your week on Jumerra`,
+            body: emailLines.join("\n"),
+            candidateId,
+            logger,
+          })
+        : { sent: false as const, reason: "user-opted-out" as const };
       await db
         .update(candidateWeeklyDigestsTable)
         .set({
@@ -230,7 +479,7 @@ async function runDigestForCandidate(
         .where(
           and(
             eq(candidateWeeklyDigestsTable.candidateId, candidateId),
-            eq(candidateWeeklyDigestsTable.weekStart, fmtDate(weekStart)),
+            eq(candidateWeeklyDigestsTable.weekStart, weekStartKey),
           ),
         );
     }
@@ -240,30 +489,54 @@ async function runDigestForCandidate(
 }
 
 export async function runWeeklyDigestSweep(): Promise<void> {
-  const { start: weekStart, end: weekEnd } = previousCompleteWeekUTC();
   const candidates = await db
-    .select({ id: candidatesTable.id })
+    .select({
+      id: candidatesTable.id,
+      timezone: candidatesTable.timezone,
+    })
     .from(candidatesTable);
   let generated = 0;
-  for (const { id } of candidates) {
+  let skippedByTimeWindow = 0;
+  const now = new Date();
+  for (const { id, timezone } of candidates) {
     try {
+      // Local-time gate: only deliver during the candidate's local
+      // Monday 09:00 hour. Without a timezone we treat the candidate
+      // as UTC, which still lands on a real Mon 09:00. The hourly
+      // sweep + the (candidateId, weekStart) unique index together
+      // give us at-most-once delivery per candidate per week.
+      if (!isCandidateLocalMondayNineAM(timezone, now)) {
+        skippedByTimeWindow += 1;
+        continue;
+      }
+      // Compute the digest window in the *candidate's* local
+      // timezone so a Tokyo candidate's week and a Honolulu
+      // candidate's week each cover Mon→Mon in their own wall
+      // clock, not in UTC.
+      const { start, end, localWeekStartDate } = previousCompleteWeekLocal(
+        timezone,
+        now,
+      );
       const before = await db
         .select({ id: candidateWeeklyDigestsTable.id })
         .from(candidateWeeklyDigestsTable)
         .where(
           and(
             eq(candidateWeeklyDigestsTable.candidateId, id),
-            eq(candidateWeeklyDigestsTable.weekStart, fmtDate(weekStart)),
+            eq(candidateWeeklyDigestsTable.weekStart, localWeekStartDate),
           ),
         );
       if (before.length > 0) continue;
-      await runDigestForCandidate(id, weekStart, weekEnd);
+      await runDigestForCandidate(id, start, end, localWeekStartDate);
       generated += 1;
     } catch (err) {
       logger.warn({ err, candidateId: id }, "Digest sweep failed for candidate");
     }
   }
-  logger.info({ generated, total: candidates.length }, "Weekly digest sweep complete");
+  logger.info(
+    { generated, skippedByTimeWindow, total: candidates.length },
+    "Weekly digest sweep complete",
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -495,6 +768,7 @@ export async function runInterviewReminderSweep(): Promise<void> {
 // ---------------------------------------------------------------------------
 
 const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
+const ONE_HOUR_MS = 60 * 60 * 1000;
 const FIVE_MIN_MS = 5 * 60 * 1000;
 let started = false;
 
@@ -502,12 +776,22 @@ export function startEngagementScheduler(): void {
   if (started) return;
   started = true;
 
-  const sweep = async () => {
+  // Weekly digest sweep runs hourly so the candidate-local Monday-9-AM
+  // gate (`isCandidateLocalMondayNineAM`) can fire within a one-hour
+  // window of the candidate's local 09:00 in any timezone. The
+  // (candidateId, weekStart) unique index keeps it at-most-once per
+  // candidate per week even if the tick drifts.
+  const digestTick = async () => {
     try {
       await runWeeklyDigestSweep();
     } catch (err) {
       logger.error({ err }, "Weekly digest sweep crashed");
     }
+  };
+
+  // Saved-search alerts stay on the slower 6-hour cadence — they aren't
+  // time-of-day gated.
+  const savedSearchTick = async () => {
     try {
       await runSavedSearchAlertSweep();
     } catch (err) {
@@ -523,12 +807,19 @@ export function startEngagementScheduler(): void {
     }
   };
 
-  // Defer initial sweep so it doesn't block boot.
+  // Defer initial sweeps so they don't block boot.
   setTimeout(() => {
-    void sweep();
+    void digestTick();
   }, 30_000);
   setInterval(() => {
-    void sweep();
+    void digestTick();
+  }, ONE_HOUR_MS).unref();
+
+  setTimeout(() => {
+    void savedSearchTick();
+  }, 45_000);
+  setInterval(() => {
+    void savedSearchTick();
   }, SIX_HOURS_MS).unref();
 
   // Interview reminders run on a tighter cadence so the T-1h window

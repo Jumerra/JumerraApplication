@@ -91,6 +91,7 @@ const PREF_DEFAULTS = {
   applicationStatus: true,
   interviewReminder: true,
   profileViewed: true,
+  weeklyDigest: true,
 };
 
 router.get("/me/notification-prefs", async (req, res) => {
@@ -107,6 +108,7 @@ router.get("/me/notification-prefs", async (req, res) => {
     interviewReminder:
       row?.interviewReminder ?? PREF_DEFAULTS.interviewReminder,
     profileViewed: row?.profileViewed ?? PREF_DEFAULTS.profileViewed,
+    weeklyDigest: row?.weeklyDigest ?? PREF_DEFAULTS.weeklyDigest,
   });
 });
 
@@ -115,6 +117,7 @@ const PrefsBody = z.object({
   applicationStatus: z.boolean().optional(),
   interviewReminder: z.boolean().optional(),
   profileViewed: z.boolean().optional(),
+  weeklyDigest: z.boolean().optional(),
 });
 
 router.put("/me/notification-prefs", async (req, res) => {
@@ -149,6 +152,10 @@ router.put("/me/notification-prefs", async (req, res) => {
       patch.profileViewed ??
       existing?.profileViewed ??
       PREF_DEFAULTS.profileViewed,
+    weeklyDigest:
+      patch.weeklyDigest ??
+      existing?.weeklyDigest ??
+      PREF_DEFAULTS.weeklyDigest,
   };
 
   await db

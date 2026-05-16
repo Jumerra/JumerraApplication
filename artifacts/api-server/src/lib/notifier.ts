@@ -26,7 +26,8 @@ export type NotificationCategory =
   | "strongMatch"
   | "applicationStatus"
   | "interviewReminder"
-  | "profileViewed";
+  | "profileViewed"
+  | "weeklyDigest";
 
 export type DispatchOpts = {
   userId: number;
@@ -76,6 +77,7 @@ async function loadPrefs(userId: number): Promise<{
   applicationStatus: boolean;
   interviewReminder: boolean;
   profileViewed: boolean;
+  weeklyDigest: boolean;
 }> {
   const [row] = await db
     .select()
@@ -88,6 +90,7 @@ async function loadPrefs(userId: number): Promise<{
       applicationStatus: row.applicationStatus,
       interviewReminder: row.interviewReminder,
       profileViewed: row.profileViewed,
+      weeklyDigest: row.weeklyDigest,
     };
   }
   return {
@@ -95,6 +98,7 @@ async function loadPrefs(userId: number): Promise<{
     applicationStatus: true,
     interviewReminder: true,
     profileViewed: true,
+    weeklyDigest: true,
   };
 }
 

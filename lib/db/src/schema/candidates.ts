@@ -59,6 +59,11 @@ export const candidatesTable = pgTable("candidates", {
     withTimezone: true,
   }),
   backgroundCheckUpdatedBy: integer("background_check_updated_by"),
+  // IANA timezone identifier (e.g. "America/New_York"). Used by the
+  // weekly-digest worker to deliver the email + push on Monday 09:00
+  // *candidate-local* time. Nullable for legacy rows; the worker falls
+  // back to UTC when missing.
+  timezone: text("timezone"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

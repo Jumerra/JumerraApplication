@@ -58,6 +58,7 @@ export const notificationPrefsTable = pgTable(
     applicationStatus: boolean("application_status").notNull().default(true),
     interviewReminder: boolean("interview_reminder").notNull().default(true),
     profileViewed: boolean("profile_viewed").notNull().default(true),
+    weeklyDigest: boolean("weekly_digest").notNull().default(true),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

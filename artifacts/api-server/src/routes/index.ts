@@ -40,6 +40,7 @@ import careerConstellationRouter from "./career-constellation";
 import fastTrackRouter from "./fast-track";
 import dailyDeckRouter from "./daily-deck";
 import institutionApiKeysRouter from "./institution-api-keys";
+import webhooksRouter from "./webhooks";
 import { requireAuth } from "../middleware/require-auth";
 
 const router: IRouter = Router();
@@ -88,6 +89,9 @@ router.use("/dashboard", (req, res, next) => {
   return requireAuth(req, res, next);
 });
 
+// Webhooks must be mounted before any auth gate. They authenticate
+// themselves via signed-payload verification, not session cookies.
+router.use(webhooksRouter);
 router.use(healthRouter);
 router.use(authRouter);
 router.use(adminRouter);

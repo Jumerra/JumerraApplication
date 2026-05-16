@@ -73,6 +73,8 @@ export const employerSubscriptionsTable = pgTable(
       .unique(),
     stripeCustomerId: text("stripe_customer_id"),
     stripeSubscriptionId: text("stripe_subscription_id"),
+    provider: text("provider").notNull().default("stripe"),
+    paystackReference: text("paystack_reference"),
     status: text("status").notNull().default("pending"),
     priceCentsSnapshot: integer("price_cents_snapshot").notNull(),
     currencySnapshot: text("currency_snapshot").notNull(),

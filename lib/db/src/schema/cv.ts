@@ -35,6 +35,8 @@ export const cvPaymentsTable = pgTable("cv_payments", {
   id: serial("id").primaryKey(),
   candidateId: integer("candidate_id").notNull(),
   stripeSessionId: text("stripe_session_id").notNull().unique(),
+  provider: text("provider").notNull().default("stripe"),
+  paystackReference: text("paystack_reference"),
   amountCents: integer("amount_cents").notNull(),
   currency: text("currency").notNull(),
   status: text("status").notNull().default("pending"),

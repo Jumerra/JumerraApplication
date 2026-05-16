@@ -117,6 +117,18 @@ app.use(
     credentials: true,
   }),
 );
+// Raw body parsing for payment-provider webhooks MUST come before
+// express.json(). Stripe & Paystack both verify deliveries by HMAC of
+// the exact bytes sent; if express.json() runs first it parses + drops
+// the buffer and signature verification fails for every webhook.
+app.use(
+  "/api/webhooks/stripe",
+  express.raw({ type: "application/json", limit: "1mb" }),
+);
+app.use(
+  "/api/webhooks/paystack",
+  express.raw({ type: "application/json", limit: "1mb" }),
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 // Patch must run BEFORE express-session so it wraps res.setHeader

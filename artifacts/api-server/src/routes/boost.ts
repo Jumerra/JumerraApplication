@@ -5,12 +5,15 @@ import {
   boostSettingsTable,
   boostPaymentsTable,
   candidatesTable,
+  usersTable,
 } from "@workspace/db";
 import { requireAuth, requireAdmin } from "../middleware/require-auth";
 import {
   getUncachableStripeClient,
   mapStripeCheckoutError,
 } from "../stripeClient";
+import { selectPaymentRail, type PaymentRail } from "../lib/payment-rail";
+import { paystackInitializeTransaction } from "../paystackClient";
 
 const router: Router = Router();
 
@@ -198,7 +201,10 @@ router.post(
       }
 
       const candRows = await db
-        .select({ id: candidatesTable.id, fullName: candidatesTable.fullName })
+        .select({
+          id: candidatesTable.id,
+          fullName: candidatesTable.fullName,
+        })
         .from(candidatesTable)
         .where(eq(candidatesTable.id, candidateId))
         .limit(1);
@@ -206,6 +212,80 @@ router.post(
       if (!candidate) {
         res.status(404).json({ error: "Candidate not found" });
         return;
+      }
+
+      // Africa-first rail selection: NGN/GHS/ZAR/KES go through
+      // Paystack (local acquiring, lower fees, USSD/bank fallbacks).
+      // Everything else, plus any case where Paystack isn't configured,
+      // falls through to Stripe. Caller may override via body.rail.
+      const railOverride =
+        typeof (body as { rail?: unknown }).rail === "string"
+          ? ((body as { rail: string }).rail as PaymentRail)
+          : null;
+      const rail = selectPaymentRail({
+        currency: settings.currency,
+        override: railOverride,
+      });
+
+      if (rail === "paystack") {
+        const u = await db
+          .select({ email: usersTable.email })
+          .from(usersTable)
+          .where(eq(usersTable.candidateId, candidateId))
+          .limit(1);
+        const email = u[0]?.email ?? null;
+        if (!email) {
+          res.status(400).json({
+            error:
+              "Paystack checkout requires a candidate email; add an email to the account first.",
+            code: "paystack_email_missing",
+          });
+          return;
+        }
+        try {
+          const init = await paystackInitializeTransaction({
+            email,
+            amountSubunits: settings.priceCents,
+            currency: settings.currency,
+            callbackUrl: successUrl,
+            metadata: {
+              candidateId,
+              purpose: "profile_boost",
+              durationDays: settings.durationDays,
+            },
+          });
+          await db.insert(boostPaymentsTable).values({
+            candidateId,
+            // The stripe_session_id column carries a UNIQUE constraint
+            // and is required on the row. For Paystack rows we reuse
+            // the reference as the external id so the constraint still
+            // protects us against duplicate inserts.
+            stripeSessionId: init.reference,
+            provider: "paystack",
+            paystackReference: init.reference,
+            amountCents: settings.priceCents,
+            currency: settings.currency,
+            durationDays: settings.durationDays,
+            status: "pending",
+          });
+          res.json({
+            sessionId: init.reference,
+            checkoutUrl: init.authorization_url,
+            provider: "paystack",
+          });
+          return;
+        } catch (paystackErr) {
+          req.log.error(
+            { err: paystackErr, candidateId, purpose: "profile_boost" },
+            "boost checkout: paystack init failed",
+          );
+          res.status(502).json({
+            error:
+              "Could not start Paystack checkout. Please try again in a moment.",
+            code: "paystack_init_failed",
+          });
+          return;
+        }
       }
 
       let session;
@@ -265,13 +345,18 @@ router.post(
       await db.insert(boostPaymentsTable).values({
         candidateId,
         stripeSessionId: session.id,
+        provider: "stripe",
         amountCents: settings.priceCents,
         currency: settings.currency,
         durationDays: settings.durationDays,
         status: "pending",
       });
 
-      res.json({ sessionId: session.id, checkoutUrl: session.url });
+      res.json({
+        sessionId: session.id,
+        checkoutUrl: session.url,
+        provider: "stripe",
+      });
     } catch (err) {
       req.log.error({ err }, "boost checkout: unexpected failure");
       res.status(500).json({

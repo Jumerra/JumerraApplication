@@ -67,6 +67,8 @@ export const jobTierPaymentsTable = pgTable(
     employerId: integer("employer_id").notNull(),
     tier: text("tier").notNull(), // 'promoted' | 'sponsored'
     stripeSessionId: text("stripe_session_id").notNull().unique(),
+    provider: text("provider").notNull().default("stripe"),
+    paystackReference: text("paystack_reference"),
     amountCents: integer("amount_cents").notNull(),
     currency: text("currency").notNull(),
     durationDays: integer("duration_days").notNull(),

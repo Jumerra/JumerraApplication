@@ -14,6 +14,7 @@ import {
   mapStripeCheckoutError,
 } from "../stripeClient";
 import { getAnthropic, ANTHROPIC_MODEL } from "../aiClient";
+import { finalizeCvPayment } from "../lib/payment-finalizers";
 
 const router: Router = Router();
 
@@ -342,28 +343,12 @@ router.post("/cv/checkout/verify", requireAuth, async (req, res) => {
       return;
     }
 
-    // Atomic state transition: only the verifier that flips
-    // pending->paid is allowed to flip the candidate's unlock flag.
-    // Concurrent verifiers see updated.length === 0 and short-circuit
-    // to the already-unlocked state.
-    const flipped = await db
-      .update(cvPaymentsTable)
-      .set({ status: "paid", paidAt: new Date() })
-      .where(
-        and(
-          eq(cvPaymentsTable.id, payment.id),
-          eq(cvPaymentsTable.status, "pending"),
-        ),
-      )
-      .returning({ id: cvPaymentsTable.id });
-
-    if (flipped.length > 0) {
-      await db
-        .update(candidatesTable)
-        .set({ aiCvUnlocked: true, aiCvUnlockedAt: new Date() })
-        .where(eq(candidatesTable.id, payment.candidateId));
-    }
-
+    // Delegate to the shared finalizer so the status flip and the
+    // candidate's aiCvUnlocked flag are written in the same DB
+    // transaction. Previously this route flipped the two in sequence,
+    // which could leave a paid payment row without the corresponding
+    // unlock if the process died between writes.
+    await finalizeCvPayment({ provider: "stripe", externalRef: sessionId });
     res.json({ status: "paid", unlocked: true });
   } catch (err) {
     const mapped = mapStripeCheckoutError(err);

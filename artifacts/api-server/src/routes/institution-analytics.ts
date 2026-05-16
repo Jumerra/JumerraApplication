@@ -1273,4 +1273,158 @@ router.get(
   },
 );
 
+// GET /institutions/:id/leaderboard.png
+//   PUBLIC. Auto-generated 1200x630 share card (Open Graph spec). Used
+//   as og:image so social-media unfurlers (LinkedIn, Twitter/X,
+//   Facebook, Slack) show a real preview card with the institution's
+//   headline placement stat — not just the logo.
+//
+//   Generated lazily from the same data the JSON endpoint serves and
+//   sent as a PNG with a 1-hour public cache (cheap to regen, ok if
+//   slightly stale).
+function escapeSvgText(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function buildShareCardSvg(opts: {
+  institutionName: string;
+  totalPlaced: number;
+  medianDays: number;
+  topEmployer: string | null;
+}): string {
+  const name = escapeSvgText(opts.institutionName);
+  const emp = opts.topEmployer
+    ? `Top hiring partner: ${escapeSvgText(opts.topEmployer)}`
+    : "";
+  // Two-line wrap for long institution names. Cheap heuristic: split
+  // at the last space before column 28.
+  let line1 = name;
+  let line2 = "";
+  if (name.length > 28) {
+    const cut = name.lastIndexOf(" ", 28);
+    if (cut > 0) {
+      line1 = name.slice(0, cut);
+      line2 = name.slice(cut + 1);
+    }
+  }
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#064e3b"/>
+      <stop offset="1" stop-color="#0f766e"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect x="64" y="64" width="1072" height="502" rx="32" fill="#022c22" fill-opacity="0.35"/>
+  <text x="112" y="160" fill="#a7f3d0" font-family="sans-serif" font-size="32" font-weight="600">JUMERRA · PLACEMENT LEADERBOARD</text>
+  <text x="112" y="240" fill="#ffffff" font-family="sans-serif" font-size="64" font-weight="700">${line1}</text>
+  ${line2 ? `<text x="112" y="320" fill="#ffffff" font-family="sans-serif" font-size="64" font-weight="700">${escapeSvgText(line2)}</text>` : ""}
+  <text x="112" y="${line2 ? 420 : 360}" fill="#5eead4" font-family="sans-serif" font-size="180" font-weight="800">${opts.totalPlaced}</text>
+  <text x="112" y="${line2 ? 470 : 410}" fill="#a7f3d0" font-family="sans-serif" font-size="36" font-weight="500">students placed</text>
+  <text x="112" y="${line2 ? 530 : 480}" fill="#d1fae5" font-family="sans-serif" font-size="30">Median time to placement: ${opts.medianDays} days</text>
+  ${emp ? `<text x="112" y="${line2 ? 575 : 525}" fill="#d1fae5" font-family="sans-serif" font-size="28">${emp}</text>` : ""}
+</svg>`;
+}
+
+router.get(
+  "/institutions/:id/leaderboard.png",
+  async (req, res): Promise<void> => {
+    const institutionId = Number(req.params.id);
+    if (!Number.isInteger(institutionId) || institutionId <= 0) {
+      res.status(400).json({ error: "Invalid institution id" });
+      return;
+    }
+    const [institution] = await db
+      .select()
+      .from(institutionsTable)
+      .where(eq(institutionsTable.id, institutionId))
+      .limit(1);
+    if (!institution || !institution.publicLeaderboardEnabled) {
+      res.status(404).json({ error: "Leaderboard not available" });
+      return;
+    }
+
+    // Count placed students (status = "hired") scoped to this institution.
+    const candidateIds = await getCandidateIdsForInstitution(institutionId);
+    let totalPlaced = 0;
+    let medianDays = 0;
+    let topEmployer: string | null = null;
+    if (candidateIds.length > 0) {
+      const placed = await db
+        .select({
+          appliedAt: applicationsTable.appliedAt,
+          updatedAt: applicationsTable.updatedAt,
+          employerName: employersTable.name,
+        })
+        .from(applicationsTable)
+        .innerJoin(jobsTable, eq(applicationsTable.jobId, jobsTable.id))
+        .innerJoin(employersTable, eq(jobsTable.employerId, employersTable.id))
+        .where(
+          and(
+            eq(applicationsTable.status, "hired"),
+            inArray(applicationsTable.candidateId, candidateIds),
+          ),
+        );
+      totalPlaced = placed.length;
+      const ttp: number[] = [];
+      const empCount = new Map<string, number>();
+      for (const p of placed) {
+        if (p.appliedAt && p.updatedAt) {
+          const days = Math.max(
+            0,
+            Math.round(
+              (p.updatedAt.getTime() - p.appliedAt.getTime()) /
+                (1000 * 60 * 60 * 24),
+            ),
+          );
+          ttp.push(days);
+        }
+        empCount.set(p.employerName, (empCount.get(p.employerName) ?? 0) + 1);
+      }
+      medianDays = leaderboardMedian(ttp);
+      let bestCount = 0;
+      for (const [name, c] of empCount) {
+        if (c > bestCount) {
+          bestCount = c;
+          topEmployer = name;
+        }
+      }
+    }
+
+    const svg = buildShareCardSvg({
+      institutionName: institution.name,
+      totalPlaced,
+      medianDays,
+      topEmployer,
+    });
+
+    try {
+      // Lazy-import @resvg/resvg-js so a missing native binary at boot
+      // doesn't kill the whole server — if it fails, fall back to the
+      // SVG which most platforms (LinkedIn, Slack, Facebook) accept.
+      const { Resvg } = await import("@resvg/resvg-js");
+      const resvg = new Resvg(svg, {
+        background: "#064e3b",
+        fitTo: { mode: "width", value: 1200 },
+        font: { loadSystemFonts: true },
+      });
+      const png = resvg.render().asPng();
+      res.setHeader("Content-Type", "image/png");
+      res.setHeader("Cache-Control", "public, max-age=3600");
+      res.end(png);
+    } catch (err) {
+      req.log.warn({ err }, "leaderboard PNG render failed, serving SVG");
+      res.setHeader("Content-Type", "image/svg+xml");
+      res.setHeader("Cache-Control", "public, max-age=3600");
+      res.end(svg);
+    }
+  },
+);
+
 export default router;

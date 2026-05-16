@@ -85,10 +85,12 @@ export default function InstitutionLeaderboardPage() {
     setMeta("og:title", title, "property");
     setMeta("og:description", desc, "property");
     setMeta("og:type", "website", "property");
-    if (data.institutionLogoUrl) {
-      setMeta("og:image", data.institutionLogoUrl, "property");
-    }
+    const shareCardUrl = `/api/institutions/${institutionId}/leaderboard.png`;
+    setMeta("og:image", shareCardUrl, "property");
+    setMeta("og:image:width", "1200", "property");
+    setMeta("og:image:height", "630", "property");
     setMeta("twitter:card", "summary_large_image");
+    setMeta("twitter:image", shareCardUrl);
   }, [data]);
 
   function updateQuery(next: { year?: number | null; departmentId?: number | null }) {

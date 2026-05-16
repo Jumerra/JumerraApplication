@@ -38,36 +38,41 @@ type Leaderboard = {
   medianTimeToPlacementDays: number;
 };
 
-function buildMetaBlock(data: Leaderboard): string {
+function buildMetaBlock(data: Leaderboard, institutionId: string): string {
   const title = `${data.institutionName} — Placement Leaderboard | Jumerra`;
   const desc =
     `${data.totalPlaced} students placed from ${data.institutionName}. ` +
     `Median time to placement: ${data.medianTimeToPlacementDays} days. ` +
     `Top hiring partners and salary bands for graduates.`;
-  const lines = [
+  // Always point og:image at the generated share card endpoint — it
+  // renders a 1200x630 PNG with the institution name + headline stat,
+  // which is what social-media unfurlers want. The same URL works in
+  // dev and prod because both go through the shared proxy.
+  const ogImage = `/api/institutions/${institutionId}/leaderboard.png`;
+  return [
     `<title>${escapeHtml(title)}</title>`,
     `<meta name="description" content="${escapeHtml(desc)}" />`,
     `<meta property="og:title" content="${escapeHtml(title)}" />`,
     `<meta property="og:description" content="${escapeHtml(desc)}" />`,
     `<meta property="og:type" content="website" />`,
+    `<meta property="og:image" content="${escapeHtml(ogImage)}" />`,
+    `<meta property="og:image:width" content="1200" />`,
+    `<meta property="og:image:height" content="630" />`,
     `<meta name="twitter:card" content="summary_large_image" />`,
-  ];
-  if (data.institutionLogoUrl) {
-    lines.splice(
-      5,
-      0,
-      `<meta property="og:image" content="${escapeHtml(data.institutionLogoUrl)}" />`,
-    );
-  }
-  return lines.join("\n    ");
+    `<meta name="twitter:image" content="${escapeHtml(ogImage)}" />`,
+  ].join("\n    ");
 }
 
-function rewriteHtml(html: string, data: Leaderboard): string {
+function rewriteHtml(
+  html: string,
+  data: Leaderboard,
+  institutionId: string,
+): string {
   // Replace the static <title>...</title> + the default description meta
   // line with the per-institution block. We deliberately match a tight
   // pattern that mirrors what index.html ships with so we never blow
   // away unrelated tags.
-  const block = buildMetaBlock(data);
+  const block = buildMetaBlock(data, institutionId);
   return html.replace(
     /<title>[\s\S]*?<\/title>[\s\S]*?<meta name="description"[^>]*\/?>/,
     block,
@@ -109,7 +114,7 @@ export default function leaderboardSeoPlugin(): Plugin {
           let html = fs.readFileSync(indexHtmlPath, "utf-8");
           // Let Vite do its standard dev transforms (HMR client, etc).
           html = await server.transformIndexHtml(url, html, req.originalUrl);
-          if (data) html = rewriteHtml(html, data);
+          if (data) html = rewriteHtml(html, data, m[1]!);
           res.setHeader("Content-Type", "text/html");
           res.setHeader("Cache-Control", "no-store");
           res.end(html);
@@ -134,7 +139,7 @@ export default function leaderboardSeoPlugin(): Plugin {
           } catch {
             return next();
           }
-          if (data) html = rewriteHtml(html, data);
+          if (data) html = rewriteHtml(html, data, m[1]!);
           res.setHeader("Content-Type", "text/html");
           res.setHeader("Cache-Control", "no-store");
           res.end(html);

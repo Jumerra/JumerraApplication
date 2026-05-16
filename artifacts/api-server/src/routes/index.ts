@@ -38,6 +38,7 @@ import alumniIntrosRouter from "./alumni-intros";
 import growthPlanRouter from "./growth-plan";
 import careerConstellationRouter from "./career-constellation";
 import fastTrackRouter from "./fast-track";
+import dailyDeckRouter from "./daily-deck";
 import { requireAuth } from "../middleware/require-auth";
 
 const router: IRouter = Router();
@@ -143,6 +144,8 @@ router.use(careerConstellationRouter);
 // as growth-plan and meRouter so /me/* doesn't fall into the
 // /candidates requireAuth gate; the router has its own auth gate.
 router.use(fastTrackRouter);
+// Daily candidate deck (Task #79): /me/daily-deck*. Router gates itself.
+router.use(dailyDeckRouter);
 router.use(candidatesRouter);
 router.use(employersRouter);
 router.use(institutionsRouter);

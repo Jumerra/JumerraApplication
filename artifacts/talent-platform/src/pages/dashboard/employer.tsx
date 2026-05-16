@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { InterviewScheduleDialog } from "@/components/interview-schedule-dialog";
 import { SalaryBand } from "@/components/SalaryBand";
 import { FastTrackPledgeCard } from "@/components/FastTrackPledgeCard";
+import { DailyDeckCard } from "@/components/DailyDeckCard";
 
 export default function EmployerDashboard() {
   const { userId } = useAuth();
@@ -193,6 +194,7 @@ export default function EmployerDashboard() {
         </div>
 
         <div className="space-y-6">
+          <DailyDeckCard />
           <FastTrackPledgeCard />
           <Card className="shadow-sm">
             <CardHeader>

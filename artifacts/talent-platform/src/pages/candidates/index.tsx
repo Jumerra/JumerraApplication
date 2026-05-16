@@ -53,6 +53,7 @@ export default function CandidatesList() {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [poolDialogOpen, setPoolDialogOpen] = useState(false);
   const [chosenPoolId, setChosenPoolId] = useState<string>("");
+  const [tagInput, setTagInput] = useState("");
 
   const { data: candidates, isLoading } = useListCandidates({
     search: search || undefined,
@@ -82,8 +83,19 @@ export default function CandidatesList() {
   const onAddToPool = () => {
     if (!chosenPoolId || selectedIds.length === 0) return;
     const poolId = Number(chosenPoolId);
+    const tags = tagInput
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean);
     addMembers.mutate(
-      { id: employerId, poolId, data: { candidateIds: selectedIds } },
+      {
+        id: employerId,
+        poolId,
+        data: {
+          candidateIds: selectedIds,
+          ...(tags.length > 0 ? { tags } : {}),
+        },
+      },
       {
         onSuccess: () => {
           toast.success(
@@ -100,6 +112,7 @@ export default function CandidatesList() {
           setSelected(new Set());
           setPoolDialogOpen(false);
           setChosenPoolId("");
+          setTagInput("");
         },
         onError: () => toast.error("Could not add to pool"),
       },
@@ -296,18 +309,34 @@ export default function CandidatesList() {
             </DialogTitle>
           </DialogHeader>
           {pools && pools.length > 0 ? (
-            <Select value={chosenPoolId} onValueChange={setChosenPoolId}>
-              <SelectTrigger data-testid="select-pool">
-                <SelectValue placeholder="Pick a pool…" />
-              </SelectTrigger>
-              <SelectContent>
-                {pools.map((p) => (
-                  <SelectItem key={p.id} value={String(p.id)}>
-                    {p.name} ({p.memberCount})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="space-y-3">
+              <Select value={chosenPoolId} onValueChange={setChosenPoolId}>
+                <SelectTrigger data-testid="select-pool">
+                  <SelectValue placeholder="Pick a pool…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {pools.map((p) => (
+                    <SelectItem key={p.id} value={String(p.id)}>
+                      {p.name} ({p.memberCount})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div>
+                <label className="text-sm font-medium">
+                  Tags (optional, comma-separated)
+                </label>
+                <Input
+                  placeholder="e.g. backend, ghana, top-pick"
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  data-testid="input-pool-tags"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Free-text labels you can use to organize members.
+                </p>
+              </div>
+            </div>
           ) : (
             <p className="text-sm text-muted-foreground">
               You have no talent pools yet.{" "}

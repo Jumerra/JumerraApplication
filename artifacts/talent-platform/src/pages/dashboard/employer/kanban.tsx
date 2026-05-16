@@ -26,6 +26,7 @@ const STAGES = [
   { id: "interview", label: "Interview" },
   { id: "offer", label: "Offer" },
   { id: "hired", label: "Hired" },
+  { id: "rejected", label: "Rejected" },
 ] as const;
 
 type StageId = (typeof STAGES)[number]["id"];
@@ -77,6 +78,7 @@ export default function PipelineKanbanPage() {
       interview: [],
       offer: [],
       hired: [],
+      rejected: [],
     };
     for (const a of filtered) {
       if ((STAGES as readonly { id: string }[]).some((s) => s.id === a.status)) {

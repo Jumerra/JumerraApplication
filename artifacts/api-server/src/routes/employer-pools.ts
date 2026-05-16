@@ -618,24 +618,13 @@ router.post("/employers/:id/outreach", async (req, res): Promise<void> => {
       };
     }
 
-    await tx.insert(employerOutreachMessagesTable).values(
-      allowed.map((c) => ({
-        employerId,
-        senderUserId: req.currentUser!.id,
-        candidateId: c.id,
-        poolId: body.data.poolId ?? null,
-        templateId: body.data.templateId ?? null,
-        subject: renderedSubject(c.fullName),
-        body: renderedBody(c.fullName),
-        deliveryStatus: "in_app" as const,
-      })),
-    );
-
-    // Map candidate → user_id for notifications (best effort; candidates
-    // without a linked user account just get the outreach log row).
+    // Map candidate → user_id + email for notifications and email queue.
+    // Candidates without a linked user account still get an outreach log
+    // row but no in-app notification or email.
     const candUsers = await tx
       .select({
         userId: usersTable.id,
+        email: usersTable.email,
         candidateId: usersTable.candidateId,
       })
       .from(usersTable)
@@ -645,23 +634,73 @@ router.post("/employers/:id/outreach", async (req, res): Promise<void> => {
           allowed.map((a) => a.id),
         ),
       );
-    const userByCandidate = new Map<number, number>();
+    const userByCandidate = new Map<
+      number,
+      { userId: number; email: string | null }
+    >();
     for (const u of candUsers) {
-      if (u.candidateId != null) userByCandidate.set(u.candidateId, u.userId);
+      if (u.candidateId != null) {
+        userByCandidate.set(u.candidateId, {
+          userId: u.userId,
+          email: u.email,
+        });
+      }
     }
+
+    // Outreach opt-in: candidates marked openToOffers can receive emails.
+    const candRows = await tx
+      .select({
+        id: candidatesTable.id,
+        openToOffers: candidatesTable.openToOffers,
+      })
+      .from(candidatesTable)
+      .where(
+        inArray(
+          candidatesTable.id,
+          allowed.map((a) => a.id),
+        ),
+      );
+    const openByCandidate = new Map<number, boolean>();
+    for (const r of candRows) openByCandidate.set(r.id, r.openToOffers);
+
+    await tx.insert(employerOutreachMessagesTable).values(
+      allowed.map((c) => {
+        const u = userByCandidate.get(c.id);
+        // Queue an email when the candidate has a real account, an email
+        // address, and has not opted out (openToOffers). The email
+        // worker is not yet wired (followup #40); until then queued
+        // rows stay queued and the in-app notification still delivers.
+        const canEmail =
+          !!u && !!u.email && (openByCandidate.get(c.id) ?? false);
+        return {
+          employerId,
+          senderUserId: req.currentUser!.id,
+          candidateId: c.id,
+          poolId: body.data.poolId ?? null,
+          templateId: body.data.templateId ?? null,
+          subject: renderedSubject(c.fullName),
+          body: renderedBody(c.fullName),
+          deliveryStatus: (canEmail ? "queued" : "in_app") as
+            | "queued"
+            | "in_app",
+        };
+      }),
+    );
 
     const notifRows = allowed
       .map((c) => {
-        const userId = userByCandidate.get(c.id);
-        if (!userId) return null;
+        const u = userByCandidate.get(c.id);
+        if (!u) return null;
         return {
-          userId,
+          userId: u.userId,
           kind: "employer_outreach",
           title:
             renderedSubject(c.fullName) ||
             `Message from ${employer.name}`,
           body: renderedBody(c.fullName).slice(0, 280),
-          link: "/account/inbox",
+          // Candidate web dashboard surfaces notifications via the bell;
+          // mobile app routes "/dashboard/candidate" link via the inbox.
+          link: "/dashboard/candidate",
         };
       })
       .filter((r): r is NonNullable<typeof r> => r !== null);

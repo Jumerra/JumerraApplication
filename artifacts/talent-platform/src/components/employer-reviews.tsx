@@ -48,11 +48,11 @@ export function EmployerReviews({ employerId }: { employerId: number }) {
   useEffect(() => {
     if (role !== "candidate" || !userId) return;
     customFetch<{
-      affiliations: { institutionId: number; institutionName: string; isVerified: boolean }[];
-    }>(`/api/candidates/${userId}/institutions`).then((data) => {
-      const verified = (data?.affiliations ?? [])
+      institutions?: { id: number; name: string; isVerified: boolean }[];
+    }>(`/api/candidates/${userId}`).then((data) => {
+      const verified = (data?.institutions ?? [])
         .filter((a) => a.isVerified)
-        .map((a) => ({ id: a.institutionId, name: a.institutionName }));
+        .map((a) => ({ id: a.id, name: a.name }));
       setMyInsts(verified);
       if (verified.length > 0) setInstitutionId(verified[0].id);
     }).catch(() => {});

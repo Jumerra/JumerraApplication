@@ -30,8 +30,8 @@ type Mentor = {
   avatarUrl: string | null;
   location: string | null;
   yearsExperience: number;
-  institutionName: string | null;
-  institutionId: number;
+  institutions: { id: number; name: string; logoUrl: string | null }[];
+  requestStatus: "pending" | "accepted" | "declined" | null;
 };
 
 export default function MentorsScreen() {
@@ -175,12 +175,12 @@ export default function MentorsScreen() {
                 </View>
               </View>
               <View style={styles.metaRow}>
-                {m.institutionName ? (
-                  <View style={styles.metaItem}>
+                {m.institutions.map((i) => (
+                  <View key={i.id} style={styles.metaItem}>
                     <Feather name="award" size={12} color={colors.mutedForeground} />
-                    <Text style={[styles.meta, { color: colors.mutedForeground }]}>{m.institutionName}</Text>
+                    <Text style={[styles.meta, { color: colors.mutedForeground }]}>{i.name}</Text>
                   </View>
-                ) : null}
+                ))}
                 {m.location ? (
                   <View style={styles.metaItem}>
                     <Feather name="map-pin" size={12} color={colors.mutedForeground} />
@@ -190,20 +190,33 @@ export default function MentorsScreen() {
               </View>
               <Pressable
                 onPress={() => {
+                  if (m.requestStatus) return;
                   setSelected(m);
                   setMessage("");
                 }}
+                disabled={!!m.requestStatus}
                 style={({ pressed }) => [
                   styles.cta,
                   {
-                    backgroundColor: colors.primary,
+                    backgroundColor: m.requestStatus ? colors.secondary : colors.primary,
                     borderRadius: colors.radius,
                     opacity: pressed ? 0.85 : 1,
                   },
                 ]}
               >
-                <Text style={[styles.ctaText, { color: colors.primaryForeground }]}>
-                  Request intro
+                <Text
+                  style={[
+                    styles.ctaText,
+                    { color: m.requestStatus ? colors.secondaryForeground : colors.primaryForeground },
+                  ]}
+                >
+                  {m.requestStatus === "accepted"
+                    ? "Accepted"
+                    : m.requestStatus === "declined"
+                      ? "Declined"
+                      : m.requestStatus === "pending"
+                        ? "Request pending"
+                        : "Request intro"}
                 </Text>
               </Pressable>
             </View>

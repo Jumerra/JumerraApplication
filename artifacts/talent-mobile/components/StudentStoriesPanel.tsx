@@ -8,13 +8,19 @@ import { useColors } from "@/hooks/useColors";
 
 type Story = {
   id: number;
-  candidateName: string | null;
-  candidateAvatarUrl: string | null;
-  employerName: string | null;
-  employerLogoUrl: string | null;
-  institutionName: string | null;
   quote: string;
   photoUrl: string | null;
+  candidate: {
+    id: number;
+    fullName: string;
+    avatarUrl: string | null;
+    headline: string | null;
+  };
+  employer: {
+    id: number;
+    name: string;
+    logoUrl: string | null;
+  };
 };
 
 export function StudentStoriesPanel() {
@@ -59,9 +65,9 @@ export function StudentStoriesPanel() {
             ]}
           >
             <View style={styles.cardHead}>
-              {s.candidateAvatarUrl ? (
+              {s.candidate.avatarUrl ? (
                 <Image
-                  source={{ uri: s.candidateAvatarUrl }}
+                  source={{ uri: s.candidate.avatarUrl }}
                   style={styles.avatar}
                   contentFit="cover"
                 />
@@ -84,14 +90,14 @@ export function StudentStoriesPanel() {
                   style={[styles.name, { color: colors.foreground }]}
                   numberOfLines={1}
                 >
-                  {s.candidateName ?? "A Jumerra graduate"}
+                  {s.candidate.fullName}
                 </Text>
-                {s.institutionName ? (
+                {s.candidate.headline ? (
                   <Text
                     style={[styles.meta, { color: colors.mutedForeground }]}
                     numberOfLines={1}
                   >
-                    {s.institutionName}
+                    {s.candidate.headline}
                   </Text>
                 ) : null}
               </View>
@@ -102,14 +108,14 @@ export function StudentStoriesPanel() {
             >
               “{s.quote}”
             </Text>
-            {s.employerName ? (
+            {s.employer?.name ? (
               <View style={styles.employerRow}>
                 <Feather name="briefcase" size={12} color={colors.mutedForeground} />
                 <Text
                   style={[styles.employer, { color: colors.mutedForeground }]}
                   numberOfLines={1}
                 >
-                  Hired at {s.employerName}
+                  Hired at {s.employer.name}
                 </Text>
               </View>
             ) : null}

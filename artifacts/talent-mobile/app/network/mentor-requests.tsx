@@ -11,11 +11,16 @@ import { useColors } from "@/hooks/useColors";
 
 type Req = {
   id: number;
-  requesterCandidateId: number;
-  requesterName: string | null;
-  requesterAvatarUrl: string | null;
-  message: string;
+  direction: "incoming" | "outgoing";
   status: "pending" | "accepted" | "declined";
+  message: string;
+  counterpart: {
+    id: number;
+    fullName: string;
+    headline: string;
+    avatarUrl: string;
+    email: string | null;
+  };
   createdAt: string;
 };
 
@@ -34,9 +39,11 @@ export default function MentorRequestsScreen() {
     }
     setLoading(true);
     customFetch<{ requests: Req[] }>(
-      `/api/candidates/${candidateId}/mentor-requests?box=incoming`,
+      `/api/candidates/${candidateId}/mentor-requests`,
     )
-      .then((d) => setItems(d?.requests ?? []))
+      .then((d) =>
+        setItems((d?.requests ?? []).filter((r) => r.direction === "incoming")),
+      )
       .catch(() => setItems([]))
       .finally(() => setLoading(false));
   }, [candidateId]);
@@ -88,8 +95,13 @@ export default function MentorRequestsScreen() {
               ]}
             >
               <Text style={[styles.name, { color: colors.foreground }]}>
-                {r.requesterName ?? "A student"}
+                {r.counterpart.fullName}
               </Text>
+              {r.counterpart.headline ? (
+                <Text style={[styles.status, { color: colors.mutedForeground }]}>
+                  {r.counterpart.headline}
+                </Text>
+              ) : null}
               <Text style={[styles.body, { color: colors.foreground }]}>{r.message}</Text>
               {r.status === "pending" ? (
                 <View style={styles.row}>

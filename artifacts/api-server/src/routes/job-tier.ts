@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, eq, ilike, sql, count } from "drizzle-orm";
+import { and, eq, ilike, sql, count, arrayOverlaps } from "drizzle-orm";
 import {
   db,
   jobsTable,
@@ -96,7 +96,7 @@ const PER_CANDIDATE_DAILY_PUSH_CAP = 3;
  * job (admin setting) and daily pushes per candidate (hardcoded 3).
  * Idempotent: a candidate already pushed for this job is skipped.
  */
-async function pushSponsoredJobToCandidates(
+export async function pushSponsoredJobToCandidates(
   job: typeof jobsTable.$inferSelect,
   pushCap: number,
 ): Promise<number> {
@@ -119,9 +119,9 @@ async function pushSponsoredJobToCandidates(
       ? job.targetSkills
       : null;
   if (targets) {
-    filters.push(sql`${candidatesTable.skills} && ${targets}::text[]`);
+    filters.push(arrayOverlaps(candidatesTable.skills, targets));
   } else if (job.skills && job.skills.length > 0) {
-    filters.push(sql`${candidatesTable.skills} && ${job.skills}::text[]`);
+    filters.push(arrayOverlaps(candidatesTable.skills, job.skills));
   }
   if (job.targetLocation) {
     filters.push(ilike(candidatesTable.location, `%${job.targetLocation}%`));

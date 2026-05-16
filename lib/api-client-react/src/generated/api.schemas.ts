@@ -363,6 +363,15 @@ prioritize replies to high-intent applicants. Defaults to
   /** Overall mock-interview score 0–100, if any. */
   mockInterviewScore: number | null;
   mockInterviewBreakdown: MockInterviewBreakdown | null;
+  /** Candidate's self-reported accepted salary (whole units of
+`reportedCurrency`). Set only after the application has
+reached `hired`. Used to anonymously feed the aggregate
+band returned by `GET /salary-insights`.
+ */
+  reportedSalary?: number | null;
+  /** ISO-4217 currency for `reportedSalary`. */
+  reportedCurrency?: string | null;
+  salaryReportedAt?: string | null;
   /** Institution co-sign on this application, if any. The
 endorsing institution's name is shown as a "Verified by
 X" badge to the employer.
@@ -1870,6 +1879,37 @@ export interface SalaryInsight {
   sampleSize: number;
 }
 
+export type SalaryBandScope =
+  (typeof SalaryBandScope)[keyof typeof SalaryBandScope];
+
+export const SalaryBandScope = {
+  platform: "platform",
+  institution: "institution",
+} as const;
+
+/**
+ * Anonymised salary band from real hires. `insufficient: true`
+means fewer than the privacy floor (3) hires matched, so the
+percentile fields are omitted to avoid deanonymisation.
+
+ */
+export interface SalaryBand {
+  count: number;
+  currency: string;
+  scope: SalaryBandScope;
+  insufficient: boolean;
+  p25?: number;
+  p50?: number;
+  p75?: number;
+}
+
+export interface ReportSalary {
+  /** Whole units of `reportedCurrency`, > 0. */
+  reportedSalary: number;
+  /** ISO-4217 (e.g. GHS, USD). */
+  reportedCurrency: string;
+}
+
 export type SiteContentItemType =
   (typeof SiteContentItemType)[keyof typeof SiteContentItemType];
 
@@ -3119,6 +3159,15 @@ export const ListInterviewInvitesForCandidateStatus = {
   declined: "declined",
   cancelled: "cancelled",
 } as const;
+
+export type GetSalaryBandParams = {
+  jobId: number;
+  institutionId?: number;
+};
+
+export type ReportApplicationSalary200 = {
+  ok: boolean;
+};
 
 export type RegisterUser409 = {
   error: string;

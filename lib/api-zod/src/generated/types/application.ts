@@ -38,6 +38,15 @@ prioritize replies to high-intent applicants. Defaults to
   /** Overall mock-interview score 0–100, if any. */
   mockInterviewScore: number | null;
   mockInterviewBreakdown: MockInterviewBreakdown | null;
+  /** Candidate's self-reported accepted salary (whole units of
+`reportedCurrency`). Set only after the application has
+reached `hired`. Used to anonymously feed the aggregate
+band returned by `GET /salary-insights`.
+ */
+  reportedSalary?: number | null;
+  /** ISO-4217 currency for `reportedSalary`. */
+  reportedCurrency?: string | null;
+  salaryReportedAt?: Date | null;
   /** Institution co-sign on this application, if any. The
 endorsing institution's name is shown as a "Verified by
 X" badge to the employer.

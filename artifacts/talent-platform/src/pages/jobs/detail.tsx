@@ -13,6 +13,7 @@ import { MapPin, Building2, Calendar, Banknote, CheckCircle2, UserCircle, Star, 
 import { useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { InterviewPrepPanel } from "@/components/InterviewPrepPanel";
+import { SalaryBand } from "@/components/SalaryBand";
 
 export default function JobDetail() {
   const { id } = useParams();
@@ -242,6 +243,12 @@ export default function JobDetail() {
                     <span className="font-medium">{job.applicationsCount}</span>
                   </div>
                 </div>
+
+                {job.id ? (
+                  <div className="pt-6 border-t">
+                    <SalaryBand jobId={job.id} />
+                  </div>
+                ) : null}
 
                 <div className="pt-6 border-t">
                   <h4 className="text-sm font-semibold mb-3">Required Skills</h4>

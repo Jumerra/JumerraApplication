@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { z } from "zod";
 import { eq, and, desc, inArray } from "drizzle-orm";
 import {
   db,
@@ -148,6 +149,22 @@ async function serializeApplication(
         }
       : null,
     endorsement,
+    // See list-endpoint comment: only the candidate and admins see
+    // the raw reported number; employers/institutions get nulls so
+    // the per-row offer is never leaked across the tenant boundary.
+    reportedSalary:
+      viewerRole === "candidate" || viewerRole === "admin"
+        ? row.application.reportedSalary
+        : null,
+    reportedCurrency:
+      viewerRole === "candidate" || viewerRole === "admin"
+        ? row.application.reportedCurrency
+        : null,
+    salaryReportedAt:
+      (viewerRole === "candidate" || viewerRole === "admin") &&
+      row.application.salaryReportedAt
+        ? row.application.salaryReportedAt.toISOString()
+        : null,
     ...(await getChallengeSummary(row.application.id, viewerRole)),
   };
 }
@@ -429,6 +446,24 @@ router.get("/applications", requireAuth, async (req, res): Promise<void> => {
           }
         : null,
       endorsement,
+      // Reported salary is private feedback from the candidate that
+      // only feeds the aggregate /salary-insights band. We expose the
+      // raw value only to the candidate themselves (and admins) so the
+      // UI can show "Reported" instead of the prompt — employers and
+      // institutions never see individual numbers.
+      reportedSalary:
+        user.role === "candidate" || user.role === "admin"
+          ? row.application.reportedSalary
+          : null,
+      reportedCurrency:
+        user.role === "candidate" || user.role === "admin"
+          ? row.application.reportedCurrency
+          : null,
+      salaryReportedAt:
+        (user.role === "candidate" || user.role === "admin") &&
+        row.application.salaryReportedAt
+          ? row.application.salaryReportedAt.toISOString()
+          : null,
       challengeScore,
       challengeBreakdown,
     };
@@ -667,5 +702,76 @@ router.patch(
   );
   res.json(serialized);
 });
+
+/**
+ * Candidate-only endpoint to optionally and anonymously report their
+ * accepted salary AFTER an application transitions to `hired`. Feeds
+ * the GET /salary-insights aggregate band — never echoed back per-row
+ * to other viewers (no leakage of individual offers). Idempotent:
+ * resubmitting overwrites the previous value.
+ */
+router.post(
+  "/applications/:id/report-salary",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const user = req.currentUser!;
+    if (user.role !== "candidate") {
+      res
+        .status(403)
+        .json({ error: "Only candidates may report their own salary" });
+      return;
+    }
+
+    const params = UpdateApplicationStatusParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: params.error.message });
+      return;
+    }
+
+    const Body = z.object({
+      reportedSalary: z.number().int().positive().max(100_000_000),
+      reportedCurrency: z.string().min(2).max(8),
+    });
+    const parsed = Body.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+
+    const [existing] = await db
+      .select({
+        candidateId: applicationsTable.candidateId,
+        status: applicationsTable.status,
+      })
+      .from(applicationsTable)
+      .where(eq(applicationsTable.id, params.data.id));
+
+    if (!existing) {
+      res.status(404).json({ error: "Application not found" });
+      return;
+    }
+    if (existing.candidateId !== user.candidateId) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    if (existing.status !== "hired") {
+      res
+        .status(409)
+        .json({ error: "Salary can only be reported on hired applications" });
+      return;
+    }
+
+    await db
+      .update(applicationsTable)
+      .set({
+        reportedSalary: parsed.data.reportedSalary,
+        reportedCurrency: parsed.data.reportedCurrency.toUpperCase(),
+        salaryReportedAt: new Date(),
+      })
+      .where(eq(applicationsTable.id, params.data.id));
+
+    res.status(200).json({ ok: true });
+  },
+);
 
 export default router;

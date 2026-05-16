@@ -6,6 +6,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import { ApplicationTimeline } from "@/components/application-timeline";
 import { InterviewPrepPanel } from "@/components/InterviewPrepPanel";
+import { ReportSalaryCard } from "@/components/ReportSalaryCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Sparkles, Stamp } from "lucide-react";
@@ -94,6 +95,13 @@ export default function ApplicationDetailPage() {
       ) : null}
       {app && candidateId > 0 && PREP_STATUSES.has(app.status) ? (
         <InterviewPrepPanel candidateId={candidateId} jobId={app.jobId} />
+      ) : null}
+      {app && app.status === "hired" && candidateId > 0 ? (
+        <ReportSalaryCard
+          applicationId={app.id}
+          candidateId={candidateId}
+          alreadyReported={Boolean(app.reportedSalary)}
+        />
       ) : null}
       {applicationId > 0 ? <ApplicationTimeline applicationId={applicationId} /> : null}
     </div>

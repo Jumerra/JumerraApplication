@@ -32,6 +32,7 @@ import meRouter from "./me";
 import mockInterviewsRouter from "./mock-interviews";
 import applicationEndorsementsRouter from "./application-endorsements";
 import skillChallengesRouter from "./skill-challenges";
+import salaryInsightsRouter from "./salary-insights";
 import { requireAuth } from "../middleware/require-auth";
 
 const router: IRouter = Router();
@@ -113,6 +114,10 @@ router.use(applicationEndorsementsRouter);
 // /challenge-templates. Mount BEFORE the generic jobsRouter so the
 // challenge sub-routes match here instead of falling through.
 router.use(skillChallengesRouter);
+// Public marketplace endpoint — anonymised salary band on job pages.
+// Mounted before requireAuth-gated subtrees; the router itself does
+// not gate the GET (only aggregates >=3 hires are returned).
+router.use(salaryInsightsRouter);
 router.use(candidatesRouter);
 router.use(employersRouter);
 router.use(institutionsRouter);

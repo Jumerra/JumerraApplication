@@ -30,6 +30,18 @@ export const applicationsTable = pgTable(
      * Updated by the employer Kanban via PATCH /applications/:id.
      */
     boardOrder: integer("board_order").notNull().default(0),
+    /**
+     * Optional self-reported salary set by the candidate AFTER the
+     * application is moved to `hired`. Used (in aggregate, never per
+     * row) by GET /salary-insights to power the anonymous "candidates
+     * from your school in this role earned X–Y" band on the public
+     * job page. Stored in the smallest currency unit consistent with
+     * the rest of the platform (whole units of `reportedCurrency`).
+     * Null = candidate hasn't reported, or no hire yet.
+     */
+    reportedSalary: integer("reported_salary"),
+    reportedCurrency: text("reported_currency"),
+    salaryReportedAt: timestamp("salary_reported_at", { withTimezone: true }),
     appliedAt: timestamp("applied_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

@@ -90,6 +90,7 @@ import type {
   GenerateChallenge,
   GenerateCvRequest,
   GetInstitutionPlacementAnalyticsParams,
+  GetSalaryBandParams,
   HealthStatus,
   HiresAnalyticsResponse,
   Institution,
@@ -148,7 +149,10 @@ import type {
   RegisterResponse,
   RegisterUser409,
   RegistrationDecisionBody,
+  ReportApplicationSalary200,
+  ReportSalary,
   RequestReferenceRequest,
+  SalaryBand,
   SalaryInsight,
   SavedSearch,
   SendOutreachRequest,
@@ -4881,6 +4885,203 @@ export function useGetSalaryInsights<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * Returns a percentile band (p25/p50/p75) of self-reported
+salaries from candidates HIRED into the same role as `jobId`.
+Optional `institutionId` filters to candidates affiliated with
+a specific school for the "candidates from your school in this
+role earned X–Y" surface. A 3-hire minimum protects privacy;
+when the cohort is smaller, the response carries
+`insufficient: true` with no percentile values.
+
+ * @summary Anonymous salary band derived from real hires
+ */
+export const getGetSalaryBandUrl = (params: GetSalaryBandParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/salary-insights?${stringifiedParams}`
+    : `/api/salary-insights`;
+};
+
+export const getSalaryBand = async (
+  params: GetSalaryBandParams,
+  options?: RequestInit,
+): Promise<SalaryBand> => {
+  return customFetch<SalaryBand>(getGetSalaryBandUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetSalaryBandQueryKey = (params?: GetSalaryBandParams) => {
+  return [`/api/salary-insights`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetSalaryBandQueryOptions = <
+  TData = Awaited<ReturnType<typeof getSalaryBand>>,
+  TError = ErrorType<void>,
+>(
+  params: GetSalaryBandParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getSalaryBand>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetSalaryBandQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getSalaryBand>>> = ({
+    signal,
+  }) => getSalaryBand(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getSalaryBand>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetSalaryBandQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getSalaryBand>>
+>;
+export type GetSalaryBandQueryError = ErrorType<void>;
+
+/**
+ * @summary Anonymous salary band derived from real hires
+ */
+
+export function useGetSalaryBand<
+  TData = Awaited<ReturnType<typeof getSalaryBand>>,
+  TError = ErrorType<void>,
+>(
+  params: GetSalaryBandParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getSalaryBand>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetSalaryBandQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Only the candidate on the application may call this, and only
+once the application has reached `hired`. The value feeds the
+aggregate band returned by /salary-insights and is never echoed
+per-row to other viewers.
+
+ * @summary Candidate self-reports an anonymous accepted salary
+ */
+export const getReportApplicationSalaryUrl = (id: number) => {
+  return `/api/applications/${id}/report-salary`;
+};
+
+export const reportApplicationSalary = async (
+  id: number,
+  reportSalary: ReportSalary,
+  options?: RequestInit,
+): Promise<ReportApplicationSalary200> => {
+  return customFetch<ReportApplicationSalary200>(
+    getReportApplicationSalaryUrl(id),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(reportSalary),
+    },
+  );
+};
+
+export const getReportApplicationSalaryMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reportApplicationSalary>>,
+    TError,
+    { id: number; data: BodyType<ReportSalary> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof reportApplicationSalary>>,
+  TError,
+  { id: number; data: BodyType<ReportSalary> },
+  TContext
+> => {
+  const mutationKey = ["reportApplicationSalary"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof reportApplicationSalary>>,
+    { id: number; data: BodyType<ReportSalary> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return reportApplicationSalary(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ReportApplicationSalaryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof reportApplicationSalary>>
+>;
+export type ReportApplicationSalaryMutationBody = BodyType<ReportSalary>;
+export type ReportApplicationSalaryMutationError = ErrorType<void>;
+
+/**
+ * @summary Candidate self-reports an anonymous accepted salary
+ */
+export const useReportApplicationSalary = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reportApplicationSalary>>,
+    TError,
+    { id: number; data: BodyType<ReportSalary> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof reportApplicationSalary>>,
+  TError,
+  { id: number; data: BodyType<ReportSalary> },
+  TContext
+> => {
+  return useMutation(getReportApplicationSalaryMutationOptions(options));
+};
 
 export const getRegisterUserUrl = () => {
   return `/api/auth/register`;

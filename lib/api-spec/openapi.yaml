@@ -1039,6 +1039,70 @@ paths:
                 type: array
                 items: { $ref: "#/components/schemas/SalaryInsight" }
 
+  /salary-insights:
+    get:
+      operationId: getSalaryBand
+      tags: [dashboard]
+      summary: Anonymous salary band derived from real hires
+      description: |
+        Returns a percentile band (p25/p50/p75) of self-reported
+        salaries from candidates HIRED into the same role as `jobId`.
+        Optional `institutionId` filters to candidates affiliated with
+        a specific school for the "candidates from your school in this
+        role earned X–Y" surface. A 3-hire minimum protects privacy;
+        when the cohort is smaller, the response carries
+        `insufficient: true` with no percentile values.
+      parameters:
+        - in: query
+          name: jobId
+          required: true
+          schema: { type: integer }
+        - in: query
+          name: institutionId
+          required: false
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Salary band
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SalaryBand" }
+        "404": { description: Job not found }
+
+  /applications/{id}/report-salary:
+    post:
+      operationId: reportApplicationSalary
+      tags: [applications]
+      summary: Candidate self-reports an anonymous accepted salary
+      description: |
+        Only the candidate on the application may call this, and only
+        once the application has reached `hired`. The value feeds the
+        aggregate band returned by /salary-insights and is never echoed
+        per-row to other viewers.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReportSalary" }
+      responses:
+        "200":
+          description: Reported
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                required: [ok]
+        "403": { description: Not allowed }
+        "404": { description: Not found }
+        "409": { description: Application is not hired }
+
   /auth/register:
     post:
       operationId: registerUser
@@ -4838,6 +4902,22 @@ components:
         mockInterviewBreakdown:
           nullable: true
           $ref: "#/components/schemas/MockInterviewBreakdown"
+        reportedSalary:
+          type: integer
+          nullable: true
+          description: |
+            Candidate's self-reported accepted salary (whole units of
+            `reportedCurrency`). Set only after the application has
+            reached `hired`. Used to anonymously feed the aggregate
+            band returned by `GET /salary-insights`.
+        reportedCurrency:
+          type: string
+          nullable: true
+          description: ISO-4217 currency for `reportedSalary`.
+        salaryReportedAt:
+          type: string
+          format: date-time
+          nullable: true
         endorsement:
           nullable: true
           $ref: "#/components/schemas/ApplicationEndorsement"
@@ -5492,6 +5572,35 @@ components:
         currency: { type: string }
         sampleSize: { type: integer }
       required: [role, averageSalary, minSalary, maxSalary, currency, sampleSize]
+
+    SalaryBand:
+      type: object
+      description: |
+        Anonymised salary band from real hires. `insufficient: true`
+        means fewer than the privacy floor (3) hires matched, so the
+        percentile fields are omitted to avoid deanonymisation.
+      properties:
+        count: { type: integer }
+        currency: { type: string }
+        scope:
+          type: string
+          enum: [platform, institution]
+        insufficient: { type: boolean }
+        p25: { type: integer }
+        p50: { type: integer }
+        p75: { type: integer }
+      required: [count, currency, scope, insufficient]
+
+    ReportSalary:
+      type: object
+      properties:
+        reportedSalary:
+          type: integer
+          description: Whole units of `reportedCurrency`, > 0.
+        reportedCurrency:
+          type: string
+          description: ISO-4217 (e.g. GHS, USD).
+      required: [reportedSalary, reportedCurrency]
 
     SiteContentItem:
       type: object

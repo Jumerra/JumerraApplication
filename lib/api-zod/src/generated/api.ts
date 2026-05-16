@@ -1892,6 +1892,17 @@ export const ListApplicationsResponseItem = zod.object({
       culture: zod.number(),
     })
     .nullable(),
+  reportedSalary: zod
+    .number()
+    .nullish()
+    .describe(
+      "Candidate's self-reported accepted salary (whole units of\n`reportedCurrency`). Set only after the application has\nreached `hired`. Used to anonymously feed the aggregate\nband returned by `GET \/salary-insights`.\n",
+    ),
+  reportedCurrency: zod
+    .string()
+    .nullish()
+    .describe("ISO-4217 currency for `reportedSalary`."),
+  salaryReportedAt: zod.coerce.date().nullish(),
   endorsement: zod
     .object({
       institutionId: zod.number(),
@@ -2016,6 +2027,17 @@ export const UpdateApplicationStatusResponse = zod.object({
       culture: zod.number(),
     })
     .nullable(),
+  reportedSalary: zod
+    .number()
+    .nullish()
+    .describe(
+      "Candidate's self-reported accepted salary (whole units of\n`reportedCurrency`). Set only after the application has\nreached `hired`. Used to anonymously feed the aggregate\nband returned by `GET \/salary-insights`.\n",
+    ),
+  reportedCurrency: zod
+    .string()
+    .nullish()
+    .describe("ISO-4217 currency for `reportedSalary`."),
+  salaryReportedAt: zod.coerce.date().nullish(),
   endorsement: zod
     .object({
       institutionId: zod.number(),
@@ -2445,6 +2467,17 @@ export const GetEmployerDashboardResponse = zod.object({
           culture: zod.number(),
         })
         .nullable(),
+      reportedSalary: zod
+        .number()
+        .nullish()
+        .describe(
+          "Candidate's self-reported accepted salary (whole units of\n`reportedCurrency`). Set only after the application has\nreached `hired`. Used to anonymously feed the aggregate\nband returned by `GET \/salary-insights`.\n",
+        ),
+      reportedCurrency: zod
+        .string()
+        .nullish()
+        .describe("ISO-4217 currency for `reportedSalary`."),
+      salaryReportedAt: zod.coerce.date().nullish(),
       endorsement: zod
         .object({
           institutionId: zod.number(),
@@ -2678,6 +2711,17 @@ export const GetCandidateDashboardResponse = zod.object({
           culture: zod.number(),
         })
         .nullable(),
+      reportedSalary: zod
+        .number()
+        .nullish()
+        .describe(
+          "Candidate's self-reported accepted salary (whole units of\n`reportedCurrency`). Set only after the application has\nreached `hired`. Used to anonymously feed the aggregate\nband returned by `GET \/salary-insights`.\n",
+        ),
+      reportedCurrency: zod
+        .string()
+        .nullish()
+        .describe("ISO-4217 currency for `reportedSalary`."),
+      salaryReportedAt: zod.coerce.date().nullish(),
       endorsement: zod
         .object({
           institutionId: zod.number(),
@@ -2752,6 +2796,59 @@ export const GetSalaryInsightsResponseItem = zod.object({
 export const GetSalaryInsightsResponse = zod.array(
   GetSalaryInsightsResponseItem,
 );
+
+/**
+ * Returns a percentile band (p25/p50/p75) of self-reported
+salaries from candidates HIRED into the same role as `jobId`.
+Optional `institutionId` filters to candidates affiliated with
+a specific school for the "candidates from your school in this
+role earned X–Y" surface. A 3-hire minimum protects privacy;
+when the cohort is smaller, the response carries
+`insufficient: true` with no percentile values.
+
+ * @summary Anonymous salary band derived from real hires
+ */
+export const GetSalaryBandQueryParams = zod.object({
+  jobId: zod.coerce.number(),
+  institutionId: zod.coerce.number().optional(),
+});
+
+export const GetSalaryBandResponse = zod
+  .object({
+    count: zod.number(),
+    currency: zod.string(),
+    scope: zod.enum(["platform", "institution"]),
+    insufficient: zod.boolean(),
+    p25: zod.number().optional(),
+    p50: zod.number().optional(),
+    p75: zod.number().optional(),
+  })
+  .describe(
+    "Anonymised salary band from real hires. `insufficient: true`\nmeans fewer than the privacy floor (3) hires matched, so the\npercentile fields are omitted to avoid deanonymisation.\n",
+  );
+
+/**
+ * Only the candidate on the application may call this, and only
+once the application has reached `hired`. The value feeds the
+aggregate band returned by /salary-insights and is never echoed
+per-row to other viewers.
+
+ * @summary Candidate self-reports an anonymous accepted salary
+ */
+export const ReportApplicationSalaryParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ReportApplicationSalaryBody = zod.object({
+  reportedSalary: zod
+    .number()
+    .describe("Whole units of `reportedCurrency`, > 0."),
+  reportedCurrency: zod.string().describe("ISO-4217 (e.g. GHS, USD)."),
+});
+
+export const ReportApplicationSalaryResponse = zod.object({
+  ok: zod.boolean(),
+});
 
 export const RegisterUserBody = zod.object({
   email: zod.string(),
@@ -3476,6 +3573,17 @@ export const AdminListApplicationsResponse = zod.object({
           culture: zod.number(),
         })
         .nullable(),
+      reportedSalary: zod
+        .number()
+        .nullish()
+        .describe(
+          "Candidate's self-reported accepted salary (whole units of\n`reportedCurrency`). Set only after the application has\nreached `hired`. Used to anonymously feed the aggregate\nband returned by `GET \/salary-insights`.\n",
+        ),
+      reportedCurrency: zod
+        .string()
+        .nullish()
+        .describe("ISO-4217 currency for `reportedSalary`."),
+      salaryReportedAt: zod.coerce.date().nullish(),
       endorsement: zod
         .object({
           institutionId: zod.number(),

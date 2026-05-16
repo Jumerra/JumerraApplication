@@ -23,7 +23,7 @@ import {
   requireAuth,
   isOrgOwnerOrRegistrar,
 } from "../middleware/require-auth";
-import { requirePermission } from "../lib/permissions";
+import { requirePermission, getUserPermissions, isImplicitAllUser } from "../lib/permissions";
 
 const router: IRouter = Router();
 
@@ -367,7 +367,24 @@ router.patch(
       return;
     }
     const me = req.currentUser!;
-    if (!ensureCandidateOwnsOrAdmin(me, candidateId)) {
+    let allowed = ensureCandidateOwnsOrAdmin(me, candidateId);
+    // Institution staff may also hide a reference for a candidate
+    // affiliated with their institution, subject to the same
+    // faculty/department scope that gates verify/unverify. They must
+    // additionally hold the `students:verify` permission, since the
+    // moderation surface is the same as skill-verification.
+    if (!allowed && me.role === "institution" && me.institutionId != null) {
+      const canModerate =
+        isImplicitAllUser(me) ||
+        (await getUserPermissions(me)).has("students:verify");
+      const inScope = await canActOnInstitutionCandidate(
+        me,
+        me.institutionId,
+        candidateId,
+      );
+      allowed = canModerate && inScope;
+    }
+    if (!allowed) {
       res.status(403).json({ error: "Forbidden" });
       return;
     }

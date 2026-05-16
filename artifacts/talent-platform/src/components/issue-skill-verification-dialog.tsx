@@ -3,6 +3,7 @@ import {
   useGetCandidate,
   useIssueSkillVerification,
   useRevokeSkillVerification,
+  useHideReference,
   getGetCandidateQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -17,7 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { BadgeCheck, X } from "lucide-react";
+import { BadgeCheck, X, EyeOff, Quote } from "lucide-react";
 import { toast } from "sonner";
 
 export function IssueSkillVerificationDialog({
@@ -40,6 +41,8 @@ export function IssueSkillVerificationDialog({
   });
   const issue = useIssueSkillVerification();
   const revoke = useRevokeSkillVerification();
+  const hideRef = useHideReference();
+  const visibleRefs = candidate?.references ?? [];
 
   const ours =
     candidate?.verifiedSkills?.filter(
@@ -80,6 +83,16 @@ export function IssueSkillVerificationDialog({
     }
   }
 
+  async function onHideRef(refId: number, who: string) {
+    try {
+      await hideRef.mutateAsync({ id: candidateId, refId });
+      await refresh();
+      toast.success(`Hid reference from ${who}.`);
+    } catch (err: any) {
+      toast.error(err?.data?.error ?? "Could not hide reference.");
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -106,6 +119,37 @@ export function IssueSkillVerificationDialog({
             {issue.isPending ? "Adding…" : "Verify"}
           </Button>
         </form>
+        {visibleRefs.length > 0 ? (
+          <div>
+            <p className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-2 flex items-center gap-1">
+              <Quote className="w-3 h-3" /> References on profile ({visibleRefs.length})
+            </p>
+            <div className="space-y-2">
+              {visibleRefs.map((r) => (
+                <div
+                  key={r.id}
+                  className="flex items-center gap-2 rounded-md border p-2"
+                >
+                  <div className="text-xs flex-1 min-w-0">
+                    <p className="font-medium truncate">{r.submittedRefereeName}</p>
+                    <p className="text-muted-foreground truncate">
+                      {r.submittedRefereeRole ?? r.relationship}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => onHideRef(r.id, r.submittedRefereeName)}
+                  >
+                    <EyeOff className="w-3 h-3 mr-1" /> Hide
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
         <div>
           <p className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-2">
             Already verified by your institution ({ours.length})

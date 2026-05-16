@@ -3773,8 +3773,127 @@ paths:
         "404": { description: Not found }
         "409": { description: Cannot finalise }
 
+  /me/growth-plan:
+    get:
+      operationId: getMyGrowthPlan
+      tags: [growth-plan]
+      summary: List the current candidate's growth-plan items
+      description: |
+        Returns the active and completed skills in the candidate's growth
+        plan. If no plan exists yet, or the newest active row is older
+        than 7 days, the analyser is run inline to refresh it.
+      responses:
+        "200":
+          description: Growth plan items
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/GrowthPlanItem" }
+        "401": { description: Not authenticated }
+        "403": { description: Only candidates have a growth plan }
+
+  /me/growth-plan/{skill}/complete:
+    post:
+      operationId: completeGrowthSkill
+      tags: [growth-plan]
+      summary: Mark a growth-plan skill complete and re-ping past employers
+      parameters:
+        - in: path
+          name: skill
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                verificationUrl:
+                  type: string
+                  format: uri
+                  maxLength: 500
+      responses:
+        "200":
+          description: Marked complete
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, employersNotified]
+                properties:
+                  ok: { type: boolean }
+                  employersNotified: { type: integer }
+        "400": { description: Invalid payload }
+        "401": { description: Not authenticated }
+        "403": { description: Only candidates have a growth plan }
+        "404": { description: Skill not in your growth plan }
+        "409": { description: Skill was dismissed }
+
+  /me/growth-plan/{skill}/dismiss:
+    post:
+      operationId: dismissGrowthSkill
+      tags: [growth-plan]
+      summary: Hide a growth-plan skill so the analyser won't re-add it
+      parameters:
+        - in: path
+          name: skill
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Dismissed (idempotent)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+        "401": { description: Not authenticated }
+        "403": { description: Only candidates have a growth plan }
+
 components:
   schemas:
+    GrowthPlanResource:
+      type: object
+      required: [title, url, estMinutes]
+      properties:
+        title: { type: string }
+        url: { type: string, format: uri }
+        estMinutes: { type: integer }
+    GrowthPlanItem:
+      type: object
+      required:
+        [id, skill, status, addedAt, rejectionCount, resources, estMinutes]
+      properties:
+        id: { type: integer }
+        skill: { type: string }
+        status:
+          type: string
+          enum: [active, completed, dismissed]
+        addedAt: { type: string, format: date-time }
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        targetDate:
+          type: string
+          format: date-time
+          nullable: true
+        rejectionCount: { type: integer }
+        verificationUrl:
+          type: string
+          nullable: true
+        resources:
+          type: array
+          items: { $ref: "#/components/schemas/GrowthPlanResource" }
+        estMinutes: { type: integer }
     OpenWindow:
       type: object
       required: [id, candidateId, opensAt, closesAt, isActive]

@@ -6370,3 +6370,66 @@ export const FinaliseMockInterviewResponse = zod.object({
   updatedAt: zod.coerce.date(),
   completedAt: zod.coerce.date().nullable(),
 });
+
+/**
+ * Returns the active and completed skills in the candidate's growth
+plan. If no plan exists yet, or the newest active row is older
+than 7 days, the analyser is run inline to refresh it.
+
+ * @summary List the current candidate's growth-plan items
+ */
+export const GetMyGrowthPlanResponse = zod.object({
+  items: zod.array(
+    zod.object({
+      id: zod.number(),
+      skill: zod.string(),
+      status: zod.enum(["active", "completed", "dismissed"]),
+      addedAt: zod.coerce.date(),
+      completedAt: zod.coerce.date().nullish(),
+      targetDate: zod.coerce.date().nullish(),
+      rejectionCount: zod.number(),
+      verificationUrl: zod.string().nullish(),
+      resources: zod.array(
+        zod.object({
+          title: zod.string(),
+          url: zod.string().url(),
+          estMinutes: zod.number(),
+        }),
+      ),
+      estMinutes: zod.number(),
+    }),
+  ),
+});
+
+/**
+ * @summary Mark a growth-plan skill complete and re-ping past employers
+ */
+export const CompleteGrowthSkillParams = zod.object({
+  skill: zod.coerce.string(),
+});
+
+export const completeGrowthSkillBodyVerificationUrlMax = 500;
+
+export const CompleteGrowthSkillBody = zod.object({
+  verificationUrl: zod
+    .string()
+    .url()
+    .max(completeGrowthSkillBodyVerificationUrlMax)
+    .optional(),
+});
+
+export const CompleteGrowthSkillResponse = zod.object({
+  ok: zod.boolean(),
+  employersNotified: zod.number(),
+});
+
+/**
+ * @summary Hide a growth-plan skill so the analyser won't re-add it
+ */
+export const DismissGrowthSkillParams = zod.object({
+  skill: zod.coerce.string(),
+});
+
+export const DismissGrowthSkillResponse = zod.object({
+  ok: zod.boolean(),
+});

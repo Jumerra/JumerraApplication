@@ -37,7 +37,7 @@ import { calculateMatchScore } from "./matching";
 import { sendEngagementEmail } from "./email";
 import { sendNotificationToCandidate } from "./notifier";
 import { jobMatchesFilters, savedSearchToFilters } from "./job-filters";
-import { listGrowthPlan } from "./growth-plan";
+import { listGrowthPlan, refreshGrowthPlan } from "./growth-plan";
 
 /**
  * Resolve the actual UTC instant for a wall-clock local date in `tz`.
@@ -461,6 +461,9 @@ export async function runDigestForCandidate(
       let growthLine = "";
       let growthItems: Awaited<ReturnType<typeof listGrowthPlan>> = [];
       try {
+        // Weekly cron tick — re-scan rejections so the plan stays fresh
+        // for every candidate, not only those who hit the dashboard.
+        await refreshGrowthPlan(candidateId);
         growthItems = await listGrowthPlan(candidateId);
         const top = growthItems.find((g) => g.status === "active");
         if (top) {

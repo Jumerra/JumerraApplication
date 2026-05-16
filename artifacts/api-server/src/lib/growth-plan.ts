@@ -15,7 +15,7 @@
  * per quarter via the `candidate_growth_repings` audit table.
  */
 
-import { and, desc, eq, gte, sql } from "drizzle-orm";
+import { and, desc, eq, gte } from "drizzle-orm";
 import {
   applicationsTable,
   candidateGrowthRepingsTable,
@@ -126,6 +126,21 @@ export async function refreshGrowthPlan(
       continue;
     }
     top.push(entry);
+  }
+
+  // Enforce the "top-3 only" invariant: any currently-active row whose
+  // skill is no longer in the new top set gets demoted to "superseded"
+  // so the dashboard never drifts above MAX_ACTIVE_SKILLS items. It can
+  // be re-promoted to "active" later if the skill re-enters the top via
+  // the upsert below (the analyser flips status back to "active").
+  const topKeys = new Set(top.map((e) => e.skill.toLowerCase()));
+  for (const prev of existing) {
+    if (prev.status !== "active") continue;
+    if (topKeys.has(prev.skill.toLowerCase())) continue;
+    await db
+      .update(candidateGrowthSkillsTable)
+      .set({ status: "superseded" })
+      .where(eq(candidateGrowthSkillsTable.id, prev.id));
   }
 
   const upserted: string[] = [];
@@ -326,4 +341,3 @@ export async function listGrowthPlan(
     });
 }
 
-void sql;

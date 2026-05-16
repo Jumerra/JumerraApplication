@@ -11,6 +11,7 @@
     "test:notifications": "tsx ./scripts/test-notifications.ts",
     "test:weekly-digest": "tsx ./scripts/test-weekly-digest.ts",
     "test:digest-slot": "tsx ./scripts/test-digest-slot.ts",
+    "test:growth-plan": "tsx ./scripts/test-growth-plan.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

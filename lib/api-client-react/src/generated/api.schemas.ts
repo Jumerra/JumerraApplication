@@ -5,6 +5,34 @@
  * Talent Platform API
  * OpenAPI spec version: 0.1.0
  */
+export interface GrowthPlanResource {
+  title: string;
+  url: string;
+  estMinutes: number;
+}
+
+export type GrowthPlanItemStatus =
+  (typeof GrowthPlanItemStatus)[keyof typeof GrowthPlanItemStatus];
+
+export const GrowthPlanItemStatus = {
+  active: "active",
+  completed: "completed",
+  dismissed: "dismissed",
+} as const;
+
+export interface GrowthPlanItem {
+  id: number;
+  skill: string;
+  status: GrowthPlanItemStatus;
+  addedAt: string;
+  completedAt?: string | null;
+  targetDate?: string | null;
+  rejectionCount: number;
+  verificationUrl?: string | null;
+  resources: GrowthPlanResource[];
+  estMinutes: number;
+}
+
 export interface OpenWindow {
   id: number;
   candidateId: number;
@@ -3467,4 +3495,22 @@ export type GetInstitutionCohortLeaderboardParams = {
 
 export type ListMyMockInterviewsParams = {
   jobId?: number;
+};
+
+export type GetMyGrowthPlan200 = {
+  items: GrowthPlanItem[];
+};
+
+export type CompleteGrowthSkillBody = {
+  /** @maxLength 500 */
+  verificationUrl?: string;
+};
+
+export type CompleteGrowthSkill200 = {
+  ok: boolean;
+  employersNotified: number;
+};
+
+export type DismissGrowthSkill200 = {
+  ok: boolean;
 };

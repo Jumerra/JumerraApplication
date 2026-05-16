@@ -57,6 +57,8 @@ import type {
   ChallengeSubmissionResult,
   ChallengeTemplate,
   ChangePasswordRequest,
+  CompleteGrowthSkill200,
+  CompleteGrowthSkillBody,
   CreateApplication,
   CreateBoostCheckoutRequest,
   CreateBoostCheckoutResponse,
@@ -77,6 +79,7 @@ import type {
   CreateTalentPoolRequest,
   CvSettings,
   DeclineInterviewInviteRequest,
+  DismissGrowthSkill200,
   Employer,
   EmployerAnalyticsResponse,
   EmployerDashboard,
@@ -91,6 +94,7 @@ import type {
   GenerateCvRequest,
   GetInstitutionCohortLeaderboardParams,
   GetInstitutionPlacementAnalyticsParams,
+  GetMyGrowthPlan200,
   GetSalaryBandParams,
   HealthStatus,
   HiresAnalyticsResponse,
@@ -16054,4 +16058,254 @@ export const useFinaliseMockInterview = <
   TContext
 > => {
   return useMutation(getFinaliseMockInterviewMutationOptions(options));
+};
+
+/**
+ * Returns the active and completed skills in the candidate's growth
+plan. If no plan exists yet, or the newest active row is older
+than 7 days, the analyser is run inline to refresh it.
+
+ * @summary List the current candidate's growth-plan items
+ */
+export const getGetMyGrowthPlanUrl = () => {
+  return `/api/me/growth-plan`;
+};
+
+export const getMyGrowthPlan = async (
+  options?: RequestInit,
+): Promise<GetMyGrowthPlan200> => {
+  return customFetch<GetMyGrowthPlan200>(getGetMyGrowthPlanUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetMyGrowthPlanQueryKey = () => {
+  return [`/api/me/growth-plan`] as const;
+};
+
+export const getGetMyGrowthPlanQueryOptions = <
+  TData = Awaited<ReturnType<typeof getMyGrowthPlan>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getMyGrowthPlan>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetMyGrowthPlanQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyGrowthPlan>>> = ({
+    signal,
+  }) => getMyGrowthPlan({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getMyGrowthPlan>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetMyGrowthPlanQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getMyGrowthPlan>>
+>;
+export type GetMyGrowthPlanQueryError = ErrorType<void>;
+
+/**
+ * @summary List the current candidate's growth-plan items
+ */
+
+export function useGetMyGrowthPlan<
+  TData = Awaited<ReturnType<typeof getMyGrowthPlan>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getMyGrowthPlan>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetMyGrowthPlanQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Mark a growth-plan skill complete and re-ping past employers
+ */
+export const getCompleteGrowthSkillUrl = (skill: string) => {
+  return `/api/me/growth-plan/${skill}/complete`;
+};
+
+export const completeGrowthSkill = async (
+  skill: string,
+  completeGrowthSkillBody?: CompleteGrowthSkillBody,
+  options?: RequestInit,
+): Promise<CompleteGrowthSkill200> => {
+  return customFetch<CompleteGrowthSkill200>(getCompleteGrowthSkillUrl(skill), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(completeGrowthSkillBody),
+  });
+};
+
+export const getCompleteGrowthSkillMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof completeGrowthSkill>>,
+    TError,
+    { skill: string; data: BodyType<CompleteGrowthSkillBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof completeGrowthSkill>>,
+  TError,
+  { skill: string; data: BodyType<CompleteGrowthSkillBody> },
+  TContext
+> => {
+  const mutationKey = ["completeGrowthSkill"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof completeGrowthSkill>>,
+    { skill: string; data: BodyType<CompleteGrowthSkillBody> }
+  > = (props) => {
+    const { skill, data } = props ?? {};
+
+    return completeGrowthSkill(skill, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CompleteGrowthSkillMutationResult = NonNullable<
+  Awaited<ReturnType<typeof completeGrowthSkill>>
+>;
+export type CompleteGrowthSkillMutationBody = BodyType<CompleteGrowthSkillBody>;
+export type CompleteGrowthSkillMutationError = ErrorType<void>;
+
+/**
+ * @summary Mark a growth-plan skill complete and re-ping past employers
+ */
+export const useCompleteGrowthSkill = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof completeGrowthSkill>>,
+    TError,
+    { skill: string; data: BodyType<CompleteGrowthSkillBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof completeGrowthSkill>>,
+  TError,
+  { skill: string; data: BodyType<CompleteGrowthSkillBody> },
+  TContext
+> => {
+  return useMutation(getCompleteGrowthSkillMutationOptions(options));
+};
+
+/**
+ * @summary Hide a growth-plan skill so the analyser won't re-add it
+ */
+export const getDismissGrowthSkillUrl = (skill: string) => {
+  return `/api/me/growth-plan/${skill}/dismiss`;
+};
+
+export const dismissGrowthSkill = async (
+  skill: string,
+  options?: RequestInit,
+): Promise<DismissGrowthSkill200> => {
+  return customFetch<DismissGrowthSkill200>(getDismissGrowthSkillUrl(skill), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getDismissGrowthSkillMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof dismissGrowthSkill>>,
+    TError,
+    { skill: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof dismissGrowthSkill>>,
+  TError,
+  { skill: string },
+  TContext
+> => {
+  const mutationKey = ["dismissGrowthSkill"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof dismissGrowthSkill>>,
+    { skill: string }
+  > = (props) => {
+    const { skill } = props ?? {};
+
+    return dismissGrowthSkill(skill, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DismissGrowthSkillMutationResult = NonNullable<
+  Awaited<ReturnType<typeof dismissGrowthSkill>>
+>;
+
+export type DismissGrowthSkillMutationError = ErrorType<void>;
+
+/**
+ * @summary Hide a growth-plan skill so the analyser won't re-add it
+ */
+export const useDismissGrowthSkill = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof dismissGrowthSkill>>,
+    TError,
+    { skill: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof dismissGrowthSkill>>,
+  TError,
+  { skill: string },
+  TContext
+> => {
+  return useMutation(getDismissGrowthSkillMutationOptions(options));
 };

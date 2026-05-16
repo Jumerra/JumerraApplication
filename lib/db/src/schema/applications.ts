@@ -60,6 +60,21 @@ export const applicationsTable = pgTable(
       t.status,
       t.updatedAt,
     ),
+    // FK lookups: the cursor-paginated /applications list joins on
+    // jobs + filters on candidate_id; pre-PK these were already
+    // indexed by the unique below, but a stand-alone index on
+    // candidate_id helps the /candidates/:id detail pages and any
+    // "my applications" view to avoid the unique-index seek penalty.
+    candidateIdx: index("applications_candidate_id_idx").on(t.candidateId),
+    jobIdx: index("applications_job_id_idx").on(t.jobId),
+    // Composite for the employer Kanban "by-status within my jobs"
+    // view; the route filters by job_id (via join) + status and
+    // sorts by board_order.
+    candidateStatusIdx: index("applications_candidate_status_idx").on(
+      t.candidateId,
+      t.status,
+    ),
+    jobStatusIdx: index("applications_job_status_idx").on(t.jobId, t.status),
     // Hard guarantee against duplicate applications. The
     // POST /applications and POST /jobs/:id/challenge/submit
     // endpoints both check first, but two concurrent requests

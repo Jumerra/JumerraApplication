@@ -18,6 +18,7 @@ import {
 } from "../lib/auth";
 import { requireAuth } from "../middleware/require-auth";
 import { sendAuthLinkEmail, originFromReq } from "../lib/email";
+import { authLimiter } from "../lib/rate-limit";
 
 const router: Router = Router();
 
@@ -59,7 +60,7 @@ router.use((req, res, next) => {
  * Public sign-up. Creates a pending user + a registration record
  * holding the data the applicant submitted. Admin must approve.
  */
-router.post("/auth/register", async (req, res) => {
+router.post("/auth/register", authLimiter, async (req, res) => {
   try {
     const { email, password, role, fullName, submittedData } = req.body ?? {};
     if (
@@ -194,7 +195,7 @@ router.post("/auth/register", async (req, res) => {
 /**
  * POST /api/auth/login
  */
-router.post("/auth/login", async (req, res) => {
+router.post("/auth/login", authLimiter, async (req, res) => {
   try {
     const { email, password } = req.body ?? {};
     if (typeof email !== "string" || typeof password !== "string") {
@@ -386,7 +387,7 @@ router.get("/auth/me", async (req, res) => {
  * Used by admin-onboarded users to set their first password using
  * a one-time token. On success the user is activated and logged in.
  */
-router.post("/auth/setup-password", async (req, res) => {
+router.post("/auth/setup-password", authLimiter, async (req, res) => {
   try {
     const { token, password } = req.body ?? {};
     if (typeof token !== "string" || typeof password !== "string") {
@@ -484,7 +485,7 @@ router.post("/auth/setup-password", async (req, res) => {
  * setup token is issued and an email send is attempted (today the link is
  * also logged for admin recovery while email is not configured).
  */
-router.post("/auth/forgot-password", async (req, res) => {
+router.post("/auth/forgot-password", authLimiter, async (req, res) => {
   try {
     const { email } = req.body ?? {};
     if (typeof email !== "string" || email.trim().length === 0) {

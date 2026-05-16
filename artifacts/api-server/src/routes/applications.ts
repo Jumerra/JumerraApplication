@@ -27,7 +27,14 @@ import {
   UpdateApplicationStatusParams,
   UpdateApplicationStatusBody,
 } from "@workspace/api-zod";
+import { sql } from "drizzle-orm";
 import { calculateMatchScore } from "../lib/matching";
+import {
+  parseLimit,
+  encodeCursor,
+  decodeCursor,
+  setNextCursor,
+} from "../lib/pagination";
 import { requireAuth } from "../middleware/require-auth";
 import { requirePermission } from "../lib/permissions";
 
@@ -324,7 +331,20 @@ router.get("/applications", requireAuth, async (req, res): Promise<void> => {
   if (params.data.jobId) conditions.push(eq(applicationsTable.jobId, params.data.jobId));
   if (params.data.status) conditions.push(eq(applicationsTable.status, params.data.status));
 
-  const rows = await db
+  // Cursor pagination on (appliedAt DESC, id DESC). Capped at MAX_LIMIT
+  // via parseLimit so a single response can't drag in the entire table.
+  const limit = parseLimit((req.query as { limit?: unknown }).limit);
+  type AppsCursor = { a: number; i: number };
+  const cursor = decodeCursor<AppsCursor>(
+    (req.query as { cursor?: unknown }).cursor,
+  );
+  if (cursor) {
+    conditions.push(
+      sql`(${applicationsTable.appliedAt}, ${applicationsTable.id}) < (to_timestamp(${cursor.a / 1000}), ${cursor.i})`,
+    );
+  }
+
+  const rawRows = await db
     .select({
       application: applicationsTable,
       job: jobsTable,
@@ -336,7 +356,16 @@ router.get("/applications", requireAuth, async (req, res): Promise<void> => {
     .innerJoin(candidatesTable, eq(candidatesTable.id, applicationsTable.candidateId))
     .innerJoin(employersTable, eq(employersTable.id, jobsTable.employerId))
     .where(conditions.length > 0 ? and(...conditions) : undefined)
-    .orderBy(desc(applicationsTable.appliedAt));
+    .orderBy(desc(applicationsTable.appliedAt), desc(applicationsTable.id))
+    .limit(limit + 1);
+
+  const hasMore = rawRows.length > limit;
+  const rows = hasMore ? rawRows.slice(0, limit) : rawRows;
+  const lastApp = rows[rows.length - 1]?.application;
+  const next = hasMore && lastApp
+    ? encodeCursor({ a: lastApp.appliedAt.getTime(), i: lastApp.id } satisfies AppsCursor)
+    : null;
+  setNextCursor(res, next);
 
   // Bulk-fetch the latest finalised mock interview for every
   // (candidate, job) pair in one query so the Kanban / dashboard

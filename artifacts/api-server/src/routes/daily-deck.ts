@@ -28,7 +28,7 @@ import {
   notificationsTable,
   usersTable,
 } from "@workspace/db";
-import { calculateMatchScore } from "../lib/matching";
+import { calculateMatchScore, createMatchScoreMemo } from "../lib/matching";
 import { sendNotificationToCandidate } from "../lib/notifier";
 import { requireAuth } from "../middleware/require-auth";
 
@@ -215,6 +215,10 @@ function rankCandidates(
   limit: number,
   premiumVerifiedIds: Set<number> = new Set(),
 ): RankedCandidate[] {
+  // Same candidate is ranked against every job; same (skills,years,score,
+  // verified) tuple recurs across candidates with identical profiles.
+  // Memo collapses both into a single calculation.
+  const memoScore = createMatchScoreMemo();
   const ranked: RankedCandidate[] = [];
   for (const c of candidates) {
     if (excludeIds.has(c.id)) continue;
@@ -222,7 +226,7 @@ function rankCandidates(
     const verifiedByPremium = premiumVerifiedIds.has(c.id);
     let best: RankedCandidate | null = null;
     if (jobs.length === 0) {
-      const br = calculateMatchScore([], c.skills, c.yearsExperience, c.talentScore, { verifiedByPremium });
+      const br = memoScore([], c.skills, c.yearsExperience, c.talentScore, { verifiedByPremium });
       best = {
         candidateId: c.id,
         bestJobId: null,
@@ -234,7 +238,7 @@ function rankCandidates(
       };
     } else {
       for (const j of jobs) {
-        const br = calculateMatchScore(
+        const br = memoScore(
           j.skills,
           c.skills,
           c.yearsExperience,

@@ -39,6 +39,67 @@ function pickSummary(
  */
 const PREMIUM_INSTITUTION_BONUS = 2;
 
+/**
+ * Per-request memo wrapper around `calculateMatchScore`.
+ *
+ * Many list/analytics paths score every candidate in the DB against
+ * a single job (or every job against a single candidate) inside one
+ * request. Two callers hitting the same skill-set + experience +
+ * talent-score tuple would otherwise repeat the Set construction +
+ * loop work. Memoising keyed on the input tuple lets the loop in
+ * `/jobs/:id/matches`, `/dashboard/candidate/:id` recommendedJobs,
+ * and the daily-deck builder reuse the same breakdown.
+ *
+ * NB: do NOT memoise globally — match outputs are sensitive to the
+ * caller's `verifiedByPremium` opt, which is part of the key. A
+ * cross-request cache would also be a memory leak: callers create
+ * a fresh memo per request and discard it when the handler returns.
+ */
+export function createMatchScoreMemo(): (
+  jobSkills: string[],
+  candidateSkills: string[],
+  yearsExperience: number,
+  talentScore: number,
+  opts?: { verifiedByPremium?: boolean },
+) => MatchBreakdown {
+  const cache = new Map<string, MatchBreakdown>();
+  // Sort each side once so equivalent unordered skill lists collide
+  // on the same cache key. Job skills usually come from the same row
+  // for many calls, but we still normalise both for safety.
+  function makeKey(
+    jobSkills: string[],
+    candidateSkills: string[],
+    yearsExperience: number,
+    talentScore: number,
+    verifiedByPremium: boolean,
+  ): string {
+    const j = jobSkills.map((s) => s.toLowerCase()).sort().join(",");
+    const c = candidateSkills.map((s) => s.toLowerCase()).sort().join(",");
+    return `${j}||${c}|${yearsExperience}|${talentScore}|${verifiedByPremium ? 1 : 0}`;
+  }
+  return (jobSkills, candidateSkills, yearsExperience, talentScore, opts = {}) => {
+    const verified = Boolean(opts.verifiedByPremium);
+    const key = makeKey(
+      jobSkills,
+      candidateSkills,
+      yearsExperience,
+      talentScore,
+      verified,
+    );
+    const hit = cache.get(key);
+    if (hit) return hit;
+    const out = calculateMatchScore(
+      jobSkills,
+      candidateSkills,
+      yearsExperience,
+      talentScore,
+      { verifiedByPremium: verified },
+    );
+    cache.set(key, out);
+    return out;
+  };
+}
+
 export function calculateMatchScore(
   jobSkills: string[],
   candidateSkills: string[],

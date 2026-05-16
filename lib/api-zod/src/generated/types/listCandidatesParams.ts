@@ -23,4 +23,16 @@ verification for the given skill (case-insensitive exact match).
 
  */
   verifiedSkill?: string;
+  /**
+   * Page size (max 50, default 20).
+   * @minimum 1
+   * @maximum 50
+   */
+  limit?: number;
+  /**
+ * Opaque pagination cursor from the previous response's
+`X-Next-Cursor` header. Omit to fetch the first page.
+
+ */
+  cursor?: string;
 };

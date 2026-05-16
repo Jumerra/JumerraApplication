@@ -13,7 +13,7 @@ import {
   GetInstitutionDashboardParams,
   GetCandidateDashboardParams,
 } from "@workspace/api-zod";
-import { calculateMatchScore } from "../lib/matching";
+import { calculateMatchScore, createMatchScoreMemo } from "../lib/matching";
 import { getCandidateIdsForInstitution } from "../lib/candidate-institutions";
 import { isInstitutionPlacementUnlocked } from "./institution-subscription";
 import { loadQuotaSnapshot } from "../lib/institution-quotas";
@@ -429,10 +429,13 @@ router.get("/dashboard/candidate/:id", async (req, res): Promise<void> => {
     .innerJoin(employersTable, eq(jobsTable.employerId, employersTable.id));
 
   const appliedJobIds = new Set(apps.map((a) => a.job.id));
+  // One memo per request — duplicate job rows with the same skills set
+  // would otherwise recompute the identical breakdown.
+  const memoScore = createMatchScoreMemo();
   const recommendedJobs = allJobs
     .filter(({ job }) => !appliedJobIds.has(job.id))
     .map(({ job, employer }) => {
-      const breakdown = calculateMatchScore(
+      const breakdown = memoScore(
         job.skills,
         candidate.skills,
         candidate.yearsExperience,

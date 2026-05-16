@@ -17,6 +17,8 @@ export const HealthCheckResponse = zod.object({
 /**
  * @summary List candidates with optional filters
  */
+export const listCandidatesQueryLimitMax = 50;
+
 export const ListCandidatesQueryParams = zod.object({
   search: zod.coerce.string().optional(),
   location: zod.coerce.string().optional(),
@@ -34,6 +36,18 @@ export const ListCandidatesQueryParams = zod.object({
     .optional()
     .describe(
       "Restrict the result to candidates who have an active institution-issued\nverification for the given skill (case-insensitive exact match).\n",
+    ),
+  limit: zod.coerce
+    .number()
+    .min(1)
+    .max(listCandidatesQueryLimitMax)
+    .optional()
+    .describe("Page size (max 50, default 20)."),
+  cursor: zod.coerce
+    .string()
+    .optional()
+    .describe(
+      "Opaque pagination cursor from the previous response's\n`X-Next-Cursor` header. Omit to fetch the first page.\n",
     ),
 });
 
@@ -1546,6 +1560,8 @@ export const ListInstitutionStudentsParams = zod.object({
   id: zod.coerce.number(),
 });
 
+export const listInstitutionStudentsQueryLimitMax = 50;
+
 export const ListInstitutionStudentsQueryParams = zod.object({
   departmentId: zod.coerce
     .number()
@@ -1553,6 +1569,16 @@ export const ListInstitutionStudentsQueryParams = zod.object({
     .describe(
       "Filter by institution department\/program. Owners and platform\nadmins may set this to scope the roster. Non-owner staff with\nan assigned department are always hard-filtered server-side\nand cannot widen the result by omitting or changing this param.\n",
     ),
+  limit: zod.coerce
+    .number()
+    .min(1)
+    .max(listInstitutionStudentsQueryLimitMax)
+    .optional()
+    .describe("Page size (max 50, default 20)."),
+  cursor: zod.coerce
+    .string()
+    .optional()
+    .describe("Opaque cursor from previous `X-Next-Cursor` header."),
 });
 
 export const ListInstitutionStudentsResponseItem = zod.object({
@@ -1675,6 +1701,8 @@ export const UnverifyInstitutionStudentResponse = zod.object({
   ok: zod.boolean(),
 });
 
+export const listJobsQueryLimitMax = 50;
+
 export const ListJobsQueryParams = zod.object({
   search: zod.coerce.string().optional(),
   type: zod
@@ -1691,6 +1719,16 @@ export const ListJobsQueryParams = zod.object({
     .describe(
       "When true, restrict to jobs whose employer has the 48-hour Fast-Track pledge enabled.",
     ),
+  limit: zod.coerce
+    .number()
+    .min(1)
+    .max(listJobsQueryLimitMax)
+    .optional()
+    .describe("Page size (max 50, default 20)."),
+  cursor: zod.coerce
+    .string()
+    .optional()
+    .describe("Opaque cursor from previous `X-Next-Cursor` header."),
 });
 
 export const ListJobsResponseItem = zod.object({
@@ -2252,6 +2290,8 @@ export const GetCandidateRecommendationsResponse = zod.array(
   GetCandidateRecommendationsResponseItem,
 );
 
+export const listApplicationsQueryLimitMax = 50;
+
 export const ListApplicationsQueryParams = zod.object({
   candidateId: zod.coerce.number().optional(),
   jobId: zod.coerce.number().optional(),
@@ -2267,6 +2307,16 @@ export const ListApplicationsQueryParams = zod.object({
       "withdrawn",
     ])
     .optional(),
+  limit: zod.coerce
+    .number()
+    .min(1)
+    .max(listApplicationsQueryLimitMax)
+    .optional()
+    .describe("Page size (max 50, default 20)."),
+  cursor: zod.coerce
+    .string()
+    .optional()
+    .describe("Opaque cursor from previous `X-Next-Cursor` header."),
 });
 
 export const ListApplicationsResponseItem = zod.object({

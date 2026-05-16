@@ -19,4 +19,14 @@ export type ListJobsParams = {
    * When true, restrict to jobs whose employer has the 48-hour Fast-Track pledge enabled.
    */
   fastTrackOnly?: boolean;
+  /**
+   * Page size (max 50, default 20).
+   * @minimum 1
+   * @maximum 50
+   */
+  limit?: number;
+  /**
+   * Opaque cursor from previous `X-Next-Cursor` header.
+   */
+  cursor?: string;
 };

@@ -7,10 +7,13 @@
     "hello": "tsx ./src/hello.ts",
     "migrate-legacy-employer-subs": "tsx ./src/migrate-legacy-employer-subs.ts",
     "seed-challenge-templates": "tsx ./src/seed-challenge-templates.ts",
+    "loadtest": "tsx ./src/loadtest.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
+    "@types/autocannon": "^7.12.7",
     "@types/node": "catalog:",
+    "autocannon": "^8.0.0",
     "tsx": "catalog:"
   },
   "dependencies": {

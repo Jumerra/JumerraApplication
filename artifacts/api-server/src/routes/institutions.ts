@@ -81,6 +81,12 @@ import {
   isImplicitAllUser,
 } from "../lib/permissions";
 import { usersTable, notificationsTable } from "@workspace/db";
+import {
+  parseLimit,
+  encodeCursor,
+  decodeCursor,
+  setNextCursor,
+} from "../lib/pagination";
 import { enforceStarterQuota } from "../lib/institution-quotas";
 import { isInstitutionPremium } from "./institution-subscription";
 
@@ -643,15 +649,45 @@ router.get(
   }
 
   if (studentIds.length === 0) {
+    setNextCursor(res, null);
     res.json([]);
     return;
   }
 
-  const students = await db
+  // Cursor pagination on (talentScore DESC, id DESC). Capped at
+  // MAX_LIMIT by parseLimit so a large school's full roster ships in
+  // pages rather than a single giant JSON blob.
+  const limit = parseLimit((req.query as { limit?: unknown }).limit);
+  type StudentsCursor = { s: number; i: number };
+  const cursor = decodeCursor<StudentsCursor>(
+    (req.query as { cursor?: unknown }).cursor,
+  );
+  const studentConditions = [inArray(candidatesTable.id, studentIds)];
+  if (cursor) {
+    studentConditions.push(
+      sql`(${candidatesTable.talentScore}, ${candidatesTable.id}) < (${cursor.s}, ${cursor.i})`,
+    );
+  }
+  const studentRows = await db
     .select()
     .from(candidatesTable)
-    .where(inArray(candidatesTable.id, studentIds))
-    .orderBy(desc(candidatesTable.talentScore));
+    .where(and(...studentConditions))
+    .orderBy(desc(candidatesTable.talentScore), desc(candidatesTable.id))
+    .limit(limit + 1);
+
+  const hasMore = studentRows.length > limit;
+  const students = hasMore ? studentRows.slice(0, limit) : studentRows;
+  const lastStudent = students[students.length - 1];
+  setNextCursor(
+    res,
+    hasMore && lastStudent
+      ? encodeCursor({ s: lastStudent.talentScore, i: lastStudent.id } satisfies StudentsCursor)
+      : null,
+  );
+
+  // Heavy hydration queries below must be keyed to the CURRENT PAGE,
+  // not the full scoped roster — otherwise pagination buys nothing.
+  const pagedStudentIds = students.map((s) => s.id);
 
   // Determine whether each student's link to this institution is primary
   // so the UI can flag transfer / multi-affiliation students, and whether
@@ -688,7 +724,7 @@ router.get(
     .where(
       and(
         eq(candidateInstitutionsTable.institutionId, params.data.id),
-        inArray(candidateInstitutionsTable.candidateId, studentIds),
+        inArray(candidateInstitutionsTable.candidateId, pagedStudentIds),
       ),
     );
   const linkInfoByCandidate = new Map<
@@ -728,7 +764,7 @@ router.get(
     .from(applicationsTable)
     .innerJoin(jobsTable, eq(jobsTable.id, applicationsTable.jobId))
     .innerJoin(employersTable, eq(employersTable.id, jobsTable.employerId))
-    .where(inArray(applicationsTable.candidateId, studentIds));
+    .where(inArray(applicationsTable.candidateId, pagedStudentIds));
 
   const statsByCandidate = new Map<number, { count: number; status: string; employerName: string | null }>();
   for (const a of apps) {

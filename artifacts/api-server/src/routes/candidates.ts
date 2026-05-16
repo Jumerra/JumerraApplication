@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, sql, desc, inArray } from "drizzle-orm";
+import { eq, and, sql, desc, inArray, ilike, or, lt, gte } from "drizzle-orm";
 import {
   db,
   candidatesTable,
@@ -20,6 +20,12 @@ import {
   GetCandidateRecommendationsParams,
 } from "@workspace/api-zod";
 import { calculateMatchScore } from "../lib/matching";
+import {
+  parseLimit,
+  encodeCursor,
+  decodeCursor,
+  setNextCursor,
+} from "../lib/pagination";
 import { sweepExpiredJobTiers } from "./job-tier";
 import { recordProfileView } from "./profile-views";
 import {
@@ -171,6 +177,16 @@ const EMPLOYMENT_TYPES = new Set([
 ]);
 const LOCATION_TYPES = new Set(["on_site", "hybrid", "remote"]);
 
+// Cursor shape for the candidates list. Sort order is
+// (isBoosted DESC, talentScore DESC, id DESC) so the cursor must
+// encode the boundary on all three columns to ensure stable paging
+// across ties.
+type CandidatesCursor = {
+  b: 0 | 1;
+  s: number;
+  i: number;
+};
+
 router.get("/candidates", async (req, res): Promise<void> => {
   const params = ListCandidatesQueryParams.safeParse(req.query);
   if (!params.success) {
@@ -179,9 +195,15 @@ router.get("/candidates", async (req, res): Promise<void> => {
   }
 
   const filters = params.data;
+  const limit = parseLimit((req.query as { limit?: unknown }).limit);
+  const cursor = decodeCursor<CandidatesCursor>(
+    (req.query as { cursor?: unknown }).cursor,
+  );
 
   // If filtering by institution, scope candidates to those linked to that
   // institution (primary OR additional affiliation) via the junction table.
+  // The two helpers below already issue narrow indexed queries; we keep
+  // the intersection in TS but constrain it to the id-set before paging.
   let allowedIds: Set<number> | null = null;
   if (filters.institutionId) {
     const ids = await getCandidateIdsForInstitution(filters.institutionId);
@@ -197,44 +219,95 @@ router.get("/candidates", async (req, res): Promise<void> => {
       allowedIds = verifiedIds;
     }
   }
+  // No candidates match the institution/verified-skill prefilter: skip
+  // the heavy query entirely.
+  if (allowedIds && allowedIds.size === 0) {
+    setNextCursor(res, null);
+    res.json([]);
+    return;
+  }
 
+  // Compose all filters as SQL conditions (kills the previous
+  // post-query .filter() pass that scanned every candidate row).
+  const conditions: ReturnType<typeof eq>[] = [];
+
+  if (allowedIds) {
+    conditions.push(inArray(candidatesTable.id, Array.from(allowedIds)));
+  }
+  if (filters.search) {
+    const q = `%${filters.search}%`;
+    // skills is a text[]; cast via array_to_string so ILIKE works.
+    const skillsBlob = sql<string>`array_to_string(${candidatesTable.skills}, ' ')`;
+    const orClause = or(
+      ilike(candidatesTable.fullName, q),
+      ilike(candidatesTable.headline, q),
+      ilike(candidatesTable.bio, q),
+      sql`${skillsBlob} ILIKE ${q}`,
+    );
+    if (orClause) conditions.push(orClause);
+  }
+  if (filters.location) {
+    conditions.push(ilike(candidatesTable.location, `%${filters.location}%`));
+  }
+  if (filters.skill) {
+    // Case-insensitive membership against skills text[].
+    conditions.push(
+      sql`EXISTS (
+        SELECT 1 FROM unnest(${candidatesTable.skills}) s
+        WHERE lower(s) = lower(${filters.skill})
+      )`,
+    );
+  }
+  if (filters.minScore) {
+    conditions.push(gte(candidatesTable.talentScore, filters.minScore));
+  }
+  if (filters.openToOffers === "1") {
+    conditions.push(eq(candidatesTable.openToOffers, true));
+  }
+
+  // Cursor: keyset where (isBoosted, talentScore, id) is strictly
+  // less than the last seen row, in lexicographic order matching the
+  // ORDER BY. Postgres ROW comparisons give us exactly this.
+  if (cursor) {
+    conditions.push(
+      sql`(
+        (${candidatesTable.isBoosted})::int,
+        ${candidatesTable.talentScore},
+        ${candidatesTable.id}
+      ) < (${cursor.b}, ${cursor.s}, ${cursor.i})`,
+    );
+  }
+
+  const whereExpr = conditions.length > 0 ? and(...conditions) : undefined;
+
+  // Fetch limit+1 to detect whether another page exists without a
+  // second COUNT query.
   const rows = await db
     .select()
     .from(candidatesTable)
-    .orderBy(desc(candidatesTable.isBoosted), desc(candidatesTable.talentScore));
+    .where(whereExpr)
+    .orderBy(
+      desc(candidatesTable.isBoosted),
+      desc(candidatesTable.talentScore),
+      desc(candidatesTable.id),
+    )
+    .limit(limit + 1);
 
-  const filtered = rows.filter((candidate) => {
-    if (allowedIds && !allowedIds.has(candidate.id)) return false;
-    if (filters.search) {
-      const q = filters.search.toLowerCase();
-      const blob = `${candidate.fullName} ${candidate.headline} ${candidate.bio} ${candidate.skills.join(" ")}`.toLowerCase();
-      if (!blob.includes(q)) return false;
-    }
-    if (filters.location && !candidate.location.toLowerCase().includes(filters.location.toLowerCase())) {
-      return false;
-    }
-    if (filters.skill) {
-      const skillLower = filters.skill.toLowerCase();
-      if (!candidate.skills.some((s) => s.toLowerCase() === skillLower)) {
-        return false;
-      }
-    }
-    if (filters.minScore && candidate.talentScore < filters.minScore) {
-      return false;
-    }
-    if (filters.openToOffers === "1" && !candidate.openToOffers) {
-      return false;
-    }
-    return true;
-  });
+  const hasMore = rows.length > limit;
+  const page = hasMore ? rows.slice(0, limit) : rows;
+  const last = page[page.length - 1];
+  const next = hasMore && last
+    ? encodeCursor({ b: last.isBoosted ? 1 : 0, s: last.talentScore, i: last.id } satisfies CandidatesCursor)
+    : null;
+  setNextCursor(res, next);
 
-  const filteredIds = filtered.map((c) => c.id);
+  const pageIds = page.map((c) => c.id);
   const [linkMap, vMap] = await Promise.all([
-    getInstitutionLinksByCandidate(filteredIds),
-    getVerifiedSkillsByCandidate(filteredIds),
+    getInstitutionLinksByCandidate(pageIds),
+    getVerifiedSkillsByCandidate(pageIds),
   ]);
   res.json(
-    filtered.map((candidate) =>
+    page.map((candidate) =>
       serializeCandidate(
         candidate,
         linkMap.get(candidate.id) ?? [],

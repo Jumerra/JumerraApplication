@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, sql, desc, and } from "drizzle-orm";
+import { eq, sql, desc, and, ilike, or } from "drizzle-orm";
 import {
   db,
   jobsTable,
@@ -15,12 +15,17 @@ import {
   GetJobParams,
   GetJobMatchesParams,
 } from "@workspace/api-zod";
-import { calculateMatchScore } from "../lib/matching";
+import { calculateMatchScore, createMatchScoreMemo } from "../lib/matching";
+import {
+  parseLimit,
+  encodeCursor,
+  decodeCursor,
+  setNextCursor,
+} from "../lib/pagination";
 import { sendNotificationToCandidate } from "../lib/notifier";
 import { requireAuth, attachUser } from "../middleware/require-auth";
 import { requirePermission } from "../lib/permissions";
 import { sweepExpiredJobTiers } from "./job-tier";
-import { jobMatchesFilters } from "../lib/job-filters";
 
 const router: IRouter = Router();
 
@@ -74,12 +79,27 @@ function serializeJob(
   };
 }
 
+// Cursor shape: (tierRank, featured, postedAt(ms), id) lex-ordered to
+// match the ORDER BY. tierRank is a derived 1..3 integer (see SQL
+// CASE below).
+type JobsCursor = {
+  t: 1 | 2 | 3;
+  f: 0 | 1;
+  p: number;
+  i: number;
+};
+
 router.get("/jobs", async (req, res): Promise<void> => {
   const params = ListJobsQueryParams.safeParse(req.query);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
+  const filters = params.data;
+  const limit = parseLimit((req.query as { limit?: unknown }).limit);
+  const cursor = decodeCursor<JobsCursor>(
+    (req.query as { cursor?: unknown }).cursor,
+  );
 
   // Demote anything whose paid tier has expired before we read+rank.
   // Cheap UPDATE; safe under concurrency.
@@ -91,30 +111,91 @@ router.get("/jobs", async (req, res): Promise<void> => {
     WHEN 'promoted' THEN 2
     ELSE 1 END`;
 
+  // Push every filter into SQL (kills the previous post-query .filter()
+  // pass + the shared `jobMatchesFilters` in-memory predicate). The
+  // saved-search digest worker still uses `jobMatchesFilters` on rows
+  // it already loaded, so this is route-local only.
+  const conditions: ReturnType<typeof eq>[] = [
+    eq(jobsTable.visibility, "public"),
+  ];
+  if (filters.search) {
+    const q = `%${filters.search}%`;
+    const skillsBlob = sql<string>`array_to_string(${jobsTable.skills}, ' ')`;
+    const orClause = or(
+      ilike(jobsTable.title, q),
+      ilike(jobsTable.summary, q),
+      sql`${skillsBlob} ILIKE ${q}`,
+    );
+    if (orClause) conditions.push(orClause);
+  }
+  if (filters.type) conditions.push(eq(jobsTable.type, filters.type));
+  if (filters.location) {
+    conditions.push(ilike(jobsTable.location, `%${filters.location}%`));
+  }
+  if (filters.remote !== undefined && filters.remote !== null) {
+    conditions.push(eq(jobsTable.remote, filters.remote));
+  }
+  if (filters.employerId) {
+    conditions.push(eq(jobsTable.employerId, filters.employerId));
+  }
+  if (filters.featured !== undefined && filters.featured !== null) {
+    conditions.push(eq(jobsTable.featured, filters.featured));
+  }
+  if (filters.skill) {
+    conditions.push(
+      sql`EXISTS (
+        SELECT 1 FROM unnest(${jobsTable.skills}) s
+        WHERE lower(s) = lower(${filters.skill})
+      )`,
+    );
+  }
+  if (filters.fastTrackOnly) {
+    conditions.push(eq(employersTable.fastTrackEnabled, true));
+  }
+  if (cursor) {
+    conditions.push(
+      sql`(
+        ${tierRank},
+        (${jobsTable.featured})::int,
+        ${jobsTable.postedAt},
+        ${jobsTable.id}
+      ) < (${cursor.t}, ${cursor.f}, to_timestamp(${cursor.p / 1000}), ${cursor.i})`,
+    );
+  }
+
   const rows = await db
     .select({
       job: jobsTable,
       employer: employersTable,
       applicationsCount: sql<number>`coalesce((SELECT count(*)::int FROM ${applicationsTable} WHERE ${applicationsTable.jobId} = ${jobsTable.id}), 0)`,
+      tierRank: tierRank,
     })
     .from(jobsTable)
     .innerJoin(employersTable, eq(jobsTable.employerId, employersTable.id))
-    .where(eq(jobsTable.visibility, "public"))
-    .orderBy(desc(tierRank), desc(jobsTable.featured), desc(jobsTable.postedAt));
+    .where(and(...conditions))
+    .orderBy(
+      desc(tierRank),
+      desc(jobsTable.featured),
+      desc(jobsTable.postedAt),
+      desc(jobsTable.id),
+    )
+    .limit(limit + 1);
 
-  // Delegate the per-row predicate to the shared helper so the
-  // saved-search alert worker (lib/digest-worker.ts) matches with
-  // identical semantics. See lib/job-filters.ts for the contract.
-  const filtered = rows.filter(({ job, employer }) => {
-    if (!jobMatchesFilters(job, params.data)) return false;
-    // `fastTrackOnly` is resolved here (not in the in-memory predicate)
-    // because it depends on the joined employer row.
-    if (params.data.fastTrackOnly && !employer.fastTrackEnabled) return false;
-    return true;
-  });
+  const hasMore = rows.length > limit;
+  const page = hasMore ? rows.slice(0, limit) : rows;
+  const last = page[page.length - 1];
+  const next = hasMore && last
+    ? encodeCursor({
+        t: (last.tierRank as 1 | 2 | 3),
+        f: last.job.featured ? 1 : 0,
+        p: last.job.postedAt.getTime(),
+        i: last.job.id,
+      } satisfies JobsCursor)
+    : null;
+  setNextCursor(res, next);
 
   res.json(
-    filtered.map(({ job, employer, applicationsCount }) =>
+    page.map(({ job, employer, applicationsCount }) =>
       serializeJob(job, employer, Number(applicationsCount)),
     ),
   );
@@ -333,9 +414,13 @@ router.get("/jobs/:id/matches", requireAuth, async (req, res): Promise<void> => 
 
   const candidates = await db.select().from(candidatesTable);
 
+  // Memo match scores by (skills, years, talent) so duplicate candidate
+  // profiles (or matching candidates ranked against multiple jobs) skip
+  // redundant skill-set + loop work. Per-request scope only.
+  const memoScore = createMatchScoreMemo();
   const ranked = candidates
     .map((c) => {
-      const breakdown = calculateMatchScore(
+      const breakdown = memoScore(
         job.skills,
         c.skills,
         c.yearsExperience,

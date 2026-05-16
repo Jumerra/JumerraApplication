@@ -95,9 +95,25 @@ paths:
             Restrict the result to candidates who have an active institution-issued
             verification for the given skill (case-insensitive exact match).
           schema: { type: string }
+        - in: query
+          name: limit
+          description: Page size (max 50, default 20).
+          schema: { type: integer, minimum: 1, maximum: 50 }
+        - in: query
+          name: cursor
+          description: |
+            Opaque pagination cursor from the previous response's
+            `X-Next-Cursor` header. Omit to fetch the first page.
+          schema: { type: string }
       responses:
         "200":
           description: List of candidates
+          headers:
+            X-Next-Cursor:
+              description: |
+                Pass back as `?cursor=` to fetch the next page. Absent when
+                no further pages are available.
+              schema: { type: string }
           content:
             application/json:
               schema:
@@ -503,9 +519,21 @@ paths:
             an assigned department are always hard-filtered server-side
             and cannot widen the result by omitting or changing this param.
           schema: { type: integer }
+        - in: query
+          name: limit
+          description: Page size (max 50, default 20).
+          schema: { type: integer, minimum: 1, maximum: 50 }
+        - in: query
+          name: cursor
+          description: Opaque cursor from previous `X-Next-Cursor` header.
+          schema: { type: string }
       responses:
         "200":
           description: Students at institution with placement status
+          headers:
+            X-Next-Cursor:
+              description: Pass back as `?cursor=` to fetch the next page.
+              schema: { type: string }
           content:
             application/json:
               schema:
@@ -627,9 +655,21 @@ paths:
           name: fastTrackOnly
           schema: { type: boolean }
           description: When true, restrict to jobs whose employer has the 48-hour Fast-Track pledge enabled.
+        - in: query
+          name: limit
+          description: Page size (max 50, default 20).
+          schema: { type: integer, minimum: 1, maximum: 50 }
+        - in: query
+          name: cursor
+          description: Opaque cursor from previous `X-Next-Cursor` header.
+          schema: { type: string }
       responses:
         "200":
           description: Jobs
+          headers:
+            X-Next-Cursor:
+              description: Pass back as `?cursor=` to fetch the next page.
+              schema: { type: string }
           content:
             application/json:
               schema:
@@ -951,9 +991,21 @@ paths:
           schema:
             type: string
             enum: [applied, screening, interview, offer, hired, rejected, withdrawn]
+        - in: query
+          name: limit
+          description: Page size (max 50, default 20).
+          schema: { type: integer, minimum: 1, maximum: 50 }
+        - in: query
+          name: cursor
+          description: Opaque cursor from previous `X-Next-Cursor` header.
+          schema: { type: string }
       responses:
         "200":
           description: Applications
+          headers:
+            X-Next-Cursor:
+              description: Pass back as `?cursor=` to fetch the next page.
+              schema: { type: string }
           content:
             application/json:
               schema:

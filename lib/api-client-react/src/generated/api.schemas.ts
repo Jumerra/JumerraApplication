@@ -3523,6 +3523,18 @@ verification for the given skill (case-insensitive exact match).
 
  */
   verifiedSkill?: string;
+  /**
+   * Page size (max 50, default 20).
+   * @minimum 1
+   * @maximum 50
+   */
+  limit?: number;
+  /**
+ * Opaque pagination cursor from the previous response's
+`X-Next-Cursor` header. Omit to fetch the first page.
+
+ */
+  cursor?: string;
 };
 
 export type ListCandidatesOpenToOffers =
@@ -3574,6 +3586,16 @@ and cannot widen the result by omitting or changing this param.
 
  */
   departmentId?: number;
+  /**
+   * Page size (max 50, default 20).
+   * @minimum 1
+   * @maximum 50
+   */
+  limit?: number;
+  /**
+   * Opaque cursor from previous `X-Next-Cursor` header.
+   */
+  cursor?: string;
 };
 
 export type BulkVerifyInstitutionStudentsBodyRowsItem = {
@@ -3603,6 +3625,16 @@ export type ListJobsParams = {
    * When true, restrict to jobs whose employer has the 48-hour Fast-Track pledge enabled.
    */
   fastTrackOnly?: boolean;
+  /**
+   * Page size (max 50, default 20).
+   * @minimum 1
+   * @maximum 50
+   */
+  limit?: number;
+  /**
+   * Opaque cursor from previous `X-Next-Cursor` header.
+   */
+  cursor?: string;
 };
 
 export type ListJobsType = (typeof ListJobsType)[keyof typeof ListJobsType];
@@ -3632,6 +3664,16 @@ export type ListApplicationsParams = {
   jobId?: number;
   employerId?: number;
   status?: ListApplicationsStatus;
+  /**
+   * Page size (max 50, default 20).
+   * @minimum 1
+   * @maximum 50
+   */
+  limit?: number;
+  /**
+   * Opaque cursor from previous `X-Next-Cursor` header.
+   */
+  cursor?: string;
 };
 
 export type ListApplicationsStatus =

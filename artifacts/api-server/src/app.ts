@@ -8,6 +8,7 @@ import { sessionTokenBridge } from "./middleware/session-token-bridge";
 import { requestIdMiddleware } from "./middleware/request-id";
 import { seedSystemRoles } from "./lib/permissions";
 import { attachSentryErrorHandler } from "./lib/sentry-server";
+import { globalLimiter, searchLimiter } from "./lib/rate-limit";
 
 // Fire-and-forget on boot; logs but doesn't block startup. Safe because
 // it's idempotent (no-op when system rows already exist).
@@ -128,7 +129,9 @@ app.use(
     credentials: true,
     // Expose x-request-id so browser clients can surface it in error
     // toasts / Sentry breadcrumbs for correlation with server logs.
-    exposedHeaders: ["x-request-id"],
+    // x-next-cursor is the cursor-pagination next-page handle for hot
+    // list endpoints (see lib/pagination.ts).
+    exposedHeaders: ["x-request-id", "x-next-cursor"],
   }),
 );
 // Raw body parsing for payment-provider webhooks MUST come before
@@ -154,6 +157,34 @@ app.use(sessionPartitionedCookiePatch());
 // before express-session so the synthesised cookie is visible to it.
 app.use(sessionTokenBridge());
 app.use(buildSessionMiddleware());
+
+// Process-wide backstop. /api/webhooks/* is explicitly exempted so
+// Stripe/Paystack retry storms can never be 429'd — losing a webhook
+// event leaks money / leaves a paid CV without its unlock. Per-route
+// protection (auth, search) lives in /lib/rate-limit.ts and is wired
+// on its specific path so it also bypasses webhooks.
+app.use("/api", (req, res, next) => {
+  if (req.path.startsWith("/webhooks/")) return next();
+  return globalLimiter(req, res, next);
+});
+// Tighter bucket on the hot read paths so unauthenticated scraping
+// or hot polling can't pin the DB. 401s still cost a token (we want
+// to slow probes), but the 60/min cap leaves plenty of headroom for
+// a real client.
+app.use(
+  ["/api/candidates", "/api/jobs", "/api/applications"],
+  (req, _res, next) => {
+    // Only throttle reads — POST/PATCH already have permission checks
+    // and would otherwise share a bucket with reads on the same path.
+    if (req.method !== "GET") return next();
+    return searchLimiter(req, _res, next);
+  },
+);
+app.use("/api/institutions", (req, _res, next) => {
+  if (req.method !== "GET") return next();
+  if (!/\/\d+\/students/.test(req.path)) return next();
+  return searchLimiter(req, _res, next);
+});
 
 app.use("/api", router);
 

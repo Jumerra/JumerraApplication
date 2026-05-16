@@ -6,6 +6,7 @@ import {
   boolean,
   timestamp,
   date,
+  index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { institutionDepartmentsTable } from "./institutions";
@@ -121,6 +122,18 @@ export const candidateInstitutionsTable = pgTable(
     candidateInstitutionUnique: uniqueIndex("candidate_institution_unique").on(
       t.candidateId,
       t.institutionId,
+    ),
+    // Stand-alone indexes for the reverse-direction FK lookups: the
+    // /institutions/:id/students roster filters by institution_id +
+    // optional department_id; per-candidate lookups (profile page,
+    // verification UI) filter by candidate_id alone.
+    candidateIdx: index("candidate_institutions_candidate_idx").on(t.candidateId),
+    institutionIdx: index("candidate_institutions_institution_idx").on(
+      t.institutionId,
+    ),
+    institutionDeptIdx: index("candidate_institutions_inst_dept_idx").on(
+      t.institutionId,
+      t.departmentId,
     ),
   }),
 );

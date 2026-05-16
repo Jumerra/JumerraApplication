@@ -4808,3 +4808,156 @@ export const SendOutreachResponse = zod.object({
   skipped: zod.number(),
   remainingToday: zod.number(),
 });
+
+/**
+ * @summary Placement analytics for an institution (scoped to caller's faculty/department).
+ */
+export const GetInstitutionPlacementAnalyticsParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetInstitutionPlacementAnalyticsQueryParams = zod.object({
+  facultyId: zod.coerce.number().optional(),
+  departmentId: zod.coerce.number().optional(),
+});
+
+export const GetInstitutionPlacementAnalyticsResponse = zod.object({
+  institutionId: zod.number(),
+  totalStudents: zod.number(),
+  placedStudents: zod.number(),
+  placementRate: zod.number(),
+  medianTimeToFirstJobDays: zod.number(),
+  topEmployers: zod.array(
+    zod.object({
+      employerId: zod.number(),
+      employerName: zod.string(),
+      employerLogoUrl: zod.string(),
+      hires: zod.number(),
+    }),
+  ),
+  salaryMediansByDepartment: zod.array(
+    zod.object({
+      departmentId: zod.number().nullable(),
+      departmentName: zod.string(),
+      medianSalary: zod.number(),
+      hires: zod.number(),
+    }),
+  ),
+  placementsLocked: zod
+    .boolean()
+    .describe(
+      "True when the institution does not have an active premium subscription; analytics are zeroed out in that case.",
+    ),
+});
+
+/**
+ * @summary Public top-employers-of-our-students leaderboard for the current calendar year.
+ */
+export const GetInstitutionEmployersLeaderboardParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetInstitutionEmployersLeaderboardResponse = zod.object({
+  year: zod.number(),
+  employers: zod.array(
+    zod.object({
+      employerId: zod.number(),
+      employerName: zod.string(),
+      employerLogoUrl: zod.string(),
+      hires: zod.number(),
+    }),
+  ),
+});
+
+/**
+ * @summary List cohorts (graduating classes) for an institution.
+ */
+export const ListInstitutionCohortsParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ListInstitutionCohortsResponseItem = zod.object({
+  id: zod.number(),
+  institutionId: zod.number(),
+  year: zod.number(),
+  name: zod.string(),
+  memberCount: zod.number(),
+  createdAt: zod.coerce.date(),
+});
+export const ListInstitutionCohortsResponse = zod.array(
+  ListInstitutionCohortsResponseItem,
+);
+
+/**
+ * @summary Create a cohort (owners/registrars only).
+ */
+export const CreateInstitutionCohortParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const createInstitutionCohortBodyYearMin = 1900;
+export const createInstitutionCohortBodyYearMax = 2200;
+
+export const createInstitutionCohortBodyNameMax = 120;
+
+export const CreateInstitutionCohortBody = zod.object({
+  year: zod
+    .number()
+    .min(createInstitutionCohortBodyYearMin)
+    .max(createInstitutionCohortBodyYearMax),
+  name: zod.string().min(1).max(createInstitutionCohortBodyNameMax),
+});
+
+/**
+ * @summary Add candidates to a cohort.
+ */
+export const AddInstitutionCohortMembersParams = zod.object({
+  id: zod.coerce.number(),
+  cohortId: zod.coerce.number(),
+});
+
+export const AddInstitutionCohortMembersBody = zod.object({
+  candidateIds: zod.array(zod.number()).min(1),
+});
+
+export const AddInstitutionCohortMembersResponse = zod.object({
+  added: zod.number(),
+  skipped: zod.number(),
+});
+
+/**
+ * @summary Remove a candidate from a cohort.
+ */
+export const RemoveInstitutionCohortMemberParams = zod.object({
+  id: zod.coerce.number(),
+  cohortId: zod.coerce.number(),
+  candidateId: zod.coerce.number(),
+});
+
+export const RemoveInstitutionCohortMemberResponse = zod.object({
+  ok: zod.boolean(),
+});
+
+/**
+ * @summary Cumulative placement curve for a cohort.
+ */
+export const GetInstitutionCohortCurveParams = zod.object({
+  id: zod.coerce.number(),
+  cohortId: zod.coerce.number(),
+});
+
+export const GetInstitutionCohortCurveResponse = zod.object({
+  cohortId: zod.number(),
+  cohortName: zod.string(),
+  cohortYear: zod.number(),
+  totalMembers: zod.number(),
+  placedMembers: zod.number(),
+  points: zod.array(
+    zod.object({
+      month: zod.string().describe("YYYY-MM"),
+      cumulativePlacements: zod.number(),
+      cumulativeRate: zod.number(),
+    }),
+  ),
+  placementsLocked: zod.boolean(),
+});

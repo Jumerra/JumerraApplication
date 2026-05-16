@@ -1,16 +1,21 @@
-import { useGetInstitution, useListInstitutionStudents } from "@workspace/api-client-react";
+import {
+  useGetInstitution,
+  useListInstitutionStudents,
+  useGetInstitutionEmployersLeaderboard,
+} from "@workspace/api-client-react";
 import { Link, useParams } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
-import { MapPin, Globe, Users, GraduationCap, Building2, CheckCircle2 } from "lucide-react";
+import { MapPin, Globe, Building2, Trophy } from "lucide-react";
 
 export default function InstitutionDetail() {
   const { id } = useParams();
   const instId = Number(id);
   const { data: inst, isLoading: isLoadingInst } = useGetInstitution(instId);
   const { data: students, isLoading: isLoadingStudents } = useListInstitutionStudents(instId);
+  const { data: leaderboard } = useGetInstitutionEmployersLeaderboard(instId);
 
   if (isLoadingInst) {
     return <div className="container py-12"><div className="animate-pulse h-64 bg-muted rounded-2xl" /></div>;
@@ -141,6 +146,43 @@ export default function InstitutionDetail() {
         </div>
 
         <div className="space-y-6">
+          {leaderboard && leaderboard.employers.length > 0 && (
+            <Card className="shadow-sm border-primary/20" data-testid="card-employers-leaderboard">
+              <CardContent className="p-6">
+                <h3 className="font-bold mb-1 flex items-center gap-2">
+                  <Trophy className="w-5 h-5 text-primary" /> Top employers of our students
+                </h3>
+                <p className="text-xs text-muted-foreground mb-4">
+                  Most hires from {leaderboard.year} (verified students only).
+                </p>
+                <ol className="space-y-3">
+                  {leaderboard.employers.map((e, idx) => (
+                    <li key={e.employerId}>
+                      <Link href={`/employers/${e.employerId}`}>
+                        <div className="flex items-center gap-3 p-2 -mx-2 rounded-lg hover:bg-muted transition-colors cursor-pointer">
+                          <span className="text-xs font-bold text-muted-foreground w-4 tabular-nums">
+                            {idx + 1}
+                          </span>
+                          <img
+                            src={e.employerLogoUrl}
+                            alt=""
+                            className="w-9 h-9 rounded-lg object-cover border"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold truncate">{e.employerName}</p>
+                          </div>
+                          <Badge variant="secondary">
+                            {e.hires} hire{e.hires === 1 ? "" : "s"}
+                          </Badge>
+                        </div>
+                      </Link>
+                    </li>
+                  ))}
+                </ol>
+              </CardContent>
+            </Card>
+          )}
+
           <Card className="shadow-sm">
             <CardContent className="p-6">
               <h3 className="font-bold mb-4 flex items-center gap-2">

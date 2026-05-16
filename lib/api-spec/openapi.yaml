@@ -2997,6 +2997,157 @@ paths:
         "403": { description: Not allowed }
         "429": { description: Daily outreach cap reached }
 
+
+  /institutions/{id}/analytics/placement:
+    get:
+      operationId: getInstitutionPlacementAnalytics
+      tags: [institutions]
+      summary: Placement analytics for an institution (scoped to caller's faculty/department).
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+        - in: query
+          name: facultyId
+          schema: { type: integer }
+        - in: query
+          name: departmentId
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Placement analytics
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InstitutionPlacementAnalytics" }
+
+  /institutions/{id}/analytics/employers-leaderboard:
+    get:
+      operationId: getInstitutionEmployersLeaderboard
+      tags: [institutions]
+      summary: Public top-employers-of-our-students leaderboard for the current calendar year.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Employers leaderboard
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InstitutionEmployersLeaderboard" }
+
+  /institutions/{id}/cohorts:
+    get:
+      operationId: listInstitutionCohorts
+      tags: [institutions]
+      summary: List cohorts (graduating classes) for an institution.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Cohorts
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/InstitutionCohort" }
+    post:
+      operationId: createInstitutionCohort
+      tags: [institutions]
+      summary: Create a cohort (owners/registrars only).
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateInstitutionCohortRequest" }
+      responses:
+        "201":
+          description: Created cohort
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InstitutionCohort" }
+
+  /institutions/{id}/cohorts/{cohortId}/members:
+    post:
+      operationId: addInstitutionCohortMembers
+      tags: [institutions]
+      summary: Add candidates to a cohort.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+        - in: path
+          name: cohortId
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AddCohortMembersRequest" }
+      responses:
+        "200":
+          description: Add result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AddCohortMembersResponse" }
+
+  /institutions/{id}/cohorts/{cohortId}/members/{candidateId}:
+    delete:
+      operationId: removeInstitutionCohortMember
+      tags: [institutions]
+      summary: Remove a candidate from a cohort.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+        - in: path
+          name: cohortId
+          required: true
+          schema: { type: integer }
+        - in: path
+          name: candidateId
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Removed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
+
+  /institutions/{id}/cohorts/{cohortId}/curve:
+    get:
+      operationId: getInstitutionCohortCurve
+      tags: [institutions]
+      summary: Cumulative placement curve for a cohort.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+        - in: path
+          name: cohortId
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Cohort placement curve
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InstitutionCohortCurve" }
 components:
   schemas:
     Error:
@@ -5740,3 +5891,120 @@ components:
         skipped: { type: integer }
         remainingToday: { type: integer }
       required: [sent, skipped, remainingToday]
+
+    InstitutionTopEmployer:
+      type: object
+      properties:
+        employerId: { type: integer }
+        employerName: { type: string }
+        employerLogoUrl: { type: string }
+        hires: { type: integer }
+      required: [employerId, employerName, employerLogoUrl, hires]
+
+    InstitutionSalaryByDepartment:
+      type: object
+      properties:
+        departmentId: { type: integer, nullable: true }
+        departmentName: { type: string }
+        medianSalary: { type: integer }
+        hires: { type: integer }
+      required: [departmentId, departmentName, medianSalary, hires]
+
+    InstitutionPlacementAnalytics:
+      type: object
+      properties:
+        institutionId: { type: integer }
+        totalStudents: { type: integer }
+        placedStudents: { type: integer }
+        placementRate: { type: number, format: float }
+        medianTimeToFirstJobDays: { type: integer }
+        topEmployers:
+          type: array
+          items: { $ref: "#/components/schemas/InstitutionTopEmployer" }
+        salaryMediansByDepartment:
+          type: array
+          items: { $ref: "#/components/schemas/InstitutionSalaryByDepartment" }
+        placementsLocked:
+          type: boolean
+          description: True when the institution does not have an active premium subscription; analytics are zeroed out in that case.
+      required:
+        - institutionId
+        - totalStudents
+        - placedStudents
+        - placementRate
+        - medianTimeToFirstJobDays
+        - topEmployers
+        - salaryMediansByDepartment
+        - placementsLocked
+
+    InstitutionEmployersLeaderboard:
+      type: object
+      properties:
+        year: { type: integer }
+        employers:
+          type: array
+          items: { $ref: "#/components/schemas/InstitutionTopEmployer" }
+      required: [year, employers]
+
+    InstitutionCohort:
+      type: object
+      properties:
+        id: { type: integer }
+        institutionId: { type: integer }
+        year: { type: integer }
+        name: { type: string }
+        memberCount: { type: integer }
+        createdAt: { type: string, format: date-time }
+      required: [id, institutionId, year, name, memberCount, createdAt]
+
+    CreateInstitutionCohortRequest:
+      type: object
+      properties:
+        year: { type: integer, minimum: 1900, maximum: 2200 }
+        name: { type: string, minLength: 1, maxLength: 120 }
+      required: [year, name]
+
+    AddCohortMembersRequest:
+      type: object
+      properties:
+        candidateIds:
+          type: array
+          items: { type: integer }
+          minItems: 1
+      required: [candidateIds]
+
+    AddCohortMembersResponse:
+      type: object
+      properties:
+        added: { type: integer }
+        skipped: { type: integer }
+      required: [added, skipped]
+
+    InstitutionCohortCurvePoint:
+      type: object
+      properties:
+        month: { type: string, description: "YYYY-MM" }
+        cumulativePlacements: { type: integer }
+        cumulativeRate: { type: number, format: float }
+      required: [month, cumulativePlacements, cumulativeRate]
+
+    InstitutionCohortCurve:
+      type: object
+      properties:
+        cohortId: { type: integer }
+        cohortName: { type: string }
+        cohortYear: { type: integer }
+        totalMembers: { type: integer }
+        placedMembers: { type: integer }
+        points:
+          type: array
+          items: { $ref: "#/components/schemas/InstitutionCohortCurvePoint" }
+        placementsLocked: { type: boolean }
+      required:
+        - cohortId
+        - cohortName
+        - cohortYear
+        - totalMembers
+        - placedMembers
+        - points
+        - placementsLocked

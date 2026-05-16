@@ -2580,6 +2580,86 @@ export interface SendOutreachResponse {
   remainingToday: number;
 }
 
+export interface InstitutionTopEmployer {
+  employerId: number;
+  employerName: string;
+  employerLogoUrl: string;
+  hires: number;
+}
+
+export interface InstitutionSalaryByDepartment {
+  departmentId: number | null;
+  departmentName: string;
+  medianSalary: number;
+  hires: number;
+}
+
+export interface InstitutionPlacementAnalytics {
+  institutionId: number;
+  totalStudents: number;
+  placedStudents: number;
+  placementRate: number;
+  medianTimeToFirstJobDays: number;
+  topEmployers: InstitutionTopEmployer[];
+  salaryMediansByDepartment: InstitutionSalaryByDepartment[];
+  /** True when the institution does not have an active premium subscription; analytics are zeroed out in that case. */
+  placementsLocked: boolean;
+}
+
+export interface InstitutionEmployersLeaderboard {
+  year: number;
+  employers: InstitutionTopEmployer[];
+}
+
+export interface InstitutionCohort {
+  id: number;
+  institutionId: number;
+  year: number;
+  name: string;
+  memberCount: number;
+  createdAt: string;
+}
+
+export interface CreateInstitutionCohortRequest {
+  /**
+   * @minimum 1900
+   * @maximum 2200
+   */
+  year: number;
+  /**
+   * @minLength 1
+   * @maxLength 120
+   */
+  name: string;
+}
+
+export interface AddCohortMembersRequest {
+  /** @minItems 1 */
+  candidateIds: number[];
+}
+
+export interface AddCohortMembersResponse {
+  added: number;
+  skipped: number;
+}
+
+export interface InstitutionCohortCurvePoint {
+  /** YYYY-MM */
+  month: string;
+  cumulativePlacements: number;
+  cumulativeRate: number;
+}
+
+export interface InstitutionCohortCurve {
+  cohortId: number;
+  cohortName: string;
+  cohortYear: number;
+  totalMembers: number;
+  placedMembers: number;
+  points: InstitutionCohortCurvePoint[];
+  placementsLocked: boolean;
+}
+
 export type ListCandidatesParams = {
   search?: string;
   location?: string;
@@ -2808,3 +2888,8 @@ export const AdminGetHiresAnalyticsBucket = {
   month: "month",
   year: "year",
 } as const;
+
+export type GetInstitutionPlacementAnalyticsParams = {
+  facultyId?: number;
+  departmentId?: number;
+};

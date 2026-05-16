@@ -29,6 +29,8 @@ import {
   Pencil,
   Crown,
   ShieldAlert,
+  BarChart3,
+  Trophy,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import {
@@ -144,6 +146,16 @@ export function InstitutionLayout({ children }: { children: ReactNode }) {
           href: "/dashboard/institution",
           label: "Dashboard",
           icon: LayoutDashboard,
+        },
+        {
+          href: "/dashboard/institution/analytics",
+          label: "Placement analytics",
+          icon: BarChart3,
+        },
+        {
+          href: "/dashboard/institution/cohorts",
+          label: "Cohorts",
+          icon: Trophy,
         },
       ],
     },

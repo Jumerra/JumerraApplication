@@ -19,6 +19,8 @@ import type {
 import type {
   AcceptInterviewInviteRequest,
   ActivityItem,
+  AddCohortMembersRequest,
+  AddCohortMembersResponse,
   AddTalentPoolMembersRequest,
   AdminAccountManagersResponse,
   AdminAccountsResponse,
@@ -56,6 +58,7 @@ import type {
   CreateCandidate,
   CreateEmployer,
   CreateInstitution,
+  CreateInstitutionCohortRequest,
   CreateInstitutionDepartment,
   CreateInstitutionFacility,
   CreateInstitutionFaculty,
@@ -79,15 +82,20 @@ import type {
   Error,
   ForgotPasswordRequest,
   GenerateCvRequest,
+  GetInstitutionPlacementAnalyticsParams,
   HealthStatus,
   HiresAnalyticsResponse,
   Institution,
   InstitutionAnalyticsResponse,
+  InstitutionCohort,
+  InstitutionCohortCurve,
   InstitutionDashboard,
   InstitutionDepartment,
   InstitutionDetail,
+  InstitutionEmployersLeaderboard,
   InstitutionFacility,
   InstitutionFaculty,
+  InstitutionPlacementAnalytics,
   InstitutionStudent,
   InstitutionSubscriptionSettings,
   InstitutionSubscriptionStatus,
@@ -12773,3 +12781,694 @@ export const useSendOutreach = <
 > => {
   return useMutation(getSendOutreachMutationOptions(options));
 };
+
+/**
+ * @summary Placement analytics for an institution (scoped to caller's faculty/department).
+ */
+export const getGetInstitutionPlacementAnalyticsUrl = (
+  id: number,
+  params?: GetInstitutionPlacementAnalyticsParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/institutions/${id}/analytics/placement?${stringifiedParams}`
+    : `/api/institutions/${id}/analytics/placement`;
+};
+
+export const getInstitutionPlacementAnalytics = async (
+  id: number,
+  params?: GetInstitutionPlacementAnalyticsParams,
+  options?: RequestInit,
+): Promise<InstitutionPlacementAnalytics> => {
+  return customFetch<InstitutionPlacementAnalytics>(
+    getGetInstitutionPlacementAnalyticsUrl(id, params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetInstitutionPlacementAnalyticsQueryKey = (
+  id: number,
+  params?: GetInstitutionPlacementAnalyticsParams,
+) => {
+  return [
+    `/api/institutions/${id}/analytics/placement`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getGetInstitutionPlacementAnalyticsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getInstitutionPlacementAnalytics>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  params?: GetInstitutionPlacementAnalyticsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getInstitutionPlacementAnalytics>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetInstitutionPlacementAnalyticsQueryKey(id, params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getInstitutionPlacementAnalytics>>
+  > = ({ signal }) =>
+    getInstitutionPlacementAnalytics(id, params, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getInstitutionPlacementAnalytics>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetInstitutionPlacementAnalyticsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getInstitutionPlacementAnalytics>>
+>;
+export type GetInstitutionPlacementAnalyticsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Placement analytics for an institution (scoped to caller's faculty/department).
+ */
+
+export function useGetInstitutionPlacementAnalytics<
+  TData = Awaited<ReturnType<typeof getInstitutionPlacementAnalytics>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  params?: GetInstitutionPlacementAnalyticsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getInstitutionPlacementAnalytics>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetInstitutionPlacementAnalyticsQueryOptions(
+    id,
+    params,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Public top-employers-of-our-students leaderboard for the current calendar year.
+ */
+export const getGetInstitutionEmployersLeaderboardUrl = (id: number) => {
+  return `/api/institutions/${id}/analytics/employers-leaderboard`;
+};
+
+export const getInstitutionEmployersLeaderboard = async (
+  id: number,
+  options?: RequestInit,
+): Promise<InstitutionEmployersLeaderboard> => {
+  return customFetch<InstitutionEmployersLeaderboard>(
+    getGetInstitutionEmployersLeaderboardUrl(id),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetInstitutionEmployersLeaderboardQueryKey = (id: number) => {
+  return [`/api/institutions/${id}/analytics/employers-leaderboard`] as const;
+};
+
+export const getGetInstitutionEmployersLeaderboardQueryOptions = <
+  TData = Awaited<ReturnType<typeof getInstitutionEmployersLeaderboard>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getInstitutionEmployersLeaderboard>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetInstitutionEmployersLeaderboardQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getInstitutionEmployersLeaderboard>>
+  > = ({ signal }) =>
+    getInstitutionEmployersLeaderboard(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getInstitutionEmployersLeaderboard>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetInstitutionEmployersLeaderboardQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getInstitutionEmployersLeaderboard>>
+>;
+export type GetInstitutionEmployersLeaderboardQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Public top-employers-of-our-students leaderboard for the current calendar year.
+ */
+
+export function useGetInstitutionEmployersLeaderboard<
+  TData = Awaited<ReturnType<typeof getInstitutionEmployersLeaderboard>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getInstitutionEmployersLeaderboard>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetInstitutionEmployersLeaderboardQueryOptions(
+    id,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List cohorts (graduating classes) for an institution.
+ */
+export const getListInstitutionCohortsUrl = (id: number) => {
+  return `/api/institutions/${id}/cohorts`;
+};
+
+export const listInstitutionCohorts = async (
+  id: number,
+  options?: RequestInit,
+): Promise<InstitutionCohort[]> => {
+  return customFetch<InstitutionCohort[]>(getListInstitutionCohortsUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListInstitutionCohortsQueryKey = (id: number) => {
+  return [`/api/institutions/${id}/cohorts`] as const;
+};
+
+export const getListInstitutionCohortsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listInstitutionCohorts>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listInstitutionCohorts>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListInstitutionCohortsQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listInstitutionCohorts>>
+  > = ({ signal }) => listInstitutionCohorts(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listInstitutionCohorts>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListInstitutionCohortsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listInstitutionCohorts>>
+>;
+export type ListInstitutionCohortsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List cohorts (graduating classes) for an institution.
+ */
+
+export function useListInstitutionCohorts<
+  TData = Awaited<ReturnType<typeof listInstitutionCohorts>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listInstitutionCohorts>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListInstitutionCohortsQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a cohort (owners/registrars only).
+ */
+export const getCreateInstitutionCohortUrl = (id: number) => {
+  return `/api/institutions/${id}/cohorts`;
+};
+
+export const createInstitutionCohort = async (
+  id: number,
+  createInstitutionCohortRequest: CreateInstitutionCohortRequest,
+  options?: RequestInit,
+): Promise<InstitutionCohort> => {
+  return customFetch<InstitutionCohort>(getCreateInstitutionCohortUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createInstitutionCohortRequest),
+  });
+};
+
+export const getCreateInstitutionCohortMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createInstitutionCohort>>,
+    TError,
+    { id: number; data: BodyType<CreateInstitutionCohortRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createInstitutionCohort>>,
+  TError,
+  { id: number; data: BodyType<CreateInstitutionCohortRequest> },
+  TContext
+> => {
+  const mutationKey = ["createInstitutionCohort"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createInstitutionCohort>>,
+    { id: number; data: BodyType<CreateInstitutionCohortRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return createInstitutionCohort(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateInstitutionCohortMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createInstitutionCohort>>
+>;
+export type CreateInstitutionCohortMutationBody =
+  BodyType<CreateInstitutionCohortRequest>;
+export type CreateInstitutionCohortMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a cohort (owners/registrars only).
+ */
+export const useCreateInstitutionCohort = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createInstitutionCohort>>,
+    TError,
+    { id: number; data: BodyType<CreateInstitutionCohortRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createInstitutionCohort>>,
+  TError,
+  { id: number; data: BodyType<CreateInstitutionCohortRequest> },
+  TContext
+> => {
+  return useMutation(getCreateInstitutionCohortMutationOptions(options));
+};
+
+/**
+ * @summary Add candidates to a cohort.
+ */
+export const getAddInstitutionCohortMembersUrl = (
+  id: number,
+  cohortId: number,
+) => {
+  return `/api/institutions/${id}/cohorts/${cohortId}/members`;
+};
+
+export const addInstitutionCohortMembers = async (
+  id: number,
+  cohortId: number,
+  addCohortMembersRequest: AddCohortMembersRequest,
+  options?: RequestInit,
+): Promise<AddCohortMembersResponse> => {
+  return customFetch<AddCohortMembersResponse>(
+    getAddInstitutionCohortMembersUrl(id, cohortId),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(addCohortMembersRequest),
+    },
+  );
+};
+
+export const getAddInstitutionCohortMembersMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addInstitutionCohortMembers>>,
+    TError,
+    { id: number; cohortId: number; data: BodyType<AddCohortMembersRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof addInstitutionCohortMembers>>,
+  TError,
+  { id: number; cohortId: number; data: BodyType<AddCohortMembersRequest> },
+  TContext
+> => {
+  const mutationKey = ["addInstitutionCohortMembers"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof addInstitutionCohortMembers>>,
+    { id: number; cohortId: number; data: BodyType<AddCohortMembersRequest> }
+  > = (props) => {
+    const { id, cohortId, data } = props ?? {};
+
+    return addInstitutionCohortMembers(id, cohortId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AddInstitutionCohortMembersMutationResult = NonNullable<
+  Awaited<ReturnType<typeof addInstitutionCohortMembers>>
+>;
+export type AddInstitutionCohortMembersMutationBody =
+  BodyType<AddCohortMembersRequest>;
+export type AddInstitutionCohortMembersMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Add candidates to a cohort.
+ */
+export const useAddInstitutionCohortMembers = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addInstitutionCohortMembers>>,
+    TError,
+    { id: number; cohortId: number; data: BodyType<AddCohortMembersRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof addInstitutionCohortMembers>>,
+  TError,
+  { id: number; cohortId: number; data: BodyType<AddCohortMembersRequest> },
+  TContext
+> => {
+  return useMutation(getAddInstitutionCohortMembersMutationOptions(options));
+};
+
+/**
+ * @summary Remove a candidate from a cohort.
+ */
+export const getRemoveInstitutionCohortMemberUrl = (
+  id: number,
+  cohortId: number,
+  candidateId: number,
+) => {
+  return `/api/institutions/${id}/cohorts/${cohortId}/members/${candidateId}`;
+};
+
+export const removeInstitutionCohortMember = async (
+  id: number,
+  cohortId: number,
+  candidateId: number,
+  options?: RequestInit,
+): Promise<OkResponse> => {
+  return customFetch<OkResponse>(
+    getRemoveInstitutionCohortMemberUrl(id, cohortId, candidateId),
+    {
+      ...options,
+      method: "DELETE",
+    },
+  );
+};
+
+export const getRemoveInstitutionCohortMemberMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removeInstitutionCohortMember>>,
+    TError,
+    { id: number; cohortId: number; candidateId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof removeInstitutionCohortMember>>,
+  TError,
+  { id: number; cohortId: number; candidateId: number },
+  TContext
+> => {
+  const mutationKey = ["removeInstitutionCohortMember"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof removeInstitutionCohortMember>>,
+    { id: number; cohortId: number; candidateId: number }
+  > = (props) => {
+    const { id, cohortId, candidateId } = props ?? {};
+
+    return removeInstitutionCohortMember(
+      id,
+      cohortId,
+      candidateId,
+      requestOptions,
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RemoveInstitutionCohortMemberMutationResult = NonNullable<
+  Awaited<ReturnType<typeof removeInstitutionCohortMember>>
+>;
+
+export type RemoveInstitutionCohortMemberMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Remove a candidate from a cohort.
+ */
+export const useRemoveInstitutionCohortMember = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removeInstitutionCohortMember>>,
+    TError,
+    { id: number; cohortId: number; candidateId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof removeInstitutionCohortMember>>,
+  TError,
+  { id: number; cohortId: number; candidateId: number },
+  TContext
+> => {
+  return useMutation(getRemoveInstitutionCohortMemberMutationOptions(options));
+};
+
+/**
+ * @summary Cumulative placement curve for a cohort.
+ */
+export const getGetInstitutionCohortCurveUrl = (
+  id: number,
+  cohortId: number,
+) => {
+  return `/api/institutions/${id}/cohorts/${cohortId}/curve`;
+};
+
+export const getInstitutionCohortCurve = async (
+  id: number,
+  cohortId: number,
+  options?: RequestInit,
+): Promise<InstitutionCohortCurve> => {
+  return customFetch<InstitutionCohortCurve>(
+    getGetInstitutionCohortCurveUrl(id, cohortId),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetInstitutionCohortCurveQueryKey = (
+  id: number,
+  cohortId: number,
+) => {
+  return [`/api/institutions/${id}/cohorts/${cohortId}/curve`] as const;
+};
+
+export const getGetInstitutionCohortCurveQueryOptions = <
+  TData = Awaited<ReturnType<typeof getInstitutionCohortCurve>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  cohortId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getInstitutionCohortCurve>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetInstitutionCohortCurveQueryKey(id, cohortId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getInstitutionCohortCurve>>
+  > = ({ signal }) =>
+    getInstitutionCohortCurve(id, cohortId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!(id && cohortId),
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getInstitutionCohortCurve>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetInstitutionCohortCurveQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getInstitutionCohortCurve>>
+>;
+export type GetInstitutionCohortCurveQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Cumulative placement curve for a cohort.
+ */
+
+export function useGetInstitutionCohortCurve<
+  TData = Awaited<ReturnType<typeof getInstitutionCohortCurve>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  cohortId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getInstitutionCohortCurve>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetInstitutionCohortCurveQueryOptions(
+    id,
+    cohortId,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}

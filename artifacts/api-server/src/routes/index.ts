@@ -26,13 +26,25 @@ import trustRouter from "./trust";
 import engagementRouter from "./engagement";
 import aiRouter from "./ai";
 import employerPoolsRouter from "./employer-pools";
+import institutionAnalyticsRouter from "./institution-analytics";
 import { requireAuth } from "../middleware/require-auth";
 
 const router: IRouter = Router();
 
 router.use("/candidates", requireAuth);
 router.use("/applications", requireAuth);
-router.use("/institutions", requireAuth);
+// /institutions/:id/analytics/employers-leaderboard is intentionally
+// public (used on the public institution profile page). Whitelist it
+// before the global requireAuth gate. All other /institutions/* paths
+// remain authenticated.
+const PUBLIC_INSTITUTION_PATH_RE =
+  /^\/\d+\/analytics\/employers-leaderboard\/?$/;
+router.use("/institutions", (req, res, next) => {
+  if (req.method === "GET" && PUBLIC_INSTITUTION_PATH_RE.test(req.path)) {
+    return next();
+  }
+  return requireAuth(req, res, next);
+});
 // /dashboard hosts both public landing-page stats (used by `/`, the
 // home route, while the user is signed out) AND private per-role
 // dashboards (admin, employer, institution, candidate).  Globally
@@ -74,6 +86,10 @@ router.use(trustRouter);
 router.use(engagementRouter);
 router.use(aiRouter);
 router.use(employerPoolsRouter);
+// Mount institution-analytics BEFORE the generic institutionsRouter so
+// the /institutions/:id/analytics/* and /cohorts/* routes are matched
+// here instead of falling through to the legacy router.
+router.use(institutionAnalyticsRouter);
 router.use(candidatesRouter);
 router.use(employersRouter);
 router.use(institutionsRouter);

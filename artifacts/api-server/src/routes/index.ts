@@ -33,6 +33,7 @@ import mockInterviewsRouter from "./mock-interviews";
 import applicationEndorsementsRouter from "./application-endorsements";
 import skillChallengesRouter from "./skill-challenges";
 import salaryInsightsRouter from "./salary-insights";
+import reverseOffersRouter from "./reverse-offers";
 import { requireAuth } from "../middleware/require-auth";
 
 const router: IRouter = Router();
@@ -118,6 +119,10 @@ router.use(skillChallengesRouter);
 // Mounted before requireAuth-gated subtrees; the router itself does
 // not gate the GET (only aggregates >=3 hires are returned).
 router.use(salaryInsightsRouter);
+// Reverse offers — `GET /open-candidates` is intentionally public
+// (anonymised marketplace cards). Mount BEFORE the requireAuth-gated
+// /candidates subtree so it doesn't get caught by that gate.
+router.use(reverseOffersRouter);
 router.use(candidatesRouter);
 router.use(employersRouter);
 router.use(institutionsRouter);

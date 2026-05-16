@@ -48,6 +48,8 @@ tags:
     description: Employer-private talent pools, message templates, and bulk outreach
   - name: mock-interviews
     description: AI-led, job-tuned mock interviews scored against a technical/communication/culture rubric
+  - name: reverse-offers
+    description: Open-to-offers auction windows and employer-initiated reverse offers
 paths:
   /healthz:
     get:
@@ -1119,6 +1121,194 @@ paths:
         "403": { description: Not allowed }
         "404": { description: Not found }
         "409": { description: Application is not hired }
+
+  /me/open-window:
+    get:
+      operationId: getMyOpenWindow
+      tags: [reverse-offers]
+      summary: Get the current candidate's active open-to-offers window
+      responses:
+        "200":
+          description: Active window or null
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - { $ref: "#/components/schemas/OpenWindow" }
+                  - { type: "null" }
+    post:
+      operationId: openMyWindow
+      tags: [reverse-offers]
+      summary: Open (or re-open) an offers window
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                days: { type: integer, minimum: 1, maximum: 30 }
+      responses:
+        "201":
+          description: Window opened
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OpenWindow" }
+        "400": { description: Invalid input }
+        "403": { description: Candidates only }
+    delete:
+      operationId: closeMyWindow
+      tags: [reverse-offers]
+      summary: Close the active offers window immediately
+      responses:
+        "204": { description: Closed }
+        "403": { description: Candidates only }
+
+  /open-candidates:
+    get:
+      operationId: listOpenCandidates
+      tags: [reverse-offers]
+      summary: Anonymised public list of candidates with active offer windows
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 40 }
+        - in: query
+          name: offset
+          schema: { type: integer, minimum: 0, default: 0 }
+        - in: query
+          name: skill
+          schema: { type: string }
+      responses:
+        "200":
+          description: Anonymised cards
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/OpenCandidateCard" }
+
+  /open-candidates/{windowId}/offers:
+    post:
+      operationId: postReverseOffer
+      tags: [reverse-offers]
+      summary: Employer submits a reverse offer against an open window
+      parameters:
+        - in: path
+          name: windowId
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReverseOfferInput" }
+      responses:
+        "201":
+          description: Offer created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReverseOffer" }
+        "400": { description: Invalid input }
+        "403": { description: Employers only }
+        "404": { description: Window not found }
+        "410": { description: Window is closed }
+
+  /me/offers:
+    get:
+      operationId: listMyOffers
+      tags: [reverse-offers]
+      summary: Reverse offers received by the current candidate
+      responses:
+        "200":
+          description: Offers
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ReverseOffer" }
+        "403": { description: Candidates only }
+
+  /me/sent-offers:
+    get:
+      operationId: listMySentOffers
+      tags: [reverse-offers]
+      summary: Reverse offers sent by the current employer
+      responses:
+        "200":
+          description: Offers (identity revealed on accepted only)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ReverseOffer" }
+        "403": { description: Employers only }
+
+  /me/offers/{id}/accept:
+    post:
+      operationId: acceptReverseOffer
+      tags: [reverse-offers]
+      summary: Candidate accepts an offer — creates an application and reveals identity
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Accepted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReverseOffer" }
+        "403": { description: Candidates only }
+        "404": { description: Not found }
+        "409": { description: Offer is not pending }
+
+  /me/offers/{id}/decline:
+    post:
+      operationId: declineReverseOffer
+      tags: [reverse-offers]
+      summary: Candidate declines an offer
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Declined
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReverseOffer" }
+        "403": { description: Candidates only }
+        "404": { description: Not found }
+        "409": { description: Offer is not pending }
+
+  /me/offers/{id}/counter:
+    post:
+      operationId: counterReverseOffer
+      tags: [reverse-offers]
+      summary: Candidate sends a single counter offer
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReverseOfferInput" }
+      responses:
+        "201":
+          description: Counter offer created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReverseOffer" }
+        "400": { description: Invalid input }
+        "403": { description: Candidates only }
+        "404": { description: Not found }
+        "409": { description: Offer is not pending or already countered }
 
   /auth/register:
     post:
@@ -3512,6 +3702,75 @@ paths:
 
 components:
   schemas:
+    OpenWindow:
+      type: object
+      required: [id, candidateId, opensAt, closesAt, isActive]
+      properties:
+        id: { type: integer }
+        candidateId: { type: integer }
+        opensAt: { type: string, format: date-time }
+        closesAt: { type: string, format: date-time }
+        isActive: { type: boolean }
+    OpenCandidateCard:
+      type: object
+      description: |
+        Anonymised marketplace card. Never includes name, email, phone, or
+        avatar — only the window id (the public handle), headline, skills,
+        talent score, generic location, and institution name.
+      required: [id, closesAt, headline, location, talentScore, yearsExperience, skills]
+      properties:
+        id: { type: integer, description: Window id (use this to post an offer) }
+        closesAt: { type: string, format: date-time }
+        headline: { type: string }
+        location: { type: string }
+        talentScore: { type: integer }
+        yearsExperience: { type: integer }
+        skills:
+          type: array
+          items: { type: string }
+        institutionName: { type: string, nullable: true }
+    ReverseOfferInput:
+      type: object
+      required: [jobTitle, salaryMin, salaryMax]
+      properties:
+        jobTitle: { type: string, minLength: 2, maxLength: 200 }
+        salaryMin: { type: integer, minimum: 0 }
+        salaryMax: { type: integer, minimum: 0 }
+        currency: { type: string, default: USD }
+        startDate: { type: string, format: date }
+        note: { type: string, maxLength: 2000 }
+    ReverseOffer:
+      type: object
+      description: |
+        Reverse offer payload. `candidateId` is omitted from employer-facing
+        responses (post-offer, sent-offers) for any non-accepted offer to
+        preserve the candidate's anonymity. It is always present on the
+        candidate's own inbox responses.
+      required:
+        [id, employerId, jobTitle, salaryMin, salaryMax,
+         currency, note, status, createdAt, updatedAt]
+      properties:
+        id: { type: integer }
+        candidateId: { type: integer, nullable: true }
+        employerId: { type: integer }
+        employerName: { type: string, nullable: true }
+        employerLogoUrl: { type: string, nullable: true }
+        candidateName: { type: string, nullable: true }
+        candidateHeadline: { type: string, nullable: true }
+        candidateAvatarUrl: { type: string, nullable: true }
+        jobTitle: { type: string }
+        salaryMin: { type: integer }
+        salaryMax: { type: integer }
+        currency: { type: string }
+        startDate: { type: string, nullable: true }
+        note: { type: string }
+        status:
+          type: string
+          enum: [pending, accepted, declined, countered, expired]
+        parentOfferId: { type: integer, nullable: true }
+        applicationId: { type: integer, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
     Error:
       type: object
       description: |

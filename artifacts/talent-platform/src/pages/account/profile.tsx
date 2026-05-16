@@ -49,6 +49,7 @@ import { useToast } from "@/hooks/use-toast";
 import { CandidateExperienceEditor } from "@/components/candidate-experience-editor";
 import { CandidateEducationEditor } from "@/components/candidate-education-editor";
 import { CandidateTrustSection } from "@/components/candidate-trust-section";
+import { OpenWindowToggle } from "@/components/OpenWindowToggle";
 
 const ROLE_LABEL: Record<string, string> = {
   candidate: "Candidate",
@@ -301,6 +302,7 @@ export default function ProfilePage() {
 
   return (
     <div className="container max-w-2xl py-12 px-4 space-y-6">
+      {isCandidate && <OpenWindowToggle />}
       <Card className="shadow-md">
         <CardHeader>
           <div className="flex items-center gap-3">

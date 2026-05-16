@@ -5,6 +5,88 @@
  * Talent Platform API
  * OpenAPI spec version: 0.1.0
  */
+export interface OpenWindow {
+  id: number;
+  candidateId: number;
+  opensAt: string;
+  closesAt: string;
+  isActive: boolean;
+}
+
+/**
+ * Anonymised marketplace card. Never includes name, email, phone, or
+avatar — only the window id (the public handle), headline, skills,
+talent score, generic location, and institution name.
+
+ */
+export interface OpenCandidateCard {
+  /** Window id (use this to post an offer) */
+  id: number;
+  closesAt: string;
+  headline: string;
+  location: string;
+  talentScore: number;
+  yearsExperience: number;
+  skills: string[];
+  institutionName?: string | null;
+}
+
+export interface ReverseOfferInput {
+  /**
+   * @minLength 2
+   * @maxLength 200
+   */
+  jobTitle: string;
+  /** @minimum 0 */
+  salaryMin: number;
+  /** @minimum 0 */
+  salaryMax: number;
+  currency?: string;
+  startDate?: string;
+  /** @maxLength 2000 */
+  note?: string;
+}
+
+export type ReverseOfferStatus =
+  (typeof ReverseOfferStatus)[keyof typeof ReverseOfferStatus];
+
+export const ReverseOfferStatus = {
+  pending: "pending",
+  accepted: "accepted",
+  declined: "declined",
+  countered: "countered",
+  expired: "expired",
+} as const;
+
+/**
+ * Reverse offer payload. `candidateId` is omitted from employer-facing
+responses (post-offer, sent-offers) for any non-accepted offer to
+preserve the candidate's anonymity. It is always present on the
+candidate's own inbox responses.
+
+ */
+export interface ReverseOffer {
+  id: number;
+  candidateId?: number | null;
+  employerId: number;
+  employerName?: string | null;
+  employerLogoUrl?: string | null;
+  candidateName?: string | null;
+  candidateHeadline?: string | null;
+  candidateAvatarUrl?: string | null;
+  jobTitle: string;
+  salaryMin: number;
+  salaryMax: number;
+  currency: string;
+  startDate?: string | null;
+  note: string;
+  status: ReverseOfferStatus;
+  parentOfferId?: number | null;
+  applicationId?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 /**
  * Stable error code. The list below enumerates the codes currently
 emitted by the Stripe-backed checkout-session creation endpoints
@@ -3183,6 +3265,27 @@ case-insensitively against existing job titles.
 
 export type ReportApplicationSalary200 = {
   ok: boolean;
+};
+
+export type OpenMyWindowBody = {
+  /**
+   * @minimum 1
+   * @maximum 30
+   */
+  days?: number;
+};
+
+export type ListOpenCandidatesParams = {
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  limit?: number;
+  /**
+   * @minimum 0
+   */
+  offset?: number;
+  skill?: string;
 };
 
 export type RegisterUser409 = {

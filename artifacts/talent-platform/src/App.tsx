@@ -75,6 +75,8 @@ import ProfilePage from "@/pages/account/profile";
 import ProfileViewsPage from "@/pages/account/profile-views";
 import NotificationsPage from "@/pages/account/notifications";
 import ApplicationDetailPage from "@/pages/account/application-detail";
+import OffersInboxPage from "@/pages/account/offers";
+import EmployerOpenCandidatesPage from "@/pages/dashboard/employer-open-candidates";
 import CandidateMentorsPage from "@/pages/dashboard/candidate-mentors";
 import CandidateMentorRequestsPage from "@/pages/dashboard/candidate-mentor-requests";
 import AdminNetworkPage from "@/pages/dashboard/admin/network";
@@ -213,6 +215,10 @@ function Router() {
         <Route path="/dashboard/employer/pipeline">
           <EmployerLayout><PipelineKanbanPage /></EmployerLayout>
         </Route>
+        <Route path="/dashboard/employer/open-candidates">
+          <EmployerLayout><EmployerOpenCandidatesPage /></EmployerLayout>
+        </Route>
+        <Route path="/account/offers" component={OffersInboxPage} />
         <Route path="/dashboard/employer/talent-pools/:poolId">
           <EmployerLayout><TalentPoolDetailPage /></EmployerLayout>
         </Route>

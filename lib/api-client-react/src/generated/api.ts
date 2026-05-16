@@ -125,6 +125,7 @@ import type {
   ListJobsParams,
   ListMyMockInterviewsParams,
   ListOnboardedUsers200,
+  ListOpenCandidatesParams,
   ListRegistrations200,
   ListRegistrationsParams,
   LoginRequest,
@@ -137,6 +138,9 @@ import type {
   OkResponse,
   OnboardRequest,
   OnboardResponse,
+  OpenCandidateCard,
+  OpenMyWindowBody,
+  OpenWindow,
   OwnReferenceRequest,
   Partner,
   PartnerSettings,
@@ -152,6 +156,8 @@ import type {
   ReportApplicationSalary200,
   ReportSalary,
   RequestReferenceRequest,
+  ReverseOffer,
+  ReverseOfferInput,
   SalaryBand,
   SalaryInsight,
   SavedSearch,
@@ -5081,6 +5087,835 @@ export const useReportApplicationSalary = <
   TContext
 > => {
   return useMutation(getReportApplicationSalaryMutationOptions(options));
+};
+
+/**
+ * @summary Get the current candidate's active open-to-offers window
+ */
+export const getGetMyOpenWindowUrl = () => {
+  return `/api/me/open-window`;
+};
+
+export const getMyOpenWindow = async (
+  options?: RequestInit,
+): Promise<OpenWindow | null> => {
+  return customFetch<OpenWindow | null>(getGetMyOpenWindowUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetMyOpenWindowQueryKey = () => {
+  return [`/api/me/open-window`] as const;
+};
+
+export const getGetMyOpenWindowQueryOptions = <
+  TData = Awaited<ReturnType<typeof getMyOpenWindow>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getMyOpenWindow>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetMyOpenWindowQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyOpenWindow>>> = ({
+    signal,
+  }) => getMyOpenWindow({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getMyOpenWindow>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetMyOpenWindowQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getMyOpenWindow>>
+>;
+export type GetMyOpenWindowQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get the current candidate's active open-to-offers window
+ */
+
+export function useGetMyOpenWindow<
+  TData = Awaited<ReturnType<typeof getMyOpenWindow>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getMyOpenWindow>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetMyOpenWindowQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Open (or re-open) an offers window
+ */
+export const getOpenMyWindowUrl = () => {
+  return `/api/me/open-window`;
+};
+
+export const openMyWindow = async (
+  openMyWindowBody?: OpenMyWindowBody,
+  options?: RequestInit,
+): Promise<OpenWindow> => {
+  return customFetch<OpenWindow>(getOpenMyWindowUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(openMyWindowBody),
+  });
+};
+
+export const getOpenMyWindowMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof openMyWindow>>,
+    TError,
+    { data: BodyType<OpenMyWindowBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof openMyWindow>>,
+  TError,
+  { data: BodyType<OpenMyWindowBody> },
+  TContext
+> => {
+  const mutationKey = ["openMyWindow"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof openMyWindow>>,
+    { data: BodyType<OpenMyWindowBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return openMyWindow(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type OpenMyWindowMutationResult = NonNullable<
+  Awaited<ReturnType<typeof openMyWindow>>
+>;
+export type OpenMyWindowMutationBody = BodyType<OpenMyWindowBody>;
+export type OpenMyWindowMutationError = ErrorType<void>;
+
+/**
+ * @summary Open (or re-open) an offers window
+ */
+export const useOpenMyWindow = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof openMyWindow>>,
+    TError,
+    { data: BodyType<OpenMyWindowBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof openMyWindow>>,
+  TError,
+  { data: BodyType<OpenMyWindowBody> },
+  TContext
+> => {
+  return useMutation(getOpenMyWindowMutationOptions(options));
+};
+
+/**
+ * @summary Close the active offers window immediately
+ */
+export const getCloseMyWindowUrl = () => {
+  return `/api/me/open-window`;
+};
+
+export const closeMyWindow = async (options?: RequestInit): Promise<void> => {
+  return customFetch<void>(getCloseMyWindowUrl(), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getCloseMyWindowMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof closeMyWindow>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof closeMyWindow>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["closeMyWindow"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof closeMyWindow>>,
+    void
+  > = () => {
+    return closeMyWindow(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CloseMyWindowMutationResult = NonNullable<
+  Awaited<ReturnType<typeof closeMyWindow>>
+>;
+
+export type CloseMyWindowMutationError = ErrorType<void>;
+
+/**
+ * @summary Close the active offers window immediately
+ */
+export const useCloseMyWindow = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof closeMyWindow>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof closeMyWindow>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getCloseMyWindowMutationOptions(options));
+};
+
+/**
+ * @summary Anonymised public list of candidates with active offer windows
+ */
+export const getListOpenCandidatesUrl = (params?: ListOpenCandidatesParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/open-candidates?${stringifiedParams}`
+    : `/api/open-candidates`;
+};
+
+export const listOpenCandidates = async (
+  params?: ListOpenCandidatesParams,
+  options?: RequestInit,
+): Promise<OpenCandidateCard[]> => {
+  return customFetch<OpenCandidateCard[]>(getListOpenCandidatesUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListOpenCandidatesQueryKey = (
+  params?: ListOpenCandidatesParams,
+) => {
+  return [`/api/open-candidates`, ...(params ? [params] : [])] as const;
+};
+
+export const getListOpenCandidatesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listOpenCandidates>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListOpenCandidatesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listOpenCandidates>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListOpenCandidatesQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listOpenCandidates>>
+  > = ({ signal }) => listOpenCandidates(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listOpenCandidates>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListOpenCandidatesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listOpenCandidates>>
+>;
+export type ListOpenCandidatesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Anonymised public list of candidates with active offer windows
+ */
+
+export function useListOpenCandidates<
+  TData = Awaited<ReturnType<typeof listOpenCandidates>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListOpenCandidatesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listOpenCandidates>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListOpenCandidatesQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Employer submits a reverse offer against an open window
+ */
+export const getPostReverseOfferUrl = (windowId: number) => {
+  return `/api/open-candidates/${windowId}/offers`;
+};
+
+export const postReverseOffer = async (
+  windowId: number,
+  reverseOfferInput: ReverseOfferInput,
+  options?: RequestInit,
+): Promise<ReverseOffer> => {
+  return customFetch<ReverseOffer>(getPostReverseOfferUrl(windowId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(reverseOfferInput),
+  });
+};
+
+export const getPostReverseOfferMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof postReverseOffer>>,
+    TError,
+    { windowId: number; data: BodyType<ReverseOfferInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof postReverseOffer>>,
+  TError,
+  { windowId: number; data: BodyType<ReverseOfferInput> },
+  TContext
+> => {
+  const mutationKey = ["postReverseOffer"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof postReverseOffer>>,
+    { windowId: number; data: BodyType<ReverseOfferInput> }
+  > = (props) => {
+    const { windowId, data } = props ?? {};
+
+    return postReverseOffer(windowId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PostReverseOfferMutationResult = NonNullable<
+  Awaited<ReturnType<typeof postReverseOffer>>
+>;
+export type PostReverseOfferMutationBody = BodyType<ReverseOfferInput>;
+export type PostReverseOfferMutationError = ErrorType<void>;
+
+/**
+ * @summary Employer submits a reverse offer against an open window
+ */
+export const usePostReverseOffer = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof postReverseOffer>>,
+    TError,
+    { windowId: number; data: BodyType<ReverseOfferInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof postReverseOffer>>,
+  TError,
+  { windowId: number; data: BodyType<ReverseOfferInput> },
+  TContext
+> => {
+  return useMutation(getPostReverseOfferMutationOptions(options));
+};
+
+/**
+ * @summary Reverse offers received by the current candidate
+ */
+export const getListMyOffersUrl = () => {
+  return `/api/me/offers`;
+};
+
+export const listMyOffers = async (
+  options?: RequestInit,
+): Promise<ReverseOffer[]> => {
+  return customFetch<ReverseOffer[]>(getListMyOffersUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListMyOffersQueryKey = () => {
+  return [`/api/me/offers`] as const;
+};
+
+export const getListMyOffersQueryOptions = <
+  TData = Awaited<ReturnType<typeof listMyOffers>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listMyOffers>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListMyOffersQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyOffers>>> = ({
+    signal,
+  }) => listMyOffers({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listMyOffers>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListMyOffersQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listMyOffers>>
+>;
+export type ListMyOffersQueryError = ErrorType<void>;
+
+/**
+ * @summary Reverse offers received by the current candidate
+ */
+
+export function useListMyOffers<
+  TData = Awaited<ReturnType<typeof listMyOffers>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listMyOffers>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListMyOffersQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Reverse offers sent by the current employer
+ */
+export const getListMySentOffersUrl = () => {
+  return `/api/me/sent-offers`;
+};
+
+export const listMySentOffers = async (
+  options?: RequestInit,
+): Promise<ReverseOffer[]> => {
+  return customFetch<ReverseOffer[]>(getListMySentOffersUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListMySentOffersQueryKey = () => {
+  return [`/api/me/sent-offers`] as const;
+};
+
+export const getListMySentOffersQueryOptions = <
+  TData = Awaited<ReturnType<typeof listMySentOffers>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listMySentOffers>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListMySentOffersQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listMySentOffers>>
+  > = ({ signal }) => listMySentOffers({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listMySentOffers>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListMySentOffersQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listMySentOffers>>
+>;
+export type ListMySentOffersQueryError = ErrorType<void>;
+
+/**
+ * @summary Reverse offers sent by the current employer
+ */
+
+export function useListMySentOffers<
+  TData = Awaited<ReturnType<typeof listMySentOffers>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listMySentOffers>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListMySentOffersQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Candidate accepts an offer — creates an application and reveals identity
+ */
+export const getAcceptReverseOfferUrl = (id: number) => {
+  return `/api/me/offers/${id}/accept`;
+};
+
+export const acceptReverseOffer = async (
+  id: number,
+  options?: RequestInit,
+): Promise<ReverseOffer> => {
+  return customFetch<ReverseOffer>(getAcceptReverseOfferUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getAcceptReverseOfferMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof acceptReverseOffer>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof acceptReverseOffer>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["acceptReverseOffer"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof acceptReverseOffer>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return acceptReverseOffer(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AcceptReverseOfferMutationResult = NonNullable<
+  Awaited<ReturnType<typeof acceptReverseOffer>>
+>;
+
+export type AcceptReverseOfferMutationError = ErrorType<void>;
+
+/**
+ * @summary Candidate accepts an offer — creates an application and reveals identity
+ */
+export const useAcceptReverseOffer = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof acceptReverseOffer>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof acceptReverseOffer>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getAcceptReverseOfferMutationOptions(options));
+};
+
+/**
+ * @summary Candidate declines an offer
+ */
+export const getDeclineReverseOfferUrl = (id: number) => {
+  return `/api/me/offers/${id}/decline`;
+};
+
+export const declineReverseOffer = async (
+  id: number,
+  options?: RequestInit,
+): Promise<ReverseOffer> => {
+  return customFetch<ReverseOffer>(getDeclineReverseOfferUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getDeclineReverseOfferMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof declineReverseOffer>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof declineReverseOffer>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["declineReverseOffer"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof declineReverseOffer>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return declineReverseOffer(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeclineReverseOfferMutationResult = NonNullable<
+  Awaited<ReturnType<typeof declineReverseOffer>>
+>;
+
+export type DeclineReverseOfferMutationError = ErrorType<void>;
+
+/**
+ * @summary Candidate declines an offer
+ */
+export const useDeclineReverseOffer = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof declineReverseOffer>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof declineReverseOffer>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeclineReverseOfferMutationOptions(options));
+};
+
+/**
+ * @summary Candidate sends a single counter offer
+ */
+export const getCounterReverseOfferUrl = (id: number) => {
+  return `/api/me/offers/${id}/counter`;
+};
+
+export const counterReverseOffer = async (
+  id: number,
+  reverseOfferInput: ReverseOfferInput,
+  options?: RequestInit,
+): Promise<ReverseOffer> => {
+  return customFetch<ReverseOffer>(getCounterReverseOfferUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(reverseOfferInput),
+  });
+};
+
+export const getCounterReverseOfferMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof counterReverseOffer>>,
+    TError,
+    { id: number; data: BodyType<ReverseOfferInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof counterReverseOffer>>,
+  TError,
+  { id: number; data: BodyType<ReverseOfferInput> },
+  TContext
+> => {
+  const mutationKey = ["counterReverseOffer"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof counterReverseOffer>>,
+    { id: number; data: BodyType<ReverseOfferInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return counterReverseOffer(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CounterReverseOfferMutationResult = NonNullable<
+  Awaited<ReturnType<typeof counterReverseOffer>>
+>;
+export type CounterReverseOfferMutationBody = BodyType<ReverseOfferInput>;
+export type CounterReverseOfferMutationError = ErrorType<void>;
+
+/**
+ * @summary Candidate sends a single counter offer
+ */
+export const useCounterReverseOffer = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof counterReverseOffer>>,
+    TError,
+    { id: number; data: BodyType<ReverseOfferInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof counterReverseOffer>>,
+  TError,
+  { id: number; data: BodyType<ReverseOfferInput> },
+  TContext
+> => {
+  return useMutation(getCounterReverseOfferMutationOptions(options));
 };
 
 export const getRegisterUserUrl = () => {

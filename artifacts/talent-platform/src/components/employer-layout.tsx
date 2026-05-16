@@ -31,6 +31,7 @@ import {
   Users2,
   KanbanSquare,
   MessageSquare,
+  Sparkles,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { SidebarLogoutButton } from "@/components/sidebar-logout";
@@ -149,6 +150,11 @@ export function EmployerLayout({ children }: { children: ReactNode }) {
           href: "/dashboard/employer/talent-pools",
           label: "Talent pools",
           icon: Users2,
+        },
+        {
+          href: "/dashboard/employer/open-candidates",
+          label: "Open candidates",
+          icon: Sparkles,
         },
         {
           href: "/dashboard/employer/templates",

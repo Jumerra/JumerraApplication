@@ -2865,6 +2865,277 @@ export const ReportApplicationSalaryResponse = zod.object({
   ok: zod.boolean(),
 });
 
+/**
+ * @summary Get the current candidate's active open-to-offers window
+ */
+export const GetMyOpenWindowResponse = zod.union([
+  zod.object({
+    id: zod.number(),
+    candidateId: zod.number(),
+    opensAt: zod.coerce.date(),
+    closesAt: zod.coerce.date(),
+    isActive: zod.boolean(),
+  }),
+  zod.null(),
+]);
+
+/**
+ * @summary Open (or re-open) an offers window
+ */
+export const openMyWindowBodyDaysMax = 30;
+
+export const OpenMyWindowBody = zod.object({
+  days: zod.number().min(1).max(openMyWindowBodyDaysMax).optional(),
+});
+
+/**
+ * @summary Anonymised public list of candidates with active offer windows
+ */
+export const listOpenCandidatesQueryLimitDefault = 40;
+export const listOpenCandidatesQueryLimitMax = 100;
+
+export const listOpenCandidatesQueryOffsetDefault = 0;
+export const listOpenCandidatesQueryOffsetMin = 0;
+
+export const ListOpenCandidatesQueryParams = zod.object({
+  limit: zod.coerce
+    .number()
+    .min(1)
+    .max(listOpenCandidatesQueryLimitMax)
+    .default(listOpenCandidatesQueryLimitDefault),
+  offset: zod.coerce
+    .number()
+    .min(listOpenCandidatesQueryOffsetMin)
+    .default(listOpenCandidatesQueryOffsetDefault),
+  skill: zod.coerce.string().optional(),
+});
+
+export const ListOpenCandidatesResponseItem = zod
+  .object({
+    id: zod.number().describe("Window id (use this to post an offer)"),
+    closesAt: zod.coerce.date(),
+    headline: zod.string(),
+    location: zod.string(),
+    talentScore: zod.number(),
+    yearsExperience: zod.number(),
+    skills: zod.array(zod.string()),
+    institutionName: zod.string().nullish(),
+  })
+  .describe(
+    "Anonymised marketplace card. Never includes name, email, phone, or\navatar — only the window id (the public handle), headline, skills,\ntalent score, generic location, and institution name.\n",
+  );
+export const ListOpenCandidatesResponse = zod.array(
+  ListOpenCandidatesResponseItem,
+);
+
+/**
+ * @summary Employer submits a reverse offer against an open window
+ */
+export const PostReverseOfferParams = zod.object({
+  windowId: zod.coerce.number(),
+});
+
+export const postReverseOfferBodyJobTitleMin = 2;
+export const postReverseOfferBodyJobTitleMax = 200;
+
+export const postReverseOfferBodySalaryMinMin = 0;
+
+export const postReverseOfferBodySalaryMaxMin = 0;
+
+export const postReverseOfferBodyCurrencyDefault = `USD`;
+export const postReverseOfferBodyNoteMax = 2000;
+
+export const PostReverseOfferBody = zod.object({
+  jobTitle: zod
+    .string()
+    .min(postReverseOfferBodyJobTitleMin)
+    .max(postReverseOfferBodyJobTitleMax),
+  salaryMin: zod.number().min(postReverseOfferBodySalaryMinMin),
+  salaryMax: zod.number().min(postReverseOfferBodySalaryMaxMin),
+  currency: zod.string().default(postReverseOfferBodyCurrencyDefault),
+  startDate: zod.coerce.date().optional(),
+  note: zod.string().max(postReverseOfferBodyNoteMax).optional(),
+});
+
+/**
+ * @summary Reverse offers received by the current candidate
+ */
+export const ListMyOffersResponseItem = zod
+  .object({
+    id: zod.number(),
+    candidateId: zod.number().nullish(),
+    employerId: zod.number(),
+    employerName: zod.string().nullish(),
+    employerLogoUrl: zod.string().nullish(),
+    candidateName: zod.string().nullish(),
+    candidateHeadline: zod.string().nullish(),
+    candidateAvatarUrl: zod.string().nullish(),
+    jobTitle: zod.string(),
+    salaryMin: zod.number(),
+    salaryMax: zod.number(),
+    currency: zod.string(),
+    startDate: zod.string().nullish(),
+    note: zod.string(),
+    status: zod.enum([
+      "pending",
+      "accepted",
+      "declined",
+      "countered",
+      "expired",
+    ]),
+    parentOfferId: zod.number().nullish(),
+    applicationId: zod.number().nullish(),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+  })
+  .describe(
+    "Reverse offer payload. `candidateId` is omitted from employer-facing\nresponses (post-offer, sent-offers) for any non-accepted offer to\npreserve the candidate's anonymity. It is always present on the\ncandidate's own inbox responses.\n",
+  );
+export const ListMyOffersResponse = zod.array(ListMyOffersResponseItem);
+
+/**
+ * @summary Reverse offers sent by the current employer
+ */
+export const ListMySentOffersResponseItem = zod
+  .object({
+    id: zod.number(),
+    candidateId: zod.number().nullish(),
+    employerId: zod.number(),
+    employerName: zod.string().nullish(),
+    employerLogoUrl: zod.string().nullish(),
+    candidateName: zod.string().nullish(),
+    candidateHeadline: zod.string().nullish(),
+    candidateAvatarUrl: zod.string().nullish(),
+    jobTitle: zod.string(),
+    salaryMin: zod.number(),
+    salaryMax: zod.number(),
+    currency: zod.string(),
+    startDate: zod.string().nullish(),
+    note: zod.string(),
+    status: zod.enum([
+      "pending",
+      "accepted",
+      "declined",
+      "countered",
+      "expired",
+    ]),
+    parentOfferId: zod.number().nullish(),
+    applicationId: zod.number().nullish(),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+  })
+  .describe(
+    "Reverse offer payload. `candidateId` is omitted from employer-facing\nresponses (post-offer, sent-offers) for any non-accepted offer to\npreserve the candidate's anonymity. It is always present on the\ncandidate's own inbox responses.\n",
+  );
+export const ListMySentOffersResponse = zod.array(ListMySentOffersResponseItem);
+
+/**
+ * @summary Candidate accepts an offer — creates an application and reveals identity
+ */
+export const AcceptReverseOfferParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AcceptReverseOfferResponse = zod
+  .object({
+    id: zod.number(),
+    candidateId: zod.number().nullish(),
+    employerId: zod.number(),
+    employerName: zod.string().nullish(),
+    employerLogoUrl: zod.string().nullish(),
+    candidateName: zod.string().nullish(),
+    candidateHeadline: zod.string().nullish(),
+    candidateAvatarUrl: zod.string().nullish(),
+    jobTitle: zod.string(),
+    salaryMin: zod.number(),
+    salaryMax: zod.number(),
+    currency: zod.string(),
+    startDate: zod.string().nullish(),
+    note: zod.string(),
+    status: zod.enum([
+      "pending",
+      "accepted",
+      "declined",
+      "countered",
+      "expired",
+    ]),
+    parentOfferId: zod.number().nullish(),
+    applicationId: zod.number().nullish(),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+  })
+  .describe(
+    "Reverse offer payload. `candidateId` is omitted from employer-facing\nresponses (post-offer, sent-offers) for any non-accepted offer to\npreserve the candidate's anonymity. It is always present on the\ncandidate's own inbox responses.\n",
+  );
+
+/**
+ * @summary Candidate declines an offer
+ */
+export const DeclineReverseOfferParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const DeclineReverseOfferResponse = zod
+  .object({
+    id: zod.number(),
+    candidateId: zod.number().nullish(),
+    employerId: zod.number(),
+    employerName: zod.string().nullish(),
+    employerLogoUrl: zod.string().nullish(),
+    candidateName: zod.string().nullish(),
+    candidateHeadline: zod.string().nullish(),
+    candidateAvatarUrl: zod.string().nullish(),
+    jobTitle: zod.string(),
+    salaryMin: zod.number(),
+    salaryMax: zod.number(),
+    currency: zod.string(),
+    startDate: zod.string().nullish(),
+    note: zod.string(),
+    status: zod.enum([
+      "pending",
+      "accepted",
+      "declined",
+      "countered",
+      "expired",
+    ]),
+    parentOfferId: zod.number().nullish(),
+    applicationId: zod.number().nullish(),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+  })
+  .describe(
+    "Reverse offer payload. `candidateId` is omitted from employer-facing\nresponses (post-offer, sent-offers) for any non-accepted offer to\npreserve the candidate's anonymity. It is always present on the\ncandidate's own inbox responses.\n",
+  );
+
+/**
+ * @summary Candidate sends a single counter offer
+ */
+export const CounterReverseOfferParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const counterReverseOfferBodyJobTitleMin = 2;
+export const counterReverseOfferBodyJobTitleMax = 200;
+
+export const counterReverseOfferBodySalaryMinMin = 0;
+
+export const counterReverseOfferBodySalaryMaxMin = 0;
+
+export const counterReverseOfferBodyCurrencyDefault = `USD`;
+export const counterReverseOfferBodyNoteMax = 2000;
+
+export const CounterReverseOfferBody = zod.object({
+  jobTitle: zod
+    .string()
+    .min(counterReverseOfferBodyJobTitleMin)
+    .max(counterReverseOfferBodyJobTitleMax),
+  salaryMin: zod.number().min(counterReverseOfferBodySalaryMinMin),
+  salaryMax: zod.number().min(counterReverseOfferBodySalaryMaxMin),
+  currency: zod.string().default(counterReverseOfferBodyCurrencyDefault),
+  startDate: zod.coerce.date().optional(),
+  note: zod.string().max(counterReverseOfferBodyNoteMax).optional(),
+});
+
 export const RegisterUserBody = zod.object({
   email: zod.string(),
   password: zod.string(),

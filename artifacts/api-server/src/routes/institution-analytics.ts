@@ -582,8 +582,10 @@ async function getCohortOr404(
 
 // ---------------------------------------------------------------------------
 // POST /institutions/:id/cohorts/:cohortId/members
-//   Add candidates to the cohort. Only verified students of THIS
-//   institution can be added; other ids are silently dropped.
+//   Add candidates to the cohort. Any institution staff with students:view
+//   may tag students (deans/HoDs are limited to candidates within their
+//   faculty/department scope). Only verified students of THIS institution
+//   can be added; ids outside scope or unverified are silently dropped.
 // ---------------------------------------------------------------------------
 router.post(
   "/institutions/:id/cohorts/:cohortId/members",
@@ -598,12 +600,6 @@ router.post(
     const scope = await resolveInstitutionScope(req.currentUser, institutionId);
     if (!scope.ok) {
       res.status(scope.status).json({ error: scope.error });
-      return;
-    }
-    if (!isOrgOwnerOrRegistrar(req.currentUser)) {
-      res
-        .status(403)
-        .json({ error: "Only owners/registrars can manage cohort members" });
       return;
     }
 
@@ -624,12 +620,13 @@ router.post(
       return;
     }
 
-    const verifiedIds = new Set(
-      await getCandidateIdsForInstitution(institutionId, {
-        verifiedOnly: true,
-      }),
+    // Restrict the addable set to verified students of this institution
+    // intersected with the caller's faculty/department scope.
+    const effectiveDeptIds = await narrowDepartmentScope(scope, institutionId);
+    const allowedIds = new Set(
+      await getScopedStudentIds(institutionId, effectiveDeptIds),
     );
-    const toInsert = requestedIds.filter((id) => verifiedIds.has(id));
+    const toInsert = requestedIds.filter((id) => allowedIds.has(id));
 
     if (toInsert.length === 0) {
       res.json({ added: 0, skipped: requestedIds.length });
@@ -672,15 +669,19 @@ router.delete(
       res.status(scope.status).json({ error: scope.error });
       return;
     }
-    if (!isOrgOwnerOrRegistrar(req.currentUser)) {
-      res
-        .status(403)
-        .json({ error: "Only owners/registrars can manage cohort members" });
-      return;
-    }
     const cohort = await getCohortOr404(institutionId, cohortId);
     if (!cohort) {
       res.status(404).json({ error: "Cohort not found" });
+      return;
+    }
+
+    // Scoped staff can only remove candidates within their scope.
+    const effectiveDeptIds = await narrowDepartmentScope(scope, institutionId);
+    const allowedIds = new Set(
+      await getScopedStudentIds(institutionId, effectiveDeptIds),
+    );
+    if (!allowedIds.has(candidateId)) {
+      res.status(403).json({ error: "Candidate is outside your scope" });
       return;
     }
 

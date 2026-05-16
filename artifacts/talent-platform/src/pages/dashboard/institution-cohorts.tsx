@@ -160,7 +160,7 @@ export default function InstitutionCohortsPage() {
                     : "Pick a cohort to see its curve."}
                 </CardDescription>
               </div>
-              {isOwnerOrRegistrar && activeCohortId != null && (
+              {activeCohortId != null && (
                 <ManageMembersDialog
                   institutionId={id}
                   cohortId={activeCohortId}

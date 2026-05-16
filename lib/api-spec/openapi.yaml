@@ -2755,7 +2755,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/VerifyBoostCheckoutRequest"
+              $ref: "#/components/schemas/VerifyCheckoutSessionRequest"
       responses:
         "200":
           description: Verification result
@@ -2857,7 +2857,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/VerifyBoostCheckoutRequest"
+              $ref: "#/components/schemas/VerifyCheckoutSessionRequest"
       responses:
         "200":
           description: Verification result
@@ -3080,7 +3080,7 @@ paths:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/VerifyBoostCheckoutRequest" }
+            schema: { $ref: "#/components/schemas/VerifyCheckoutSessionRequest" }
       responses:
         "200":
           description: Verification result
@@ -6620,12 +6620,23 @@ components:
     VerifyBoostCheckoutRequest:
       type: object
       description: >-
-        Pass either a Stripe checkout session id OR a Paystack
-        transaction reference. The server resolves the row by
-        whichever is present.
+        Boost verification accepts EITHER a Stripe checkout session id
+        OR a Paystack transaction reference. The server resolves the
+        row by whichever is present.
       properties:
         sessionId: { type: string }
         reference: { type: string }
+
+    VerifyCheckoutSessionRequest:
+      type: object
+      description: >-
+        Stripe-only verification used by CV unlock, institution
+        subscription, and employer subscription. These flows do not
+        yet have a Paystack create-side branch (tracked as follow-up
+        tasks), so the request requires a Stripe sessionId.
+      properties:
+        sessionId: { type: string }
+      required: [sessionId]
 
     VerifyBoostCheckoutResponse:
       type: object

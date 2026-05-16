@@ -220,6 +220,7 @@ import type {
   VerifiedSkill,
   VerifyBoostCheckoutRequest,
   VerifyBoostCheckoutResponse,
+  VerifyCheckoutSessionRequest,
   VerifyCvCheckoutResponse,
   VerifyJobTierCheckoutRequest,
   VerifyJobTierCheckoutResponse,
@@ -11799,7 +11800,7 @@ export const getVerifyInstitutionSubscriptionCheckoutUrl = () => {
 };
 
 export const verifyInstitutionSubscriptionCheckout = async (
-  verifyBoostCheckoutRequest: VerifyBoostCheckoutRequest,
+  verifyCheckoutSessionRequest: VerifyCheckoutSessionRequest,
   options?: RequestInit,
 ): Promise<InstitutionSubscriptionStatus> => {
   return customFetch<InstitutionSubscriptionStatus>(
@@ -11808,7 +11809,7 @@ export const verifyInstitutionSubscriptionCheckout = async (
       ...options,
       method: "POST",
       headers: { "Content-Type": "application/json", ...options?.headers },
-      body: JSON.stringify(verifyBoostCheckoutRequest),
+      body: JSON.stringify(verifyCheckoutSessionRequest),
     },
   );
 };
@@ -11820,14 +11821,14 @@ export const getVerifyInstitutionSubscriptionCheckoutMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof verifyInstitutionSubscriptionCheckout>>,
     TError,
-    { data: BodyType<VerifyBoostCheckoutRequest> },
+    { data: BodyType<VerifyCheckoutSessionRequest> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof verifyInstitutionSubscriptionCheckout>>,
   TError,
-  { data: BodyType<VerifyBoostCheckoutRequest> },
+  { data: BodyType<VerifyCheckoutSessionRequest> },
   TContext
 > => {
   const mutationKey = ["verifyInstitutionSubscriptionCheckout"];
@@ -11841,7 +11842,7 @@ export const getVerifyInstitutionSubscriptionCheckoutMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof verifyInstitutionSubscriptionCheckout>>,
-    { data: BodyType<VerifyBoostCheckoutRequest> }
+    { data: BodyType<VerifyCheckoutSessionRequest> }
   > = (props) => {
     const { data } = props ?? {};
 
@@ -11855,7 +11856,7 @@ export type VerifyInstitutionSubscriptionCheckoutMutationResult = NonNullable<
   Awaited<ReturnType<typeof verifyInstitutionSubscriptionCheckout>>
 >;
 export type VerifyInstitutionSubscriptionCheckoutMutationBody =
-  BodyType<VerifyBoostCheckoutRequest>;
+  BodyType<VerifyCheckoutSessionRequest>;
 export type VerifyInstitutionSubscriptionCheckoutMutationError =
   ErrorType<void>;
 
@@ -11869,14 +11870,14 @@ export const useVerifyInstitutionSubscriptionCheckout = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof verifyInstitutionSubscriptionCheckout>>,
     TError,
-    { data: BodyType<VerifyBoostCheckoutRequest> },
+    { data: BodyType<VerifyCheckoutSessionRequest> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof verifyInstitutionSubscriptionCheckout>>,
   TError,
-  { data: BodyType<VerifyBoostCheckoutRequest> },
+  { data: BodyType<VerifyCheckoutSessionRequest> },
   TContext
 > => {
   return useMutation(
@@ -12249,7 +12250,7 @@ export const getVerifyEmployerSubscriptionCheckoutUrl = () => {
 };
 
 export const verifyEmployerSubscriptionCheckout = async (
-  verifyBoostCheckoutRequest: VerifyBoostCheckoutRequest,
+  verifyCheckoutSessionRequest: VerifyCheckoutSessionRequest,
   options?: RequestInit,
 ): Promise<EmployerSubscriptionStatus> => {
   return customFetch<EmployerSubscriptionStatus>(
@@ -12258,7 +12259,7 @@ export const verifyEmployerSubscriptionCheckout = async (
       ...options,
       method: "POST",
       headers: { "Content-Type": "application/json", ...options?.headers },
-      body: JSON.stringify(verifyBoostCheckoutRequest),
+      body: JSON.stringify(verifyCheckoutSessionRequest),
     },
   );
 };
@@ -12270,14 +12271,14 @@ export const getVerifyEmployerSubscriptionCheckoutMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof verifyEmployerSubscriptionCheckout>>,
     TError,
-    { data: BodyType<VerifyBoostCheckoutRequest> },
+    { data: BodyType<VerifyCheckoutSessionRequest> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof verifyEmployerSubscriptionCheckout>>,
   TError,
-  { data: BodyType<VerifyBoostCheckoutRequest> },
+  { data: BodyType<VerifyCheckoutSessionRequest> },
   TContext
 > => {
   const mutationKey = ["verifyEmployerSubscriptionCheckout"];
@@ -12291,7 +12292,7 @@ export const getVerifyEmployerSubscriptionCheckoutMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof verifyEmployerSubscriptionCheckout>>,
-    { data: BodyType<VerifyBoostCheckoutRequest> }
+    { data: BodyType<VerifyCheckoutSessionRequest> }
   > = (props) => {
     const { data } = props ?? {};
 
@@ -12305,7 +12306,7 @@ export type VerifyEmployerSubscriptionCheckoutMutationResult = NonNullable<
   Awaited<ReturnType<typeof verifyEmployerSubscriptionCheckout>>
 >;
 export type VerifyEmployerSubscriptionCheckoutMutationBody =
-  BodyType<VerifyBoostCheckoutRequest>;
+  BodyType<VerifyCheckoutSessionRequest>;
 export type VerifyEmployerSubscriptionCheckoutMutationError = ErrorType<void>;
 
 /**
@@ -12318,14 +12319,14 @@ export const useVerifyEmployerSubscriptionCheckout = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof verifyEmployerSubscriptionCheckout>>,
     TError,
-    { data: BodyType<VerifyBoostCheckoutRequest> },
+    { data: BodyType<VerifyCheckoutSessionRequest> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof verifyEmployerSubscriptionCheckout>>,
   TError,
-  { data: BodyType<VerifyBoostCheckoutRequest> },
+  { data: BodyType<VerifyCheckoutSessionRequest> },
   TContext
 > => {
   return useMutation(
@@ -13099,14 +13100,14 @@ export const getVerifyCvCheckoutUrl = () => {
 };
 
 export const verifyCvCheckout = async (
-  verifyBoostCheckoutRequest: VerifyBoostCheckoutRequest,
+  verifyCheckoutSessionRequest: VerifyCheckoutSessionRequest,
   options?: RequestInit,
 ): Promise<VerifyCvCheckoutResponse> => {
   return customFetch<VerifyCvCheckoutResponse>(getVerifyCvCheckoutUrl(), {
     ...options,
     method: "POST",
     headers: { "Content-Type": "application/json", ...options?.headers },
-    body: JSON.stringify(verifyBoostCheckoutRequest),
+    body: JSON.stringify(verifyCheckoutSessionRequest),
   });
 };
 
@@ -13117,14 +13118,14 @@ export const getVerifyCvCheckoutMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof verifyCvCheckout>>,
     TError,
-    { data: BodyType<VerifyBoostCheckoutRequest> },
+    { data: BodyType<VerifyCheckoutSessionRequest> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof verifyCvCheckout>>,
   TError,
-  { data: BodyType<VerifyBoostCheckoutRequest> },
+  { data: BodyType<VerifyCheckoutSessionRequest> },
   TContext
 > => {
   const mutationKey = ["verifyCvCheckout"];
@@ -13138,7 +13139,7 @@ export const getVerifyCvCheckoutMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof verifyCvCheckout>>,
-    { data: BodyType<VerifyBoostCheckoutRequest> }
+    { data: BodyType<VerifyCheckoutSessionRequest> }
   > = (props) => {
     const { data } = props ?? {};
 
@@ -13151,7 +13152,8 @@ export const getVerifyCvCheckoutMutationOptions = <
 export type VerifyCvCheckoutMutationResult = NonNullable<
   Awaited<ReturnType<typeof verifyCvCheckout>>
 >;
-export type VerifyCvCheckoutMutationBody = BodyType<VerifyBoostCheckoutRequest>;
+export type VerifyCvCheckoutMutationBody =
+  BodyType<VerifyCheckoutSessionRequest>;
 export type VerifyCvCheckoutMutationError = ErrorType<Error>;
 
 /**
@@ -13164,14 +13166,14 @@ export const useVerifyCvCheckout = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof verifyCvCheckout>>,
     TError,
-    { data: BodyType<VerifyBoostCheckoutRequest> },
+    { data: BodyType<VerifyCheckoutSessionRequest> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof verifyCvCheckout>>,
   TError,
-  { data: BodyType<VerifyBoostCheckoutRequest> },
+  { data: BodyType<VerifyCheckoutSessionRequest> },
   TContext
 > => {
   return useMutation(getVerifyCvCheckoutMutationOptions(options));

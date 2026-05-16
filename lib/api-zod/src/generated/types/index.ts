@@ -363,6 +363,7 @@ export * from "./verifiedSkill";
 export * from "./verifyBoostCheckoutRequest";
 export * from "./verifyBoostCheckoutResponse";
 export * from "./verifyBoostCheckoutResponseStatus";
+export * from "./verifyCheckoutSessionRequest";
 export * from "./verifyCvCheckoutResponse";
 export * from "./verifyCvCheckoutResponseStatus";
 export * from "./verifyJobTierCheckoutRequest";

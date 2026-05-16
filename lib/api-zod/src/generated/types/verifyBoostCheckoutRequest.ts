@@ -7,7 +7,7 @@
  */
 
 /**
- * Pass either a Stripe checkout session id OR a Paystack transaction reference. The server resolves the row by whichever is present.
+ * Boost verification accepts EITHER a Stripe checkout session id OR a Paystack transaction reference. The server resolves the row by whichever is present.
  */
 export interface VerifyBoostCheckoutRequest {
   sessionId?: string;

@@ -4766,7 +4766,7 @@ export const VerifyBoostCheckoutBody = zod
     reference: zod.string().optional(),
   })
   .describe(
-    "Pass either a Stripe checkout session id OR a Paystack transaction reference. The server resolves the row by whichever is present.",
+    "Boost verification accepts EITHER a Stripe checkout session id OR a Paystack transaction reference. The server resolves the row by whichever is present.",
   );
 
 export const VerifyBoostCheckoutResponse = zod.object({
@@ -4956,11 +4956,10 @@ export const CreateInstitutionSubscriptionCheckoutResponse = zod.object({
  */
 export const VerifyInstitutionSubscriptionCheckoutBody = zod
   .object({
-    sessionId: zod.string().optional(),
-    reference: zod.string().optional(),
+    sessionId: zod.string(),
   })
   .describe(
-    "Pass either a Stripe checkout session id OR a Paystack transaction reference. The server resolves the row by whichever is present.",
+    "Stripe-only verification used by CV unlock, institution subscription, and employer subscription. These flows do not yet have a Paystack create-side branch (tracked as follow-up tasks), so the request requires a Stripe sessionId.",
   );
 
 export const VerifyInstitutionSubscriptionCheckoutResponse = zod
@@ -5197,11 +5196,10 @@ export const CreateEmployerSubscriptionCheckoutResponse = zod.object({
  */
 export const VerifyEmployerSubscriptionCheckoutBody = zod
   .object({
-    sessionId: zod.string().optional(),
-    reference: zod.string().optional(),
+    sessionId: zod.string(),
   })
   .describe(
-    "Pass either a Stripe checkout session id OR a Paystack transaction reference. The server resolves the row by whichever is present.",
+    "Stripe-only verification used by CV unlock, institution subscription, and employer subscription. These flows do not yet have a Paystack create-side branch (tracked as follow-up tasks), so the request requires a Stripe sessionId.",
   );
 
 export const VerifyEmployerSubscriptionCheckoutResponse = zod
@@ -5500,11 +5498,10 @@ export const CreateCvCheckoutResponse = zod.object({
  */
 export const VerifyCvCheckoutBody = zod
   .object({
-    sessionId: zod.string().optional(),
-    reference: zod.string().optional(),
+    sessionId: zod.string(),
   })
   .describe(
-    "Pass either a Stripe checkout session id OR a Paystack transaction reference. The server resolves the row by whichever is present.",
+    "Stripe-only verification used by CV unlock, institution subscription, and employer subscription. These flows do not yet have a Paystack create-side branch (tracked as follow-up tasks), so the request requires a Stripe sessionId.",
   );
 
 export const VerifyCvCheckoutResponse = zod.object({

@@ -1,4 +1,4 @@
-import { useGetEmployerDashboard, useUpdateApplicationStatus, getGetEmployerDashboardQueryKey, getListApplicationsQueryKey, useGetEmployerSubscriptionLegacyStatus } from "@workspace/api-client-react";
+import { useGetEmployerDashboard, useUpdateApplicationStatus, getGetEmployerDashboardQueryKey, getListApplicationsQueryKey } from "@workspace/api-client-react";
 import { useAuth } from "@/lib/auth";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";

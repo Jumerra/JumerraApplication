@@ -217,10 +217,12 @@ export default function EmployerSubscriptionPage() {
         </div>
         <div>
           <h1 className="text-3xl font-bold tracking-tight">
-            Job Posting Premium
+            {featureDisabled ? "Job posting plan" : "Job Posting Premium"}
           </h1>
           <p className="text-muted-foreground mt-1">
-            Subscribe to keep posting jobs after your free quota.
+            {featureDisabled
+              ? "Recurring subscriptions are turned off \u2014 all job posts are free, and you only pay when you boost an individual role."
+              : "Subscribe to keep posting jobs after your free quota."}
           </p>
         </div>
       </div>

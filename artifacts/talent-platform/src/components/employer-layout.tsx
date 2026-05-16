@@ -34,6 +34,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { useGetEmployerSubscriptionSettings, getGetEmployerSubscriptionSettingsQueryKey } from "@workspace/api-client-react";
 import { SidebarLogoutButton } from "@/components/sidebar-logout";
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state";
@@ -112,6 +113,19 @@ export function EmployerLayout({ children }: { children: ReactNode }) {
   const orgRole = sessionUser?.orgRole ?? null;
   const isOwner = orgRole === "owner";
 
+  // The legacy recurring subscription model has been retired in
+  // favour of per-post pricing (free / Promoted / Sponsored). Hide
+  // the "Subscription" nav entry while the admin feature flag is
+  // off so owners don't bounce into a disabled page. If an admin
+  // re-enables it the link reappears automatically.
+  const { data: subSettings } = useGetEmployerSubscriptionSettings({
+    query: {
+      queryKey: getGetEmployerSubscriptionSettingsQueryKey(),
+      enabled: isEmployerUser,
+    },
+  });
+  const subscriptionsEnabled = subSettings?.isActive === true;
+
   const NAV: EmployerNavGroup[] = [
     {
       label: "Overview",
@@ -163,17 +177,21 @@ export function EmployerLayout({ children }: { children: ReactNode }) {
         },
       ],
     },
-    {
-      label: "Billing",
-      items: [
-        {
-          href: "/dashboard/employer/subscription",
-          label: "Subscription",
-          icon: Crown,
-          orgRoles: ["owner"],
-        },
-      ],
-    },
+    ...(subscriptionsEnabled
+      ? ([
+          {
+            label: "Billing",
+            items: [
+              {
+                href: "/dashboard/employer/subscription",
+                label: "Subscription",
+                icon: Crown,
+                orgRoles: ["owner"],
+              },
+            ],
+          },
+        ] as EmployerNavGroup[])
+      : []),
     {
       label: "Team",
       items: [

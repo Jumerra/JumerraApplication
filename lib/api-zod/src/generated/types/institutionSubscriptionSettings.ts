@@ -5,6 +5,7 @@
  * Talent Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { InstitutionSubscriptionSettingsIntervalDays } from "./institutionSubscriptionSettingsIntervalDays";
 
 export interface InstitutionSubscriptionSettings {
   isActive: boolean;
@@ -15,6 +16,8 @@ export interface InstitutionSubscriptionSettings {
   priceCents: number;
   /** ISO 4217 lowercase, e.g. 'usd' */
   currency: string;
+  /** Billing cycle length. 30 = monthly, 365 = yearly. */
+  intervalDays: InstitutionSubscriptionSettingsIntervalDays;
   /**
    * Free trial length applied to every new subscription. 0 disables the trial.
    * @minimum 0

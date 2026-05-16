@@ -5,7 +5,7 @@
  * Talent Platform API
  * OpenAPI spec version: 0.1.0
  */
-import type { UpdateJobChallengeOverrides } from "./updateJobChallengeOverrides";
+import type { UpdateJobChallengeOverridesItem } from "./updateJobChallengeOverridesItem";
 import type { UpdateJobChallengeQuestionsItem } from "./updateJobChallengeQuestionsItem";
 
 /**
@@ -20,10 +20,12 @@ export interface UpdateJobChallenge {
   passingScore?: number;
   durationSeconds?: number;
   templateIds?: number[];
-  /** Per-template overrides keyed by template id, used to
-tweak the question count or selection when generating
-from `templateIds`. Free-form pass-through.
+  /** Per-question employer overrides applied on top of the
+template snapshot at apply-time. Each item is a free-form
+object such as `{ index, prompt?, options?, correctIndex? }`.
+Kept as a separate array so the original template
+questions remain auditable.
  */
-  overrides?: UpdateJobChallengeOverrides;
+  overrides?: UpdateJobChallengeOverridesItem[];
   questions?: UpdateJobChallengeQuestionsItem[];
 }

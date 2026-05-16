@@ -204,11 +204,34 @@ export function ApplyConfirmSheet({
         onClose();
       }
     } catch (err) {
-      const status =
-        err && typeof err === "object" && "status" in err
-          ? (err as { status: number }).status
-          : 0;
-      if (status === 409) {
+      const apiErr =
+        err && typeof err === "object"
+          ? (err as {
+              status?: number;
+              data?: { requiresChallenge?: boolean };
+            })
+          : null;
+      const status = apiErr?.status ?? 0;
+      if (status === 409 && apiErr?.data?.requiresChallenge) {
+        // The server attached a challenge after we probed. Re-probe
+        // so the sheet re-renders into the challenge gate instead
+        // of misreporting "already applied".
+        setError(
+          "This job requires a skill challenge. Re-opening the application…",
+        );
+        try {
+          const ch = await customFetch<JobChallenge>(
+            `/api/jobs/${jobId}/challenge`,
+          );
+          setChallenge(ch);
+          setAnswers({});
+          setError(null);
+        } catch {
+          setError(
+            "This job requires a skill challenge. Please close and reopen this sheet.",
+          );
+        }
+      } else if (status === 409) {
         setError("You've already applied to this job.");
       } else {
         setError("Couldn't submit your application. Try again.");

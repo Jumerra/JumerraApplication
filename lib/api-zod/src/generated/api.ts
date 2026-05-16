@@ -1741,10 +1741,10 @@ export const UpdateJobChallengeBody = zod
     durationSeconds: zod.number().optional(),
     templateIds: zod.array(zod.number()).optional(),
     overrides: zod
-      .record(zod.string(), zod.unknown())
+      .array(zod.record(zod.string(), zod.unknown()))
       .optional()
       .describe(
-        "Per-template overrides keyed by template id, used to\ntweak the question count or selection when generating\nfrom `templateIds`. Free-form pass-through.\n",
+        "Per-question employer overrides applied on top of the\ntemplate snapshot at apply-time. Each item is a free-form\nobject such as `{ index, prompt?, options?, correctIndex? }`.\nKept as a separate array so the original template\nquestions remain auditable.\n",
       ),
     questions: zod
       .array(
@@ -2127,11 +2127,16 @@ export const ListApplicationsResponseItem = zod.object({
           index: zod.number(),
           prompt: zod.string(),
           chosen: zod.number(),
-          correct: zod.number(),
+          correct: zod
+            .number()
+            .optional()
+            .describe(
+              "Answer-key index. Present only when the viewer is an\nemployer or admin; stripped for candidate \/ institution\nviewers.\n",
+            ),
           isCorrect: zod.boolean(),
         })
         .describe(
-          "Per-question grading row. `chosen = -1` means the candidate\nskipped the question. Employer-facing only — returned on\nApplication via \/applications.\n",
+          "Per-question grading row. `chosen = -1` means the candidate\nskipped the question. `correct` (the answer-key index) is\nONLY present for employer\/admin viewers — it is stripped\nserver-side for candidate and institution viewers so the\nanswer key never leaks to challenge takers.\n",
         ),
     )
     .nullable()
@@ -2262,11 +2267,16 @@ export const UpdateApplicationStatusResponse = zod.object({
           index: zod.number(),
           prompt: zod.string(),
           chosen: zod.number(),
-          correct: zod.number(),
+          correct: zod
+            .number()
+            .optional()
+            .describe(
+              "Answer-key index. Present only when the viewer is an\nemployer or admin; stripped for candidate \/ institution\nviewers.\n",
+            ),
           isCorrect: zod.boolean(),
         })
         .describe(
-          "Per-question grading row. `chosen = -1` means the candidate\nskipped the question. Employer-facing only — returned on\nApplication via \/applications.\n",
+          "Per-question grading row. `chosen = -1` means the candidate\nskipped the question. `correct` (the answer-key index) is\nONLY present for employer\/admin viewers — it is stripped\nserver-side for candidate and institution viewers so the\nanswer key never leaks to challenge takers.\n",
         ),
     )
     .nullable()
@@ -2707,11 +2717,16 @@ export const GetEmployerDashboardResponse = zod.object({
               index: zod.number(),
               prompt: zod.string(),
               chosen: zod.number(),
-              correct: zod.number(),
+              correct: zod
+                .number()
+                .optional()
+                .describe(
+                  "Answer-key index. Present only when the viewer is an\nemployer or admin; stripped for candidate \/ institution\nviewers.\n",
+                ),
               isCorrect: zod.boolean(),
             })
             .describe(
-              "Per-question grading row. `chosen = -1` means the candidate\nskipped the question. Employer-facing only — returned on\nApplication via \/applications.\n",
+              "Per-question grading row. `chosen = -1` means the candidate\nskipped the question. `correct` (the answer-key index) is\nONLY present for employer\/admin viewers — it is stripped\nserver-side for candidate and institution viewers so the\nanswer key never leaks to challenge takers.\n",
             ),
         )
         .nullable()
@@ -2956,11 +2971,16 @@ export const GetCandidateDashboardResponse = zod.object({
               index: zod.number(),
               prompt: zod.string(),
               chosen: zod.number(),
-              correct: zod.number(),
+              correct: zod
+                .number()
+                .optional()
+                .describe(
+                  "Answer-key index. Present only when the viewer is an\nemployer or admin; stripped for candidate \/ institution\nviewers.\n",
+                ),
               isCorrect: zod.boolean(),
             })
             .describe(
-              "Per-question grading row. `chosen = -1` means the candidate\nskipped the question. Employer-facing only — returned on\nApplication via \/applications.\n",
+              "Per-question grading row. `chosen = -1` means the candidate\nskipped the question. `correct` (the answer-key index) is\nONLY present for employer\/admin viewers — it is stripped\nserver-side for candidate and institution viewers so the\nanswer key never leaks to challenge takers.\n",
             ),
         )
         .nullable()
@@ -4268,11 +4288,16 @@ export const AdminListApplicationsResponse = zod.object({
               index: zod.number(),
               prompt: zod.string(),
               chosen: zod.number(),
-              correct: zod.number(),
+              correct: zod
+                .number()
+                .optional()
+                .describe(
+                  "Answer-key index. Present only when the viewer is an\nemployer or admin; stripped for candidate \/ institution\nviewers.\n",
+                ),
               isCorrect: zod.boolean(),
             })
             .describe(
-              "Per-question grading row. `chosen = -1` means the candidate\nskipped the question. Employer-facing only — returned on\nApplication via \/applications.\n",
+              "Per-question grading row. `chosen = -1` means the candidate\nskipped the question. `correct` (the answer-key index) is\nONLY present for employer\/admin viewers — it is stripped\nserver-side for candidate and institution viewers so the\nanswer key never leaks to challenge takers.\n",
             ),
         )
         .nullable()
@@ -4676,6 +4701,9 @@ export const GetInstitutionSubscriptionSettingsResponse = zod.object({
     .min(getInstitutionSubscriptionSettingsResponsePriceCentsMin)
     .max(getInstitutionSubscriptionSettingsResponsePriceCentsMax),
   currency: zod.string().describe("ISO 4217 lowercase, e.g. 'usd'"),
+  intervalDays: zod
+    .union([zod.literal(30), zod.literal(365)])
+    .describe("Billing cycle length. 30 = monthly, 365 = yearly."),
   trialDays: zod
     .number()
     .min(getInstitutionSubscriptionSettingsResponseTrialDaysMin)
@@ -4701,6 +4729,7 @@ export const UpdateInstitutionSubscriptionSettingsBody = zod.object({
     .min(updateInstitutionSubscriptionSettingsBodyPriceCentsMin)
     .max(updateInstitutionSubscriptionSettingsBodyPriceCentsMax),
   currency: zod.string(),
+  intervalDays: zod.union([zod.literal(30), zod.literal(365)]),
   trialDays: zod
     .number()
     .min(updateInstitutionSubscriptionSettingsBodyTrialDaysMin)
@@ -4720,6 +4749,9 @@ export const UpdateInstitutionSubscriptionSettingsResponse = zod.object({
     .min(updateInstitutionSubscriptionSettingsResponsePriceCentsMin)
     .max(updateInstitutionSubscriptionSettingsResponsePriceCentsMax),
   currency: zod.string().describe("ISO 4217 lowercase, e.g. 'usd'"),
+  intervalDays: zod
+    .union([zod.literal(30), zod.literal(365)])
+    .describe("Billing cycle length. 30 = monthly, 365 = yearly."),
   trialDays: zod
     .number()
     .min(updateInstitutionSubscriptionSettingsResponseTrialDaysMin)
@@ -4751,11 +4783,15 @@ export const GetInstitutionSubscriptionResponse = zod
     currentPeriodEnd: zod.coerce.date().nullable(),
     priceCentsSnapshot: zod.number().nullable(),
     currencySnapshot: zod.string().nullable(),
+    intervalDaysSnapshot: zod
+      .number()
+      .nullable()
+      .describe("Billing cycle snapshot. 30 = monthly, 365 = yearly."),
     isInTrial: zod.boolean(),
     unlocksPlacements: zod
       .boolean()
       .describe(
-        "True iff the institution currently has access to placement\ndata. Equivalent to status in (trialing, active) AND\ncurrentPeriodEnd is in the future.\n",
+        "True iff the institution currently has access to premium\nfeatures. Equivalent to status in (trialing, active) AND\ncurrentPeriodEnd is in the future. Despite the legacy name\nthis flag now governs every Institution Pro feature, not\njust placements.\n",
       ),
   })
   .describe(
@@ -4807,11 +4843,15 @@ export const VerifyInstitutionSubscriptionCheckoutResponse = zod
     currentPeriodEnd: zod.coerce.date().nullable(),
     priceCentsSnapshot: zod.number().nullable(),
     currencySnapshot: zod.string().nullable(),
+    intervalDaysSnapshot: zod
+      .number()
+      .nullable()
+      .describe("Billing cycle snapshot. 30 = monthly, 365 = yearly."),
     isInTrial: zod.boolean(),
     unlocksPlacements: zod
       .boolean()
       .describe(
-        "True iff the institution currently has access to placement\ndata. Equivalent to status in (trialing, active) AND\ncurrentPeriodEnd is in the future.\n",
+        "True iff the institution currently has access to premium\nfeatures. Equivalent to status in (trialing, active) AND\ncurrentPeriodEnd is in the future. Despite the legacy name\nthis flag now governs every Institution Pro feature, not\njust placements.\n",
       ),
   })
   .describe(

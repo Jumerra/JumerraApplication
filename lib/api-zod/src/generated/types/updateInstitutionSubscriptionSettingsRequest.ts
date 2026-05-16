@@ -5,6 +5,7 @@
  * Talent Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { UpdateInstitutionSubscriptionSettingsRequestIntervalDays } from "./updateInstitutionSubscriptionSettingsRequestIntervalDays";
 
 export interface UpdateInstitutionSubscriptionSettingsRequest {
   isActive: boolean;
@@ -14,6 +15,7 @@ export interface UpdateInstitutionSubscriptionSettingsRequest {
    */
   priceCents: number;
   currency: string;
+  intervalDays: UpdateInstitutionSubscriptionSettingsRequestIntervalDays;
   /**
    * @minimum 0
    * @maximum 365

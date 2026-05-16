@@ -433,15 +433,21 @@ export interface ApplicationEndorsement {
 
 /**
  * Per-question grading row. `chosen = -1` means the candidate
-skipped the question. Employer-facing only — returned on
-Application via /applications.
+skipped the question. `correct` (the answer-key index) is
+ONLY present for employer/admin viewers — it is stripped
+server-side for candidate and institution viewers so the
+answer key never leaks to challenge takers.
 
  */
 export interface ChallengeBreakdownItem {
   index: number;
   prompt: string;
   chosen: number;
-  correct: number;
+  /** Answer-key index. Present only when the viewer is an
+employer or admin; stripped for candidate / institution
+viewers.
+ */
+  correct?: number;
   isCorrect: boolean;
 }
 
@@ -1689,13 +1695,7 @@ so the candidate sees which ones they got right.
   breakdown: ChallengeSubmissionResultBreakdownItem[];
 }
 
-/**
- * Per-template overrides keyed by template id, used to
-tweak the question count or selection when generating
-from `templateIds`. Free-form pass-through.
-
- */
-export type UpdateJobChallengeOverrides = { [key: string]: unknown };
+export type UpdateJobChallengeOverridesItem = { [key: string]: unknown };
 
 export type UpdateJobChallengeQuestionsItem = {
   prompt: string;
@@ -1715,11 +1715,13 @@ export interface UpdateJobChallenge {
   passingScore?: number;
   durationSeconds?: number;
   templateIds?: number[];
-  /** Per-template overrides keyed by template id, used to
-tweak the question count or selection when generating
-from `templateIds`. Free-form pass-through.
+  /** Per-question employer overrides applied on top of the
+template snapshot at apply-time. Each item is a free-form
+object such as `{ index, prompt?, options?, correctIndex? }`.
+Kept as a separate array so the original template
+questions remain auditable.
  */
-  overrides?: UpdateJobChallengeOverrides;
+  overrides?: UpdateJobChallengeOverridesItem[];
   questions?: UpdateJobChallengeQuestionsItem[];
 }
 
@@ -2172,6 +2174,17 @@ export interface VerifyBoostCheckoutResponse {
   boostExpiresAt: string | null;
 }
 
+/**
+ * Billing cycle length. 30 = monthly, 365 = yearly.
+ */
+export type InstitutionSubscriptionSettingsIntervalDays =
+  (typeof InstitutionSubscriptionSettingsIntervalDays)[keyof typeof InstitutionSubscriptionSettingsIntervalDays];
+
+export const InstitutionSubscriptionSettingsIntervalDays = {
+  NUMBER_30: 30,
+  NUMBER_365: 365,
+} as const;
+
 export interface InstitutionSubscriptionSettings {
   isActive: boolean;
   /**
@@ -2181,6 +2194,8 @@ export interface InstitutionSubscriptionSettings {
   priceCents: number;
   /** ISO 4217 lowercase, e.g. 'usd' */
   currency: string;
+  /** Billing cycle length. 30 = monthly, 365 = yearly. */
+  intervalDays: InstitutionSubscriptionSettingsIntervalDays;
   /**
    * Free trial length applied to every new subscription. 0 disables the trial.
    * @minimum 0
@@ -2188,6 +2203,14 @@ export interface InstitutionSubscriptionSettings {
    */
   trialDays: number;
 }
+
+export type UpdateInstitutionSubscriptionSettingsRequestIntervalDays =
+  (typeof UpdateInstitutionSubscriptionSettingsRequestIntervalDays)[keyof typeof UpdateInstitutionSubscriptionSettingsRequestIntervalDays];
+
+export const UpdateInstitutionSubscriptionSettingsRequestIntervalDays = {
+  NUMBER_30: 30,
+  NUMBER_365: 365,
+} as const;
 
 export interface UpdateInstitutionSubscriptionSettingsRequest {
   isActive: boolean;
@@ -2197,6 +2220,7 @@ export interface UpdateInstitutionSubscriptionSettingsRequest {
    */
   priceCents: number;
   currency: string;
+  intervalDays: UpdateInstitutionSubscriptionSettingsRequestIntervalDays;
   /**
    * @minimum 0
    * @maximum 365
@@ -2230,10 +2254,14 @@ export interface InstitutionSubscriptionStatus {
   currentPeriodEnd: string | null;
   priceCentsSnapshot: number | null;
   currencySnapshot: string | null;
+  /** Billing cycle snapshot. 30 = monthly, 365 = yearly. */
+  intervalDaysSnapshot: number | null;
   isInTrial: boolean;
-  /** True iff the institution currently has access to placement
-data. Equivalent to status in (trialing, active) AND
-currentPeriodEnd is in the future.
+  /** True iff the institution currently has access to premium
+features. Equivalent to status in (trialing, active) AND
+currentPeriodEnd is in the future. Despite the legacy name
+this flag now governs every Institution Pro feature, not
+just placements.
  */
   unlocksPlacements: boolean;
 }

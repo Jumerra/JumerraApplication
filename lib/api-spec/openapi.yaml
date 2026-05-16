@@ -5849,15 +5849,22 @@ components:
       type: object
       description: |
         Per-question grading row. `chosen = -1` means the candidate
-        skipped the question. Employer-facing only — returned on
-        Application via /applications.
+        skipped the question. `correct` (the answer-key index) is
+        ONLY present for employer/admin viewers — it is stripped
+        server-side for candidate and institution viewers so the
+        answer key never leaks to challenge takers.
       properties:
         index: { type: integer }
         prompt: { type: string }
         chosen: { type: integer }
-        correct: { type: integer }
+        correct:
+          type: integer
+          description: |
+            Answer-key index. Present only when the viewer is an
+            employer or admin; stripped for candidate / institution
+            viewers.
         isCorrect: { type: boolean }
-      required: [index, prompt, chosen, correct, isCorrect]
+      required: [index, prompt, chosen, isCorrect]
 
     GenerateChallenge:
       type: object
@@ -5918,12 +5925,16 @@ components:
           type: array
           items: { type: integer }
         overrides:
-          type: object
+          type: array
           description: |
-            Per-template overrides keyed by template id, used to
-            tweak the question count or selection when generating
-            from `templateIds`. Free-form pass-through.
-          additionalProperties: true
+            Per-question employer overrides applied on top of the
+            template snapshot at apply-time. Each item is a free-form
+            object such as `{ index, prompt?, options?, correctIndex? }`.
+            Kept as a separate array so the original template
+            questions remain auditable.
+          items:
+            type: object
+            additionalProperties: true
         questions:
           type: array
           items:
@@ -6497,12 +6508,16 @@ components:
         isActive: { type: boolean }
         priceCents: { type: integer, minimum: 50, maximum: 10000000 }
         currency: { type: string, description: "ISO 4217 lowercase, e.g. 'usd'" }
+        intervalDays:
+          type: integer
+          description: "Billing cycle length. 30 = monthly, 365 = yearly."
+          enum: [30, 365]
         trialDays:
           type: integer
           minimum: 0
           maximum: 365
           description: "Free trial length applied to every new subscription. 0 disables the trial."
-      required: [isActive, priceCents, currency, trialDays]
+      required: [isActive, priceCents, currency, intervalDays, trialDays]
 
     UpdateInstitutionSubscriptionSettingsRequest:
       type: object
@@ -6510,8 +6525,9 @@ components:
         isActive: { type: boolean }
         priceCents: { type: integer, minimum: 50, maximum: 10000000 }
         currency: { type: string }
+        intervalDays: { type: integer, enum: [30, 365] }
         trialDays: { type: integer, minimum: 0, maximum: 365 }
-      required: [isActive, priceCents, currency, trialDays]
+      required: [isActive, priceCents, currency, intervalDays, trialDays]
 
     InstitutionSubscriptionStatus:
       type: object
@@ -6538,19 +6554,26 @@ components:
         currencySnapshot:
           type: string
           nullable: true
+        intervalDaysSnapshot:
+          type: integer
+          nullable: true
+          description: "Billing cycle snapshot. 30 = monthly, 365 = yearly."
         isInTrial: { type: boolean }
         unlocksPlacements:
           type: boolean
           description: |
-            True iff the institution currently has access to placement
-            data. Equivalent to status in (trialing, active) AND
-            currentPeriodEnd is in the future.
+            True iff the institution currently has access to premium
+            features. Equivalent to status in (trialing, active) AND
+            currentPeriodEnd is in the future. Despite the legacy name
+            this flag now governs every Institution Pro feature, not
+            just placements.
       required:
         - status
         - trialEndsAt
         - currentPeriodEnd
         - priceCentsSnapshot
         - currencySnapshot
+        - intervalDaysSnapshot
         - isInTrial
         - unlocksPlacements
 

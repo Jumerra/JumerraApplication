@@ -34,8 +34,22 @@ function toApiSettings(row: SettingsRow) {
     isActive: row.isActive,
     priceCents: row.priceCents,
     currency: row.currency,
+    intervalDays: row.intervalDays,
     trialDays: row.trialDays,
   };
+}
+
+/**
+ * Map our admin-configurable `intervalDays` (30 = monthly, 365 = yearly)
+ * onto the Stripe Price recurring config. Any other value falls back
+ * to monthly so we never crash checkout for a corrupted settings row.
+ */
+function stripeRecurringFor(intervalDays: number): {
+  interval: "month" | "year";
+  interval_count: number;
+} {
+  if (intervalDays >= 365) return { interval: "year", interval_count: 1 };
+  return { interval: "month", interval_count: 1 };
 }
 
 async function loadOrSeedSettings(): Promise<SettingsRow> {
@@ -142,6 +156,7 @@ interface ApiStatus {
   currentPeriodEnd: string | null;
   priceCentsSnapshot: number | null;
   currencySnapshot: string | null;
+  intervalDaysSnapshot: number | null;
   isInTrial: boolean;
   unlocksPlacements: boolean;
 }
@@ -164,6 +179,7 @@ function rowToApiStatus(row: SubRow | null): ApiStatus {
       currentPeriodEnd: null,
       priceCentsSnapshot: null,
       currencySnapshot: null,
+      intervalDaysSnapshot: null,
       isInTrial: false,
       unlocksPlacements: false,
     };
@@ -192,9 +208,22 @@ function rowToApiStatus(row: SubRow | null): ApiStatus {
     currentPeriodEnd: periodEnd ? periodEnd.toISOString() : null,
     priceCentsSnapshot: row.priceCentsSnapshot,
     currencySnapshot: row.currencySnapshot,
+    intervalDaysSnapshot: row.intervalDaysSnapshot,
     isInTrial: inTrial,
     unlocksPlacements: unlocks,
   };
+}
+
+/**
+ * Generic premium-feature gate. Use from any other router that
+ * paywalls an Institution Pro feature. Mirrors the legacy
+ * `isInstitutionPlacementUnlocked` semantics so any new gating is
+ * coherent with the existing placements gate.
+ */
+export async function isInstitutionPremium(
+  institutionId: number,
+): Promise<boolean> {
+  return isInstitutionPlacementUnlocked(institutionId);
 }
 
 /**
@@ -242,13 +271,14 @@ router.put(
         isActive?: unknown;
         priceCents?: unknown;
         currency?: unknown;
+        intervalDays?: unknown;
         trialDays?: unknown;
       } | null;
       if (!body) {
         res.status(400).json({ error: "Request body required" });
         return;
       }
-      const { isActive, priceCents, currency, trialDays } = body;
+      const { isActive, priceCents, currency, intervalDays, trialDays } = body;
 
       if (typeof isActive !== "boolean") {
         res.status(400).json({ error: "isActive must be boolean" });
@@ -287,6 +317,15 @@ router.put(
         });
         return;
       }
+      if (
+        typeof intervalDays !== "number" ||
+        (intervalDays !== 30 && intervalDays !== 365)
+      ) {
+        res.status(400).json({
+          error: "intervalDays must be 30 (monthly) or 365 (yearly)",
+        });
+        return;
+      }
 
       await loadOrSeedSettings();
       const updated = await db
@@ -295,6 +334,7 @@ router.put(
           isActive,
           priceCents,
           currency: normalizedCurrency,
+          intervalDays,
           trialDays,
           updatedAt: new Date(),
           updatedBy: req.currentUser!.id,
@@ -466,10 +506,12 @@ router.post(
             price_data: {
               currency: settings.currency,
               unit_amount: settings.priceCents,
-              recurring: { interval: "year" },
+              recurring: stripeRecurringFor(settings.intervalDays),
               product_data: {
-                name: `${institution.name} — Premium yearly subscription`,
-                description: `Full access to candidate placements for ${institution.name}.${
+                name: `${institution.name} — Institution Pro (${
+                  settings.intervalDays >= 365 ? "yearly" : "monthly"
+                })`,
+                description: `Institution Pro subscription for ${institution.name}: unlocks placements, bulk verification, advanced analytics, branded profile, priority placement and more.${
                   settings.trialDays > 0
                     ? ` Includes ${settings.trialDays}-day free trial.`
                     : ""
@@ -509,6 +551,7 @@ router.post(
         status: "pending",
         priceCentsSnapshot: settings.priceCents,
         currencySnapshot: settings.currency,
+        intervalDaysSnapshot: settings.intervalDays,
         trialDaysSnapshot: settings.trialDays,
       });
 

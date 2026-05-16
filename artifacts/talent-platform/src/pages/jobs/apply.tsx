@@ -104,8 +104,29 @@ export default function JobApply() {
           queryClient.invalidateQueries({ queryKey: getGetJobQueryKey(numericJobId) });
           setLocation("/dashboard/candidate");
         },
-        onError: () => {
-          toast.error("Failed to submit application. Have you already applied?");
+        onError: (err: unknown) => {
+          // The server rejects cover-note applies with 409 +
+          // `requiresChallenge: true` when a skill challenge is
+          // attached. Surface that specifically — and refetch the
+          // challenge so the page re-renders into the challenge
+          // gate — instead of the generic "already applied" hint
+          // that confused users.
+          const apiErr = err as {
+            status?: number;
+            data?: { requiresChallenge?: boolean };
+          };
+          if (apiErr?.status === 409 && apiErr.data?.requiresChallenge) {
+            toast.error(
+              "This job now requires a skill challenge. Loading it for you…",
+            );
+            challengeQuery.refetch();
+            return;
+          }
+          if (apiErr?.status === 409) {
+            toast.error("You've already applied to this job.");
+            return;
+          }
+          toast.error("Failed to submit application. Please try again.");
         },
       },
     );

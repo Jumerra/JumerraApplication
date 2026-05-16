@@ -8,14 +8,20 @@
 
 /**
  * Per-question grading row. `chosen = -1` means the candidate
-skipped the question. Employer-facing only — returned on
-Application via /applications.
+skipped the question. `correct` (the answer-key index) is
+ONLY present for employer/admin viewers — it is stripped
+server-side for candidate and institution viewers so the
+answer key never leaks to challenge takers.
 
  */
 export interface ChallengeBreakdownItem {
   index: number;
   prompt: string;
   chosen: number;
-  correct: number;
+  /** Answer-key index. Present only when the viewer is an
+employer or admin; stripped for candidate / institution
+viewers.
+ */
+  correct?: number;
   isCorrect: boolean;
 }

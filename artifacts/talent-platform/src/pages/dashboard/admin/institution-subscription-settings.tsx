@@ -36,6 +36,7 @@ export default function AdminInstitutionSubscriptionSettingsPage() {
   const [isActive, setIsActive] = useState(false);
   const [priceMajor, setPriceMajor] = useState("");
   const [currency, setCurrency] = useState("usd");
+  const [intervalDays, setIntervalDays] = useState<30 | 365>(30);
   const [trialDays, setTrialDays] = useState("14");
   const [error, setError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
@@ -46,6 +47,7 @@ export default function AdminInstitutionSubscriptionSettingsPage() {
     setIsActive(data.isActive);
     setPriceMajor((data.priceCents / 100).toFixed(2));
     setCurrency(data.currency);
+    setIntervalDays((data.intervalDays === 365 ? 365 : 30) as 30 | 365);
     setTrialDays(String(data.trialDays));
     setHydrated(true);
   }, [data, hydrated]);
@@ -77,6 +79,7 @@ export default function AdminInstitutionSubscriptionSettingsPage() {
           isActive,
           priceCents,
           currency,
+          intervalDays,
           trialDays: parsedTrial,
         },
       });
@@ -98,12 +101,13 @@ export default function AdminInstitutionSubscriptionSettingsPage() {
         </div>
         <div>
           <h1 className="text-3xl font-bold tracking-tight">
-            Institution Subscription
+            Institution Pro Subscription
           </h1>
           <p className="text-muted-foreground mt-1">
-            Premium yearly plan that unlocks full candidate placement access
-            for institutions. Set the price, free-trial length, and whether
-            the plan is offered.
+            Premium plan that unlocks the full Institution Pro feature
+            set — placements, bulk verification, advanced analytics,
+            branded profile, priority placement and more. Set the
+            price, billing cycle and free-trial length below.
           </p>
         </div>
       </div>
@@ -127,8 +131,8 @@ export default function AdminInstitutionSubscriptionSettingsPage() {
                     Feature enabled
                   </Label>
                   <p className="text-sm text-muted-foreground mt-1">
-                    When off, all institutions see placement data with no
-                    paywall and the subscribe page is hidden.
+                    When off, all institutions get every premium feature
+                    for free and the subscribe page is hidden.
                   </p>
                 </div>
                 <Switch
@@ -139,9 +143,46 @@ export default function AdminInstitutionSubscriptionSettingsPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="sub-price">Price per year</Label>
+                  <Label htmlFor="sub-interval">Billing cycle</Label>
+                  <select
+                    id="sub-interval"
+                    value={intervalDays}
+                    onChange={(e) =>
+                      setIntervalDays(Number(e.target.value) as 30 | 365)
+                    }
+                    data-testid="select-sub-interval"
+                    className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value={30}>Monthly</option>
+                    <option value={365}>Yearly</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="sub-trial">Free trial (days)</Label>
+                  <Input
+                    id="sub-trial"
+                    type="number"
+                    min="0"
+                    max="365"
+                    step="1"
+                    value={trialDays}
+                    onChange={(e) => setTrialDays(e.target.value)}
+                    data-testid="input-sub-trial"
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Set to 0 to disable the trial.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="sub-price">
+                    Price per {intervalDays === 365 ? "year" : "month"}
+                  </Label>
                   <Input
                     id="sub-price"
                     type="number"
@@ -168,23 +209,6 @@ export default function AdminInstitutionSubscriptionSettingsPage() {
                       </option>
                     ))}
                   </select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="sub-trial">Free trial (days)</Label>
-                  <Input
-                    id="sub-trial"
-                    type="number"
-                    min="0"
-                    max="365"
-                    step="1"
-                    value={trialDays}
-                    onChange={(e) => setTrialDays(e.target.value)}
-                    data-testid="input-sub-trial"
-                    required
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Set to 0 to disable the trial.
-                  </p>
                 </div>
               </div>
 

@@ -20,10 +20,14 @@ export interface InstitutionSubscriptionStatus {
   currentPeriodEnd: Date | null;
   priceCentsSnapshot: number | null;
   currencySnapshot: string | null;
+  /** Billing cycle snapshot. 30 = monthly, 365 = yearly. */
+  intervalDaysSnapshot: number | null;
   isInTrial: boolean;
-  /** True iff the institution currently has access to placement
-data. Equivalent to status in (trialing, active) AND
-currentPeriodEnd is in the future.
+  /** True iff the institution currently has access to premium
+features. Equivalent to status in (trialing, active) AND
+currentPeriodEnd is in the future. Despite the legacy name
+this flag now governs every Institution Pro feature, not
+just placements.
  */
   unlocksPlacements: boolean;
 }

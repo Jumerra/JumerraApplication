@@ -1,16 +1,20 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Feather } from "@expo/vector-icons";
 import { customFetch } from "@workspace/api-client-react";
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   FlatList,
+  Linking,
+  Modal,
   Platform,
   Pressable,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { EmptyState } from "@/components/EmptyState";
@@ -77,9 +81,11 @@ export default function InboxScreen() {
   });
 
   const items = useMemo(() => data ?? [], [data]);
+  const [activeItem, setActiveItem] = useState<InboxItem | null>(null);
 
   const onPressItem = useCallback(
     async (item: InboxItem) => {
+      setActiveItem(item);
       if (!item.readAt) {
         try {
           await markRead(item.id);
@@ -91,6 +97,18 @@ export default function InboxScreen() {
     },
     [qc],
   );
+
+  const onOpenLink = useCallback(async (link: string) => {
+    setActiveItem(null);
+    if (link.startsWith("http://") || link.startsWith("https://")) {
+      await Linking.openURL(link);
+      return;
+    }
+    // Internal route — drop into the candidate dashboard tab so the user
+    // can find related applications and reply through the existing
+    // application thread there.
+    router.push("/(tabs)" as never);
+  }, []);
 
   if (!enabled) {
     return (
@@ -212,6 +230,83 @@ export default function InboxScreen() {
           );
         }}
       />
+
+      <Modal
+        visible={!!activeItem}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setActiveItem(null)}
+      >
+        <Pressable
+          style={styles.modalBackdrop}
+          onPress={() => setActiveItem(null)}
+        >
+          <Pressable
+            style={[styles.modalCard, { backgroundColor: colors.card }]}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <Text
+              style={[
+                styles.modalTitle,
+                { color: colors.foreground },
+              ]}
+            >
+              {activeItem?.title || "Message"}
+            </Text>
+            <Text
+              style={[styles.modalMeta, { color: colors.mutedForeground }]}
+            >
+              {activeItem ? relativeTime(activeItem.createdAt) : ""}
+            </Text>
+            <ScrollView style={{ maxHeight: 260 }}>
+              <Text
+                style={[styles.modalBody, { color: colors.foreground }]}
+              >
+                {activeItem?.body}
+              </Text>
+            </ScrollView>
+            <View style={styles.modalActions}>
+              <Pressable
+                onPress={() => setActiveItem(null)}
+                style={[
+                  styles.modalBtn,
+                  { borderColor: colors.border },
+                ]}
+              >
+                <Text
+                  style={{
+                    color: colors.foreground,
+                    fontFamily: "Inter_600SemiBold",
+                  }}
+                >
+                  Close
+                </Text>
+              </Pressable>
+              {activeItem?.link ? (
+                <Pressable
+                  onPress={() => onOpenLink(activeItem.link!)}
+                  style={[
+                    styles.modalBtn,
+                    {
+                      backgroundColor: colors.primary,
+                      borderColor: colors.primary,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={{
+                      color: "#fff",
+                      fontFamily: "Inter_600SemiBold",
+                    }}
+                  >
+                    View & reply
+                  </Text>
+                </Pressable>
+              ) : null}
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -245,4 +340,31 @@ const styles = StyleSheet.create({
   time: { fontFamily: "Inter_500Medium", fontSize: 12 },
   body: { fontFamily: "Inter_400Regular", fontSize: 13, lineHeight: 18 },
   dot: { width: 8, height: 8, borderRadius: 4, marginTop: 6 },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "center",
+    padding: 24,
+  },
+  modalCard: { borderRadius: 16, padding: 20, gap: 8 },
+  modalTitle: { fontFamily: "Inter_700Bold", fontSize: 18 },
+  modalMeta: { fontFamily: "Inter_500Medium", fontSize: 12 },
+  modalBody: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 8,
+  },
+  modalActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 8,
+    marginTop: 12,
+  },
+  modalBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
 });

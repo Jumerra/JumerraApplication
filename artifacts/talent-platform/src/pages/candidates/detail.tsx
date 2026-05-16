@@ -1,10 +1,37 @@
-import { useGetCandidate, useGetCandidateRecommendations } from "@workspace/api-client-react";
+import {
+  useGetCandidate,
+  useGetCandidateRecommendations,
+  useListTalentPools,
+  useAddTalentPoolMembers,
+  getListTalentPoolsQueryKey,
+  getGetTalentPoolQueryKey,
+} from "@workspace/api-client-react";
 import { Link, useParams } from "wouter";
+import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MapPin, Mail, Phone, ExternalLink, Video, Star, Award, Briefcase, GraduationCap, Sparkles, Link2, BadgeCheck, ShieldCheck, ShieldAlert, Quote } from "lucide-react";
+import { MapPin, Mail, Phone, ExternalLink, Video, Star, Award, Briefcase, GraduationCap, Sparkles, Link2, BadgeCheck, ShieldCheck, ShieldAlert, Quote, FolderPlus } from "lucide-react";
 import { EMPLOYMENT_TYPE_LABELS, LOCATION_TYPE_LABELS } from "@/lib/experience-labels";
+import { useAuth } from "@/lib/auth";
 
 const RELATIONSHIP_LABEL: Record<string, string> = {
   lecturer: "Lecturer",
@@ -40,6 +67,54 @@ export default function CandidateDetail() {
   const { data: candidate, isLoading } = useGetCandidate(candidateId);
   const { data: recommendations } = useGetCandidateRecommendations(candidateId);
 
+  const { sessionUser, role } = useAuth();
+  const isEmployer = role === "employer";
+  const employerId = sessionUser?.employerId ?? 0;
+  const qc = useQueryClient();
+  const { data: pools } = useListTalentPools(employerId, {
+    query: {
+      enabled: isEmployer && employerId > 0,
+      queryKey: getListTalentPoolsQueryKey(employerId),
+    },
+  });
+  const addMembers = useAddTalentPoolMembers();
+  const [poolDialogOpen, setPoolDialogOpen] = useState(false);
+  const [chosenPoolId, setChosenPoolId] = useState("");
+  const [tagInput, setTagInput] = useState("");
+  const onAddToPool = () => {
+    if (!chosenPoolId) return;
+    const poolId = Number(chosenPoolId);
+    const tags = tagInput
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean);
+    addMembers.mutate(
+      {
+        id: employerId,
+        poolId,
+        data: {
+          candidateIds: [candidateId],
+          ...(tags.length > 0 ? { tags } : {}),
+        },
+      },
+      {
+        onSuccess: () => {
+          toast.success("Added to pool");
+          qc.invalidateQueries({
+            queryKey: getGetTalentPoolQueryKey(employerId, poolId),
+          });
+          qc.invalidateQueries({
+            queryKey: getListTalentPoolsQueryKey(employerId),
+          });
+          setPoolDialogOpen(false);
+          setChosenPoolId("");
+          setTagInput("");
+        },
+        onError: () => toast.error("Could not add to pool"),
+      },
+    );
+  };
+
   if (isLoading) {
     return <div className="container py-12"><div className="animate-pulse h-[600px] bg-muted rounded-2xl" /></div>;
   }
@@ -67,6 +142,16 @@ export default function CandidateDetail() {
                 <p className="text-xl text-muted-foreground">{candidate.headline}</p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
+                {isEmployer && employerId > 0 ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPoolDialogOpen(true)}
+                    data-testid="button-add-to-pool"
+                  >
+                    <FolderPlus className="w-4 h-4 mr-1.5" /> Add to pool
+                  </Button>
+                ) : null}
                 {candidate.backgroundCheck && BG_BADGE[candidate.backgroundCheck.status] ? (() => {
                   const cfg = BG_BADGE[candidate.backgroundCheck.status]!;
                   const Icon = cfg.icon;
@@ -428,6 +513,69 @@ export default function CandidateDetail() {
           )}
         </div>
       </div>
+
+      <Dialog open={poolDialogOpen} onOpenChange={setPoolDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add {candidate.fullName} to a pool</DialogTitle>
+          </DialogHeader>
+          {pools && pools.length > 0 ? (
+            <div className="space-y-3">
+              <Select value={chosenPoolId} onValueChange={setChosenPoolId}>
+                <SelectTrigger data-testid="select-pool-detail">
+                  <SelectValue placeholder="Pick a pool…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {pools.map((p) => (
+                    <SelectItem key={p.id} value={String(p.id)}>
+                      {p.name} ({p.memberCount})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div>
+                <label className="text-sm font-medium">
+                  Tags (optional, comma-separated)
+                </label>
+                <Input
+                  placeholder="e.g. backend, ghana, top-pick"
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  data-testid="input-pool-tags-detail"
+                />
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              You have no talent pools yet.{" "}
+              <Link
+                href="/dashboard/employer/talent-pools"
+                className="text-primary underline"
+              >
+                Create one
+              </Link>
+              .
+            </p>
+          )}
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setPoolDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={onAddToPool}
+              disabled={
+                !chosenPoolId || addMembers.isPending || !pools?.length
+              }
+              data-testid="button-confirm-add-to-pool"
+            >
+              {addMembers.isPending ? "Adding…" : "Add"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

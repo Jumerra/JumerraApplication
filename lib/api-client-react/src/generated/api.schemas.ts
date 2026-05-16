@@ -430,6 +430,13 @@ export interface Candidate {
   isBoosted: boolean;
   /** When the active boost expires. Null when not boosted. */
   boostExpiresAt?: string | null;
+  /** Candidate-controlled signal that they are actively considering
+new opportunities. Independent from `availability`. Employers
+can filter the candidate search to only "open" candidates.
+ */
+  openToOffers: boolean;
+  /** When the candidate last flipped openToOffers to true. */
+  openToOffersSince?: string | null;
   institutionId?: number | null;
   institutionName?: string | null;
   /** All institutions this candidate is affiliated with (primary first). */
@@ -655,6 +662,11 @@ export interface UpdateCandidate {
   yearsExperience?: number;
   /** Sets the candidate's PRIMARY institution affiliation. Existing secondary affiliations are preserved. */
   institutionId?: number | null;
+  /** Toggle the "Open to offers" signal. Setting true updates
+openToOffersSince to now; setting false leaves the timestamp
+untouched as a record of the last open period.
+ */
+  openToOffers?: boolean;
   /** Optional full replacement of the candidate's per-institution
 department assignments. When provided, every entry's
 departmentId is validated to belong to the same institution.
@@ -1196,6 +1208,27 @@ export interface DeclineInterviewInviteRequest {
   reason?: string;
 }
 
+/**
+ * Transparent breakdown of why a candidate scored a particular
+match against a job (or vice versa). The score is a weighted
+sum: skills 65%, experience 15%, talent 20%. The "Pct" fields
+are 0-100 raw component scores; the "Contribution" fields are
+each component's already-weighted contribution to the final
+score (so they sum to roughly the displayed match score).
+
+ */
+export interface MatchBreakdown {
+  skillCoveragePct: number;
+  experiencePct: number;
+  talentPct: number;
+  skillContribution: number;
+  experienceContribution: number;
+  talentContribution: number;
+  matchedSkills: string[];
+  missingSkills: string[];
+  summary: string;
+}
+
 export interface CandidateMatch {
   candidateId: number;
   fullName: string;
@@ -1205,6 +1238,7 @@ export interface CandidateMatch {
   talentScore: number;
   matchScore: number;
   matchedSkills: string[];
+  matchBreakdown: MatchBreakdown;
 }
 
 export interface EmployerSubscriptionLegacyStatus {
@@ -1250,6 +1284,7 @@ export interface JobMatch {
   currency: string;
   matchScore: number;
   matchedSkills: string[];
+  matchBreakdown: MatchBreakdown;
   tier: JobMatchTier;
   tierExpiresAt: string | null;
 }
@@ -1978,7 +2013,18 @@ export type ListCandidatesParams = {
   skill?: string;
   institutionId?: number;
   minScore?: number;
+  /**
+   * When 1, return only candidates who have flipped on the "Open to offers" signal.
+   */
+  openToOffers?: ListCandidatesOpenToOffers;
 };
+
+export type ListCandidatesOpenToOffers =
+  (typeof ListCandidatesOpenToOffers)[keyof typeof ListCandidatesOpenToOffers];
+
+export const ListCandidatesOpenToOffers = {
+  NUMBER_1: "1",
+} as const;
 
 export type ListEmployersParams = {
   search?: string;

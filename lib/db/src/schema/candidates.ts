@@ -26,6 +26,16 @@ export const candidatesTable = pgTable("candidates", {
   talentScore: integer("talent_score").notNull().default(50),
   isBoosted: boolean("is_boosted").notNull().default(false),
   boostExpiresAt: timestamp("boost_expires_at", { withTimezone: true }),
+  // "Open to offers" signal: candidates flag themselves as actively
+  // considering opportunities so employers can filter on intent (vs.
+  // talentScore which is competence). Defaults true so existing
+  // candidates are surfaced; flipping false → true stamps the
+  // timestamp so we can show "Open to offers since …" or sort by
+  // freshness later.
+  openToOffers: boolean("open_to_offers").notNull().default(true),
+  openToOffersSince: timestamp("open_to_offers_since", {
+    withTimezone: true,
+  }).defaultNow(),
   aiCvUnlocked: boolean("ai_cv_unlocked").notNull().default(false),
   aiCvUnlockedAt: timestamp("ai_cv_unlocked_at", { withTimezone: true }),
   aiCvText: text("ai_cv_text"),

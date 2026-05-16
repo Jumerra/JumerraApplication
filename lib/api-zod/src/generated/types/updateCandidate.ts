@@ -21,6 +21,11 @@ export interface UpdateCandidate {
   yearsExperience?: number;
   /** Sets the candidate's PRIMARY institution affiliation. Existing secondary affiliations are preserved. */
   institutionId?: number | null;
+  /** Toggle the "Open to offers" signal. Setting true updates
+openToOffersSince to now; setting false leaves the timestamp
+untouched as a record of the last open period.
+ */
+  openToOffers?: boolean;
   /** Optional full replacement of the candidate's per-institution
 department assignments. When provided, every entry's
 departmentId is validated to belong to the same institution.

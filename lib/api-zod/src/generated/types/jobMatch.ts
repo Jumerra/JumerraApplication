@@ -7,6 +7,7 @@
  */
 import type { JobMatchTier } from "./jobMatchTier";
 import type { JobMatchType } from "./jobMatchType";
+import type { MatchBreakdown } from "./matchBreakdown";
 
 export interface JobMatch {
   jobId: number;
@@ -20,6 +21,7 @@ export interface JobMatch {
   currency: string;
   matchScore: number;
   matchedSkills: string[];
+  matchBreakdown: MatchBreakdown;
   tier: JobMatchTier;
   tierExpiresAt: Date | null;
 }

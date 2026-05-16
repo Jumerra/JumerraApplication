@@ -77,6 +77,10 @@ paths:
         - in: query
           name: minScore
           schema: { type: integer }
+        - in: query
+          name: openToOffers
+          description: When 1, return only candidates who have flipped on the "Open to offers" signal.
+          schema: { type: string, enum: ["1"] }
       responses:
         "200":
           description: List of candidates
@@ -2697,6 +2701,17 @@ components:
           format: date-time
           nullable: true
           description: When the active boost expires. Null when not boosted.
+        openToOffers:
+          type: boolean
+          description: |
+            Candidate-controlled signal that they are actively considering
+            new opportunities. Independent from `availability`. Employers
+            can filter the candidate search to only "open" candidates.
+        openToOffersSince:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the candidate last flipped openToOffers to true.
         institutionId: { type: integer, nullable: true }
         institutionName: { type: string, nullable: true }
         institutions:
@@ -2721,6 +2736,7 @@ components:
         - yearsExperience
         - talentScore
         - isBoosted
+        - openToOffers
         - institutions
         - skills
         - createdAt
@@ -2945,6 +2961,12 @@ components:
           type: integer
           nullable: true
           description: Sets the candidate's PRIMARY institution affiliation. Existing secondary affiliations are preserved.
+        openToOffers:
+          type: boolean
+          description: |
+            Toggle the "Open to offers" signal. Setting true updates
+            openToOffersSince to now; setting false leaves the timestamp
+            untouched as a record of the last open period.
         affiliations:
           type: array
           description: |
@@ -3616,6 +3638,7 @@ components:
         matchedSkills:
           type: array
           items: { type: string }
+        matchBreakdown: { $ref: "#/components/schemas/MatchBreakdown" }
       required:
         - candidateId
         - fullName
@@ -3625,6 +3648,7 @@ components:
         - talentScore
         - matchScore
         - matchedSkills
+        - matchBreakdown
 
     EmployerSubscriptionLegacyStatus:
       type: object
@@ -3661,6 +3685,7 @@ components:
         matchedSkills:
           type: array
           items: { type: string }
+        matchBreakdown: { $ref: "#/components/schemas/MatchBreakdown" }
         tier:
           type: string
           enum: [free, promoted, sponsored]
@@ -3675,8 +3700,43 @@ components:
         - currency
         - matchScore
         - matchedSkills
+        - matchBreakdown
         - tier
         - tierExpiresAt
+
+    MatchBreakdown:
+      type: object
+      description: |
+        Transparent breakdown of why a candidate scored a particular
+        match against a job (or vice versa). The score is a weighted
+        sum: skills 65%, experience 15%, talent 20%. The "Pct" fields
+        are 0-100 raw component scores; the "Contribution" fields are
+        each component's already-weighted contribution to the final
+        score (so they sum to roughly the displayed match score).
+      properties:
+        skillCoveragePct: { type: integer }
+        experiencePct: { type: integer }
+        talentPct: { type: integer }
+        skillContribution: { type: integer }
+        experienceContribution: { type: integer }
+        talentContribution: { type: integer }
+        matchedSkills:
+          type: array
+          items: { type: string }
+        missingSkills:
+          type: array
+          items: { type: string }
+        summary: { type: string }
+      required:
+        - skillCoveragePct
+        - experiencePct
+        - talentPct
+        - skillContribution
+        - experienceContribution
+        - talentContribution
+        - matchedSkills
+        - missingSkills
+        - summary
 
     PlatformStats:
       type: object

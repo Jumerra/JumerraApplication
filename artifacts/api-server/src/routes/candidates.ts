@@ -55,6 +55,10 @@ function serializeCandidate(
     talentScore: c.talentScore,
     isBoosted: c.isBoosted,
     boostExpiresAt: c.boostExpiresAt ? c.boostExpiresAt.toISOString() : null,
+    openToOffers: c.openToOffers,
+    openToOffersSince: c.openToOffersSince
+      ? c.openToOffersSince.toISOString()
+      : null,
     institutionId: primary?.id ?? c.institutionId ?? null,
     institutionName: primary?.name ?? null,
     institutions: institutions.map((i) => ({
@@ -173,6 +177,9 @@ router.get("/candidates", async (req, res): Promise<void> => {
       }
     }
     if (filters.minScore && candidate.talentScore < filters.minScore) {
+      return false;
+    }
+    if (filters.openToOffers === "1" && !candidate.openToOffers) {
       return false;
     }
     return true;
@@ -313,9 +320,23 @@ router.patch("/candidates/:id", requireAuth, async (req, res): Promise<void> => 
     return;
   }
 
-  const updateData = { ...parsed.data };
+  const updateData: Record<string, unknown> = { ...parsed.data };
   if (!isAdmin) {
-    delete (updateData as Record<string, unknown>).isBoosted;
+    delete updateData.isBoosted;
+  }
+  // When the candidate flips Open to Offers from off → on we stamp
+  // `openToOffersSince` so the UI can show "Open to offers since …"
+  // and so we can later surface freshly-open candidates first.
+  // Setting it to false leaves the timestamp as a record of when they
+  // were last open.
+  if (parsed.data.openToOffers === true) {
+    const [existing] = await db
+      .select({ openToOffers: candidatesTable.openToOffers })
+      .from(candidatesTable)
+      .where(eq(candidatesTable.id, params.data.id));
+    if (existing && !existing.openToOffers) {
+      updateData.openToOffersSince = new Date();
+    }
   }
   // `affiliations` lives in the junction table; strip it before the
   // candidates UPDATE so drizzle doesn't see an unknown column.
@@ -677,7 +698,7 @@ router.get("/candidates/:id/recommendations", async (req, res): Promise<void> =>
 
   const ranked = jobs
     .map(({ job, employer }) => {
-      const { score, matchedSkills } = calculateMatchScore(
+      const breakdown = calculateMatchScore(
         job.skills,
         candidate.skills,
         candidate.yearsExperience,
@@ -699,8 +720,9 @@ router.get("/candidates/:id/recommendations", async (req, res): Promise<void> =>
         salaryMin: job.salaryMin,
         salaryMax: job.salaryMax,
         currency: job.currency,
-        matchScore: Math.min(100, score + tierBias),
-        matchedSkills,
+        matchScore: Math.min(100, breakdown.score + tierBias),
+        matchedSkills: breakdown.matchedSkills,
+        matchBreakdown: breakdown,
         tier,
         tierExpiresAt: job.tierExpiresAt
           ? job.tierExpiresAt.toISOString()

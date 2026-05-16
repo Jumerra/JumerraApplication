@@ -25,6 +25,13 @@ export interface Candidate {
   isBoosted: boolean;
   /** When the active boost expires. Null when not boosted. */
   boostExpiresAt?: Date | null;
+  /** Candidate-controlled signal that they are actively considering
+new opportunities. Independent from `availability`. Employers
+can filter the candidate search to only "open" candidates.
+ */
+  openToOffers: boolean;
+  /** When the candidate last flipped openToOffers to true. */
+  openToOffersSince?: Date | null;
   institutionId?: number | null;
   institutionName?: string | null;
   /** All institutions this candidate is affiliated with (primary first). */

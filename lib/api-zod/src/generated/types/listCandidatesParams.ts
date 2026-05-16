@@ -5,6 +5,7 @@
  * Talent Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { ListCandidatesOpenToOffers } from "./listCandidatesOpenToOffers";
 
 export type ListCandidatesParams = {
   search?: string;
@@ -12,4 +13,8 @@ export type ListCandidatesParams = {
   skill?: string;
   institutionId?: number;
   minScore?: number;
+  /**
+   * When 1, return only candidates who have flipped on the "Open to offers" signal.
+   */
+  openToOffers?: ListCandidatesOpenToOffers;
 };

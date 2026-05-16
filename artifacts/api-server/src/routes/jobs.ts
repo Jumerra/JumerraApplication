@@ -224,7 +224,7 @@ router.get("/jobs/:id/matches", requireAuth, async (req, res): Promise<void> => 
 
   const ranked = candidates
     .map((c) => {
-      const { score, matchedSkills } = calculateMatchScore(
+      const breakdown = calculateMatchScore(
         job.skills,
         c.skills,
         c.yearsExperience,
@@ -237,8 +237,9 @@ router.get("/jobs/:id/matches", requireAuth, async (req, res): Promise<void> => 
         headline: c.headline,
         location: c.location,
         talentScore: c.talentScore,
-        matchScore: score,
-        matchedSkills,
+        matchScore: breakdown.score,
+        matchedSkills: breakdown.matchedSkills,
+        matchBreakdown: breakdown,
       };
     })
     .sort((a, b) => b.matchScore - a.matchScore)

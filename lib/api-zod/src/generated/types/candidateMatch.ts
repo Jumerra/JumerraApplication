@@ -5,6 +5,7 @@
  * Talent Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { MatchBreakdown } from "./matchBreakdown";
 
 export interface CandidateMatch {
   candidateId: number;
@@ -15,4 +16,5 @@ export interface CandidateMatch {
   talentScore: number;
   matchScore: number;
   matchedSkills: string[];
+  matchBreakdown: MatchBreakdown;
 }

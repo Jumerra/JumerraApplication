@@ -23,6 +23,12 @@ export const ListCandidatesQueryParams = zod.object({
   skill: zod.coerce.string().optional(),
   institutionId: zod.coerce.number().optional(),
   minScore: zod.coerce.number().optional(),
+  openToOffers: zod
+    .enum(["1"])
+    .optional()
+    .describe(
+      'When 1, return only candidates who have flipped on the \"Open to offers\" signal.',
+    ),
 });
 
 export const ListCandidatesResponseItem = zod.object({
@@ -44,6 +50,15 @@ export const ListCandidatesResponseItem = zod.object({
     .date()
     .nullish()
     .describe("When the active boost expires. Null when not boosted."),
+  openToOffers: zod
+    .boolean()
+    .describe(
+      'Candidate-controlled signal that they are actively considering\nnew opportunities. Independent from `availability`. Employers\ncan filter the candidate search to only \"open\" candidates.\n',
+    ),
+  openToOffersSince: zod.coerce
+    .date()
+    .nullish()
+    .describe("When the candidate last flipped openToOffers to true."),
   institutionId: zod.number().nullish(),
   institutionName: zod.string().nullish(),
   institutions: zod
@@ -131,6 +146,15 @@ export const GetCandidateResponse = zod
       .date()
       .nullish()
       .describe("When the active boost expires. Null when not boosted."),
+    openToOffers: zod
+      .boolean()
+      .describe(
+        'Candidate-controlled signal that they are actively considering\nnew opportunities. Independent from `availability`. Employers\ncan filter the candidate search to only \"open\" candidates.\n',
+      ),
+    openToOffersSince: zod.coerce
+      .date()
+      .nullish()
+      .describe("When the candidate last flipped openToOffers to true."),
     institutionId: zod.number().nullish(),
     institutionName: zod.string().nullish(),
     institutions: zod
@@ -273,6 +297,12 @@ export const UpdateCandidateBody = zod.object({
     .describe(
       "Sets the candidate's PRIMARY institution affiliation. Existing secondary affiliations are preserved.",
     ),
+  openToOffers: zod
+    .boolean()
+    .optional()
+    .describe(
+      'Toggle the \"Open to offers\" signal. Setting true updates\nopenToOffersSince to now; setting false leaves the timestamp\nuntouched as a record of the last open period.\n',
+    ),
   affiliations: zod
     .array(
       zod.object({
@@ -394,6 +424,15 @@ export const UpdateCandidateResponse = zod
       .date()
       .nullish()
       .describe("When the active boost expires. Null when not boosted."),
+    openToOffers: zod
+      .boolean()
+      .describe(
+        'Candidate-controlled signal that they are actively considering\nnew opportunities. Independent from `availability`. Employers\ncan filter the candidate search to only \"open\" candidates.\n',
+      ),
+    openToOffersSince: zod.coerce
+      .date()
+      .nullish()
+      .describe("When the candidate last flipped openToOffers to true."),
     institutionId: zod.number().nullish(),
     institutionName: zod.string().nullish(),
     institutions: zod
@@ -1433,6 +1472,21 @@ export const GetJobMatchesResponseItem = zod.object({
   talentScore: zod.number(),
   matchScore: zod.number(),
   matchedSkills: zod.array(zod.string()),
+  matchBreakdown: zod
+    .object({
+      skillCoveragePct: zod.number(),
+      experiencePct: zod.number(),
+      talentPct: zod.number(),
+      skillContribution: zod.number(),
+      experienceContribution: zod.number(),
+      talentContribution: zod.number(),
+      matchedSkills: zod.array(zod.string()),
+      missingSkills: zod.array(zod.string()),
+      summary: zod.string(),
+    })
+    .describe(
+      'Transparent breakdown of why a candidate scored a particular\nmatch against a job (or vice versa). The score is a weighted\nsum: skills 65%, experience 15%, talent 20%. The \"Pct\" fields\nare 0-100 raw component scores; the \"Contribution\" fields are\neach component\'s already-weighted contribution to the final\nscore (so they sum to roughly the displayed match score).\n',
+    ),
 });
 export const GetJobMatchesResponse = zod.array(GetJobMatchesResponseItem);
 
@@ -1461,6 +1515,21 @@ export const GetCandidateRecommendationsResponseItem = zod.object({
   currency: zod.string(),
   matchScore: zod.number(),
   matchedSkills: zod.array(zod.string()),
+  matchBreakdown: zod
+    .object({
+      skillCoveragePct: zod.number(),
+      experiencePct: zod.number(),
+      talentPct: zod.number(),
+      skillContribution: zod.number(),
+      experienceContribution: zod.number(),
+      talentContribution: zod.number(),
+      matchedSkills: zod.array(zod.string()),
+      missingSkills: zod.array(zod.string()),
+      summary: zod.string(),
+    })
+    .describe(
+      'Transparent breakdown of why a candidate scored a particular\nmatch against a job (or vice versa). The score is a weighted\nsum: skills 65%, experience 15%, talent 20%. The \"Pct\" fields\nare 0-100 raw component scores; the \"Contribution\" fields are\neach component\'s already-weighted contribution to the final\nscore (so they sum to roughly the displayed match score).\n',
+    ),
   tier: zod.enum(["free", "promoted", "sponsored"]),
   tierExpiresAt: zod.coerce.date().nullable(),
 });
@@ -2059,6 +2128,21 @@ export const GetCandidateDashboardResponse = zod.object({
       currency: zod.string(),
       matchScore: zod.number(),
       matchedSkills: zod.array(zod.string()),
+      matchBreakdown: zod
+        .object({
+          skillCoveragePct: zod.number(),
+          experiencePct: zod.number(),
+          talentPct: zod.number(),
+          skillContribution: zod.number(),
+          experienceContribution: zod.number(),
+          talentContribution: zod.number(),
+          matchedSkills: zod.array(zod.string()),
+          missingSkills: zod.array(zod.string()),
+          summary: zod.string(),
+        })
+        .describe(
+          'Transparent breakdown of why a candidate scored a particular\nmatch against a job (or vice versa). The score is a weighted\nsum: skills 65%, experience 15%, talent 20%. The \"Pct\" fields\nare 0-100 raw component scores; the \"Contribution\" fields are\neach component\'s already-weighted contribution to the final\nscore (so they sum to roughly the displayed match score).\n',
+        ),
       tier: zod.enum(["free", "promoted", "sponsored"]),
       tierExpiresAt: zod.coerce.date().nullable(),
     }),

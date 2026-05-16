@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, sql, desc } from "drizzle-orm";
+import { eq, sql, desc, and } from "drizzle-orm";
 import {
   db,
   jobsTable,
@@ -254,6 +254,35 @@ router.get("/jobs/:id", async (req, res): Promise<void> => {
     return;
   }
 
+  // Private jobs (e.g. reverse-offer bridge jobs) are visible only to
+  // the owning employer, an admin, or the candidate(s) whose
+  // application bridges them. Everyone else gets a 404 to avoid
+  // confirming existence.
+  if (row.job.visibility !== "public") {
+    const user = req.currentUser;
+    const isOwner =
+      user?.role === "employer" && user.employerId === row.job.employerId;
+    const isAdmin = user?.role === "admin";
+    let isLinkedCandidate = false;
+    if (user?.role === "candidate" && user.candidateId) {
+      const [linked] = await db
+        .select({ id: applicationsTable.id })
+        .from(applicationsTable)
+        .where(
+          and(
+            eq(applicationsTable.jobId, row.job.id),
+            eq(applicationsTable.candidateId, user.candidateId),
+          ),
+        )
+        .limit(1);
+      isLinkedCandidate = Boolean(linked);
+    }
+    if (!isOwner && !isAdmin && !isLinkedCandidate) {
+      res.status(404).json({ error: "Job not found" });
+      return;
+    }
+  }
+
   res.json({
     ...serializeJob(row.job, row.employer, Number(row.applicationsCount)),
     description: row.job.description,
@@ -273,6 +302,18 @@ router.get("/jobs/:id/matches", requireAuth, async (req, res): Promise<void> => 
   const [job] = await db.select().from(jobsTable).where(eq(jobsTable.id, params.data.id));
   if (!job) {
     res.status(404).json({ error: "Job not found" });
+    return;
+  }
+
+  // Match data exposes candidate identities + ranking, so it must only
+  // be readable by the owning employer (or an admin). Public jobs from
+  // other employers were previously readable by any authenticated user.
+  const matchUser = req.currentUser!;
+  const isOwner =
+    matchUser.role === "employer" && matchUser.employerId === job.employerId;
+  const isAdmin = matchUser.role === "admin";
+  if (!isOwner && !isAdmin) {
+    res.status(403).json({ error: "Not authorized to view matches for this job" });
     return;
   }
 

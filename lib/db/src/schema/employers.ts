@@ -74,6 +74,14 @@ export const employersTable = pgTable(
      * deck at their own start-of-day. Defaults to UTC for legacy rows.
      */
     dailyDeckTimezone: text("daily_deck_timezone").notNull().default("UTC"),
+    /**
+     * Hour-of-day (0-23, local to `dailyDeckTimezone`) at which the
+     * daily deck rolls over. e.g. 8 means "show me a fresh deck at
+     * 8am local". Lets recruiters get a new batch aligned with their
+     * own start-of-day instead of strict local midnight. Defaults to
+     * 0 (= midnight rollover).
+     */
+    dailyDeckRefreshHour: integer("daily_deck_refresh_hour").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

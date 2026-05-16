@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Briefcase, CheckCircle2, Clock, Users, Users2, Sparkles, Building2, Eye, Megaphone, Star, AlertTriangle } from "lucide-react";
 import { Link } from "wouter";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
@@ -94,7 +95,17 @@ export default function EmployerDashboard() {
         </Card>
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-8">
+      <Tabs defaultValue="overview" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="overview" data-testid="tab-overview">Overview</TabsTrigger>
+          <TabsTrigger value="daily-picks" data-testid="tab-daily-picks">Daily picks</TabsTrigger>
+        </TabsList>
+        <TabsContent value="daily-picks">
+          <div className="max-w-2xl mx-auto">
+            <DailyDeckCard />
+          </div>
+        </TabsContent>
+        <TabsContent value="overview" className="grid lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
           <Card className="shadow-sm">
             <CardHeader className="pb-2">
@@ -194,7 +205,6 @@ export default function EmployerDashboard() {
         </div>
 
         <div className="space-y-6">
-          <DailyDeckCard />
           <FastTrackPledgeCard />
           <Card className="shadow-sm">
             <CardHeader>
@@ -264,7 +274,8 @@ export default function EmployerDashboard() {
             </CardContent>
           </Card>
         </div>
-      </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

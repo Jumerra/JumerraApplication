@@ -39,14 +39,23 @@ const CANDIDATE_POOL_CAP = 500;
  * own clock, not UTC's clock. Falls back to UTC if the zone is
  * invalid (Intl throws RangeError on unknown identifiers).
  */
-function localDeckDate(timeZone: string): string {
+function localDeckDate(timeZone: string, refreshHour: number): string {
+  // Shift "now" backwards by `refreshHour` hours so the local
+  // calendar-day key only flips forward once the recruiter's chosen
+  // refresh hour has been reached. e.g. refreshHour=8 means a query
+  // at 07:59 local still resolves to *yesterday*; 08:00 flips to
+  // today and a new deck is computed.
+  const safeHour = Number.isFinite(refreshHour)
+    ? Math.max(0, Math.min(23, Math.trunc(refreshHour)))
+    : 0;
+  const shifted = new Date(Date.now() - safeHour * 60 * 60 * 1000);
   try {
     const parts = new Intl.DateTimeFormat("en-CA", {
       timeZone,
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
-    }).formatToParts(new Date());
+    }).formatToParts(shifted);
     const y = parts.find((p) => p.type === "year")?.value;
     const m = parts.find((p) => p.type === "month")?.value;
     const d = parts.find((p) => p.type === "day")?.value;
@@ -54,7 +63,7 @@ function localDeckDate(timeZone: string): string {
   } catch {
     // fall through to UTC
   }
-  return new Date().toISOString().slice(0, 10);
+  return shifted.toISOString().slice(0, 10);
 }
 
 /**
@@ -187,7 +196,10 @@ function serializeCandidate(c: typeof candidatesTable.$inferSelect) {
 router.get("/me/daily-deck", requireAuth, async (req, res) => {
   const employer = await resolveEmployer(req, res);
   if (!employer) return;
-  const deckDate = localDeckDate(employer.dailyDeckTimezone ?? "UTC");
+  const deckDate = localDeckDate(
+    employer.dailyDeckTimezone ?? "UTC",
+    employer.dailyDeckRefreshHour ?? 0,
+  );
 
   // Already-shortlisted candidates (anyone in any pool for this employer)
   // and explicitly dismissed ones are excluded from new decks.
@@ -209,6 +221,14 @@ router.get("/me/daily-deck", requireAuth, async (req, res) => {
   ]);
 
   const jobs = await loadActiveJobs(employer.id);
+
+  // Daily picks are explicitly defined as "ranked by fit against the
+  // employer's open roles". With no active public jobs there is no
+  // fit basis, so we return an empty deck rather than fabricate one.
+  if (jobs.length === 0) {
+    res.json({ deckDate, openJobsCount: 0, items: [] });
+    return;
+  }
 
   // Look for a cached deck for today. We trust the cached order but
   // re-fetch candidate detail at read-time so shortlist/dismiss between

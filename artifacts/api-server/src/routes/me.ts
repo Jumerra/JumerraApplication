@@ -9,7 +9,7 @@
  */
 
 import { Router, type IRouter } from "express";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   db,
@@ -314,8 +314,5 @@ router.get("/me/apply-snapshot", async (req, res) => {
     },
   });
 });
-
-// suppress unused-import lint; inArray is reserved for future bulk ops
-void inArray;
 
 export default router;

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Platform } from "react-native";
+import { AppState, Platform, type AppStateStatus } from "react-native";
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
@@ -29,6 +29,22 @@ export function usePushRegistration(): void {
 
     let cancelled = false;
     let tokenSub: { remove: () => void } | null = null;
+    let appStateSub: { remove: () => void } | null = null;
+
+    const revokeCurrent = async () => {
+      const prev = lastRegisteredFor.current;
+      if (!prev) return;
+      const tokenToRevoke = prev.token;
+      lastRegisteredFor.current = null;
+      try {
+        await customFetch("/api/me/push-tokens", {
+          method: "DELETE",
+          body: JSON.stringify({ token: tokenToRevoke }),
+        });
+      } catch {
+        // best-effort
+      }
+    };
 
     const postToken = async (token: string) => {
       try {
@@ -107,6 +123,39 @@ export function usePushRegistration(): void {
         tokenSub = Notifications.addPushTokenListener((next) => {
           if (next?.data) void postToken(next.data);
         });
+
+        // The user can toggle notification permission in OS Settings
+        // while the app is backgrounded. Re-check on every foreground
+        // transition: if permission is no longer granted, revoke this
+        // device's token server-side so we don't keep sending push to
+        // a silenced device. If it was re-granted, re-register.
+        const handleAppStateChange = async (next: AppStateStatus) => {
+          if (next !== "active") return;
+          try {
+            const { status: currentStatus } =
+              await Notifications.getPermissionsAsync();
+            if (currentStatus !== "granted") {
+              await revokeCurrent();
+              return;
+            }
+            // Permission granted — make sure server has our latest token.
+            const refreshed = await Notifications.getExpoPushTokenAsync(
+              projectId ? { projectId } : undefined,
+            );
+            const t = refreshed?.data;
+            if (!t) return;
+            const prev = lastRegisteredFor.current;
+            if (!prev || prev.userId !== user.id || prev.token !== t) {
+              await postToken(t);
+            }
+          } catch {
+            // best-effort
+          }
+        };
+        appStateSub = AppState.addEventListener(
+          "change",
+          handleAppStateChange,
+        );
       } catch {
         // Permissions / token mint failures are not actionable for the
         // user; silently degrade to in-app only.
@@ -116,18 +165,11 @@ export function usePushRegistration(): void {
     return () => {
       cancelled = true;
       tokenSub?.remove();
+      appStateSub?.remove();
       // If the user signed out (or switched accounts), revoke this
       // device's token on the server so it doesn't continue to receive
       // push for the previous account on a shared device.
-      const prev = lastRegisteredFor.current;
-      if (prev) {
-        const tokenToRevoke = prev.token;
-        lastRegisteredFor.current = null;
-        customFetch("/api/me/push-tokens", {
-          method: "DELETE",
-          body: JSON.stringify({ token: tokenToRevoke }),
-        }).catch(() => {});
-      }
+      void revokeCurrent();
     };
   }, [user]);
 }

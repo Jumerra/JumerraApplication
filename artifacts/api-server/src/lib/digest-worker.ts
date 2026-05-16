@@ -14,7 +14,7 @@
  * deployment shape.
  */
 
-import { and, desc, eq, gt, gte, isNull, lt, lte, or, sql } from "drizzle-orm";
+import { and, desc, eq, gt, gte, lt, lte, or, sql } from "drizzle-orm";
 import {
   db,
   applicationsTable,
@@ -425,9 +425,19 @@ export async function runInterviewReminderSweep(): Promise<void> {
       and(
         eq(interviewInvitesTable.status, "accepted"),
         or(
+          // Slot starts in the T-24h window AND we haven't sent the
+          // 24h reminder yet.
+          and(
+            gte(interviewTimeSlotsTable.startsAt, T24_LOWER),
+            lte(interviewTimeSlotsTable.startsAt, T24_UPPER),
+            sql`${interviewInvitesTable.reminded24At} IS NULL`,
+          ),
+          // Slot starts in the T-1h window AND we haven't sent the
+          // 1h reminder yet.
           and(
             gte(interviewTimeSlotsTable.startsAt, T1_LOWER),
-            lte(interviewTimeSlotsTable.startsAt, T24_UPPER),
+            lte(interviewTimeSlotsTable.startsAt, T1_UPPER),
+            sql`${interviewInvitesTable.reminded1At} IS NULL`,
           ),
         ),
       ),
@@ -478,8 +488,6 @@ export async function runInterviewReminderSweep(): Promise<void> {
   if (fired > 0) {
     logger.info({ fired }, "Interview reminder sweep dispatched");
   }
-  // Quiet noop guard: keep `isNull` import alive even if not used directly.
-  void isNull;
 }
 
 // ---------------------------------------------------------------------------

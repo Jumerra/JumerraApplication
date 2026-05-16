@@ -50,6 +50,15 @@ export const mockInterviewsTable = pgTable(
     status: text("status").notNull().default("in_progress"),
     rubricVersion: text("rubric_version").notNull().default("v1"),
     /**
+     * Frozen scoring rubric for this attempt. Snapshotted at start
+     * so retake-after-rubric-tweak doesn't change how an old
+     * attempt was judged. Shape:
+     *   { version: string;
+     *     axes: Array<{ key: 'technical'|'communication'|'culture';
+     *                   weight: number; criteria: string }> }
+     */
+    rubric: jsonb("rubric").notNull().default(sql`'{}'::jsonb`),
+    /**
      * The 6–8 generated questions, frozen at start time so retake-
      * after-job-edits doesn't shift the prompts mid-flight.
      * Shape: Array<{ id: number; text: string; focus: 'technical' | 'communication' | 'culture' }>

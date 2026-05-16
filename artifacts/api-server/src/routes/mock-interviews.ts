@@ -452,12 +452,22 @@ router.get("/me/mock-interviews/:id", async (req, res) => {
     return;
   }
   if (me.role === "employer" && me.employerId != null) {
-    const [job] = await db
+    // Employer access requires the interview to be linked to an
+    // application on one of THIS employer's jobs. Without the
+    // applicationId linkage we'd leak transcripts taken before the
+    // candidate ever applied (or never applied at all) — that's
+    // PII the candidate never consented to share with this employer.
+    if (row.applicationId == null) {
+      res.status(403).json({ error: "Not allowed" });
+      return;
+    }
+    const [link] = await db
       .select({ employerId: jobsTable.employerId })
-      .from(jobsTable)
-      .where(eq(jobsTable.id, row.jobId))
+      .from(applicationsTable)
+      .innerJoin(jobsTable, eq(jobsTable.id, applicationsTable.jobId))
+      .where(eq(applicationsTable.id, row.applicationId))
       .limit(1);
-    if (job?.employerId === me.employerId) {
+    if (link?.employerId === me.employerId) {
       res.json(serializeInterview(row));
       return;
     }
@@ -496,6 +506,29 @@ router.post("/me/mock-interviews", async (req, res) => {
     return;
   }
 
+  // Retake policy: candidates get one initial attempt + one retake.
+  // Once two finalised attempts exist for this (candidate, job),
+  // refuse to start another. Abandoned rows don't count toward the
+  // cap so a network drop doesn't cost the candidate an attempt.
+  const finalisedRows = await db
+    .select({ id: mockInterviewsTable.id })
+    .from(mockInterviewsTable)
+    .where(
+      and(
+        eq(mockInterviewsTable.candidateId, candidateId),
+        eq(mockInterviewsTable.jobId, jobId),
+        eq(mockInterviewsTable.status, "finalised"),
+      ),
+    );
+  if (finalisedRows.length >= 2) {
+    res.status(409).json({
+      error:
+        "You've already used your retake for this job. Mock interviews are limited to two attempts per job.",
+      code: "retake_limit_reached",
+    });
+    return;
+  }
+
   const { candidate, job, employer } = await loadJobAndCandidate(
     jobId,
     candidateId,
@@ -530,6 +563,29 @@ router.post("/me/mock-interviews", async (req, res) => {
           jobId,
           status: "in_progress",
           rubricVersion: "v1",
+          rubric: {
+            version: "v1",
+            axes: [
+              {
+                key: "technical",
+                weight: 0.5,
+                criteria:
+                  "Depth of role-relevant technical knowledge; correctness; concrete examples.",
+              },
+              {
+                key: "communication",
+                weight: 0.3,
+                criteria:
+                  "Clarity, structure, conciseness; explains trade-offs without jargon.",
+              },
+              {
+                key: "culture",
+                weight: 0.2,
+                criteria:
+                  "Motivation, ownership, collaboration signals appropriate for early-career.",
+              },
+            ],
+          },
           questions,
           transcript: [],
         })

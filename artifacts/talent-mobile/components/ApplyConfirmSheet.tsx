@@ -1,5 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -15,6 +16,12 @@ import { customFetch } from "@workspace/api-client-react";
 
 import { SkillChip } from "@/components/SkillChip";
 import { useColors } from "@/hooks/useColors";
+
+type MockInterviewSummary = {
+  id: number;
+  status: "in_progress" | "finalised" | "abandoned";
+  scoreOverall: number | null;
+};
 
 type ApplySnapshot = {
   candidate: {
@@ -63,19 +70,38 @@ export function ApplyConfirmSheet({
   applicationSource = "browse",
 }: Props) {
   const colors = useColors();
+  const router = useRouter();
   const [snapshot, setSnapshot] = useState<ApplySnapshot | null>(null);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Latest mock interview the candidate has done for THIS job (if any).
+  // Drives the "Boost your application" CTA inside the sheet so the
+  // For You / job-detail apply flow can detour into the chat-based
+  // interview before the application is sent.
+  const [mockInterview, setMockInterview] = useState<MockInterviewSummary | null>(
+    null,
+  );
 
   useEffect(() => {
     if (!visible || jobId == null) return;
     let cancelled = false;
     setLoading(true);
     setError(null);
-    customFetch<ApplySnapshot>("/api/me/apply-snapshot")
-      .then((data) => {
-        if (!cancelled) setSnapshot(data);
+    Promise.all([
+      customFetch<ApplySnapshot>("/api/me/apply-snapshot"),
+      customFetch<MockInterviewSummary[]>(
+        `/api/me/mock-interviews?jobId=${jobId}`,
+      ).catch(() => [] as MockInterviewSummary[]),
+    ])
+      .then(([snap, mocks]) => {
+        if (cancelled) return;
+        setSnapshot(snap);
+        // Prefer latest finalised; fall back to in-progress so the
+        // CTA can say "Resume" instead of "Take" when applicable.
+        const finalised = mocks.find((m) => m.status === "finalised");
+        const inProgress = mocks.find((m) => m.status === "in_progress");
+        setMockInterview(finalised ?? inProgress ?? null);
       })
       .catch(() => {
         if (!cancelled) setError("Couldn't load your profile snapshot.");
@@ -236,6 +262,66 @@ export function ApplyConfirmSheet({
                     </View>
                   ) : null}
                 </View>
+
+                {jobId != null ? (
+                  <Pressable
+                    onPress={() => {
+                      onClose();
+                      router.push(`/job/${jobId}/mock-interview`);
+                    }}
+                    style={[
+                      styles.card,
+                      {
+                        backgroundColor: colors.muted,
+                        borderColor: colors.border,
+                        marginTop: 10,
+                      },
+                    ]}
+                  >
+                    <View
+                      style={{ flexDirection: "row", alignItems: "center" }}
+                    >
+                      <Feather
+                        name="zap"
+                        size={16}
+                        color={colors.primary}
+                      />
+                      <Text
+                        style={{
+                          marginLeft: 8,
+                          color: colors.foreground,
+                          fontFamily: "Inter_600SemiBold",
+                          flex: 1,
+                        }}
+                      >
+                        {mockInterview?.status === "finalised" &&
+                        mockInterview.scoreOverall != null
+                          ? `AI mock interview · ${mockInterview.scoreOverall}/100`
+                          : mockInterview?.status === "in_progress"
+                            ? "Resume your AI mock interview"
+                            : "Boost with a 6-question AI mock interview"}
+                      </Text>
+                      <Feather
+                        name="chevron-right"
+                        size={18}
+                        color={colors.mutedForeground}
+                      />
+                    </View>
+                    <Text
+                      style={{
+                        marginTop: 6,
+                        color: colors.mutedForeground,
+                        fontFamily: "Inter_400Regular",
+                        fontSize: 13,
+                        lineHeight: 18,
+                      }}
+                    >
+                      {mockInterview?.status === "finalised"
+                        ? "Your score is shown to the employer with your application."
+                        : "Show employers what you can actually do — your score is attached to your application."}
+                    </Text>
+                  </Pressable>
+                ) : null}
 
                 <View
                   style={[

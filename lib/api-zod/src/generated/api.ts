@@ -3921,6 +3921,37 @@ export const AdminListAccountManagersResponse = zod.object({
 });
 
 /**
+ * @summary List recent WhatsApp delivery attempts (admin only, requires staff:view)
+ */
+export const adminListWhatsappLogsQueryLimitMax = 200;
+
+export const AdminListWhatsappLogsQueryParams = zod.object({
+  limit: zod.coerce
+    .number()
+    .min(1)
+    .max(adminListWhatsappLogsQueryLimitMax)
+    .optional(),
+});
+
+export const AdminListWhatsappLogsResponse = zod.object({
+  items: zod.array(
+    zod.object({
+      id: zod.number(),
+      userId: zod.number().nullish(),
+      userEmailMasked: zod.string().nullish(),
+      userNameMasked: zod.string().nullish(),
+      toNumberMasked: zod.string(),
+      category: zod.string(),
+      templateKey: zod.string(),
+      status: zod.enum(["queued", "sent", "failed", "skipped"]),
+      providerMessageId: zod.string().nullish(),
+      error: zod.string().nullish(),
+      createdAt: zod.coerce.date(),
+    }),
+  ),
+});
+
+/**
  * @summary Assign or unassign an employer's owning account manager (super_admin only)
  */
 export const AdminAssignEmployerManagerParams = zod.object({

@@ -1906,6 +1906,24 @@ paths:
               schema: { $ref: "#/components/schemas/AdminAccountManagersResponse" }
         "403": { description: Admin only }
 
+  /admin/whatsapp-logs:
+    get:
+      operationId: adminListWhatsappLogs
+      tags: [admin]
+      summary: List recent WhatsApp delivery attempts (admin only, requires staff:view)
+      parameters:
+        - in: query
+          name: limit
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 200 }
+      responses:
+        "200":
+          description: WhatsApp delivery log entries
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminWhatsappLogsResponse" }
+        "403": { description: Admin only }
+
   /admin/employers/{id}/assign:
     patch:
       operationId: adminAssignEmployerManager
@@ -6804,6 +6822,33 @@ components:
           nullable: true
           description: User id of an active account_manager admin, or null to unassign.
       required: [accountManagerId]
+
+    AdminWhatsappLogItem:
+      type: object
+      properties:
+        id: { type: integer }
+        userId: { type: integer, nullable: true }
+        userEmailMasked: { type: string, nullable: true }
+        userNameMasked: { type: string, nullable: true }
+        toNumberMasked: { type: string }
+        category: { type: string }
+        templateKey: { type: string }
+        status:
+          type: string
+          enum: [queued, sent, failed, skipped]
+        providerMessageId: { type: string, nullable: true }
+        error: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+      required:
+        [id, toNumberMasked, category, templateKey, status, createdAt]
+
+    AdminWhatsappLogsResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/AdminWhatsappLogItem" }
+      required: [items]
 
     AssignAccountManagerResponse:
       type: object

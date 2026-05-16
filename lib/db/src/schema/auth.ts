@@ -92,6 +92,24 @@ export const usersTable = pgTable(
     phone: text("phone"),
     title: text("title"),
     bio: text("bio"),
+    /**
+     * WhatsApp number for opt-in WhatsApp notifications. Stored in
+     * E.164 format ("+233241234567"). Only used when
+     * `whatsappVerifiedAt` is non-null — an unverified number is never
+     * used as a delivery target. Verification flow lives in
+     * `routes/me.ts` (`/me/whatsapp/start-verification` + `/confirm`).
+     */
+    whatsappNumber: text("whatsapp_number"),
+    whatsappVerifiedAt: timestamp("whatsapp_verified_at", {
+      withTimezone: true,
+    }),
+    /** Bcrypt hash of the latest OTP. Null when no pending verification. */
+    whatsappOtpHash: text("whatsapp_otp_hash"),
+    whatsappOtpExpiresAt: timestamp("whatsapp_otp_expires_at", {
+      withTimezone: true,
+    }),
+    /** Failed-attempt counter for the current pending OTP (reset on issue). */
+    whatsappOtpAttempts: integer("whatsapp_otp_attempts").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

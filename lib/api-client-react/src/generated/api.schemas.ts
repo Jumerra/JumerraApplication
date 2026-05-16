@@ -2702,6 +2702,34 @@ export interface AssignAccountManagerRequest {
   accountManagerId: number | null;
 }
 
+export type AdminWhatsappLogItemStatus =
+  (typeof AdminWhatsappLogItemStatus)[keyof typeof AdminWhatsappLogItemStatus];
+
+export const AdminWhatsappLogItemStatus = {
+  queued: "queued",
+  sent: "sent",
+  failed: "failed",
+  skipped: "skipped",
+} as const;
+
+export interface AdminWhatsappLogItem {
+  id: number;
+  userId?: number | null;
+  userEmailMasked?: string | null;
+  userNameMasked?: string | null;
+  toNumberMasked: string;
+  category: string;
+  templateKey: string;
+  status: AdminWhatsappLogItemStatus;
+  providerMessageId?: string | null;
+  error?: string | null;
+  createdAt: string;
+}
+
+export interface AdminWhatsappLogsResponse {
+  items: AdminWhatsappLogItem[];
+}
+
 export interface AssignAccountManagerResponse {
   ok: boolean;
   accountManagerId: number | null;
@@ -3433,6 +3461,14 @@ export type ListRegistrations200 = {
 
 export type ListOnboardedUsers200 = {
   users: OnboardedUser[];
+};
+
+export type AdminListWhatsappLogsParams = {
+  /**
+   * @minimum 1
+   * @maximum 200
+   */
+  limit?: number;
 };
 
 export type AdminListApplicationsParams = {

@@ -25,6 +25,7 @@ import {
   candidateInstitutionsTable,
   jobsTable,
   applicationsTable,
+  whatsappMessageLogTable,
 } from "@workspace/db";
 import {
   adminRolesTable,
@@ -1685,5 +1686,91 @@ router.delete("/admin/roles/:id", async (req, res) => {
   await db.delete(adminRolesTable).where(eq(adminRolesTable.id, id));
   res.json({ ok: true });
 });
+
+// ----- WhatsApp delivery log -------------------------------------------
+//
+// Read-only audit log of every outbound WhatsApp attempt — populated
+// by `lib/whatsapp.ts` for both real sends and stubbed (no-provider)
+// attempts. Gated on `staff:view` because it's an operational signal
+// used by anyone on the admin team to debug delivery.
+
+router.get(
+  "/admin/whatsapp-logs",
+  requirePermission("staff:view"),
+  async (req, res) => {
+    const limit = Math.min(
+      200,
+      Math.max(1, Number(req.query.limit ?? 50) || 50),
+    );
+    const rows = await db
+      .select({
+        id: whatsappMessageLogTable.id,
+        userId: whatsappMessageLogTable.userId,
+        toNumber: whatsappMessageLogTable.toNumber,
+        category: whatsappMessageLogTable.category,
+        templateKey: whatsappMessageLogTable.templateKey,
+        status: whatsappMessageLogTable.status,
+        providerMessageId: whatsappMessageLogTable.providerMessageId,
+        error: whatsappMessageLogTable.error,
+        createdAt: whatsappMessageLogTable.createdAt,
+        userEmail: usersTable.email,
+        userFullName: usersTable.fullName,
+      })
+      .from(whatsappMessageLogTable)
+      .leftJoin(usersTable, eq(usersTable.id, whatsappMessageLogTable.userId))
+      .orderBy(desc(whatsappMessageLogTable.createdAt))
+      .limit(limit);
+    res.json({
+      items: rows.map((r) => ({
+        id: r.id,
+        userId: r.userId,
+        // PII-masked: we surface enough to debug delivery (first letter
+        // of local + domain TLD; first name + last-name initial) without
+        // exposing full PII in screen-shares of the admin console.
+        userEmailMasked: maskEmail(r.userEmail),
+        userNameMasked: maskName(r.userFullName),
+        // Mask all but the last 4 digits of the destination to keep
+        // candidate PII out of casual screen-shares.
+        toNumberMasked: maskNumber(r.toNumber),
+        category: r.category,
+        templateKey: r.templateKey,
+        status: r.status,
+        providerMessageId: r.providerMessageId,
+        error: r.error,
+        createdAt: r.createdAt.toISOString(),
+      })),
+    });
+  },
+);
+
+function maskNumber(n: string): string {
+  if (n.length <= 4) return n;
+  return `${n.slice(0, Math.max(1, n.length - 4)).replace(/\d/g, "•")}${n.slice(-4)}`;
+}
+
+function maskEmail(e: string | null): string | null {
+  if (!e) return null;
+  const at = e.indexOf("@");
+  if (at <= 0) return "•••";
+  const local = e.slice(0, at);
+  const domain = e.slice(at + 1);
+  const localMasked = `${local[0] ?? "•"}${"•".repeat(Math.max(2, local.length - 1))}`;
+  const dot = domain.lastIndexOf(".");
+  const domainMasked =
+    dot > 0
+      ? `${domain[0] ?? "•"}${"•".repeat(Math.max(1, dot - 1))}${domain.slice(dot)}`
+      : `${domain[0] ?? "•"}${"•".repeat(Math.max(1, domain.length - 1))}`;
+  return `${localMasked}@${domainMasked}`;
+}
+
+function maskName(n: string | null): string | null {
+  if (!n) return null;
+  const parts = n.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return null;
+  const first = parts[0]!;
+  if (parts.length === 1) return first;
+  const lastInitial = parts[parts.length - 1]![0]!.toUpperCase();
+  return `${first} ${lastInitial}.`;
+}
 
 export default router;

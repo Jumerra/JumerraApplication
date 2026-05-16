@@ -11,6 +11,7 @@ import {
   StyleSheet,
   Switch,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -23,10 +24,21 @@ type Prefs = {
   interviewReminder: boolean;
   profileViewed: boolean;
   weeklyDigest: boolean;
+  whatsappStrongMatch: boolean;
+  whatsappApplicationStatus: boolean;
+  whatsappInterviewReminder: boolean;
+  whatsappWeeklyDigest: boolean;
   digestDow: number;
   digestHour: number;
   digestTz: string | null;
   effectiveDigestTz?: string;
+};
+
+type WhatsAppState = {
+  number: string | null;
+  verified: boolean;
+  verifiedAt: string | null;
+  pendingVerification: boolean;
 };
 
 const DOW_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -43,10 +55,21 @@ const DEFAULT_PREFS: Prefs = {
   interviewReminder: true,
   profileViewed: true,
   weeklyDigest: true,
+  whatsappStrongMatch: false,
+  whatsappApplicationStatus: false,
+  whatsappInterviewReminder: false,
+  whatsappWeeklyDigest: false,
   digestDow: 1,
   digestHour: 9,
   digestTz: null,
 };
+
+const WA_ROWS: { key: keyof Prefs; title: string }[] = [
+  { key: "whatsappStrongMatch", title: "Strong matches" },
+  { key: "whatsappApplicationStatus", title: "Application updates" },
+  { key: "whatsappInterviewReminder", title: "Interview reminders" },
+  { key: "whatsappWeeklyDigest", title: "Weekly digest" },
+];
 
 type BooleanPrefKey =
   | "strongMatch"
@@ -91,6 +114,88 @@ export default function NotificationPreferencesScreen() {
   const [saving, setSaving] = useState<keyof Prefs | null>(null);
   const [sendingPreview, setSendingPreview] = useState(false);
 
+  const [wa, setWa] = useState<WhatsAppState | null>(null);
+  const [waNumber, setWaNumber] = useState("");
+  const [waCode, setWaCode] = useState("");
+  const [waBusy, setWaBusy] = useState(false);
+  const [waDevCode, setWaDevCode] = useState<string | null>(null);
+
+  const refreshWa = async () => {
+    try {
+      const data = await customFetch<WhatsAppState>("/api/me/whatsapp");
+      setWa(data);
+      if (data?.number) setWaNumber(data.number);
+    } catch {
+      /* no-op */
+    }
+  };
+
+  const startWa = async () => {
+    if (waNumber.trim().length < 6) return;
+    setWaBusy(true);
+    setWaDevCode(null);
+    try {
+      const res = await customFetch<{
+        ok: boolean;
+        sent: boolean;
+        devCode?: string;
+      }>("/api/me/whatsapp/start-verification", {
+        method: "POST",
+        body: JSON.stringify({ number: waNumber.trim() }),
+      });
+      if (res?.devCode) setWaDevCode(res.devCode);
+      Alert.alert(
+        res?.sent ? "Code sent" : "Verification started",
+        res?.sent
+          ? "Check your WhatsApp messages."
+          : "Use the code displayed on the screen to confirm.",
+      );
+      await refreshWa();
+    } catch (err) {
+      Alert.alert(
+        "Couldn't send code",
+        (err as Error)?.message ?? "Try again in a moment.",
+      );
+    } finally {
+      setWaBusy(false);
+    }
+  };
+
+  const confirmWa = async () => {
+    if (waCode.trim().length < 4) return;
+    setWaBusy(true);
+    try {
+      await customFetch("/api/me/whatsapp/confirm", {
+        method: "POST",
+        body: JSON.stringify({ code: waCode.trim() }),
+      });
+      setWaCode("");
+      setWaDevCode(null);
+      await refreshWa();
+      Alert.alert("Verified", "Your WhatsApp number is now connected.");
+    } catch (err) {
+      Alert.alert("Code didn't match", (err as Error)?.message ?? "Try again.");
+    } finally {
+      setWaBusy(false);
+    }
+  };
+
+  const disconnectWa = async () => {
+    setWaBusy(true);
+    try {
+      await customFetch("/api/me/whatsapp", { method: "DELETE" });
+      setWaNumber("");
+      setWaCode("");
+      setWaDevCode(null);
+      await Promise.all([
+        refreshWa(),
+        customFetch<Prefs>("/api/me/notification-prefs").then(setPrefs).catch(() => {}),
+      ]);
+    } finally {
+      setWaBusy(false);
+    }
+  };
+
   const sendDigestPreview = async () => {
     setSendingPreview(true);
     try {
@@ -121,6 +226,7 @@ export default function NotificationPreferencesScreen() {
   };
 
   useEffect(() => {
+    void refreshWa();
     let cancelled = false;
     customFetch<Prefs>("/api/me/notification-prefs")
       .then((p) => {
@@ -234,6 +340,254 @@ export default function NotificationPreferencesScreen() {
             ))}
           </View>
         )}
+
+        <View style={{ marginTop: 20 }}>
+          <Text
+            style={{
+              fontFamily: "Inter_600SemiBold",
+              fontSize: 14,
+              color: colors.foreground,
+              marginBottom: 6,
+            }}
+          >
+            WhatsApp alerts
+          </Text>
+          <Text
+            style={{
+              fontFamily: "Inter_400Regular",
+              fontSize: 12,
+              color: colors.mutedForeground,
+              marginBottom: 12,
+            }}
+          >
+            Add and verify your WhatsApp number to also receive alerts on
+            WhatsApp.
+          </Text>
+          <View
+            style={[
+              styles.card,
+              { backgroundColor: colors.card, borderColor: colors.border, padding: 14 },
+            ]}
+          >
+            <Text
+              style={{
+                fontFamily: "Inter_600SemiBold",
+                fontSize: 12,
+                color: colors.mutedForeground,
+                marginBottom: 6,
+              }}
+            >
+              WhatsApp number
+            </Text>
+            <TextInput
+              value={waNumber}
+              onChangeText={setWaNumber}
+              editable={!waBusy}
+              keyboardType="phone-pad"
+              placeholder="+233 24 123 4567"
+              placeholderTextColor={colors.mutedForeground}
+              style={{
+                borderWidth: 1,
+                borderColor: colors.border,
+                borderRadius: 10,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                fontFamily: "Inter_400Regular",
+                fontSize: 14,
+                color: colors.foreground,
+                marginBottom: 10,
+              }}
+            />
+            <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+              <Pressable
+                onPress={startWa}
+                disabled={waBusy || waNumber.trim().length < 6}
+                style={{
+                  paddingVertical: 10,
+                  paddingHorizontal: 14,
+                  marginRight: 8,
+                  marginBottom: 8,
+                  borderRadius: 10,
+                  borderWidth: 1,
+                  borderColor: colors.primary,
+                  opacity: waBusy || waNumber.trim().length < 6 ? 0.5 : 1,
+                }}
+              >
+                <Text
+                  style={{
+                    color: colors.primary,
+                    fontFamily: "Inter_600SemiBold",
+                    fontSize: 13,
+                  }}
+                >
+                  {wa?.verified ? "Resend code" : "Send code"}
+                </Text>
+              </Pressable>
+              {wa?.verified || wa?.number ? (
+                <Pressable
+                  onPress={disconnectWa}
+                  disabled={waBusy}
+                  style={{
+                    paddingVertical: 10,
+                    paddingHorizontal: 14,
+                    marginBottom: 8,
+                    borderRadius: 10,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: colors.mutedForeground,
+                      fontFamily: "Inter_600SemiBold",
+                      fontSize: 13,
+                    }}
+                  >
+                    Disconnect
+                  </Text>
+                </Pressable>
+              ) : null}
+            </View>
+
+            {wa?.verified ? (
+              <View
+                style={{ flexDirection: "row", alignItems: "center", marginBottom: 6 }}
+              >
+                <Feather name="check-circle" size={14} color={colors.primary} />
+                <Text
+                  style={{
+                    marginLeft: 6,
+                    color: colors.primary,
+                    fontFamily: "Inter_600SemiBold",
+                    fontSize: 12,
+                  }}
+                >
+                  Verified
+                </Text>
+              </View>
+            ) : null}
+
+            {wa?.pendingVerification || waDevCode ? (
+              <View style={{ marginTop: 8 }}>
+                <Text
+                  style={{
+                    fontFamily: "Inter_600SemiBold",
+                    fontSize: 12,
+                    color: colors.mutedForeground,
+                    marginBottom: 6,
+                  }}
+                >
+                  Enter the 6-digit code
+                </Text>
+                <TextInput
+                  value={waCode}
+                  onChangeText={setWaCode}
+                  editable={!waBusy}
+                  keyboardType="number-pad"
+                  maxLength={6}
+                  placeholder="123456"
+                  placeholderTextColor={colors.mutedForeground}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    borderRadius: 10,
+                    paddingHorizontal: 12,
+                    paddingVertical: 10,
+                    fontFamily: "Inter_500Medium",
+                    fontSize: 16,
+                    color: colors.foreground,
+                    marginBottom: 8,
+                  }}
+                />
+                {waDevCode ? (
+                  <Text
+                    style={{
+                      fontFamily: "Inter_400Regular",
+                      fontSize: 11,
+                      color: colors.mutedForeground,
+                      marginBottom: 8,
+                    }}
+                  >
+                    No WhatsApp provider configured — dev code: {waDevCode}
+                  </Text>
+                ) : null}
+                <Pressable
+                  onPress={confirmWa}
+                  disabled={waBusy || waCode.trim().length < 4}
+                  style={{
+                    alignSelf: "flex-start",
+                    paddingVertical: 10,
+                    paddingHorizontal: 14,
+                    borderRadius: 10,
+                    backgroundColor: colors.primary,
+                    opacity: waBusy || waCode.trim().length < 4 ? 0.5 : 1,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: "#fff",
+                      fontFamily: "Inter_600SemiBold",
+                      fontSize: 13,
+                    }}
+                  >
+                    Verify
+                  </Text>
+                </Pressable>
+              </View>
+            ) : null}
+
+            {prefs ? (
+              <View
+                style={{
+                  marginTop: 14,
+                  paddingTop: 14,
+                  borderTopWidth: 1,
+                  borderTopColor: colors.border,
+                }}
+              >
+                <Text
+                  style={{
+                    fontFamily: "Inter_400Regular",
+                    fontSize: 11,
+                    color: colors.mutedForeground,
+                    marginBottom: 10,
+                  }}
+                >
+                  Send these on WhatsApp
+                  {wa?.verified ? "" : " (verify your number first)"}.
+                </Text>
+                {WA_ROWS.map((row, i) => (
+                  <View
+                    key={String(row.key)}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      paddingVertical: 8,
+                      borderBottomWidth:
+                        i < WA_ROWS.length - 1 ? 1 : 0,
+                      borderBottomColor: colors.border,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontFamily: "Inter_500Medium",
+                        fontSize: 14,
+                        color: colors.foreground,
+                      }}
+                    >
+                      {row.title}
+                    </Text>
+                    <Switch
+                      value={Boolean(prefs[row.key])}
+                      onValueChange={(v) => patchPref(row.key, v as never)}
+                      disabled={saving === row.key || !wa?.verified}
+                      trackColor={{ false: colors.border, true: colors.primary }}
+                    />
+                  </View>
+                ))}
+              </View>
+            ) : null}
+          </View>
+        </View>
 
         {prefs && !loading ? (
           <View style={{ marginTop: 20 }}>

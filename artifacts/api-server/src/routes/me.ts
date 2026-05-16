@@ -8,7 +8,9 @@
  * The For-You feed only makes sense for candidates and 4xx's other roles.
  */
 
+import { randomInt } from "node:crypto";
 import { Router, type IRouter } from "express";
+import bcrypt from "bcryptjs";
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
@@ -19,6 +21,7 @@ import {
   expoPushTokensTable,
   jobsTable,
   notificationPrefsTable,
+  usersTable,
 } from "@workspace/db";
 import { calculateMatchScore } from "../lib/matching";
 import {
@@ -26,6 +29,7 @@ import {
   runDigestForCandidate,
 } from "../lib/digest-worker";
 import { requireAuth } from "../middleware/require-auth";
+import { normalizeE164, sendWhatsAppTemplate } from "../lib/whatsapp";
 
 const router: IRouter = Router();
 
@@ -96,6 +100,11 @@ const PREF_DEFAULTS = {
   interviewReminder: true,
   profileViewed: true,
   weeklyDigest: true,
+  // WhatsApp toggles default off — opt-in only (matches schema).
+  whatsappStrongMatch: false,
+  whatsappApplicationStatus: false,
+  whatsappInterviewReminder: false,
+  whatsappWeeklyDigest: false,
   digestDow: 1,
   digestHour: 9,
   digestTz: null as string | null,
@@ -139,6 +148,16 @@ router.get("/me/notification-prefs", async (req, res) => {
       row?.interviewReminder ?? PREF_DEFAULTS.interviewReminder,
     profileViewed: row?.profileViewed ?? PREF_DEFAULTS.profileViewed,
     weeklyDigest: row?.weeklyDigest ?? PREF_DEFAULTS.weeklyDigest,
+    whatsappStrongMatch:
+      row?.whatsappStrongMatch ?? PREF_DEFAULTS.whatsappStrongMatch,
+    whatsappApplicationStatus:
+      row?.whatsappApplicationStatus ??
+      PREF_DEFAULTS.whatsappApplicationStatus,
+    whatsappInterviewReminder:
+      row?.whatsappInterviewReminder ??
+      PREF_DEFAULTS.whatsappInterviewReminder,
+    whatsappWeeklyDigest:
+      row?.whatsappWeeklyDigest ?? PREF_DEFAULTS.whatsappWeeklyDigest,
     digestDow: row?.digestDow ?? PREF_DEFAULTS.digestDow,
     digestHour: row?.digestHour ?? PREF_DEFAULTS.digestHour,
     digestTz: row?.digestTz ?? null,
@@ -152,6 +171,10 @@ const PrefsBody = z.object({
   interviewReminder: z.boolean().optional(),
   profileViewed: z.boolean().optional(),
   weeklyDigest: z.boolean().optional(),
+  whatsappStrongMatch: z.boolean().optional(),
+  whatsappApplicationStatus: z.boolean().optional(),
+  whatsappInterviewReminder: z.boolean().optional(),
+  whatsappWeeklyDigest: z.boolean().optional(),
   digestDow: z.number().int().min(0).max(6).optional(),
   digestHour: z.number().int().min(0).max(23).optional(),
   // Empty string clears the override (fall back to candidate.timezone).
@@ -215,6 +238,22 @@ router.put("/me/notification-prefs", async (req, res) => {
       patch.weeklyDigest ??
       existing?.weeklyDigest ??
       PREF_DEFAULTS.weeklyDigest,
+    whatsappStrongMatch:
+      patch.whatsappStrongMatch ??
+      existing?.whatsappStrongMatch ??
+      PREF_DEFAULTS.whatsappStrongMatch,
+    whatsappApplicationStatus:
+      patch.whatsappApplicationStatus ??
+      existing?.whatsappApplicationStatus ??
+      PREF_DEFAULTS.whatsappApplicationStatus,
+    whatsappInterviewReminder:
+      patch.whatsappInterviewReminder ??
+      existing?.whatsappInterviewReminder ??
+      PREF_DEFAULTS.whatsappInterviewReminder,
+    whatsappWeeklyDigest:
+      patch.whatsappWeeklyDigest ??
+      existing?.whatsappWeeklyDigest ??
+      PREF_DEFAULTS.whatsappWeeklyDigest,
     digestDow:
       patch.digestDow ?? existing?.digestDow ?? PREF_DEFAULTS.digestDow,
     digestHour:
@@ -471,6 +510,268 @@ router.get("/me/apply-snapshot", async (req, res) => {
       preview: c.aiCvText ? c.aiCvText.slice(0, 400) : null,
     },
   });
+});
+
+// --- WhatsApp number verification ---------------------------------------
+
+/**
+ * Per-user rate limit on OTP issuance. In-memory by design (same
+ * tradeoff as the digest preview cooldown above) — losing it across
+ * deploys is fine; the cost of one extra OTP is negligible and the
+ * provider has its own rate caps.
+ */
+const WA_OTP_COOLDOWN_MS = 60 * 1000; // 1 minute between sends
+const WA_OTP_TTL_MS = 10 * 60 * 1000; // 10 minute lifetime
+const WA_OTP_MAX_ATTEMPTS = 5;
+
+const WhatsAppStartBody = z.object({
+  number: z.string().min(6).max(32),
+});
+
+router.get("/me/whatsapp", async (req, res) => {
+  const me = req.currentUser!;
+  const [u] = await db
+    .select({
+      whatsappNumber: usersTable.whatsappNumber,
+      whatsappVerifiedAt: usersTable.whatsappVerifiedAt,
+      whatsappOtpExpiresAt: usersTable.whatsappOtpExpiresAt,
+    })
+    .from(usersTable)
+    .where(eq(usersTable.id, me.id))
+    .limit(1);
+  res.json({
+    number: u?.whatsappNumber ?? null,
+    verified: !!u?.whatsappVerifiedAt,
+    verifiedAt: u?.whatsappVerifiedAt?.toISOString() ?? null,
+    pendingVerification:
+      !!u?.whatsappOtpExpiresAt &&
+      u.whatsappOtpExpiresAt.getTime() > Date.now() &&
+      !u.whatsappVerifiedAt,
+  });
+});
+
+router.post("/me/whatsapp/start-verification", async (req, res) => {
+  const parsed = WhatsAppStartBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const me = req.currentUser!;
+  const normalized = normalizeE164(parsed.data.number);
+  if (!normalized) {
+    res
+      .status(400)
+      .json({ error: "Enter a valid phone number including country code." });
+    return;
+  }
+
+  // Generate a 6-digit OTP up-front so we can persist its hash in the
+  // same atomic UPDATE that enforces the per-user cooldown. We never
+  // store the plaintext code — a database leak can't be replayed.
+  const now = Date.now();
+  const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
+  const otpHash = await bcrypt.hash(code, 10);
+  const expiresAt = new Date(now + WA_OTP_TTL_MS);
+
+  // Atomic cooldown enforcement. The previous OTP was issued at
+  // (whatsappOtpExpiresAt - TTL); cooldown is satisfied iff that
+  // moment was >= COOLDOWN_MS ago, i.e.
+  //   whatsappOtpExpiresAt <= NOW() + (TTL - COOLDOWN).
+  // Doing this as a single conditional UPDATE…RETURNING means two
+  // concurrent requests can't both race past the cooldown, and it
+  // works correctly across multiple API instances (where an in-memory
+  // Map would not).
+  const cooldownSlackMs = WA_OTP_TTL_MS - WA_OTP_COOLDOWN_MS;
+  const updated = await db
+    .update(usersTable)
+    .set({
+      whatsappNumber: normalized,
+      whatsappOtpHash: otpHash,
+      whatsappOtpExpiresAt: expiresAt,
+      whatsappOtpAttempts: 0,
+      whatsappVerifiedAt: null,
+    })
+    .where(
+      and(
+        eq(usersTable.id, me.id),
+        sql`(${usersTable.whatsappOtpExpiresAt} IS NULL OR ${usersTable.whatsappOtpExpiresAt} <= NOW() + (${cooldownSlackMs}::int * INTERVAL '1 millisecond'))`,
+      ),
+    )
+    .returning({ id: usersTable.id });
+
+  if (updated.length === 0) {
+    // Read back the current expiry to compute an honest Retry-After.
+    const [cur] = await db
+      .select({ whatsappOtpExpiresAt: usersTable.whatsappOtpExpiresAt })
+      .from(usersTable)
+      .where(eq(usersTable.id, me.id))
+      .limit(1);
+    let retryAfter = Math.ceil(WA_OTP_COOLDOWN_MS / 1000);
+    if (cur?.whatsappOtpExpiresAt) {
+      const issuedAt = cur.whatsappOtpExpiresAt.getTime() - WA_OTP_TTL_MS;
+      retryAfter = Math.max(
+        1,
+        Math.ceil((issuedAt + WA_OTP_COOLDOWN_MS - now) / 1000),
+      );
+    }
+    res.setHeader("Retry-After", String(retryAfter));
+    res.status(429).json({
+      error: "Please wait before requesting another code.",
+      retryAfter,
+    });
+    return;
+  }
+
+  // Best-effort send; the WhatsApp library never throws.
+  const result = await sendWhatsAppTemplate({
+    userId: me.id,
+    to: normalized,
+    category: "otp",
+    templateKey: "otp_verification",
+    params: { code },
+  });
+
+  // When no provider is configured we expose the code in the response
+  // so the developer can complete the flow locally. In production
+  // (sent === true) we never echo the code back.
+  const body: {
+    ok: true;
+    sent: boolean;
+    devCode?: string;
+    devReason?: string;
+  } = {
+    ok: true,
+    sent: result.sent,
+  };
+  if (!result.sent) {
+    body.devReason = result.reason;
+    if (process.env.NODE_ENV !== "production") {
+      body.devCode = code;
+    }
+  }
+  res.json(body);
+});
+
+const WhatsAppConfirmBody = z.object({
+  code: z.string().regex(/^\d{4,8}$/),
+});
+
+router.post("/me/whatsapp/confirm", async (req, res) => {
+  const parsed = WhatsAppConfirmBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Enter the code we sent on WhatsApp." });
+    return;
+  }
+  const me = req.currentUser!;
+
+  // Atomic "charge an attempt" — only succeeds when there's an active
+  // (non-expired) OTP and the attempt counter is still under the cap.
+  // Returning the hash + new counter lets us run the bcrypt compare
+  // off the row we just locked, with no read-then-write race.
+  const charged = await db
+    .update(usersTable)
+    .set({
+      whatsappOtpAttempts: sql`${usersTable.whatsappOtpAttempts} + 1`,
+    })
+    .where(
+      and(
+        eq(usersTable.id, me.id),
+        sql`${usersTable.whatsappOtpHash} IS NOT NULL`,
+        sql`${usersTable.whatsappOtpExpiresAt} > NOW()`,
+        sql`${usersTable.whatsappOtpAttempts} < ${WA_OTP_MAX_ATTEMPTS}`,
+      ),
+    )
+    .returning({
+      whatsappOtpHash: usersTable.whatsappOtpHash,
+      whatsappOtpAttempts: usersTable.whatsappOtpAttempts,
+    });
+
+  if (charged.length === 0) {
+    // Disambiguate: was there nothing to verify, expired, or capped?
+    const [cur] = await db
+      .select({
+        whatsappOtpHash: usersTable.whatsappOtpHash,
+        whatsappOtpExpiresAt: usersTable.whatsappOtpExpiresAt,
+        whatsappOtpAttempts: usersTable.whatsappOtpAttempts,
+      })
+      .from(usersTable)
+      .where(eq(usersTable.id, me.id))
+      .limit(1);
+    if (!cur || !cur.whatsappOtpHash || !cur.whatsappOtpExpiresAt) {
+      res.status(400).json({
+        error: "No active verification — please request a new code.",
+      });
+      return;
+    }
+    if (cur.whatsappOtpExpiresAt.getTime() < Date.now()) {
+      res
+        .status(400)
+        .json({ error: "Code expired — please request a new one." });
+      return;
+    }
+    res
+      .status(429)
+      .json({ error: "Too many attempts — please request a new code." });
+    return;
+  }
+
+  const row = charged[0]!;
+  const ok =
+    row.whatsappOtpHash !== null &&
+    (await bcrypt.compare(parsed.data.code, row.whatsappOtpHash));
+  if (!ok) {
+    res.status(400).json({ error: "That code didn't match." });
+    return;
+  }
+
+  // Success — clear OTP state, stamp verified.
+  await db
+    .update(usersTable)
+    .set({
+      whatsappVerifiedAt: new Date(),
+      whatsappOtpHash: null,
+      whatsappOtpExpiresAt: null,
+      whatsappOtpAttempts: 0,
+    })
+    .where(eq(usersTable.id, me.id));
+  res.json({ ok: true, verified: true });
+});
+
+router.delete("/me/whatsapp", async (req, res) => {
+  const me = req.currentUser!;
+  // Disconnect: drop number and verification, and turn off all WA
+  // toggles so the dispatcher stops trying to send.
+  await db
+    .update(usersTable)
+    .set({
+      whatsappNumber: null,
+      whatsappVerifiedAt: null,
+      whatsappOtpHash: null,
+      whatsappOtpExpiresAt: null,
+      whatsappOtpAttempts: 0,
+    })
+    .where(eq(usersTable.id, me.id));
+  await db
+    .insert(notificationPrefsTable)
+    .values({
+      userId: me.id,
+      whatsappStrongMatch: false,
+      whatsappApplicationStatus: false,
+      whatsappInterviewReminder: false,
+      whatsappWeeklyDigest: false,
+      updatedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: notificationPrefsTable.userId,
+      set: {
+        whatsappStrongMatch: false,
+        whatsappApplicationStatus: false,
+        whatsappInterviewReminder: false,
+        whatsappWeeklyDigest: false,
+        updatedAt: new Date(),
+      },
+    });
+  res.json({ ok: true });
 });
 
 export default router;

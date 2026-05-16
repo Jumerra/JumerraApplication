@@ -1,11 +1,40 @@
+import { useEffect, useState } from "react";
 import { useGetPlatformStats, useGetRecentActivity } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, Building2, GraduationCap, Briefcase, MailOpen, UserCheck, ShieldAlert } from "lucide-react";
+import { Users, Building2, GraduationCap, Briefcase, MailOpen, UserCheck, ShieldAlert, MessageCircle } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend, LineChart, Line, CartesianGrid } from "recharts";
+
+type WaLogItem = {
+  id: number;
+  userId: number | null;
+  userEmailMasked: string | null;
+  userNameMasked: string | null;
+  toNumberMasked: string;
+  category: string;
+  templateKey: string;
+  status: "queued" | "sent" | "failed" | "skipped";
+  providerMessageId: string | null;
+  error: string | null;
+  createdAt: string;
+};
 
 export default function AdminDashboard() {
   const { data: stats, isLoading: isLoadingStats } = useGetPlatformStats();
   const { data: activity, isLoading: isLoadingActivity } = useGetRecentActivity();
+  const [waLogs, setWaLogs] = useState<WaLogItem[] | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/admin/whatsapp-logs?limit=25", { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled || !data) return;
+        setWaLogs((data as { items: WaLogItem[] }).items);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   if (isLoadingStats || isLoadingActivity) {
     return <div className="container py-12 px-4"><div className="animate-pulse h-[800px] bg-muted rounded-2xl" /></div>;
@@ -170,6 +199,75 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <MessageCircle className="w-4 h-4 text-emerald-600" />
+            WhatsApp delivery log
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {!waLogs ? (
+            <p className="text-sm text-muted-foreground">Loading…</p>
+          ) : waLogs.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No WhatsApp messages have been attempted yet.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="text-xs text-muted-foreground border-b">
+                  <tr>
+                    <th className="text-left py-2 pr-3">When</th>
+                    <th className="text-left py-2 pr-3">Recipient</th>
+                    <th className="text-left py-2 pr-3">Number</th>
+                    <th className="text-left py-2 pr-3">Template</th>
+                    <th className="text-left py-2 pr-3">Status</th>
+                    <th className="text-left py-2 pr-3">Note</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {waLogs.map((row) => (
+                    <tr key={row.id} className="border-b last:border-b-0">
+                      <td className="py-2 pr-3 whitespace-nowrap text-xs text-muted-foreground">
+                        {new Date(row.createdAt).toLocaleString(undefined, {
+                          month: "short",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </td>
+                      <td className="py-2 pr-3">
+                        <div className="font-medium">{row.userNameMasked ?? "—"}</div>
+                        <div className="text-xs text-muted-foreground">{row.userEmailMasked ?? ""}</div>
+                      </td>
+                      <td className="py-2 pr-3 font-mono text-xs">{row.toNumberMasked}</td>
+                      <td className="py-2 pr-3 text-xs">{row.templateKey}</td>
+                      <td className="py-2 pr-3">
+                        <span
+                          className={
+                            row.status === "sent"
+                              ? "px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-xs"
+                              : row.status === "failed"
+                                ? "px-2 py-0.5 rounded-full bg-destructive/15 text-destructive text-xs"
+                                : "px-2 py-0.5 rounded-full bg-muted text-muted-foreground text-xs"
+                          }
+                        >
+                          {row.status}
+                        </span>
+                      </td>
+                      <td className="py-2 pr-3 text-xs text-muted-foreground truncate max-w-[280px]">
+                        {row.error ?? row.providerMessageId ?? ""}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

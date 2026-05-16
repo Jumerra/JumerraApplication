@@ -13,6 +13,7 @@
     "test:digest-slot": "tsx ./scripts/test-digest-slot.ts",
     "test:growth-plan": "tsx ./scripts/test-growth-plan.ts",
     "test:fast-track": "tsx ./scripts/test-fast-track.ts",
+    "test:whatsapp": "tsx ./scripts/test-whatsapp.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

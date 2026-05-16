@@ -60,6 +60,25 @@ export const notificationPrefsTable = pgTable(
     profileViewed: boolean("profile_viewed").notNull().default(true),
     weeklyDigest: boolean("weekly_digest").notNull().default(true),
     /**
+     * WhatsApp per-category toggles. Default to FALSE (opt-in only) so
+     * we never message a verified number without the candidate
+     * explicitly enabling the channel. The dispatcher also requires
+     * `users.whatsappVerifiedAt` to be non-null before sending — these
+     * toggles are layered on top of that gate.
+     */
+    whatsappStrongMatch: boolean("whatsapp_strong_match")
+      .notNull()
+      .default(false),
+    whatsappApplicationStatus: boolean("whatsapp_application_status")
+      .notNull()
+      .default(false),
+    whatsappInterviewReminder: boolean("whatsapp_interview_reminder")
+      .notNull()
+      .default(false),
+    whatsappWeeklyDigest: boolean("whatsapp_weekly_digest")
+      .notNull()
+      .default(false),
+    /**
      * Per-candidate delivery slot for the weekly digest. The worker's
      * hourly gate fires only when the candidate's local time matches
      * (`digestDow`, `digestHour`). `digestTz` is an IANA id; when null

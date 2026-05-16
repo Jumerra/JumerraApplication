@@ -27,3 +27,4 @@ export * from "./mock-interviews";
 export * from "./application-endorsements";
 export * from "./skill-challenges";
 export * from "./reverse-offers";
+export * from "./alumni-intros";

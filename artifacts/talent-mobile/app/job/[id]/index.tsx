@@ -1,5 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import {
+  customFetch,
   getListApplicationsQueryKey,
   useGetJob,
   useListApplications,
@@ -246,6 +247,7 @@ export default function JobDetailScreen() {
           {isCandidate && candidateId > 0 ? (
             <Section title="Why we matched you">
               <MatchExplainer candidateId={candidateId} jobId={jobId} />
+              <AlumniIntroCard jobId={jobId} />
             </Section>
           ) : null}
 
@@ -559,6 +561,198 @@ function MockInterviewCta({ jobId }: { jobId: number }) {
       </View>
       <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
     </Pressable>
+  );
+}
+
+type AlumniSample = {
+  alumniUserId: number;
+  candidateId: number;
+  fullName: string;
+  avatarUrl: string | null;
+  headline: string | null;
+  requestStatus: "pending" | "accepted" | "declined" | null;
+};
+
+/**
+ * Mobile equivalent of the web AlumniIntroPanel — surfaces alumni from
+ * the candidate's verified institution(s) who work at this job's
+ * employer, with a one-tap "Request intro" CTA. Server enforces the
+ * 3-per-job / 1-per-alumni-per-30-days throttle.
+ */
+function AlumniIntroCard({ jobId }: { jobId: number }) {
+  const colors = useColors();
+  const [data, setData] = React.useState<{
+    institution: { id: number; name: string } | null;
+    employer: { id: number; name: string };
+    count: number;
+    sample: AlumniSample[];
+  } | null>(null);
+  const [pending, setPending] = React.useState<number | null>(null);
+
+  const load = React.useCallback(async () => {
+    try {
+      const res = await customFetch<typeof data>(
+        `/api/jobs/${jobId}/alumni-at-employer`,
+      );
+      setData(res ?? null);
+    } catch {
+      setData(null);
+    }
+  }, [jobId]);
+
+  React.useEffect(() => {
+    void load();
+  }, [load]);
+
+  if (!data || data.count === 0 || !data.institution) return null;
+
+  const request = async (alumniUserId: number) => {
+    setPending(alumniUserId);
+    try {
+      await customFetch(`/api/jobs/${jobId}/intro-requests`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ alumniUserId }),
+      });
+      await load();
+    } catch {
+      // Surface throttle errors silently — UI will reflect existing state on next load.
+    } finally {
+      setPending(null);
+    }
+  };
+
+  return (
+    <View
+      style={{
+        padding: 14,
+        borderWidth: 1,
+        borderColor: colors.primary + "40",
+        backgroundColor: colors.primary + "10",
+        borderRadius: colors.radius * 1.25,
+        gap: 12,
+      }}
+      testID="card-alumni-intros"
+    >
+      <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
+        <Feather name="users" size={20} color={colors.primary} />
+        <View style={{ flex: 1 }}>
+          <Text
+            style={{
+              color: colors.foreground,
+              fontFamily: "Inter_700Bold",
+              fontSize: 14,
+            }}
+          >
+            {data.count} alumni from {data.institution.name} work at{" "}
+            {data.employer.name}
+          </Text>
+          <Text
+            style={{
+              color: colors.mutedForeground,
+              fontFamily: "Inter_400Regular",
+              fontSize: 12,
+              marginTop: 2,
+            }}
+          >
+            Ask for a quick endorsement — it appears on your application.
+          </Text>
+        </View>
+      </View>
+      {data.sample.map((a) => (
+        <View
+          key={a.alumniUserId}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 10,
+            padding: 8,
+            borderRadius: 10,
+            backgroundColor: colors.background,
+          }}
+        >
+          {a.avatarUrl ? (
+            <Image
+              source={{ uri: a.avatarUrl }}
+              style={{ width: 32, height: 32, borderRadius: 16 }}
+            />
+          ) : (
+            <View
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 16,
+                backgroundColor: colors.muted,
+              }}
+            />
+          )}
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text
+              numberOfLines={1}
+              style={{
+                color: colors.foreground,
+                fontFamily: "Inter_600SemiBold",
+                fontSize: 13,
+              }}
+            >
+              {a.fullName}
+            </Text>
+            {a.headline ? (
+              <Text
+                numberOfLines={1}
+                style={{
+                  color: colors.mutedForeground,
+                  fontFamily: "Inter_400Regular",
+                  fontSize: 11,
+                }}
+              >
+                {a.headline}
+              </Text>
+            ) : null}
+          </View>
+          {a.requestStatus ? (
+            <Text
+              style={{
+                color:
+                  a.requestStatus === "accepted"
+                    ? "#16a34a"
+                    : a.requestStatus === "declined"
+                      ? colors.mutedForeground
+                      : colors.primary,
+                fontFamily: "Inter_600SemiBold",
+                fontSize: 12,
+                textTransform: "capitalize",
+              }}
+            >
+              {a.requestStatus === "pending" ? "Requested" : a.requestStatus}
+            </Text>
+          ) : (
+            <Pressable
+              onPress={() => request(a.alumniUserId)}
+              disabled={pending === a.alumniUserId}
+              style={({ pressed }) => ({
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                borderRadius: 8,
+                backgroundColor: colors.primary,
+                opacity: pressed || pending === a.alumniUserId ? 0.7 : 1,
+              })}
+              testID={`button-request-intro-${a.alumniUserId}`}
+            >
+              <Text
+                style={{
+                  color: colors.primaryForeground,
+                  fontFamily: "Inter_600SemiBold",
+                  fontSize: 12,
+                }}
+              >
+                Ask
+              </Text>
+            </Pressable>
+          )}
+        </View>
+      ))}
+    </View>
   );
 }
 

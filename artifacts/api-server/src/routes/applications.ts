@@ -13,6 +13,8 @@ import {
   mockInterviewsTable,
   jobChallengesTable,
   applicationChallengesTable,
+  alumniIntroRequestsTable,
+  usersTable,
 } from "@workspace/db";
 import { sendNotificationToCandidate } from "../lib/notifier";
 import {
@@ -76,6 +78,52 @@ async function findLatestFinalisedMockInterview(
     scoreCommunication: row.scoreCommunication,
     scoreCulture: row.scoreCulture,
   };
+}
+
+/**
+ * Single-application path equivalent of the bulk `introByPair`
+ * lookup. Only callers that already gated on viewerRole=employer|admin
+ * should use this — server still returns rows but the caller filters.
+ */
+async function getIntroEndorsementsForApplication(
+  candidateId: number,
+  jobId: number,
+): Promise<
+  Array<{
+    alumniUserId: number;
+    alumniName: string;
+    alumniAvatarUrl: string | null;
+    response: string | null;
+    respondedAt: string;
+  }>
+> {
+  const rows = await db
+    .select({
+      alumniUserId: alumniIntroRequestsTable.alumniUserId,
+      response: alumniIntroRequestsTable.response,
+      respondedAt: alumniIntroRequestsTable.respondedAt,
+      alumniName: usersTable.fullName,
+      alumniAvatarUrl: candidatesTable.avatarUrl,
+    })
+    .from(alumniIntroRequestsTable)
+    .innerJoin(usersTable, eq(usersTable.id, alumniIntroRequestsTable.alumniUserId))
+    .leftJoin(candidatesTable, eq(candidatesTable.id, usersTable.candidateId))
+    .where(
+      and(
+        eq(alumniIntroRequestsTable.status, "accepted"),
+        eq(alumniIntroRequestsTable.candidateId, candidateId),
+        eq(alumniIntroRequestsTable.jobId, jobId),
+      ),
+    );
+  return rows.map((r) => ({
+    alumniUserId: r.alumniUserId,
+    alumniName: r.alumniName,
+    alumniAvatarUrl: r.alumniAvatarUrl ?? null,
+    response: r.response,
+    respondedAt: r.respondedAt
+      ? r.respondedAt.toISOString()
+      : new Date(0).toISOString(),
+  }));
 }
 
 async function serializeApplication(
@@ -149,6 +197,10 @@ async function serializeApplication(
         }
       : null,
     endorsement,
+    introEndorsements:
+      viewerRole === "employer" || viewerRole === "admin"
+        ? await getIntroEndorsementsForApplication(row.candidate.id, row.job.id)
+        : [],
     // See list-endpoint comment: only the candidate and admins see
     // the raw reported number; employers/institutions get nulls so
     // the per-row offer is never leaked across the tenant boundary.
@@ -381,6 +433,61 @@ router.get("/applications", requireAuth, async (req, res): Promise<void> => {
     }
   }
 
+  // Bulk-fetch accepted alumni intro endorsements for these
+  // (candidate, job) pairs. Surfaced on the Kanban for employer/admin
+  // viewers only.
+  const introByPair = new Map<
+    string,
+    Array<{
+      alumniUserId: number;
+      alumniName: string;
+      alumniAvatarUrl: string | null;
+      response: string | null;
+      respondedAt: string;
+    }>
+  >();
+  if (rows.length > 0 && (user.role === "employer" || user.role === "admin")) {
+    const candidateIds = Array.from(new Set(rows.map((r) => r.candidate.id)));
+    const jobIds = Array.from(new Set(rows.map((r) => r.job.id)));
+    const introRows = await db
+      .select({
+        candidateId: alumniIntroRequestsTable.candidateId,
+        jobId: alumniIntroRequestsTable.jobId,
+        alumniUserId: alumniIntroRequestsTable.alumniUserId,
+        response: alumniIntroRequestsTable.response,
+        respondedAt: alumniIntroRequestsTable.respondedAt,
+        alumniName: usersTable.fullName,
+        alumniAvatarUrl: candidatesTable.avatarUrl,
+      })
+      .from(alumniIntroRequestsTable)
+      .innerJoin(usersTable, eq(usersTable.id, alumniIntroRequestsTable.alumniUserId))
+      .leftJoin(
+        candidatesTable,
+        eq(candidatesTable.id, usersTable.candidateId),
+      )
+      .where(
+        and(
+          eq(alumniIntroRequestsTable.status, "accepted"),
+          inArray(alumniIntroRequestsTable.candidateId, candidateIds),
+          inArray(alumniIntroRequestsTable.jobId, jobIds),
+        ),
+      );
+    for (const r of introRows) {
+      const k = `${r.candidateId}:${r.jobId}`;
+      const arr = introByPair.get(k) ?? [];
+      arr.push({
+        alumniUserId: r.alumniUserId,
+        alumniName: r.alumniName,
+        alumniAvatarUrl: r.alumniAvatarUrl ?? null,
+        response: r.response,
+        respondedAt: r.respondedAt
+          ? r.respondedAt.toISOString()
+          : new Date(0).toISOString(),
+      });
+      introByPair.set(k, arr);
+    }
+  }
+
   // Bulk-fetch challenge scores + breakdowns for the same applications
   // so the employer Kanban renders the badge and the per-question
   // breakdown without N+1.
@@ -446,6 +553,10 @@ router.get("/applications", requireAuth, async (req, res): Promise<void> => {
           }
         : null,
       endorsement,
+      introEndorsements:
+        user.role === "employer" || user.role === "admin"
+          ? introByPair.get(`${row.candidate.id}:${row.job.id}`) ?? []
+          : [],
       // Reported salary is private feedback from the candidate that
       // only feeds the aggregate /salary-insights band. We expose the
       // raw value only to the candidate themselves (and admins) so the

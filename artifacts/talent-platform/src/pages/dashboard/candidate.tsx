@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Briefcase, CheckCircle2, Clock, MailOpen, TrendingUp, Sparkles, Star, Eye, Lock, Building2, GraduationCap } from "lucide-react";
+import { Briefcase, CheckCircle2, Clock, MailOpen, TrendingUp, Sparkles, Star, Eye, Lock, Building2, GraduationCap, Inbox } from "lucide-react";
 import { customFetch } from "@workspace/api-client-react";
 import { useEffect } from "react";
 import { Switch } from "@/components/ui/switch";
@@ -220,6 +220,82 @@ function MentorshipCard({ candidateId }: { candidateId: number }) {
   );
 }
 
+function IntroRequestsCard({ candidateId }: { candidateId: number }) {
+  const [allow, setAllow] = useState<boolean | null>(null);
+  const [pendingCount, setPendingCount] = useState<number>(0);
+  useEffect(() => {
+    customFetch<{ allowIntroRequests?: boolean }>(
+      `/api/candidates/${candidateId}`,
+    )
+      .then((d) => setAllow(d?.allowIntroRequests ?? true))
+      .catch(() => setAllow(true));
+    customFetch<{ inbox: Array<{ status: string }> }>(`/api/me/intro-requests`)
+      .then((d) =>
+        setPendingCount(
+          (d?.inbox ?? []).filter((r) => r.status === "pending").length,
+        ),
+      )
+      .catch(() => setPendingCount(0));
+  }, [candidateId]);
+
+  const toggle = async (next: boolean) => {
+    setAllow(next);
+    try {
+      await customFetch(`/api/me/allow-intro-requests`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ allow: next }),
+      });
+      toast.success(next ? "Intro requests on" : "Intro requests off");
+    } catch (err) {
+      setAllow(!next);
+      toast.error((err as Error).message);
+    }
+  };
+
+  return (
+    <Card className="shadow-sm" data-testid="card-intro-requests">
+      <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
+        <div className="space-y-1">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Inbox className="w-5 h-5 text-primary" /> Warm intro requests
+            {pendingCount > 0 ? (
+              <Badge variant="secondary" className="bg-primary/15 text-primary">
+                {pendingCount} pending
+              </Badge>
+            ) : null}
+          </CardTitle>
+          <CardDescription>
+            Job-seekers from your institution can ask you to vouch for them at
+            your current employer.
+          </CardDescription>
+        </div>
+        <Link
+          to="/dashboard/candidate/intro-requests"
+          className="text-sm text-primary hover:underline whitespace-nowrap"
+        >
+          View inbox →
+        </Link>
+      </CardHeader>
+      <CardContent className="flex items-center justify-between gap-4">
+        <div>
+          <p className="text-sm font-medium">Accept intro requests</p>
+          <p className="text-xs text-muted-foreground">
+            Turn off to stop being surfaced as alumni at your employer.
+          </p>
+        </div>
+        <Switch
+          checked={!!allow}
+          onCheckedChange={toggle}
+          disabled={allow == null}
+          aria-label="Toggle intro requests"
+          data-testid="switch-allow-intro-requests"
+        />
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function CandidateDashboard() {
   const { userId } = useAuth();
   const id = userId || 1;
@@ -324,6 +400,8 @@ export default function CandidateDashboard() {
       <ProfileViewsCard candidateId={id} />
 
       <MentorshipCard candidateId={id} />
+
+      <IntroRequestsCard candidateId={id} />
 
 
       <div className="grid lg:grid-cols-3 gap-8">

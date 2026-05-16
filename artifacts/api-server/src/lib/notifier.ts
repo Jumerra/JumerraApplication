@@ -27,7 +27,8 @@ export type NotificationCategory =
   | "applicationStatus"
   | "interviewReminder"
   | "profileViewed"
-  | "weeklyDigest";
+  | "weeklyDigest"
+  | "introRequest";
 
 export type DispatchOpts = {
   userId: number;
@@ -78,6 +79,9 @@ async function loadPrefs(userId: number): Promise<{
   interviewReminder: boolean;
   profileViewed: boolean;
   weeklyDigest: boolean;
+  // No per-category opt-out for intro requests — they are user-initiated
+  // and rare. We treat them as always-on for push (defaults true).
+  introRequest: boolean;
 }> {
   const [row] = await db
     .select()
@@ -91,6 +95,7 @@ async function loadPrefs(userId: number): Promise<{
       interviewReminder: row.interviewReminder,
       profileViewed: row.profileViewed,
       weeklyDigest: row.weeklyDigest,
+      introRequest: true,
     };
   }
   return {
@@ -99,6 +104,7 @@ async function loadPrefs(userId: number): Promise<{
     interviewReminder: true,
     profileViewed: true,
     weeklyDigest: true,
+    introRequest: true,
   };
 }
 

@@ -81,6 +81,7 @@ import EmployerOpenCandidatesPage from "@/pages/dashboard/employer-open-candidat
 import PublicOpenCandidatesPage from "@/pages/open-candidates";
 import CandidateMentorsPage from "@/pages/dashboard/candidate-mentors";
 import CandidateMentorRequestsPage from "@/pages/dashboard/candidate-mentor-requests";
+import CandidateIntroRequestsPage from "@/pages/dashboard/candidate-intro-requests";
 import AdminNetworkPage from "@/pages/dashboard/admin/network";
 
 const queryClient = new QueryClient();
@@ -115,6 +116,7 @@ function Router() {
         <Route path="/dashboard/candidate" component={CandidateDashboard} />
         <Route path="/dashboard/candidate/mentors" component={CandidateMentorsPage} />
         <Route path="/dashboard/candidate/mentor-requests" component={CandidateMentorRequestsPage} />
+        <Route path="/dashboard/candidate/intro-requests" component={CandidateIntroRequestsPage} />
         <Route path="/account/applications/:id" component={ApplicationDetailPage} />
         <Route path="/jobs/:jobId/mock-interview" component={MockInterviewPage} />
         <Route path="/interviews/:id" component={InterviewInvitePage} />

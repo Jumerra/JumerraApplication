@@ -34,6 +34,7 @@ import applicationEndorsementsRouter from "./application-endorsements";
 import skillChallengesRouter from "./skill-challenges";
 import salaryInsightsRouter from "./salary-insights";
 import reverseOffersRouter from "./reverse-offers";
+import alumniIntrosRouter from "./alumni-intros";
 import { requireAuth } from "../middleware/require-auth";
 
 const router: IRouter = Router();
@@ -123,6 +124,10 @@ router.use(salaryInsightsRouter);
 // (anonymised marketplace cards). Mount BEFORE the requireAuth-gated
 // /candidates subtree so it doesn't get caught by that gate.
 router.use(reverseOffersRouter);
+// Alumni warm-intros — mounts /jobs/:id/alumni-at-employer,
+// /jobs/:id/intro-requests, and /me/intro-requests*. Must sit BEFORE
+// the generic jobsRouter so the jobs/:id sub-routes are matched here.
+router.use(alumniIntrosRouter);
 router.use(candidatesRouter);
 router.use(employersRouter);
 router.use(institutionsRouter);

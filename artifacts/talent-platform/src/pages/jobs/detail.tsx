@@ -16,6 +16,7 @@ import { useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { InterviewPrepPanel } from "@/components/InterviewPrepPanel";
 import { SalaryBand } from "@/components/SalaryBand";
+import { AlumniIntroPanel } from "@/components/AlumniIntroPanel";
 
 export default function JobDetail() {
   const { id } = useParams();
@@ -197,7 +198,8 @@ export default function JobDetail() {
               </ul>
               
               {role === "candidate" && userId && job.id && (
-                <div className="mt-8 not-prose">
+                <div className="mt-8 not-prose space-y-4">
+                  <AlumniIntroPanel jobId={job.id} />
                   <InterviewPrepPanel candidateId={userId} jobId={job.id} />
                 </div>
               )}

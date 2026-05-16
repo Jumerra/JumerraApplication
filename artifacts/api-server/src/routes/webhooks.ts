@@ -152,6 +152,9 @@ router.post("/webhooks/stripe", async (req: Request, res: Response) => {
         // Other event types are intentionally ignored.
       },
     });
+    // 200 only on clean processing (or idempotent duplicate). Any
+    // thrown error from `process` falls through to the catch below and
+    // is reported as 5xx so the provider retries.
     res.json({ received: true });
   } catch (err) {
     logger.error(

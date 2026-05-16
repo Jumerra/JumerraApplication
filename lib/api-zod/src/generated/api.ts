@@ -4760,9 +4760,14 @@ export const CreateBoostCheckoutResponse = zod.object({
 /**
  * @summary Verify a Stripe Checkout Session and apply the boost on success
  */
-export const VerifyBoostCheckoutBody = zod.object({
-  sessionId: zod.string(),
-});
+export const VerifyBoostCheckoutBody = zod
+  .object({
+    sessionId: zod.string().optional(),
+    reference: zod.string().optional(),
+  })
+  .describe(
+    "Pass either a Stripe checkout session id OR a Paystack transaction reference. The server resolves the row by whichever is present.",
+  );
 
 export const VerifyBoostCheckoutResponse = zod.object({
   status: zod.enum(["paid", "pending", "failed", "expired"]),
@@ -4949,9 +4954,14 @@ export const CreateInstitutionSubscriptionCheckoutResponse = zod.object({
 /**
  * @summary Verify a Stripe Checkout Session and activate the subscription on success
  */
-export const VerifyInstitutionSubscriptionCheckoutBody = zod.object({
-  sessionId: zod.string(),
-});
+export const VerifyInstitutionSubscriptionCheckoutBody = zod
+  .object({
+    sessionId: zod.string().optional(),
+    reference: zod.string().optional(),
+  })
+  .describe(
+    "Pass either a Stripe checkout session id OR a Paystack transaction reference. The server resolves the row by whichever is present.",
+  );
 
 export const VerifyInstitutionSubscriptionCheckoutResponse = zod
   .object({
@@ -5185,9 +5195,14 @@ export const CreateEmployerSubscriptionCheckoutResponse = zod.object({
 /**
  * @summary Verify a Stripe Checkout Session and activate the employer subscription
  */
-export const VerifyEmployerSubscriptionCheckoutBody = zod.object({
-  sessionId: zod.string(),
-});
+export const VerifyEmployerSubscriptionCheckoutBody = zod
+  .object({
+    sessionId: zod.string().optional(),
+    reference: zod.string().optional(),
+  })
+  .describe(
+    "Pass either a Stripe checkout session id OR a Paystack transaction reference. The server resolves the row by whichever is present.",
+  );
 
 export const VerifyEmployerSubscriptionCheckoutResponse = zod
   .object({
@@ -5483,9 +5498,14 @@ export const CreateCvCheckoutResponse = zod.object({
 /**
  * @summary Verify a Stripe Checkout Session and unlock the AI CV Builder
  */
-export const VerifyCvCheckoutBody = zod.object({
-  sessionId: zod.string(),
-});
+export const VerifyCvCheckoutBody = zod
+  .object({
+    sessionId: zod.string().optional(),
+    reference: zod.string().optional(),
+  })
+  .describe(
+    "Pass either a Stripe checkout session id OR a Paystack transaction reference. The server resolves the row by whichever is present.",
+  );
 
 export const VerifyCvCheckoutResponse = zod.object({
   status: zod.enum(["paid", "pending", "failed", "expired"]),

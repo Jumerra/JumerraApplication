@@ -6,6 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * Pass either a Stripe checkout session id OR a Paystack transaction reference. The server resolves the row by whichever is present.
+ */
 export interface VerifyBoostCheckoutRequest {
-  sessionId: string;
+  sessionId?: string;
+  reference?: string;
 }

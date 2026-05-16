@@ -19,6 +19,10 @@ export default function BoostReturnPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const sessionId = params.get("session_id");
+    // Paystack appends `?reference=...&trxref=...` to its callback URL.
+    // Either one identifies the same row server-side because Paystack
+    // boost rows store the reference in `stripeSessionId`.
+    const reference = params.get("reference") ?? params.get("trxref");
     const mobileRedirect = params.get("mobile_redirect");
     const wasCancelled = params.get("cancelled") === "1";
 
@@ -33,6 +37,8 @@ export default function BoostReturnPage() {
         parts.push("cancelled=1");
       } else if (sessionId) {
         parts.push(`session_id=${encodeURIComponent(sessionId)}`);
+      } else if (reference) {
+        parts.push(`reference=${encodeURIComponent(reference)}`);
       }
       const target = parts.length
         ? `${safeMobileRedirect}${sep}${parts.join("&")}`
@@ -41,13 +47,16 @@ export default function BoostReturnPage() {
       return;
     }
 
-    if (!sessionId) {
+    if (!sessionId && !reference) {
       setPhase("missing");
       return;
     }
     let cancelled = false;
+    const verifyArgs = sessionId
+      ? { data: { sessionId } }
+      : { data: { reference: reference! } };
     verify
-      .mutateAsync({ data: { sessionId } })
+      .mutateAsync(verifyArgs)
       .then(async (result) => {
         if (cancelled) return;
         setBoostUntil(

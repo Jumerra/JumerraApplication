@@ -13,7 +13,34 @@ import {
   mapStripeCheckoutError,
 } from "../stripeClient";
 import { selectPaymentRail, type PaymentRail } from "../lib/payment-rail";
-import { paystackInitializeTransaction } from "../paystackClient";
+import {
+  paystackInitializeTransaction,
+  paystackVerifyTransaction,
+} from "../paystackClient";
+import { finalizeBoostPayment } from "../lib/payment-finalizers";
+
+/**
+ * Paystack does not understand Stripe's `{CHECKOUT_SESSION_ID}` URL
+ * template — it will redirect the user to whatever URL we hand it,
+ * appending `?reference=...&trxref=...`. The frontend sends a
+ * Stripe-style `successUrl` containing `session_id={CHECKOUT_SESSION_ID}`
+ * for backwards compat, so we strip that placeholder before forwarding
+ * to Paystack. The return page already accepts both `session_id` and
+ * `reference` query params.
+ */
+function sanitizePaystackCallbackUrl(raw: string): string {
+  try {
+    const u = new URL(raw);
+    u.searchParams.delete("session_id");
+    // URL.toString() keeps a trailing `?` when all params are gone —
+    // strip it for cleanliness.
+    return u.toString().replace(/\?$/, "");
+  } catch {
+    // If it isn't a valid URL the upstream validator would have already
+    // rejected it; just hand it back unchanged.
+    return raw;
+  }
+}
 
 const router: Router = Router();
 
@@ -247,7 +274,7 @@ router.post(
             email,
             amountSubunits: settings.priceCents,
             currency: settings.currency,
-            callbackUrl: successUrl,
+            callbackUrl: sanitizePaystackCallbackUrl(successUrl),
             metadata: {
               candidateId,
               purpose: "profile_boost",
@@ -370,15 +397,30 @@ router.post(
 
 /**
  * POST /api/boost/checkout/verify
- * Auth required. Re-checks a session with Stripe and applies the boost
- * to the candidate on success. Idempotent — repeat calls with the same
- * `sessionId` after success simply return the existing expiry.
+ * Auth required. Re-checks a checkout with the upstream provider and
+ * applies the boost on success. Idempotent — repeat calls after success
+ * simply return the existing expiry.
+ *
+ * Accepts either `sessionId` (Stripe checkout session id) OR `reference`
+ * (Paystack transaction reference). Internally we look the row up by
+ * `stripeSessionId` either way because Paystack rows re-use that column
+ * for their reference (see boost checkout insert).
  */
 router.post("/boost/checkout/verify", requireAuth, async (req, res) => {
-  const body = (req.body ?? {}) as { sessionId?: unknown };
+  const body = (req.body ?? {}) as {
+    sessionId?: unknown;
+    reference?: unknown;
+  };
   const sessionId = body.sessionId;
-  if (typeof sessionId !== "string" || sessionId.length === 0) {
-    res.status(400).json({ error: "sessionId required" });
+  const reference = body.reference;
+  const externalRef =
+    typeof sessionId === "string" && sessionId.length > 0
+      ? sessionId
+      : typeof reference === "string" && reference.length > 0
+        ? reference
+        : null;
+  if (!externalRef) {
+    res.status(400).json({ error: "sessionId or reference required" });
     return;
   }
   // Tracked across the try/catch so logs always carry the payment-owner
@@ -390,7 +432,7 @@ router.post("/boost/checkout/verify", requireAuth, async (req, res) => {
     const paymentRows = await db
       .select()
       .from(boostPaymentsTable)
-      .where(eq(boostPaymentsTable.stripeSessionId, sessionId))
+      .where(eq(boostPaymentsTable.stripeSessionId, externalRef))
       .limit(1);
     const payment = paymentRows[0];
     if (!payment) {
@@ -423,8 +465,67 @@ router.post("/boost/checkout/verify", requireAuth, async (req, res) => {
       return;
     }
 
+    // ---- Paystack rail: verify with Paystack and finalize via the
+    // shared transactional finalizer. We do this branch BEFORE talking
+    // to Stripe so a row with provider="paystack" never accidentally
+    // hits Stripe.checkout.sessions.retrieve (which would 404 and
+    // bubble as a confusing error).
+    if (payment.provider === "paystack") {
+      const ref = payment.paystackReference ?? externalRef;
+      try {
+        const verifyResp = await paystackVerifyTransaction(ref);
+        const psStatus = verifyResp.status ?? null;
+        if (psStatus === "success") {
+          const result = await finalizeBoostPayment({
+            provider: "paystack",
+            externalRef: ref,
+          });
+          // Re-read to surface the up-to-date expiry (finalizer wrote it).
+          const reread = await db
+            .select({ boostExpiresAt: boostPaymentsTable.boostExpiresAt })
+            .from(boostPaymentsTable)
+            .where(eq(boostPaymentsTable.id, payment.id))
+            .limit(1);
+          res.json({
+            status: "paid",
+            boostExpiresAt: reread[0]?.boostExpiresAt
+              ? reread[0].boostExpiresAt.toISOString()
+              : null,
+            alreadyFinalized: result.alreadyFinalized,
+          });
+          return;
+        }
+        if (psStatus === "failed" || psStatus === "abandoned") {
+          await db
+            .update(boostPaymentsTable)
+            .set({ status: "failed" })
+            .where(
+              and(
+                eq(boostPaymentsTable.id, payment.id),
+                eq(boostPaymentsTable.status, "pending"),
+              ),
+            );
+          res.json({ status: "failed", boostExpiresAt: null });
+          return;
+        }
+        // ongoing/pending — let the client poll
+        res.json({ status: "pending", boostExpiresAt: null });
+        return;
+      } catch (paystackErr) {
+        req.log.error(
+          { err: paystackErr, ref, candidateId: paymentCandidateId },
+          "boost verify: paystack verify failed",
+        );
+        res.status(502).json({
+          error: "Could not verify Paystack payment. Please try again.",
+          code: "paystack_verify_failed",
+        });
+        return;
+      }
+    }
+
     const stripe = await getUncachableStripeClient();
-    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    const session = await stripe.checkout.sessions.retrieve(externalRef);
 
     if (session.payment_status !== "paid") {
       // Map Stripe's terminal session states onto our stored payment

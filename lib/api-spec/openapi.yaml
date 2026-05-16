@@ -6619,9 +6619,13 @@ components:
 
     VerifyBoostCheckoutRequest:
       type: object
+      description: >-
+        Pass either a Stripe checkout session id OR a Paystack
+        transaction reference. The server resolves the row by
+        whichever is present.
       properties:
         sessionId: { type: string }
-      required: [sessionId]
+        reference: { type: string }
 
     VerifyBoostCheckoutResponse:
       type: object

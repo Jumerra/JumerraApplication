@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Users, GraduationCap, Building2, Banknote, Briefcase, Link2, ShieldCheck, ShieldAlert, Loader2, BookOpen, Building, Pencil, ArrowRight, Crown, Lock } from "lucide-react";
 import { Link } from "wouter";
 import { institutionKindLabel, academicUnitTerms } from "@/lib/institution-kinds";
+import { IssueSkillVerificationDialog } from "@/components/issue-skill-verification-dialog";
 import {
   useGetInstitution,
   useListMyInstitutionDepartments,
@@ -366,7 +367,16 @@ export default function InstitutionDashboard() {
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">{s.applicationsCount}</TableCell>
                     <TableCell className="pr-6 text-right">
-                      <Badge variant="secondary" className="capitalize">{s.status}</Badge>
+                      <div className="flex items-center justify-end gap-2">
+                        {hasInstitution ? (
+                          <IssueSkillVerificationDialog
+                            institutionId={id}
+                            candidateId={s.candidateId}
+                            candidateName={s.fullName}
+                          />
+                        ) : null}
+                        <Badge variant="secondary" className="capitalize">{s.status}</Badge>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))

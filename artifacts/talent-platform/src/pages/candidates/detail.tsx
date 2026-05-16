@@ -3,8 +3,36 @@ import { Link, useParams } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MapPin, Mail, Phone, ExternalLink, Video, Star, Award, Briefcase, GraduationCap, Sparkles, Link2, BadgeCheck } from "lucide-react";
+import { MapPin, Mail, Phone, ExternalLink, Video, Star, Award, Briefcase, GraduationCap, Sparkles, Link2, BadgeCheck, ShieldCheck, ShieldAlert, Quote } from "lucide-react";
 import { EMPLOYMENT_TYPE_LABELS, LOCATION_TYPE_LABELS } from "@/lib/experience-labels";
+
+const RELATIONSHIP_LABEL: Record<string, string> = {
+  lecturer: "Lecturer",
+  past_employer: "Past employer",
+  colleague: "Colleague",
+  other: "Other",
+};
+
+const BG_BADGE: Record<
+  string,
+  { label: string; className: string; icon: typeof ShieldCheck }
+> = {
+  passed: {
+    label: "Background check passed",
+    className: "bg-emerald-600 text-white hover:bg-emerald-600",
+    icon: ShieldCheck,
+  },
+  in_progress: {
+    label: "Background check in progress",
+    className: "bg-amber-500 text-white hover:bg-amber-500",
+    icon: ShieldAlert,
+  },
+  failed: {
+    label: "Background check failed",
+    className: "bg-destructive text-destructive-foreground hover:bg-destructive",
+    icon: ShieldAlert,
+  },
+};
 
 export default function CandidateDetail() {
   const { id } = useParams();
@@ -38,10 +66,21 @@ export default function CandidateDetail() {
                 <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight mb-2">{candidate.fullName}</h1>
                 <p className="text-xl text-muted-foreground">{candidate.headline}</p>
               </div>
-              <div className="flex items-center gap-2 bg-primary/10 text-primary px-4 py-2 rounded-full font-bold shadow-sm shrink-0">
-                <Star className="w-5 h-5 fill-primary" />
-                <span>{candidate.talentScore}</span>
-                <span className="text-xs font-medium uppercase tracking-wider ml-1">Score</span>
+              <div className="flex items-center gap-2 shrink-0">
+                {candidate.backgroundCheck && BG_BADGE[candidate.backgroundCheck.status] ? (() => {
+                  const cfg = BG_BADGE[candidate.backgroundCheck.status]!;
+                  const Icon = cfg.icon;
+                  return (
+                    <Badge className={`gap-1 ${cfg.className}`}>
+                      <Icon className="w-3 h-3" /> {cfg.label}
+                    </Badge>
+                  );
+                })() : null}
+                <div className="flex items-center gap-2 bg-primary/10 text-primary px-4 py-2 rounded-full font-bold shadow-sm">
+                  <Star className="w-5 h-5 fill-primary" />
+                  <span>{candidate.talentScore}</span>
+                  <span className="text-xs font-medium uppercase tracking-wider ml-1">Score</span>
+                </div>
               </div>
             </div>
 
@@ -159,10 +198,65 @@ export default function CandidateDetail() {
                 
                 <h3 className="text-lg font-semibold mt-8 mb-4">Skills</h3>
                 <div className="flex flex-wrap gap-2">
-                  {candidate.skills.map((skill) => (
-                    <Badge key={skill} variant="secondary" className="px-3 py-1 bg-muted">{skill}</Badge>
-                  ))}
+                  {candidate.skills.map((skill) => {
+                    const verifications = candidate.verifiedSkills?.filter(
+                      (v) => v.skill.toLowerCase() === skill.toLowerCase(),
+                    ) ?? [];
+                    const verified = verifications.length > 0;
+                    return (
+                      <Badge
+                        key={skill}
+                        variant="secondary"
+                        title={
+                          verified
+                            ? `Verified by ${verifications.map((v) => v.institutionName).join(", ")}`
+                            : undefined
+                        }
+                        className={`px-3 py-1 inline-flex items-center gap-1 ${
+                          verified
+                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-900"
+                            : "bg-muted"
+                        }`}
+                      >
+                        {verified ? <BadgeCheck className="w-3 h-3" /> : null}
+                        {skill}
+                      </Badge>
+                    );
+                  })}
                 </div>
+
+                {candidate.references && candidate.references.length > 0 ? (
+                  <>
+                    <h3 className="text-lg font-semibold mt-8 mb-4 flex items-center gap-2">
+                      <Quote className="w-4 h-4 text-primary" /> Verified references
+                    </h3>
+                    <div className="space-y-3">
+                      {candidate.references.map((r) => (
+                        <Card key={r.id} className="border-emerald-200/60 bg-emerald-50/30 dark:bg-emerald-900/10 dark:border-emerald-900/40">
+                          <CardContent className="p-4">
+                            <div className="flex items-start justify-between gap-3 mb-2">
+                              <div>
+                                <p className="font-semibold text-sm">{r.submittedRefereeName}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {r.submittedRefereeRole ? `${r.submittedRefereeRole} · ` : ""}
+                                  {RELATIONSHIP_LABEL[r.relationship] ?? r.relationship}
+                                </p>
+                              </div>
+                              {r.wouldRehire === true ? (
+                                <Badge className="bg-emerald-600 text-white hover:bg-emerald-600 text-[10px]">
+                                  Would rehire
+                                </Badge>
+                              ) : null}
+                            </div>
+                            <p className="text-sm text-muted-foreground whitespace-pre-line leading-relaxed">
+                              {r.strengths}
+                            </p>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </>
+                ) : null}
               </div>
             </TabsContent>
             

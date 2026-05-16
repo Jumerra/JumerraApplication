@@ -32,6 +32,7 @@ import type {
   AssignAccountManagerRequest,
   AssignAccountManagerResponse,
   AuthSession,
+  BackgroundCheck,
   BoostSettings,
   Candidate,
   CandidateCvResponse,
@@ -79,6 +80,7 @@ import type {
   InterviewInvite,
   InviteStaffRequest,
   InviteStaffResponse,
+  IssueSkillVerificationRequest,
   Job,
   JobDetail,
   JobMatch,
@@ -99,16 +101,20 @@ import type {
   OkResponse,
   OnboardRequest,
   OnboardResponse,
+  OwnReferenceRequest,
   Partner,
   PartnerSettings,
   PlatformStats,
   ProfileUpdateRequest,
   ProfileViewsResponse,
+  RefereeFormView,
   RegisterRequest,
   RegisterResponse,
   RegisterUser409,
   RegistrationDecisionBody,
+  RequestReferenceRequest,
   SalaryInsight,
+  SetBackgroundCheckRequest,
   SetEmployerVerifiedRequest,
   SetEmployerVerifiedResponse,
   SetupPasswordRequest,
@@ -117,6 +123,7 @@ import type {
   Skill,
   StaffListResponse,
   StaffMemberResponse,
+  SubmitReferenceRequest,
   UpdateApplication,
   UpdateBoostSettingsRequest,
   UpdateCandidate,
@@ -134,6 +141,7 @@ import type {
   UpdateStaffRoleRequest,
   UploadUrlRequest,
   UploadUrlResponse,
+  VerifiedSkill,
   VerifyBoostCheckoutRequest,
   VerifyBoostCheckoutResponse,
   VerifyCvCheckoutResponse,
@@ -5524,6 +5532,745 @@ export function useListOnboardedUsers<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Institution staff issues a verified-skill badge to a student
+ */
+export const getIssueSkillVerificationUrl = (
+  id: number,
+  candidateId: number,
+) => {
+  return `/api/institutions/${id}/students/${candidateId}/skill-verifications`;
+};
+
+export const issueSkillVerification = async (
+  id: number,
+  candidateId: number,
+  issueSkillVerificationRequest: IssueSkillVerificationRequest,
+  options?: RequestInit,
+): Promise<VerifiedSkill> => {
+  return customFetch<VerifiedSkill>(
+    getIssueSkillVerificationUrl(id, candidateId),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(issueSkillVerificationRequest),
+    },
+  );
+};
+
+export const getIssueSkillVerificationMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof issueSkillVerification>>,
+    TError,
+    {
+      id: number;
+      candidateId: number;
+      data: BodyType<IssueSkillVerificationRequest>;
+    },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof issueSkillVerification>>,
+  TError,
+  {
+    id: number;
+    candidateId: number;
+    data: BodyType<IssueSkillVerificationRequest>;
+  },
+  TContext
+> => {
+  const mutationKey = ["issueSkillVerification"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof issueSkillVerification>>,
+    {
+      id: number;
+      candidateId: number;
+      data: BodyType<IssueSkillVerificationRequest>;
+    }
+  > = (props) => {
+    const { id, candidateId, data } = props ?? {};
+
+    return issueSkillVerification(id, candidateId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type IssueSkillVerificationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof issueSkillVerification>>
+>;
+export type IssueSkillVerificationMutationBody =
+  BodyType<IssueSkillVerificationRequest>;
+export type IssueSkillVerificationMutationError = ErrorType<void>;
+
+/**
+ * @summary Institution staff issues a verified-skill badge to a student
+ */
+export const useIssueSkillVerification = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof issueSkillVerification>>,
+    TError,
+    {
+      id: number;
+      candidateId: number;
+      data: BodyType<IssueSkillVerificationRequest>;
+    },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof issueSkillVerification>>,
+  TError,
+  {
+    id: number;
+    candidateId: number;
+    data: BodyType<IssueSkillVerificationRequest>;
+  },
+  TContext
+> => {
+  return useMutation(getIssueSkillVerificationMutationOptions(options));
+};
+
+/**
+ * @summary Institution staff revokes a previously-issued skill verification
+ */
+export const getRevokeSkillVerificationUrl = (
+  id: number,
+  candidateId: number,
+  verificationId: number,
+) => {
+  return `/api/institutions/${id}/students/${candidateId}/skill-verifications/${verificationId}`;
+};
+
+export const revokeSkillVerification = async (
+  id: number,
+  candidateId: number,
+  verificationId: number,
+  options?: RequestInit,
+): Promise<OkResponse> => {
+  return customFetch<OkResponse>(
+    getRevokeSkillVerificationUrl(id, candidateId, verificationId),
+    {
+      ...options,
+      method: "DELETE",
+    },
+  );
+};
+
+export const getRevokeSkillVerificationMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof revokeSkillVerification>>,
+    TError,
+    { id: number; candidateId: number; verificationId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof revokeSkillVerification>>,
+  TError,
+  { id: number; candidateId: number; verificationId: number },
+  TContext
+> => {
+  const mutationKey = ["revokeSkillVerification"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof revokeSkillVerification>>,
+    { id: number; candidateId: number; verificationId: number }
+  > = (props) => {
+    const { id, candidateId, verificationId } = props ?? {};
+
+    return revokeSkillVerification(
+      id,
+      candidateId,
+      verificationId,
+      requestOptions,
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RevokeSkillVerificationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof revokeSkillVerification>>
+>;
+
+export type RevokeSkillVerificationMutationError = ErrorType<void>;
+
+/**
+ * @summary Institution staff revokes a previously-issued skill verification
+ */
+export const useRevokeSkillVerification = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof revokeSkillVerification>>,
+    TError,
+    { id: number; candidateId: number; verificationId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof revokeSkillVerification>>,
+  TError,
+  { id: number; candidateId: number; verificationId: number },
+  TContext
+> => {
+  return useMutation(getRevokeSkillVerificationMutationOptions(options));
+};
+
+/**
+ * @summary Candidate creates a reference request, returning a sharable token URL
+ */
+export const getRequestReferenceUrl = (id: number) => {
+  return `/api/candidates/${id}/references`;
+};
+
+export const requestReference = async (
+  id: number,
+  requestReferenceRequest: RequestReferenceRequest,
+  options?: RequestInit,
+): Promise<OwnReferenceRequest> => {
+  return customFetch<OwnReferenceRequest>(getRequestReferenceUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(requestReferenceRequest),
+  });
+};
+
+export const getRequestReferenceMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof requestReference>>,
+    TError,
+    { id: number; data: BodyType<RequestReferenceRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof requestReference>>,
+  TError,
+  { id: number; data: BodyType<RequestReferenceRequest> },
+  TContext
+> => {
+  const mutationKey = ["requestReference"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof requestReference>>,
+    { id: number; data: BodyType<RequestReferenceRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return requestReference(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RequestReferenceMutationResult = NonNullable<
+  Awaited<ReturnType<typeof requestReference>>
+>;
+export type RequestReferenceMutationBody = BodyType<RequestReferenceRequest>;
+export type RequestReferenceMutationError = ErrorType<void>;
+
+/**
+ * @summary Candidate creates a reference request, returning a sharable token URL
+ */
+export const useRequestReference = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof requestReference>>,
+    TError,
+    { id: number; data: BodyType<RequestReferenceRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof requestReference>>,
+  TError,
+  { id: number; data: BodyType<RequestReferenceRequest> },
+  TContext
+> => {
+  return useMutation(getRequestReferenceMutationOptions(options));
+};
+
+/**
+ * @summary Candidate lists their own reference requests (with status)
+ */
+export const getListOwnReferenceRequestsUrl = (id: number) => {
+  return `/api/candidates/${id}/references`;
+};
+
+export const listOwnReferenceRequests = async (
+  id: number,
+  options?: RequestInit,
+): Promise<OwnReferenceRequest[]> => {
+  return customFetch<OwnReferenceRequest[]>(
+    getListOwnReferenceRequestsUrl(id),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListOwnReferenceRequestsQueryKey = (id: number) => {
+  return [`/api/candidates/${id}/references`] as const;
+};
+
+export const getListOwnReferenceRequestsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listOwnReferenceRequests>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listOwnReferenceRequests>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListOwnReferenceRequestsQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listOwnReferenceRequests>>
+  > = ({ signal }) =>
+    listOwnReferenceRequests(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listOwnReferenceRequests>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListOwnReferenceRequestsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listOwnReferenceRequests>>
+>;
+export type ListOwnReferenceRequestsQueryError = ErrorType<void>;
+
+/**
+ * @summary Candidate lists their own reference requests (with status)
+ */
+
+export function useListOwnReferenceRequests<
+  TData = Awaited<ReturnType<typeof listOwnReferenceRequests>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listOwnReferenceRequests>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListOwnReferenceRequestsQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Candidate or admin hides a submitted reference from public view
+ */
+export const getHideReferenceUrl = (id: number, refId: number) => {
+  return `/api/candidates/${id}/references/${refId}/hide`;
+};
+
+export const hideReference = async (
+  id: number,
+  refId: number,
+  options?: RequestInit,
+): Promise<OkResponse> => {
+  return customFetch<OkResponse>(getHideReferenceUrl(id, refId), {
+    ...options,
+    method: "PATCH",
+  });
+};
+
+export const getHideReferenceMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof hideReference>>,
+    TError,
+    { id: number; refId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof hideReference>>,
+  TError,
+  { id: number; refId: number },
+  TContext
+> => {
+  const mutationKey = ["hideReference"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof hideReference>>,
+    { id: number; refId: number }
+  > = (props) => {
+    const { id, refId } = props ?? {};
+
+    return hideReference(id, refId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type HideReferenceMutationResult = NonNullable<
+  Awaited<ReturnType<typeof hideReference>>
+>;
+
+export type HideReferenceMutationError = ErrorType<void>;
+
+/**
+ * @summary Candidate or admin hides a submitted reference from public view
+ */
+export const useHideReference = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof hideReference>>,
+    TError,
+    { id: number; refId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof hideReference>>,
+  TError,
+  { id: number; refId: number },
+  TContext
+> => {
+  return useMutation(getHideReferenceMutationOptions(options));
+};
+
+/**
+ * @summary Public — referee loads the form with their token
+ */
+export const getViewRefereeFormUrl = (token: string) => {
+  return `/api/references/${token}`;
+};
+
+export const viewRefereeForm = async (
+  token: string,
+  options?: RequestInit,
+): Promise<RefereeFormView> => {
+  return customFetch<RefereeFormView>(getViewRefereeFormUrl(token), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getViewRefereeFormQueryKey = (token: string) => {
+  return [`/api/references/${token}`] as const;
+};
+
+export const getViewRefereeFormQueryOptions = <
+  TData = Awaited<ReturnType<typeof viewRefereeForm>>,
+  TError = ErrorType<void>,
+>(
+  token: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof viewRefereeForm>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getViewRefereeFormQueryKey(token);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof viewRefereeForm>>> = ({
+    signal,
+  }) => viewRefereeForm(token, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!token,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof viewRefereeForm>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ViewRefereeFormQueryResult = NonNullable<
+  Awaited<ReturnType<typeof viewRefereeForm>>
+>;
+export type ViewRefereeFormQueryError = ErrorType<void>;
+
+/**
+ * @summary Public — referee loads the form with their token
+ */
+
+export function useViewRefereeForm<
+  TData = Awaited<ReturnType<typeof viewRefereeForm>>,
+  TError = ErrorType<void>,
+>(
+  token: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof viewRefereeForm>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getViewRefereeFormQueryOptions(token, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Public — referee submits the structured reference (single-use)
+ */
+export const getSubmitRefereeFormUrl = (token: string) => {
+  return `/api/references/${token}`;
+};
+
+export const submitRefereeForm = async (
+  token: string,
+  submitReferenceRequest: SubmitReferenceRequest,
+  options?: RequestInit,
+): Promise<OkResponse> => {
+  return customFetch<OkResponse>(getSubmitRefereeFormUrl(token), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(submitReferenceRequest),
+  });
+};
+
+export const getSubmitRefereeFormMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof submitRefereeForm>>,
+    TError,
+    { token: string; data: BodyType<SubmitReferenceRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof submitRefereeForm>>,
+  TError,
+  { token: string; data: BodyType<SubmitReferenceRequest> },
+  TContext
+> => {
+  const mutationKey = ["submitRefereeForm"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof submitRefereeForm>>,
+    { token: string; data: BodyType<SubmitReferenceRequest> }
+  > = (props) => {
+    const { token, data } = props ?? {};
+
+    return submitRefereeForm(token, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SubmitRefereeFormMutationResult = NonNullable<
+  Awaited<ReturnType<typeof submitRefereeForm>>
+>;
+export type SubmitRefereeFormMutationBody = BodyType<SubmitReferenceRequest>;
+export type SubmitRefereeFormMutationError = ErrorType<void>;
+
+/**
+ * @summary Public — referee submits the structured reference (single-use)
+ */
+export const useSubmitRefereeForm = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof submitRefereeForm>>,
+    TError,
+    { token: string; data: BodyType<SubmitReferenceRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof submitRefereeForm>>,
+  TError,
+  { token: string; data: BodyType<SubmitReferenceRequest> },
+  TContext
+> => {
+  return useMutation(getSubmitRefereeFormMutationOptions(options));
+};
+
+/**
+ * @summary Admin updates a candidate's background-check status
+ */
+export const getAdminSetBackgroundCheckUrl = (id: number) => {
+  return `/api/admin/candidates/${id}/background-check`;
+};
+
+export const adminSetBackgroundCheck = async (
+  id: number,
+  setBackgroundCheckRequest: SetBackgroundCheckRequest,
+  options?: RequestInit,
+): Promise<BackgroundCheck> => {
+  return customFetch<BackgroundCheck>(getAdminSetBackgroundCheckUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(setBackgroundCheckRequest),
+  });
+};
+
+export const getAdminSetBackgroundCheckMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminSetBackgroundCheck>>,
+    TError,
+    { id: number; data: BodyType<SetBackgroundCheckRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminSetBackgroundCheck>>,
+  TError,
+  { id: number; data: BodyType<SetBackgroundCheckRequest> },
+  TContext
+> => {
+  const mutationKey = ["adminSetBackgroundCheck"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminSetBackgroundCheck>>,
+    { id: number; data: BodyType<SetBackgroundCheckRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return adminSetBackgroundCheck(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminSetBackgroundCheckMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminSetBackgroundCheck>>
+>;
+export type AdminSetBackgroundCheckMutationBody =
+  BodyType<SetBackgroundCheckRequest>;
+export type AdminSetBackgroundCheckMutationError = ErrorType<void>;
+
+/**
+ * @summary Admin updates a candidate's background-check status
+ */
+export const useAdminSetBackgroundCheck = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminSetBackgroundCheck>>,
+    TError,
+    { id: number; data: BodyType<SetBackgroundCheckRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof adminSetBackgroundCheck>>,
+  TError,
+  { id: number; data: BodyType<SetBackgroundCheckRequest> },
+  TContext
+> => {
+  return useMutation(getAdminSetBackgroundCheckMutationOptions(options));
+};
 
 /**
  * @summary Permanently remove a candidate and their related data (admin only)

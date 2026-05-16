@@ -5,8 +5,10 @@
  * Talent Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { BackgroundCheck } from "./backgroundCheck";
 import type { CandidateAvailability } from "./candidateAvailability";
 import type { CandidateInstitutionLink } from "./candidateInstitutionLink";
+import type { VerifiedSkill } from "./verifiedSkill";
 
 export interface Candidate {
   id: number;
@@ -37,5 +39,10 @@ can filter the candidate search to only "open" candidates.
   /** All institutions this candidate is affiliated with (primary first). */
   institutions: CandidateInstitutionLink[];
   skills: string[];
+  /** Active (not-revoked) skill verifications issued by institutions.
+Each row carries the institution that issued it and when.
+ */
+  verifiedSkills: VerifiedSkill[];
+  backgroundCheck: BackgroundCheck;
   createdAt: Date;
 }

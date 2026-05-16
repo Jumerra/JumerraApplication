@@ -3,8 +3,16 @@ import { Link } from "wouter";
 import {
   useListCandidates,
   useAdminDeleteCandidate,
+  useAdminSetBackgroundCheck,
   getListCandidatesQueryKey,
 } from "@workspace/api-client-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -31,8 +39,31 @@ export default function AdminCandidatesPage() {
     search: search || undefined,
   });
   const deleteCandidate = useAdminDeleteCandidate();
+  const setBg = useAdminSetBackgroundCheck();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  async function handleBgChange(id: number, status: string, name: string) {
+    try {
+      await setBg.mutateAsync({
+        id,
+        data: {
+          status: status as "not_started" | "in_progress" | "passed" | "failed",
+        },
+      });
+      await queryClient.invalidateQueries({ queryKey: getListCandidatesQueryKey() });
+      toast({
+        title: "Background check updated",
+        description: `${name}: ${status.replace("_", " ")}`,
+      });
+    } catch (err) {
+      toast({
+        title: "Update failed",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive",
+      });
+    }
+  }
 
   async function handleDelete(id: number, name: string) {
     try {
@@ -113,12 +144,28 @@ export default function AdminCandidatesPage() {
                       {c.headline} · {c.location}
                     </p>
                   </div>
-                  <div className="hidden md:flex flex-wrap gap-1 max-w-[260px] justify-end">
+                  <div className="hidden md:flex flex-wrap gap-1 max-w-[200px] justify-end">
                     {c.skills?.slice(0, 3).map((s) => (
                       <Badge key={s} variant="outline" className="text-xs">
                         {s}
                       </Badge>
                     ))}
+                  </div>
+                  <div className="hidden lg:block w-[160px] shrink-0">
+                    <Select
+                      value={c.backgroundCheck?.status ?? "not_started"}
+                      onValueChange={(v) => handleBgChange(c.id, v, c.fullName)}
+                    >
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder="BG check" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="not_started">Not started</SelectItem>
+                        <SelectItem value="in_progress">In progress</SelectItem>
+                        <SelectItem value="passed">Passed</SelectItem>
+                        <SelectItem value="failed">Failed</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <AdminAccountActions

@@ -44,6 +44,17 @@ export const candidatesTable = pgTable("candidates", {
   // (primary + others) live in candidate_institutions for full coverage.
   institutionId: integer("institution_id"),
   skills: text("skills").array().notNull().default([]),
+  // Admin-managed background check flag. Surfaced as a badge to
+  // employers (and the candidate). Stored as free text validated at
+  // the API edge to keep migrations cheap. Allowed values:
+  //   'not_started' | 'in_progress' | 'passed' | 'failed'
+  backgroundCheckStatus: text("background_check_status")
+    .notNull()
+    .default("not_started"),
+  backgroundCheckUpdatedAt: timestamp("background_check_updated_at", {
+    withTimezone: true,
+  }),
+  backgroundCheckUpdatedBy: integer("background_check_updated_by"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

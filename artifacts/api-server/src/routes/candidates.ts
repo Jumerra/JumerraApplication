@@ -31,12 +31,21 @@ import {
   type InstitutionLink,
 } from "../lib/candidate-institutions";
 import { requireAdmin, requireAuth } from "../middleware/require-auth";
+import {
+  getVerifiedSkillsByCandidate,
+  getCandidateIdsWithVerifiedSkill,
+  getPublicReferencesByCandidate,
+  getBackgroundCheckUpdaterName,
+  type VerifiedSkillRow,
+} from "./trust";
 
 const router: IRouter = Router();
 
 function serializeCandidate(
   c: typeof candidatesTable.$inferSelect,
   institutions: InstitutionLink[],
+  verifiedSkills: VerifiedSkillRow[] = [],
+  backgroundCheckUpdatedByName: string | null = null,
 ) {
   const primary = institutions.find((i) => i.isPrimary) ?? institutions[0] ?? null;
   return {
@@ -78,6 +87,23 @@ function serializeCandidate(
     // True when ANY institution has explicitly verified this candidate.
     isVerified: institutions.some((i) => i.isVerified),
     skills: c.skills,
+    verifiedSkills: verifiedSkills.map((v) => ({
+      id: v.id,
+      skill: v.skill,
+      institutionId: v.institutionId,
+      institutionName: v.institutionName,
+      institutionLogoUrl: v.institutionLogoUrl,
+      issuedAt: v.issuedAt,
+      issuedByName: v.issuedByName,
+      note: v.note,
+    })),
+    backgroundCheck: {
+      status: c.backgroundCheckStatus,
+      updatedAt: c.backgroundCheckUpdatedAt
+        ? c.backgroundCheckUpdatedAt.toISOString()
+        : null,
+      updatedByName: backgroundCheckUpdatedByName,
+    },
     createdAt: c.createdAt.toISOString(),
   };
 }
@@ -154,6 +180,16 @@ router.get("/candidates", async (req, res): Promise<void> => {
     const ids = await getCandidateIdsForInstitution(filters.institutionId);
     allowedIds = new Set(ids);
   }
+  if (filters.verifiedSkill) {
+    const verifiedIds = new Set(
+      await getCandidateIdsWithVerifiedSkill(filters.verifiedSkill),
+    );
+    if (allowedIds) {
+      for (const id of allowedIds) if (!verifiedIds.has(id)) allowedIds.delete(id);
+    } else {
+      allowedIds = verifiedIds;
+    }
+  }
 
   const rows = await db
     .select()
@@ -185,10 +221,18 @@ router.get("/candidates", async (req, res): Promise<void> => {
     return true;
   });
 
-  const linkMap = await getInstitutionLinksByCandidate(filtered.map((c) => c.id));
+  const filteredIds = filtered.map((c) => c.id);
+  const [linkMap, vMap] = await Promise.all([
+    getInstitutionLinksByCandidate(filteredIds),
+    getVerifiedSkillsByCandidate(filteredIds),
+  ]);
   res.json(
     filtered.map((candidate) =>
-      serializeCandidate(candidate, linkMap.get(candidate.id) ?? []),
+      serializeCandidate(
+        candidate,
+        linkMap.get(candidate.id) ?? [],
+        vMap.get(candidate.id) ?? [],
+      ),
     ),
   );
 });
@@ -271,9 +315,20 @@ router.get("/candidates/:id", async (req, res): Promise<void> => {
       getInstitutionLinksByCandidate([params.data.id]),
     ]);
 
-  const expLogoMap = await loadEmployerLogos(experience);
+  const [expLogoMap, vMap, references, bgUpdaterName] = await Promise.all([
+    loadEmployerLogos(experience),
+    getVerifiedSkillsByCandidate([candidate.id]),
+    getPublicReferencesByCandidate(candidate.id),
+    getBackgroundCheckUpdaterName(candidate.backgroundCheckUpdatedBy),
+  ]);
   res.json({
-    ...serializeCandidate(candidate, linkMap.get(candidate.id) ?? []),
+    ...serializeCandidate(
+      candidate,
+      linkMap.get(candidate.id) ?? [],
+      vMap.get(candidate.id) ?? [],
+      bgUpdaterName,
+    ),
+    references,
     education: education.map((e) => ({
       id: e.id,
       institution: e.institution,

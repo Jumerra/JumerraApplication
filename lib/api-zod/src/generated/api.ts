@@ -29,6 +29,12 @@ export const ListCandidatesQueryParams = zod.object({
     .describe(
       'When 1, return only candidates who have flipped on the \"Open to offers\" signal.',
     ),
+  verifiedSkill: zod.coerce
+    .string()
+    .optional()
+    .describe(
+      "Restrict the result to candidates who have an active institution-issued\nverification for the given skill (case-insensitive exact match).\n",
+    ),
 });
 
 export const ListCandidatesResponseItem = zod.object({
@@ -101,6 +107,27 @@ export const ListCandidatesResponseItem = zod.object({
       "All institutions this candidate is affiliated with (primary first).",
     ),
   skills: zod.array(zod.string()),
+  verifiedSkills: zod
+    .array(
+      zod.object({
+        id: zod.number(),
+        skill: zod.string(),
+        institutionId: zod.number(),
+        institutionName: zod.string(),
+        institutionLogoUrl: zod.string().nullish(),
+        issuedAt: zod.coerce.date(),
+        issuedByName: zod.string().nullish(),
+        note: zod.string().nullish(),
+      }),
+    )
+    .describe(
+      "Active (not-revoked) skill verifications issued by institutions.\nEach row carries the institution that issued it and when.\n",
+    ),
+  backgroundCheck: zod.object({
+    status: zod.enum(["not_started", "in_progress", "passed", "failed"]),
+    updatedAt: zod.coerce.date().nullish(),
+    updatedByName: zod.string().nullish(),
+  }),
   createdAt: zod.coerce.date(),
 });
 export const ListCandidatesResponse = zod.array(ListCandidatesResponseItem);
@@ -199,6 +226,27 @@ export const GetCandidateResponse = zod
         "All institutions this candidate is affiliated with (primary first).",
       ),
     skills: zod.array(zod.string()),
+    verifiedSkills: zod
+      .array(
+        zod.object({
+          id: zod.number(),
+          skill: zod.string(),
+          institutionId: zod.number(),
+          institutionName: zod.string(),
+          institutionLogoUrl: zod.string().nullish(),
+          issuedAt: zod.coerce.date(),
+          issuedByName: zod.string().nullish(),
+          note: zod.string().nullish(),
+        }),
+      )
+      .describe(
+        "Active (not-revoked) skill verifications issued by institutions.\nEach row carries the institution that issued it and when.\n",
+      ),
+    backgroundCheck: zod.object({
+      status: zod.enum(["not_started", "in_progress", "passed", "failed"]),
+      updatedAt: zod.coerce.date().nullish(),
+      updatedByName: zod.string().nullish(),
+    }),
     createdAt: zod.coerce.date(),
   })
   .and(
@@ -255,6 +303,28 @@ export const GetCandidateResponse = zod
           tier: zod.enum(["bronze", "silver", "gold", "platinum"]),
         }),
       ),
+      references: zod
+        .array(
+          zod
+            .object({
+              id: zod.number(),
+              relationship: zod.enum([
+                "lecturer",
+                "past_employer",
+                "colleague",
+                "other",
+              ]),
+              submittedRefereeName: zod.string(),
+              submittedRefereeRole: zod.string().nullish(),
+              wouldRehire: zod.boolean().nullish(),
+              strengths: zod.string(),
+              submittedAt: zod.coerce.date(),
+            })
+            .describe(
+              "Submitted reference safe to display to anyone who can see the\ncandidate. Never includes the referee's email — only the\nself-declared name + role they entered when submitting.\n",
+            ),
+        )
+        .describe("Submitted, non-hidden references. Public-safe (no emails)."),
     }),
   );
 
@@ -477,6 +547,27 @@ export const UpdateCandidateResponse = zod
         "All institutions this candidate is affiliated with (primary first).",
       ),
     skills: zod.array(zod.string()),
+    verifiedSkills: zod
+      .array(
+        zod.object({
+          id: zod.number(),
+          skill: zod.string(),
+          institutionId: zod.number(),
+          institutionName: zod.string(),
+          institutionLogoUrl: zod.string().nullish(),
+          issuedAt: zod.coerce.date(),
+          issuedByName: zod.string().nullish(),
+          note: zod.string().nullish(),
+        }),
+      )
+      .describe(
+        "Active (not-revoked) skill verifications issued by institutions.\nEach row carries the institution that issued it and when.\n",
+      ),
+    backgroundCheck: zod.object({
+      status: zod.enum(["not_started", "in_progress", "passed", "failed"]),
+      updatedAt: zod.coerce.date().nullish(),
+      updatedByName: zod.string().nullish(),
+    }),
     createdAt: zod.coerce.date(),
   })
   .and(
@@ -533,6 +624,28 @@ export const UpdateCandidateResponse = zod
           tier: zod.enum(["bronze", "silver", "gold", "platinum"]),
         }),
       ),
+      references: zod
+        .array(
+          zod
+            .object({
+              id: zod.number(),
+              relationship: zod.enum([
+                "lecturer",
+                "past_employer",
+                "colleague",
+                "other",
+              ]),
+              submittedRefereeName: zod.string(),
+              submittedRefereeRole: zod.string().nullish(),
+              wouldRehire: zod.boolean().nullish(),
+              strengths: zod.string(),
+              submittedAt: zod.coerce.date(),
+            })
+            .describe(
+              "Submitted reference safe to display to anyone who can see the\ncandidate. Never includes the referee's email — only the\nself-declared name + role they entered when submitting.\n",
+            ),
+        )
+        .describe("Submitted, non-hidden references. Public-safe (no emails)."),
     }),
   );
 
@@ -2591,6 +2704,153 @@ export const ListOnboardedUsersResponse = zod.object({
       institutionId: zod.number().nullish(),
     }),
   ),
+});
+
+/**
+ * @summary Institution staff issues a verified-skill badge to a student
+ */
+export const IssueSkillVerificationParams = zod.object({
+  id: zod.coerce.number(),
+  candidateId: zod.coerce.number(),
+});
+
+export const issueSkillVerificationBodySkillMax = 80;
+
+export const issueSkillVerificationBodyNoteMax = 500;
+
+export const IssueSkillVerificationBody = zod.object({
+  skill: zod.string().min(1).max(issueSkillVerificationBodySkillMax),
+  note: zod.string().max(issueSkillVerificationBodyNoteMax).nullish(),
+});
+
+/**
+ * @summary Institution staff revokes a previously-issued skill verification
+ */
+export const RevokeSkillVerificationParams = zod.object({
+  id: zod.coerce.number(),
+  candidateId: zod.coerce.number(),
+  verificationId: zod.coerce.number(),
+});
+
+export const RevokeSkillVerificationResponse = zod.object({
+  ok: zod.boolean(),
+});
+
+/**
+ * @summary Candidate creates a reference request, returning a sharable token URL
+ */
+export const RequestReferenceParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const requestReferenceBodyRefereeEmailMax = 320;
+
+export const RequestReferenceBody = zod.object({
+  refereeEmail: zod.string().email().max(requestReferenceBodyRefereeEmailMax),
+  relationship: zod.enum(["lecturer", "past_employer", "colleague", "other"]),
+});
+
+/**
+ * @summary Candidate lists their own reference requests (with status)
+ */
+export const ListOwnReferenceRequestsParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ListOwnReferenceRequestsResponseItem = zod
+  .object({
+    id: zod.number(),
+    relationship: zod.enum(["lecturer", "past_employer", "colleague", "other"]),
+    refereeEmailMasked: zod.string().describe('e.g. \"j\*\*\*@example.com\"'),
+    requestedAt: zod.coerce.date(),
+    submittedAt: zod.coerce.date().nullish(),
+    submittedRefereeName: zod.string().nullish(),
+    hiddenAt: zod.coerce.date().nullish(),
+    shareUrl: zod
+      .string()
+      .nullish()
+      .describe(
+        "Public form URL the candidate can hand to the referee if the\nemail link didn't arrive. Only returned in the create response,\nnot on subsequent reads.\n",
+      ),
+  })
+  .describe(
+    "A reference request as seen by the candidate who created it.\nIncludes status (pending vs submitted) and a redacted email so\nthe candidate remembers who they asked.\n",
+  );
+export const ListOwnReferenceRequestsResponse = zod.array(
+  ListOwnReferenceRequestsResponseItem,
+);
+
+/**
+ * @summary Candidate or admin hides a submitted reference from public view
+ */
+export const HideReferenceParams = zod.object({
+  id: zod.coerce.number(),
+  refId: zod.coerce.number(),
+});
+
+export const HideReferenceResponse = zod.object({
+  ok: zod.boolean(),
+});
+
+/**
+ * @summary Public — referee loads the form with their token
+ */
+export const ViewRefereeFormParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+export const ViewRefereeFormResponse = zod
+  .object({
+    candidateName: zod.string(),
+    candidateHeadline: zod.string(),
+    relationship: zod.enum(["lecturer", "past_employer", "colleague", "other"]),
+    alreadySubmitted: zod.boolean(),
+  })
+  .describe("Public view of the form a referee fills out via tokenised link.");
+
+/**
+ * @summary Public — referee submits the structured reference (single-use)
+ */
+export const SubmitRefereeFormParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+export const submitRefereeFormBodyRefereeNameMax = 200;
+
+export const submitRefereeFormBodyRefereeRoleMax = 200;
+
+export const submitRefereeFormBodyStrengthsMin = 10;
+export const submitRefereeFormBodyStrengthsMax = 4000;
+
+export const SubmitRefereeFormBody = zod.object({
+  refereeName: zod.string().min(1).max(submitRefereeFormBodyRefereeNameMax),
+  refereeRole: zod.string().max(submitRefereeFormBodyRefereeRoleMax).nullish(),
+  wouldRehire: zod.boolean().nullish(),
+  strengths: zod
+    .string()
+    .min(submitRefereeFormBodyStrengthsMin)
+    .max(submitRefereeFormBodyStrengthsMax),
+});
+
+export const SubmitRefereeFormResponse = zod.object({
+  ok: zod.boolean(),
+});
+
+/**
+ * @summary Admin updates a candidate's background-check status
+ */
+export const AdminSetBackgroundCheckParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AdminSetBackgroundCheckBody = zod.object({
+  status: zod.enum(["not_started", "in_progress", "passed", "failed"]),
+});
+
+export const AdminSetBackgroundCheckResponse = zod.object({
+  status: zod.enum(["not_started", "in_progress", "passed", "failed"]),
+  updatedAt: zod.coerce.date().nullish(),
+  updatedByName: zod.string().nullish(),
 });
 
 /**

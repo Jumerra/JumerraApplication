@@ -413,6 +413,33 @@ or the candidate has no department selected.
   facultyName?: string | null;
 }
 
+export interface VerifiedSkill {
+  id: number;
+  skill: string;
+  institutionId: number;
+  institutionName: string;
+  institutionLogoUrl?: string | null;
+  issuedAt: string;
+  issuedByName?: string | null;
+  note?: string | null;
+}
+
+export type BackgroundCheckStatus =
+  (typeof BackgroundCheckStatus)[keyof typeof BackgroundCheckStatus];
+
+export const BackgroundCheckStatus = {
+  not_started: "not_started",
+  in_progress: "in_progress",
+  passed: "passed",
+  failed: "failed",
+} as const;
+
+export interface BackgroundCheck {
+  status: BackgroundCheckStatus;
+  updatedAt?: string | null;
+  updatedByName?: string | null;
+}
+
 export interface Candidate {
   id: number;
   fullName: string;
@@ -442,7 +469,146 @@ can filter the candidate search to only "open" candidates.
   /** All institutions this candidate is affiliated with (primary first). */
   institutions: CandidateInstitutionLink[];
   skills: string[];
+  /** Active (not-revoked) skill verifications issued by institutions.
+Each row carries the institution that issued it and when.
+ */
+  verifiedSkills: VerifiedSkill[];
+  backgroundCheck: BackgroundCheck;
   createdAt: string;
+}
+
+export type PublicReferenceRelationship =
+  (typeof PublicReferenceRelationship)[keyof typeof PublicReferenceRelationship];
+
+export const PublicReferenceRelationship = {
+  lecturer: "lecturer",
+  past_employer: "past_employer",
+  colleague: "colleague",
+  other: "other",
+} as const;
+
+/**
+ * Submitted reference safe to display to anyone who can see the
+candidate. Never includes the referee's email — only the
+self-declared name + role they entered when submitting.
+
+ */
+export interface PublicReference {
+  id: number;
+  relationship: PublicReferenceRelationship;
+  submittedRefereeName: string;
+  submittedRefereeRole?: string | null;
+  wouldRehire?: boolean | null;
+  strengths: string;
+  submittedAt: string;
+}
+
+export type OwnReferenceRequestRelationship =
+  (typeof OwnReferenceRequestRelationship)[keyof typeof OwnReferenceRequestRelationship];
+
+export const OwnReferenceRequestRelationship = {
+  lecturer: "lecturer",
+  past_employer: "past_employer",
+  colleague: "colleague",
+  other: "other",
+} as const;
+
+/**
+ * A reference request as seen by the candidate who created it.
+Includes status (pending vs submitted) and a redacted email so
+the candidate remembers who they asked.
+
+ */
+export interface OwnReferenceRequest {
+  id: number;
+  relationship: OwnReferenceRequestRelationship;
+  /** e.g. "j***@example.com" */
+  refereeEmailMasked: string;
+  requestedAt: string;
+  submittedAt?: string | null;
+  submittedRefereeName?: string | null;
+  hiddenAt?: string | null;
+  /** Public form URL the candidate can hand to the referee if the
+email link didn't arrive. Only returned in the create response,
+not on subsequent reads.
+ */
+  shareUrl?: string | null;
+}
+
+export type RefereeFormViewRelationship =
+  (typeof RefereeFormViewRelationship)[keyof typeof RefereeFormViewRelationship];
+
+export const RefereeFormViewRelationship = {
+  lecturer: "lecturer",
+  past_employer: "past_employer",
+  colleague: "colleague",
+  other: "other",
+} as const;
+
+/**
+ * Public view of the form a referee fills out via tokenised link.
+ */
+export interface RefereeFormView {
+  candidateName: string;
+  candidateHeadline: string;
+  relationship: RefereeFormViewRelationship;
+  alreadySubmitted: boolean;
+}
+
+export interface IssueSkillVerificationRequest {
+  /**
+   * @minLength 1
+   * @maxLength 80
+   */
+  skill: string;
+  /** @maxLength 500 */
+  note?: string | null;
+}
+
+export type RequestReferenceRequestRelationship =
+  (typeof RequestReferenceRequestRelationship)[keyof typeof RequestReferenceRequestRelationship];
+
+export const RequestReferenceRequestRelationship = {
+  lecturer: "lecturer",
+  past_employer: "past_employer",
+  colleague: "colleague",
+  other: "other",
+} as const;
+
+export interface RequestReferenceRequest {
+  /** @maxLength 320 */
+  refereeEmail: string;
+  relationship: RequestReferenceRequestRelationship;
+}
+
+export interface SubmitReferenceRequest {
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  refereeName: string;
+  /** @maxLength 200 */
+  refereeRole?: string | null;
+  wouldRehire?: boolean | null;
+  /**
+   * @minLength 10
+   * @maxLength 4000
+   */
+  strengths: string;
+}
+
+export type SetBackgroundCheckRequestStatus =
+  (typeof SetBackgroundCheckRequestStatus)[keyof typeof SetBackgroundCheckRequestStatus];
+
+export const SetBackgroundCheckRequestStatus = {
+  not_started: "not_started",
+  in_progress: "in_progress",
+  passed: "passed",
+  failed: "failed",
+} as const;
+
+export interface SetBackgroundCheckRequest {
+  status: SetBackgroundCheckRequestStatus;
 }
 
 export interface EducationEntry {
@@ -521,6 +687,8 @@ export type CandidateDetail = Candidate & {
   experience: ExperienceEntry[];
   certifications: Certification[];
   badges: Badge[];
+  /** Submitted, non-hidden references. Public-safe (no emails). */
+  references: PublicReference[];
 };
 
 /**
@@ -2017,6 +2185,12 @@ export type ListCandidatesParams = {
    * When 1, return only candidates who have flipped on the "Open to offers" signal.
    */
   openToOffers?: ListCandidatesOpenToOffers;
+  /**
+ * Restrict the result to candidates who have an active institution-issued
+verification for the given skill (case-insensitive exact match).
+
+ */
+  verifiedSkill?: string;
 };
 
 export type ListCandidatesOpenToOffers =

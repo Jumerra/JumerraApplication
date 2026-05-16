@@ -294,9 +294,63 @@ export default function ProfileScreen() {
             Skills
           </Text>
           <View style={styles.chipCloud}>
-            {candidate.skills.map((s) => (
-              <SkillChip key={s} label={s} />
+            {candidate.skills.map((s) => {
+              const verified = candidate.verifiedSkills?.some(
+                (v) => v.skill.toLowerCase() === s.toLowerCase(),
+              );
+              return (
+                <SkillChip key={s} label={s} tone={verified ? "primary" : "default"} />
+              );
+            })}
+          </View>
+        </View>
+      ) : null}
+
+      {(candidate.verifiedSkills?.length ?? 0) > 0 ||
+      candidate.backgroundCheck?.status === "passed" ||
+      (candidate.references?.length ?? 0) > 0 ? (
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
+            Trust signals
+          </Text>
+          <View
+            style={{
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              borderWidth: 1,
+              borderRadius: colors.radius * 1.5,
+              padding: 16,
+              gap: 10,
+            }}
+          >
+            {candidate.backgroundCheck?.status === "passed" ? (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Feather name="shield" size={16} color={colors.primary} />
+                <Text style={{ color: colors.foreground, fontFamily: "Inter_500Medium", fontSize: 13 }}>
+                  Background check passed
+                </Text>
+              </View>
+            ) : null}
+            {(candidate.verifiedSkills ?? []).slice(0, 6).map((v) => (
+              <View key={v.id} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Feather name="check-circle" size={14} color={colors.primary} />
+                <Text style={{ color: colors.foreground, fontSize: 13, flex: 1 }}>
+                  {v.skill}{" "}
+                  <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>
+                    · {v.institutionName}
+                  </Text>
+                </Text>
+              </View>
             ))}
+            {(candidate.references?.length ?? 0) > 0 ? (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Feather name="message-circle" size={14} color={colors.primary} />
+                <Text style={{ color: colors.foreground, fontSize: 13 }}>
+                  {candidate.references!.length} verified reference
+                  {candidate.references!.length === 1 ? "" : "s"}
+                </Text>
+              </View>
+            ) : null}
           </View>
         </View>
       ) : null}

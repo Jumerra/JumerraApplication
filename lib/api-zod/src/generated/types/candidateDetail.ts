@@ -10,10 +10,13 @@ import type { Candidate } from "./candidate";
 import type { Certification } from "./certification";
 import type { EducationEntry } from "./educationEntry";
 import type { ExperienceEntry } from "./experienceEntry";
+import type { PublicReference } from "./publicReference";
 
 export type CandidateDetail = Candidate & {
   education: EducationEntry[];
   experience: ExperienceEntry[];
   certifications: Certification[];
   badges: Badge[];
+  /** Submitted, non-hidden references. Public-safe (no emails). */
+  references: PublicReference[];
 };

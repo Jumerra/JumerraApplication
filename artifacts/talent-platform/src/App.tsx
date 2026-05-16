@@ -18,6 +18,7 @@ import InstitutionsList from "@/pages/institutions/index";
 import InstitutionDetail from "@/pages/institutions/detail";
 import CandidatesList from "@/pages/candidates/index";
 import CandidateDetail from "@/pages/candidates/detail";
+import PublicReferenceFormPage from "@/pages/references/[token]";
 import CandidateDashboard from "@/pages/dashboard/candidate";
 import EmployerDashboard from "@/pages/dashboard/employer";
 import InterviewInvitePage from "@/pages/interviews/invite";
@@ -87,6 +88,7 @@ function Router() {
         
         <Route path="/candidates" component={CandidatesList} />
         <Route path="/candidates/:id" component={CandidateDetail} />
+        <Route path="/references/:token" component={PublicReferenceFormPage} />
         
         <Route path="/dashboard/candidate" component={CandidateDashboard} />
         <Route path="/interviews/:id" component={InterviewInvitePage} />

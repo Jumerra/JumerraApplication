@@ -81,6 +81,12 @@ paths:
           name: openToOffers
           description: When 1, return only candidates who have flipped on the "Open to offers" signal.
           schema: { type: string, enum: ["1"] }
+        - in: query
+          name: verifiedSkill
+          description: |
+            Restrict the result to candidates who have an active institution-issued
+            verification for the given skill (case-insensitive exact match).
+          schema: { type: string }
       responses:
         "200":
           description: List of candidates
@@ -1202,6 +1208,160 @@ paths:
                     items: { $ref: "#/components/schemas/OnboardedUser" }
                 required: [users]
         "403": { description: Admin only }
+
+  /institutions/{id}/students/{candidateId}/skill-verifications:
+    post:
+      operationId: issueSkillVerification
+      tags: [trust, institutions]
+      summary: Institution staff issues a verified-skill badge to a student
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+        - { in: path, name: candidateId, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/IssueSkillVerificationRequest" }
+      responses:
+        "201":
+          description: Issued
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VerifiedSkill" }
+        "400": { description: Invalid input }
+        "403": { description: Outside scope or missing students:verify }
+        "409": { description: Active verification already exists }
+
+  /institutions/{id}/students/{candidateId}/skill-verifications/{verificationId}:
+    delete:
+      operationId: revokeSkillVerification
+      tags: [trust, institutions]
+      summary: Institution staff revokes a previously-issued skill verification
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+        - { in: path, name: candidateId, required: true, schema: { type: integer } }
+        - { in: path, name: verificationId, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Revoked
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
+        "403": { description: Outside scope or missing students:verify }
+        "404": { description: Verification not found }
+
+  /candidates/{id}/references:
+    post:
+      operationId: requestReference
+      tags: [trust, candidates]
+      summary: Candidate creates a reference request, returning a sharable token URL
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RequestReferenceRequest" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OwnReferenceRequest" }
+        "400": { description: Invalid input }
+        "403": { description: Not the candidate or admin }
+    get:
+      operationId: listOwnReferenceRequests
+      tags: [trust, candidates]
+      summary: Candidate lists their own reference requests (with status)
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/OwnReferenceRequest" }
+        "403": { description: Not the candidate or admin }
+
+  /candidates/{id}/references/{refId}/hide:
+    patch:
+      operationId: hideReference
+      tags: [trust, candidates]
+      summary: Candidate or admin hides a submitted reference from public view
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+        - { in: path, name: refId, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Hidden
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
+        "403": { description: Not the candidate or admin }
+        "404": { description: Reference not found }
+
+  /references/{token}:
+    get:
+      operationId: viewRefereeForm
+      tags: [trust]
+      summary: Public — referee loads the form with their token
+      security: []
+      parameters:
+        - { in: path, name: token, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Form view
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RefereeFormView" }
+        "404": { description: Token not found }
+    post:
+      operationId: submitRefereeForm
+      tags: [trust]
+      summary: Public — referee submits the structured reference (single-use)
+      security: []
+      parameters:
+        - { in: path, name: token, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SubmitReferenceRequest" }
+      responses:
+        "200":
+          description: Submitted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
+        "400": { description: Invalid input }
+        "404": { description: Token not found }
+        "409": { description: Already submitted }
+        "429": { description: Too many requests }
+
+  /admin/candidates/{id}/background-check:
+    patch:
+      operationId: adminSetBackgroundCheck
+      tags: [admin, trust]
+      summary: Admin updates a candidate's background-check status
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SetBackgroundCheckRequest" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BackgroundCheck" }
+        "400": { description: Invalid status }
+        "403": { description: Missing candidates:manage }
+        "404": { description: Candidate not found }
 
   /admin/candidates/{id}:
     delete:
@@ -2722,6 +2882,15 @@ components:
         skills:
           type: array
           items: { type: string }
+        verifiedSkills:
+          type: array
+          description: |
+            Active (not-revoked) skill verifications issued by institutions.
+            Each row carries the institution that issued it and when.
+          items:
+            $ref: "#/components/schemas/VerifiedSkill"
+        backgroundCheck:
+          $ref: "#/components/schemas/BackgroundCheck"
         createdAt: { type: string, format: date-time }
       required:
         - id
@@ -2739,7 +2908,122 @@ components:
         - openToOffers
         - institutions
         - skills
+        - verifiedSkills
+        - backgroundCheck
         - createdAt
+
+    VerifiedSkill:
+      type: object
+      properties:
+        id: { type: integer }
+        skill: { type: string }
+        institutionId: { type: integer }
+        institutionName: { type: string }
+        institutionLogoUrl: { type: string, nullable: true }
+        issuedAt: { type: string, format: date-time }
+        issuedByName: { type: string, nullable: true }
+        note: { type: string, nullable: true }
+      required: [id, skill, institutionId, institutionName, issuedAt]
+
+    BackgroundCheck:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [not_started, in_progress, passed, failed]
+        updatedAt: { type: string, format: date-time, nullable: true }
+        updatedByName: { type: string, nullable: true }
+      required: [status]
+
+    PublicReference:
+      type: object
+      description: |
+        Submitted reference safe to display to anyone who can see the
+        candidate. Never includes the referee's email — only the
+        self-declared name + role they entered when submitting.
+      properties:
+        id: { type: integer }
+        relationship:
+          type: string
+          enum: [lecturer, past_employer, colleague, other]
+        submittedRefereeName: { type: string }
+        submittedRefereeRole: { type: string, nullable: true }
+        wouldRehire: { type: boolean, nullable: true }
+        strengths: { type: string }
+        submittedAt: { type: string, format: date-time }
+      required: [id, relationship, submittedRefereeName, strengths, submittedAt]
+
+    OwnReferenceRequest:
+      type: object
+      description: |
+        A reference request as seen by the candidate who created it.
+        Includes status (pending vs submitted) and a redacted email so
+        the candidate remembers who they asked.
+      properties:
+        id: { type: integer }
+        relationship:
+          type: string
+          enum: [lecturer, past_employer, colleague, other]
+        refereeEmailMasked:
+          type: string
+          description: e.g. "j***@example.com"
+        requestedAt: { type: string, format: date-time }
+        submittedAt: { type: string, format: date-time, nullable: true }
+        submittedRefereeName: { type: string, nullable: true }
+        hiddenAt: { type: string, format: date-time, nullable: true }
+        shareUrl:
+          type: string
+          nullable: true
+          description: |
+            Public form URL the candidate can hand to the referee if the
+            email link didn't arrive. Only returned in the create response,
+            not on subsequent reads.
+      required: [id, relationship, refereeEmailMasked, requestedAt]
+
+    RefereeFormView:
+      type: object
+      description: Public view of the form a referee fills out via tokenised link.
+      properties:
+        candidateName: { type: string }
+        candidateHeadline: { type: string }
+        relationship:
+          type: string
+          enum: [lecturer, past_employer, colleague, other]
+        alreadySubmitted: { type: boolean }
+      required: [candidateName, candidateHeadline, relationship, alreadySubmitted]
+
+    IssueSkillVerificationRequest:
+      type: object
+      properties:
+        skill: { type: string, minLength: 1, maxLength: 80 }
+        note: { type: string, maxLength: 500, nullable: true }
+      required: [skill]
+
+    RequestReferenceRequest:
+      type: object
+      properties:
+        refereeEmail: { type: string, format: email, maxLength: 320 }
+        relationship:
+          type: string
+          enum: [lecturer, past_employer, colleague, other]
+      required: [refereeEmail, relationship]
+
+    SubmitReferenceRequest:
+      type: object
+      properties:
+        refereeName: { type: string, minLength: 1, maxLength: 200 }
+        refereeRole: { type: string, maxLength: 200, nullable: true }
+        wouldRehire: { type: boolean, nullable: true }
+        strengths: { type: string, minLength: 10, maxLength: 4000 }
+      required: [refereeName, strengths]
+
+    SetBackgroundCheckRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [not_started, in_progress, passed, failed]
+      required: [status]
 
     CandidateInstitutionLink:
       type: object
@@ -2794,7 +3078,11 @@ components:
             badges:
               type: array
               items: { $ref: "#/components/schemas/Badge" }
-          required: [education, experience, certifications, badges]
+            references:
+              type: array
+              description: Submitted, non-hidden references. Public-safe (no emails).
+              items: { $ref: "#/components/schemas/PublicReference" }
+          required: [education, experience, certifications, badges, references]
 
     EducationEntry:
       type: object

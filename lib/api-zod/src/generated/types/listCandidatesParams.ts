@@ -17,4 +17,10 @@ export type ListCandidatesParams = {
    * When 1, return only candidates who have flipped on the "Open to offers" signal.
    */
   openToOffers?: ListCandidatesOpenToOffers;
+  /**
+ * Restrict the result to candidates who have an active institution-issued
+verification for the given skill (case-insensitive exact match).
+
+ */
+  verifiedSkill?: string;
 };

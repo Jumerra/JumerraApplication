@@ -48,6 +48,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { CandidateExperienceEditor } from "@/components/candidate-experience-editor";
 import { CandidateEducationEditor } from "@/components/candidate-education-editor";
+import { CandidateTrustSection } from "@/components/candidate-trust-section";
 
 const ROLE_LABEL: Record<string, string> = {
   candidate: "Candidate",
@@ -471,6 +472,10 @@ export default function ProfilePage() {
           </form>
         </CardContent>
       </Card>
+
+      {isCandidate ? (
+        <CandidateTrustSection candidateId={candidateId} />
+      ) : null}
 
       {isCandidate && candidate ? (
         <CandidateExperienceEditor

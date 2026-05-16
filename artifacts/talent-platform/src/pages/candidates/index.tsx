@@ -3,12 +3,16 @@ import { Link } from "wouter";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Search, MapPin, Star, Sparkles } from "lucide-react";
+import { Search, MapPin, Star, Sparkles, BadgeCheck, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 
 export default function CandidatesList() {
   const [search, setSearch] = useState("");
-  const { data: candidates, isLoading } = useListCandidates({ search: search || undefined });
+  const [verifiedSkill, setVerifiedSkill] = useState("");
+  const { data: candidates, isLoading } = useListCandidates({
+    search: search || undefined,
+    verifiedSkill: verifiedSkill || undefined,
+  });
 
   return (
     <div className="container px-4 py-8 max-w-6xl mx-auto">
@@ -17,14 +21,23 @@ export default function CandidatesList() {
         <p className="text-xl text-muted-foreground">Discover verified professionals and rising stars.</p>
       </div>
 
-      <div className="max-w-xl mb-12">
+      <div className="max-w-2xl mb-12 grid sm:grid-cols-[1fr_220px] gap-3">
         <div className="relative">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-          <Input 
-            placeholder="Search by role, skills, or institution..." 
+          <Input
+            placeholder="Search by role, skills, or institution..."
             className="pl-12 h-14 text-lg bg-background shadow-sm rounded-xl border-muted-foreground/20"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <div className="relative">
+          <BadgeCheck className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-600" />
+          <Input
+            placeholder="Verified skill (e.g. Python)"
+            className="pl-9 h-14 bg-background shadow-sm rounded-xl border-muted-foreground/20"
+            value={verifiedSkill}
+            onChange={(e) => setVerifiedSkill(e.target.value)}
           />
         </div>
       </div>
@@ -69,16 +82,36 @@ export default function CandidatesList() {
                 </div>
 
                 <div className="space-y-3">
-                  <div className="text-sm">
-                    <span className="text-muted-foreground font-medium">Availability:</span>{" "}
-                    <span className="capitalize text-foreground font-medium">{candidate.availability.replace('_', ' ')}</span>
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="text-sm">
+                      <span className="text-muted-foreground font-medium">Availability:</span>{" "}
+                      <span className="capitalize text-foreground font-medium">{candidate.availability.replace('_', ' ')}</span>
+                    </div>
+                    {candidate.backgroundCheck?.status === "passed" ? (
+                      <Badge className="gap-1 bg-emerald-600 hover:bg-emerald-600 text-white">
+                        <ShieldCheck className="w-3 h-3" /> BG check
+                      </Badge>
+                    ) : null}
                   </div>
                   <div className="flex flex-wrap gap-1">
-                    {candidate.skills.slice(0, 4).map(skill => (
-                      <span key={skill} className="px-2 py-1 bg-muted/50 rounded-md text-xs font-medium text-muted-foreground">
-                        {skill}
-                      </span>
-                    ))}
+                    {candidate.skills.slice(0, 4).map(skill => {
+                      const verified = candidate.verifiedSkills?.some(
+                        (v) => v.skill.toLowerCase() === skill.toLowerCase(),
+                      );
+                      return (
+                        <span
+                          key={skill}
+                          className={`px-2 py-1 rounded-md text-xs font-medium inline-flex items-center gap-1 ${
+                            verified
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-900"
+                              : "bg-muted/50 text-muted-foreground"
+                          }`}
+                        >
+                          {verified ? <BadgeCheck className="w-3 h-3" /> : null}
+                          {skill}
+                        </span>
+                      );
+                    })}
                     {candidate.skills.length > 4 && (
                       <span className="px-2 py-1 bg-muted/50 rounded-md text-xs font-medium text-muted-foreground">
                         +{candidate.skills.length - 4}

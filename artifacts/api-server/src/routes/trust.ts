@@ -327,7 +327,7 @@ router.post(
     const host = req.get("x-forwarded-host") ?? req.get("host") ?? "localhost";
     const shareUrl = `${proto}://${host}/references/${token}`;
     req.log.info(
-      { candidateId, refId: created.id, refereeEmail: created.refereeEmail },
+      { candidateId, refId: created.id, refereeEmailMasked: maskEmail(created.refereeEmail) },
       "reference request created (email stub)",
     );
     res.status(201).json(serializeOwnReference(created, shareUrl));

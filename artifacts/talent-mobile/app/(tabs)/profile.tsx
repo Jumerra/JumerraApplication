@@ -331,17 +331,23 @@ export default function ProfileScreen() {
                 </Text>
               </View>
             ) : null}
-            {(candidate.verifiedSkills ?? []).slice(0, 6).map((v) => (
-              <View key={v.id} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Feather name="check-circle" size={14} color={colors.primary} />
-                <Text style={{ color: colors.foreground, fontSize: 13, flex: 1 }}>
-                  {v.skill}{" "}
-                  <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>
-                    · {v.institutionName}
+            {(candidate.verifiedSkills ?? []).slice(0, 6).map((v) => {
+              const issued = new Date(v.issuedAt).toLocaleDateString(undefined, {
+                month: "short",
+                year: "numeric",
+              });
+              return (
+                <View key={v.id} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Feather name="check-circle" size={14} color={colors.primary} />
+                  <Text style={{ color: colors.foreground, fontSize: 13, flex: 1 }}>
+                    {v.skill}{" "}
+                    <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>
+                      · {v.institutionName} · {issued}
+                    </Text>
                   </Text>
-                </Text>
-              </View>
-            ))}
+                </View>
+              );
+            })}
             {(candidate.references?.length ?? 0) > 0 ? (
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                 <Feather name="message-circle" size={14} color={colors.primary} />

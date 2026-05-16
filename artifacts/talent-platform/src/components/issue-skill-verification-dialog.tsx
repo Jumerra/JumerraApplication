@@ -165,6 +165,9 @@ export function IssueSkillVerificationDialog({
                   className="gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300"
                 >
                   <BadgeCheck className="w-3 h-3" /> {v.skill}
+                  <span className="text-[10px] opacity-70">
+                    · {new Date(v.issuedAt).toLocaleDateString(undefined, { month: "short", year: "numeric" })}
+                  </span>
                   <button
                     type="button"
                     onClick={() => onRevoke(v.id, v.skill)}

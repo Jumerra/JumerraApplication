@@ -168,15 +168,23 @@ export function CandidateTrustSection({ candidateId }: { candidateId: number }) 
               </p>
             ) : (
               <div className="flex flex-wrap gap-2">
-                {verified.map((v) => (
-                  <Badge
-                    key={v.id}
-                    className="gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-50 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-900"
-                  >
-                    <BadgeCheck className="w-3 h-3" /> {v.skill}
-                    <span className="text-[10px] opacity-70">· {v.institutionName}</span>
-                  </Badge>
-                ))}
+                {verified.map((v) => {
+                  const issued = new Date(v.issuedAt).toLocaleDateString(undefined, {
+                    month: "short",
+                    year: "numeric",
+                  });
+                  return (
+                    <Badge
+                      key={v.id}
+                      className="gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-50 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-900"
+                    >
+                      <BadgeCheck className="w-3 h-3" /> {v.skill}
+                      <span className="text-[10px] opacity-70">
+                        · {v.institutionName} · {issued}
+                      </span>
+                    </Badge>
+                  );
+                })}
               </div>
             )}
           </div>

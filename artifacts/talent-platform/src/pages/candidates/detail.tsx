@@ -203,15 +203,23 @@ export default function CandidateDetail() {
                       (v) => v.skill.toLowerCase() === skill.toLowerCase(),
                     ) ?? [];
                     const verified = verifications.length > 0;
+                    const tooltip = verified
+                      ? verifications
+                          .map((v) =>
+                            `Verified by ${v.institutionName} · ${new Date(v.issuedAt).toLocaleDateString(undefined, { month: "short", year: "numeric" })}`,
+                          )
+                          .join("\n")
+                      : undefined;
+                    const earliest = verified
+                      ? verifications
+                          .map((v) => new Date(v.issuedAt).getTime())
+                          .sort((a, b) => a - b)[0]!
+                      : null;
                     return (
                       <Badge
                         key={skill}
                         variant="secondary"
-                        title={
-                          verified
-                            ? `Verified by ${verifications.map((v) => v.institutionName).join(", ")}`
-                            : undefined
-                        }
+                        title={tooltip}
                         className={`px-3 py-1 inline-flex items-center gap-1 ${
                           verified
                             ? "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-900"
@@ -220,6 +228,11 @@ export default function CandidateDetail() {
                       >
                         {verified ? <BadgeCheck className="w-3 h-3" /> : null}
                         {skill}
+                        {verified && earliest != null ? (
+                          <span className="text-[10px] opacity-70 ml-1">
+                            {new Date(earliest).toLocaleDateString(undefined, { month: "short", year: "numeric" })}
+                          </span>
+                        ) : null}
                       </Badge>
                     );
                   })}

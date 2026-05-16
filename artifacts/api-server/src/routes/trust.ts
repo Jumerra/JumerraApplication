@@ -479,20 +479,11 @@ router.post("/references/:token", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const [row] = await db
-    .select()
-    .from(candidateReferencesTable)
-    .where(eq(candidateReferencesTable.token, token))
-    .limit(1);
-  if (!row) {
-    res.status(404).json({ error: "Token not found" });
-    return;
-  }
-  if (row.submittedAt != null) {
-    res.status(409).json({ error: "Already submitted" });
-    return;
-  }
-  await db
+  // Atomic single-use enforcement: the conditional UPDATE only succeeds
+  // when submittedAt IS NULL, so racing submitters cannot both claim the
+  // token. The non-update path distinguishes "no such token" from
+  // "already submitted" with a follow-up read.
+  const updated = await db
     .update(candidateReferencesTable)
     .set({
       submittedAt: new Date(),
@@ -501,7 +492,27 @@ router.post("/references/:token", async (req, res): Promise<void> => {
       wouldRehire: parsed.data.wouldRehire ?? null,
       strengths: parsed.data.strengths.trim(),
     })
-    .where(eq(candidateReferencesTable.id, row.id));
+    .where(
+      and(
+        eq(candidateReferencesTable.token, token),
+        isNull(candidateReferencesTable.submittedAt),
+      ),
+    )
+    .returning();
+  if (updated.length === 0) {
+    const [existing] = await db
+      .select({ id: candidateReferencesTable.id })
+      .from(candidateReferencesTable)
+      .where(eq(candidateReferencesTable.token, token))
+      .limit(1);
+    if (!existing) {
+      res.status(404).json({ error: "Token not found" });
+    } else {
+      res.status(409).json({ error: "Already submitted" });
+    }
+    return;
+  }
+  const row = updated[0]!;
 
   // Notify the candidate that their reference came in.
   try {

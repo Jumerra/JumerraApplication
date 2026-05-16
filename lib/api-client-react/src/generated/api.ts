@@ -144,6 +144,7 @@ import type {
   MigrateLegacyEmployerSubscriptionsResponse,
   MockInterview,
   MockInterviewListResponse,
+  MyWhatsappState,
   OkResponse,
   OnboardRequest,
   OnboardResponse,
@@ -214,6 +215,11 @@ import type {
   VerifyJobTierCheckoutRequest,
   VerifyJobTierCheckoutResponse,
   VerifyStudentResponse,
+  WhatsappConfirmBody,
+  WhatsappConfirmResponse,
+  WhatsappCooldownResponse,
+  WhatsappStartVerificationBody,
+  WhatsappStartVerificationResponse,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -8649,6 +8655,339 @@ export function useAdminListWhatsappLogs<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Current user's WhatsApp number + verification status
+ */
+export const getGetMyWhatsappUrl = () => {
+  return `/api/me/whatsapp`;
+};
+
+export const getMyWhatsapp = async (
+  options?: RequestInit,
+): Promise<MyWhatsappState> => {
+  return customFetch<MyWhatsappState>(getGetMyWhatsappUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetMyWhatsappQueryKey = () => {
+  return [`/api/me/whatsapp`] as const;
+};
+
+export const getGetMyWhatsappQueryOptions = <
+  TData = Awaited<ReturnType<typeof getMyWhatsapp>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getMyWhatsapp>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetMyWhatsappQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyWhatsapp>>> = ({
+    signal,
+  }) => getMyWhatsapp({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getMyWhatsapp>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetMyWhatsappQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getMyWhatsapp>>
+>;
+export type GetMyWhatsappQueryError = ErrorType<void>;
+
+/**
+ * @summary Current user's WhatsApp number + verification status
+ */
+
+export function useGetMyWhatsapp<
+  TData = Awaited<ReturnType<typeof getMyWhatsapp>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getMyWhatsapp>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetMyWhatsappQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Disconnect WhatsApp — clears the number, verification, and all WhatsApp toggles
+ */
+export const getDeleteMyWhatsappUrl = () => {
+  return `/api/me/whatsapp`;
+};
+
+export const deleteMyWhatsapp = async (
+  options?: RequestInit,
+): Promise<OkResponse> => {
+  return customFetch<OkResponse>(getDeleteMyWhatsappUrl(), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteMyWhatsappMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteMyWhatsapp>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteMyWhatsapp>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["deleteMyWhatsapp"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteMyWhatsapp>>,
+    void
+  > = () => {
+    return deleteMyWhatsapp(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteMyWhatsappMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteMyWhatsapp>>
+>;
+
+export type DeleteMyWhatsappMutationError = ErrorType<void>;
+
+/**
+ * @summary Disconnect WhatsApp — clears the number, verification, and all WhatsApp toggles
+ */
+export const useDeleteMyWhatsapp = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteMyWhatsapp>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteMyWhatsapp>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getDeleteMyWhatsappMutationOptions(options));
+};
+
+/**
+ * @summary Send a verification OTP to the supplied WhatsApp number (60s cooldown per user)
+ */
+export const getStartMyWhatsappVerificationUrl = () => {
+  return `/api/me/whatsapp/start-verification`;
+};
+
+export const startMyWhatsappVerification = async (
+  whatsappStartVerificationBody: WhatsappStartVerificationBody,
+  options?: RequestInit,
+): Promise<WhatsappStartVerificationResponse> => {
+  return customFetch<WhatsappStartVerificationResponse>(
+    getStartMyWhatsappVerificationUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(whatsappStartVerificationBody),
+    },
+  );
+};
+
+export const getStartMyWhatsappVerificationMutationOptions = <
+  TError = ErrorType<void | WhatsappCooldownResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof startMyWhatsappVerification>>,
+    TError,
+    { data: BodyType<WhatsappStartVerificationBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof startMyWhatsappVerification>>,
+  TError,
+  { data: BodyType<WhatsappStartVerificationBody> },
+  TContext
+> => {
+  const mutationKey = ["startMyWhatsappVerification"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof startMyWhatsappVerification>>,
+    { data: BodyType<WhatsappStartVerificationBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return startMyWhatsappVerification(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type StartMyWhatsappVerificationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof startMyWhatsappVerification>>
+>;
+export type StartMyWhatsappVerificationMutationBody =
+  BodyType<WhatsappStartVerificationBody>;
+export type StartMyWhatsappVerificationMutationError =
+  ErrorType<void | WhatsappCooldownResponse>;
+
+/**
+ * @summary Send a verification OTP to the supplied WhatsApp number (60s cooldown per user)
+ */
+export const useStartMyWhatsappVerification = <
+  TError = ErrorType<void | WhatsappCooldownResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof startMyWhatsappVerification>>,
+    TError,
+    { data: BodyType<WhatsappStartVerificationBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof startMyWhatsappVerification>>,
+  TError,
+  { data: BodyType<WhatsappStartVerificationBody> },
+  TContext
+> => {
+  return useMutation(getStartMyWhatsappVerificationMutationOptions(options));
+};
+
+/**
+ * @summary Confirm the verification OTP and mark the number as verified
+ */
+export const getConfirmMyWhatsappUrl = () => {
+  return `/api/me/whatsapp/confirm`;
+};
+
+export const confirmMyWhatsapp = async (
+  whatsappConfirmBody: WhatsappConfirmBody,
+  options?: RequestInit,
+): Promise<WhatsappConfirmResponse> => {
+  return customFetch<WhatsappConfirmResponse>(getConfirmMyWhatsappUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(whatsappConfirmBody),
+  });
+};
+
+export const getConfirmMyWhatsappMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof confirmMyWhatsapp>>,
+    TError,
+    { data: BodyType<WhatsappConfirmBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof confirmMyWhatsapp>>,
+  TError,
+  { data: BodyType<WhatsappConfirmBody> },
+  TContext
+> => {
+  const mutationKey = ["confirmMyWhatsapp"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof confirmMyWhatsapp>>,
+    { data: BodyType<WhatsappConfirmBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return confirmMyWhatsapp(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ConfirmMyWhatsappMutationResult = NonNullable<
+  Awaited<ReturnType<typeof confirmMyWhatsapp>>
+>;
+export type ConfirmMyWhatsappMutationBody = BodyType<WhatsappConfirmBody>;
+export type ConfirmMyWhatsappMutationError = ErrorType<void>;
+
+/**
+ * @summary Confirm the verification OTP and mark the number as verified
+ */
+export const useConfirmMyWhatsapp = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof confirmMyWhatsapp>>,
+    TError,
+    { data: BodyType<WhatsappConfirmBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof confirmMyWhatsapp>>,
+  TError,
+  { data: BodyType<WhatsappConfirmBody> },
+  TContext
+> => {
+  return useMutation(getConfirmMyWhatsappMutationOptions(options));
+};
 
 /**
  * @summary Assign or unassign an employer's owning account manager (super_admin only)

@@ -2730,6 +2730,46 @@ export interface AdminWhatsappLogsResponse {
   items: AdminWhatsappLogItem[];
 }
 
+export interface MyWhatsappState {
+  number?: string | null;
+  verified: boolean;
+  verifiedAt?: string | null;
+  pendingVerification: boolean;
+}
+
+export interface WhatsappStartVerificationBody {
+  /**
+   * @minLength 6
+   * @maxLength 32
+   */
+  number: string;
+}
+
+export interface WhatsappStartVerificationResponse {
+  ok: boolean;
+  sent: boolean;
+  devCode?: string | null;
+  devReason?: string | null;
+}
+
+export interface WhatsappCooldownResponse {
+  error: string;
+  retryAfter: number;
+}
+
+export interface WhatsappConfirmBody {
+  /**
+   * @minLength 4
+   * @maxLength 8
+   */
+  code: string;
+}
+
+export interface WhatsappConfirmResponse {
+  ok: boolean;
+  verified: boolean;
+}
+
 export interface AssignAccountManagerResponse {
   ok: boolean;
   accountManagerId: number | null;

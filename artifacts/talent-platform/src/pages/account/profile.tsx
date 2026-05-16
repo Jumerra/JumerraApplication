@@ -50,6 +50,7 @@ import { CandidateExperienceEditor } from "@/components/candidate-experience-edi
 import { CandidateEducationEditor } from "@/components/candidate-education-editor";
 import { CandidateTrustSection } from "@/components/candidate-trust-section";
 import { OpenWindowToggle } from "@/components/OpenWindowToggle";
+import { WhatsAppVerificationCard } from "@/components/whatsapp-verification-card";
 
 const ROLE_LABEL: Record<string, string> = {
   candidate: "Candidate",
@@ -474,6 +475,8 @@ export default function ProfilePage() {
           </form>
         </CardContent>
       </Card>
+
+      {isCandidate ? <WhatsAppVerificationCard /> : null}
 
       {isCandidate ? (
         <CandidateTrustSection candidateId={candidateId} />

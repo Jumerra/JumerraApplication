@@ -3952,6 +3952,61 @@ export const AdminListWhatsappLogsResponse = zod.object({
 });
 
 /**
+ * @summary Current user's WhatsApp number + verification status
+ */
+export const GetMyWhatsappResponse = zod.object({
+  number: zod.string().nullish(),
+  verified: zod.boolean(),
+  verifiedAt: zod.coerce.date().nullish(),
+  pendingVerification: zod.boolean(),
+});
+
+/**
+ * @summary Disconnect WhatsApp — clears the number, verification, and all WhatsApp toggles
+ */
+export const DeleteMyWhatsappResponse = zod.object({
+  ok: zod.boolean(),
+});
+
+/**
+ * @summary Send a verification OTP to the supplied WhatsApp number (60s cooldown per user)
+ */
+export const startMyWhatsappVerificationBodyNumberMin = 6;
+export const startMyWhatsappVerificationBodyNumberMax = 32;
+
+export const StartMyWhatsappVerificationBody = zod.object({
+  number: zod
+    .string()
+    .min(startMyWhatsappVerificationBodyNumberMin)
+    .max(startMyWhatsappVerificationBodyNumberMax),
+});
+
+export const StartMyWhatsappVerificationResponse = zod.object({
+  ok: zod.boolean(),
+  sent: zod.boolean(),
+  devCode: zod.string().nullish(),
+  devReason: zod.string().nullish(),
+});
+
+/**
+ * @summary Confirm the verification OTP and mark the number as verified
+ */
+export const confirmMyWhatsappBodyCodeMin = 4;
+export const confirmMyWhatsappBodyCodeMax = 8;
+
+export const ConfirmMyWhatsappBody = zod.object({
+  code: zod
+    .string()
+    .min(confirmMyWhatsappBodyCodeMin)
+    .max(confirmMyWhatsappBodyCodeMax),
+});
+
+export const ConfirmMyWhatsappResponse = zod.object({
+  ok: zod.boolean(),
+  verified: zod.boolean(),
+});
+
+/**
  * @summary Assign or unassign an employer's owning account manager (super_admin only)
  */
 export const AdminAssignEmployerManagerParams = zod.object({

@@ -45,31 +45,73 @@ interface TemplateSpec {
   render: (params: Record<string, string>) => string;
   /** Required parameter names for safety / debugging. */
   required: readonly string[];
+  /**
+   * Provider template metadata. WhatsApp Business policy requires that
+   * any business-initiated message outside the 24-hour customer-service
+   * window uses an approved Message Template. We expose:
+   *   - `metaTemplateName` (Meta WA Cloud "name") — passed straight to
+   *     the Graph API `template.name` field.
+   *   - `paramOrder` (ordered list of `required` keys) — maps named
+   *     params to the positional `{{1}}, {{2}}, …` body placeholders
+   *     both providers use. Twilio's Content Variables get the same
+   *     mapping by index.
+   *   - `twilioContentSidEnv` — name of the env var that holds the
+   *     pre-approved Twilio Content SID. Falls back to the registry
+   *     default if the env var isn't set.
+   *
+   * To go live, register each template with the provider, then either
+   * set the env vars below (Twilio Content SIDs) or rely on the
+   * `metaTemplateName` directly (Meta).
+   */
+  metaTemplateName: string;
+  twilioContentSidEnv: string;
+  paramOrder: readonly string[];
+  metaLanguage: string;
 }
 
 const TEMPLATES: Record<WhatsAppTemplateKey, TemplateSpec> = {
   otp_verification: {
     required: ["code"],
+    paramOrder: ["code"],
+    metaTemplateName: "jumerra_otp_verification",
+    metaLanguage: "en",
+    twilioContentSidEnv: "TWILIO_CONTENT_SID_OTP_VERIFICATION",
     render: ({ code }) =>
       `Your Jumerra verification code is ${code}. It expires in 10 minutes. Do not share this code.`,
   },
   strong_match: {
     required: ["jobTitle", "employerName", "link"],
+    paramOrder: ["jobTitle", "employerName", "link"],
+    metaTemplateName: "jumerra_strong_match",
+    metaLanguage: "en",
+    twilioContentSidEnv: "TWILIO_CONTENT_SID_STRONG_MATCH",
     render: ({ jobTitle, employerName, link }) =>
       `Jumerra: a new strong match for you — ${jobTitle} at ${employerName}. View it: ${link}`,
   },
   application_status: {
     required: ["jobTitle", "status", "link"],
+    paramOrder: ["jobTitle", "status", "link"],
+    metaTemplateName: "jumerra_application_status",
+    metaLanguage: "en",
+    twilioContentSidEnv: "TWILIO_CONTENT_SID_APPLICATION_STATUS",
     render: ({ jobTitle, status, link }) =>
       `Jumerra: your application for ${jobTitle} is now "${status}". Details: ${link}`,
   },
   interview_reminder: {
     required: ["jobTitle", "when", "link"],
+    paramOrder: ["jobTitle", "when", "link"],
+    metaTemplateName: "jumerra_interview_reminder",
+    metaLanguage: "en",
+    twilioContentSidEnv: "TWILIO_CONTENT_SID_INTERVIEW_REMINDER",
     render: ({ jobTitle, when, link }) =>
       `Jumerra reminder: interview for ${jobTitle} is ${when}. Details: ${link}`,
   },
   weekly_digest: {
     required: ["matches", "link"],
+    paramOrder: ["matches", "link"],
+    metaTemplateName: "jumerra_weekly_digest",
+    metaLanguage: "en",
+    twilioContentSidEnv: "TWILIO_CONTENT_SID_WEEKLY_DIGEST",
     render: ({ matches, link }) =>
       `Jumerra weekly digest: ${matches} new matches this week. Open the app: ${link}`,
   },
@@ -203,6 +245,8 @@ export async function sendWhatsAppTemplate(
   }
 
   const body = tpl.render(params);
+  // Positional params ({{1}}, {{2}}, …) shared by both providers.
+  const orderedParams = tpl.paramOrder.map((k) => params[k] ?? "");
 
   try {
     if (provider === "twilio") {
@@ -213,7 +257,30 @@ export async function sendWhatsAppTemplate(
       const form = new URLSearchParams();
       form.set("From", `whatsapp:${from.replace(/^whatsapp:/, "")}`);
       form.set("To", `whatsapp:${to}`);
-      form.set("Body", body);
+      // Prefer the approved Content SID when the env var is configured
+      // — Twilio's Content API enforces the pre-approved template and
+      // formats the positional variables for us. Otherwise we fall
+      // back to a plain Body, which only works inside an active 24-hour
+      // session window (Twilio sandbox or replies). We log the mode so
+      // ops can see at a glance which path is in use.
+      const contentSid = process.env[tpl.twilioContentSidEnv];
+      let mode: "content-sid" | "body" = "body";
+      if (contentSid && contentSid.trim().length > 0) {
+        form.set("ContentSid", contentSid);
+        // Twilio expects a JSON object keyed by variable index ("1"…"N").
+        const vars: Record<string, string> = {};
+        orderedParams.forEach((v, i) => {
+          vars[String(i + 1)] = v;
+        });
+        form.set("ContentVariables", JSON.stringify(vars));
+        mode = "content-sid";
+      } else {
+        form.set("Body", body);
+      }
+      logger.info(
+        { provider: "twilio", mode, templateKey, userId },
+        "whatsapp send",
+      );
       const res = await fetch(url, {
         method: "POST",
         headers: {
@@ -250,10 +317,34 @@ export async function sendWhatsAppTemplate(
       };
     }
 
-    // Meta WA Cloud
+    // Meta WA Cloud — always use the approved template message API
+    // (`type: "template"`). Plain text would only deliver inside an
+    // active 24-hour customer-initiated session, which we can't assume
+    // for business-initiated alerts (matches, status updates, etc.).
     const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID!;
     const token = process.env.WHATSAPP_ACCESS_TOKEN!;
     const url = `https://graph.facebook.com/v20.0/${phoneId}/messages`;
+    const metaComponents =
+      orderedParams.length > 0
+        ? [
+            {
+              type: "body",
+              parameters: orderedParams.map((v) => ({
+                type: "text",
+                text: v,
+              })),
+            },
+          ]
+        : [];
+    logger.info(
+      {
+        provider: "meta",
+        templateName: tpl.metaTemplateName,
+        templateKey,
+        userId,
+      },
+      "whatsapp send",
+    );
     const res = await fetch(url, {
       method: "POST",
       headers: {
@@ -263,8 +354,12 @@ export async function sendWhatsAppTemplate(
       body: JSON.stringify({
         messaging_product: "whatsapp",
         to,
-        type: "text",
-        text: { body },
+        type: "template",
+        template: {
+          name: tpl.metaTemplateName,
+          language: { code: tpl.metaLanguage },
+          components: metaComponents,
+        },
       }),
     });
     if (!res.ok) {

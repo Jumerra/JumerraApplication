@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
-import { Bell, ShieldAlert, Info, MessageCircle, CheckCircle2 } from "lucide-react";
-
-import { Input } from "@/components/ui/input";
+import { Bell, ShieldAlert, Info, MessageCircle } from "lucide-react";
 
 import { useAuth } from "@/lib/auth";
+import { WhatsAppVerificationCard } from "@/components/whatsapp-verification-card";
 import {
   Card,
   CardContent,
@@ -106,95 +105,6 @@ export default function NotificationsPage() {
   const [sendingPreview, setSendingPreview] = useState(false);
 
   const [wa, setWa] = useState<WhatsAppState | null>(null);
-  const [waNumber, setWaNumber] = useState("");
-  const [waCode, setWaCode] = useState("");
-  const [waBusy, setWaBusy] = useState(false);
-  const [waDevCode, setWaDevCode] = useState<string | null>(null);
-
-  async function refreshWa() {
-    try {
-      const res = await fetch("/api/me/whatsapp", { credentials: "include" });
-      if (!res.ok) return;
-      const data = (await res.json()) as WhatsAppState;
-      setWa(data);
-      if (data.number) setWaNumber(data.number);
-    } catch {
-      /* no-op */
-    }
-  }
-
-  async function startWaVerification() {
-    if (!waNumber.trim()) return;
-    setWaBusy(true);
-    setWaDevCode(null);
-    try {
-      const res = await fetch("/api/me/whatsapp/start-verification", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ number: waNumber.trim() }),
-      });
-      const data = (await res.json().catch(() => null)) as
-        | { ok?: boolean; sent?: boolean; devCode?: string; error?: string }
-        | null;
-      if (!res.ok) {
-        toast.error(data?.error ?? "Couldn't send the code. Try again.");
-        return;
-      }
-      toast.success(
-        data?.sent
-          ? "Code sent on WhatsApp. Check your messages."
-          : "Verification started. Use the code shown below to confirm.",
-      );
-      if (data?.devCode) setWaDevCode(data.devCode);
-      await refreshWa();
-    } finally {
-      setWaBusy(false);
-    }
-  }
-
-  async function confirmWaCode() {
-    if (!waCode.trim()) return;
-    setWaBusy(true);
-    try {
-      const res = await fetch("/api/me/whatsapp/confirm", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ code: waCode.trim() }),
-      });
-      const data = (await res.json().catch(() => null)) as
-        | { ok?: boolean; error?: string }
-        | null;
-      if (!res.ok) {
-        toast.error(data?.error ?? "That code didn't match.");
-        return;
-      }
-      toast.success("WhatsApp number verified.");
-      setWaCode("");
-      setWaDevCode(null);
-      await refreshWa();
-    } finally {
-      setWaBusy(false);
-    }
-  }
-
-  async function disconnectWa() {
-    setWaBusy(true);
-    try {
-      await fetch("/api/me/whatsapp", {
-        method: "DELETE",
-        credentials: "include",
-      });
-      toast.success("WhatsApp disconnected.");
-      setWaNumber("");
-      setWaCode("");
-      setWaDevCode(null);
-      await Promise.all([refreshWa(), reloadPrefs()]);
-    } finally {
-      setWaBusy(false);
-    }
-  }
 
   async function reloadPrefs() {
     const res = await fetch("/api/me/notification-prefs", {
@@ -233,7 +143,6 @@ export default function NotificationsPage() {
 
   useEffect(() => {
     if (!sessionUser) return;
-    void refreshWa();
     let cancelled = false;
     fetch("/api/me/notification-prefs", { credentials: "include" })
       .then((r) => (r.ok ? r.json() : null))
@@ -445,83 +354,13 @@ export default function NotificationsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid sm:grid-cols-[1fr_auto] gap-2 items-end">
-            <div className="space-y-1.5">
-              <Label className="text-sm" htmlFor="wa-number">
-                WhatsApp number
-              </Label>
-              <Input
-                id="wa-number"
-                placeholder="+233 24 123 4567"
-                value={waNumber}
-                onChange={(e) => setWaNumber(e.target.value)}
-                disabled={waBusy}
-                inputMode="tel"
-              />
-            </div>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={startWaVerification}
-                disabled={waBusy || waNumber.trim().length < 6}
-              >
-                {wa?.verified ? "Resend code" : "Send code"}
-              </Button>
-              {wa?.verified || wa?.number ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={disconnectWa}
-                  disabled={waBusy}
-                >
-                  Disconnect
-                </Button>
-              ) : null}
-            </div>
-          </div>
-
-          {wa?.verified ? (
-            <p className="text-xs text-emerald-700 flex items-center gap-1.5">
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              Verified. We'll deliver the channels you turn on below.
-            </p>
-          ) : null}
-
-          {wa?.pendingVerification || waDevCode ? (
-            <div className="grid sm:grid-cols-[1fr_auto] gap-2 items-end">
-              <div className="space-y-1.5">
-                <Label className="text-sm" htmlFor="wa-code">
-                  Enter the 6-digit code we sent
-                </Label>
-                <Input
-                  id="wa-code"
-                  placeholder="123456"
-                  value={waCode}
-                  onChange={(e) => setWaCode(e.target.value)}
-                  disabled={waBusy}
-                  inputMode="numeric"
-                  maxLength={6}
-                />
-                {waDevCode ? (
-                  <p className="text-xs text-muted-foreground">
-                    No WhatsApp provider configured — dev code:{" "}
-                    <span className="font-mono font-semibold">{waDevCode}</span>
-                  </p>
-                ) : null}
-              </div>
-              <Button
-                type="button"
-                size="sm"
-                onClick={confirmWaCode}
-                disabled={waBusy || waCode.trim().length < 4}
-              >
-                Verify
-              </Button>
-            </div>
-          ) : null}
+          <WhatsAppVerificationCard
+            embedded
+            onChange={(state) => {
+              setWa(state);
+              void reloadPrefs();
+            }}
+          />
 
           {prefs && !loading ? (
             <div className="space-y-3 pt-2 border-t">

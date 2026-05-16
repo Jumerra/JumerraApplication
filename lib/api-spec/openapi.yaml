@@ -1924,6 +1924,74 @@ paths:
               schema: { $ref: "#/components/schemas/AdminWhatsappLogsResponse" }
         "403": { description: Admin only }
 
+  /me/whatsapp:
+    get:
+      operationId: getMyWhatsapp
+      tags: [me]
+      summary: Current user's WhatsApp number + verification status
+      responses:
+        "200":
+          description: WhatsApp state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MyWhatsappState" }
+        "401": { description: Not authenticated }
+    delete:
+      operationId: deleteMyWhatsapp
+      tags: [me]
+      summary: Disconnect WhatsApp — clears the number, verification, and all WhatsApp toggles
+      responses:
+        "200":
+          description: Disconnected
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
+        "401": { description: Not authenticated }
+
+  /me/whatsapp/start-verification:
+    post:
+      operationId: startMyWhatsappVerification
+      tags: [me]
+      summary: Send a verification OTP to the supplied WhatsApp number (60s cooldown per user)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WhatsappStartVerificationBody" }
+      responses:
+        "200":
+          description: OTP issued. `devCode` is only echoed in non-production environments without a configured provider.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WhatsappStartVerificationResponse" }
+        "400": { description: Invalid number }
+        "401": { description: Not authenticated }
+        "429":
+          description: Cooldown still active — see `retryAfter` (seconds)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WhatsappCooldownResponse" }
+
+  /me/whatsapp/confirm:
+    post:
+      operationId: confirmMyWhatsapp
+      tags: [me]
+      summary: Confirm the verification OTP and mark the number as verified
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WhatsappConfirmBody" }
+      responses:
+        "200":
+          description: Number verified
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WhatsappConfirmResponse" }
+        "400": { description: "Invalid, expired, or wrong code" }
+        "401": { description: Not authenticated }
+        "429": { description: Too many wrong attempts — request a new code }
+
   /admin/employers/{id}/assign:
     patch:
       operationId: adminAssignEmployerManager
@@ -6849,6 +6917,50 @@ components:
           type: array
           items: { $ref: "#/components/schemas/AdminWhatsappLogItem" }
       required: [items]
+
+    MyWhatsappState:
+      type: object
+      properties:
+        number: { type: string, nullable: true }
+        verified: { type: boolean }
+        verifiedAt: { type: string, format: date-time, nullable: true }
+        pendingVerification: { type: boolean }
+      required: [verified, pendingVerification]
+
+    WhatsappStartVerificationBody:
+      type: object
+      properties:
+        number: { type: string, minLength: 6, maxLength: 32 }
+      required: [number]
+
+    WhatsappStartVerificationResponse:
+      type: object
+      properties:
+        ok: { type: boolean }
+        sent: { type: boolean }
+        devCode: { type: string, nullable: true }
+        devReason: { type: string, nullable: true }
+      required: [ok, sent]
+
+    WhatsappCooldownResponse:
+      type: object
+      properties:
+        error: { type: string }
+        retryAfter: { type: integer }
+      required: [error, retryAfter]
+
+    WhatsappConfirmBody:
+      type: object
+      properties:
+        code: { type: string, minLength: 4, maxLength: 8 }
+      required: [code]
+
+    WhatsappConfirmResponse:
+      type: object
+      properties:
+        ok: { type: boolean }
+        verified: { type: boolean }
+      required: [ok, verified]
 
     AssignAccountManagerResponse:
       type: object

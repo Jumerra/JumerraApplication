@@ -106,7 +106,13 @@ router.post(
     }
 
     const raw = String(req.params.skill ?? "");
-    const skill = decodeURIComponent(raw).toLowerCase();
+    let skill: string;
+    try {
+      skill = decodeURIComponent(raw).toLowerCase();
+    } catch {
+      res.status(400).json({ error: "Malformed skill path parameter" });
+      return;
+    }
     if (!skill) {
       res.status(400).json({ error: "Missing skill" });
       return;
@@ -181,7 +187,13 @@ router.post(
       return;
     }
     const raw = String(req.params.skill ?? "");
-    const skill = decodeURIComponent(raw).toLowerCase();
+    let skill: string;
+    try {
+      skill = decodeURIComponent(raw).toLowerCase();
+    } catch {
+      res.status(400).json({ error: "Malformed skill path parameter" });
+      return;
+    }
     if (!skill) {
       res.status(400).json({ error: "Missing skill" });
       return;

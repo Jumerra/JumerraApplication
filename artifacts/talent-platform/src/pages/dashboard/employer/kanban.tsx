@@ -46,6 +46,18 @@ export default function PipelineKanbanPage() {
     },
   );
   const [jobId, setJobId] = useState<string>("");
+  // Sort applies within each Kanban column. "boardOrder" is the
+  // legacy manual ordering; the others surface the strongest
+  // signals at the top so screening is faster.
+  const [sortBy, setSortBy] = useState<
+    "boardOrder" | "challengeScore" | "matchScore"
+  >("boardOrder");
+  // Filter to applicants who have submitted a challenge. Useful
+  // when a job has a challenge attached and the employer only
+  // wants to look at candidates who actually completed it.
+  const [challengeFilter, setChallengeFilter] = useState<
+    "all" | "with_challenge"
+  >("all");
 
   const numericJobId = jobId ? Number(jobId) : undefined;
   const { data: apps, isLoading } = useListApplications(
@@ -68,8 +80,12 @@ export default function PipelineKanbanPage() {
 
   const filtered = useMemo(() => {
     if (!apps || !effectiveJobId) return [];
-    return apps.filter((a) => a.jobId === effectiveJobId);
-  }, [apps, effectiveJobId]);
+    let rows = apps.filter((a) => a.jobId === effectiveJobId);
+    if (challengeFilter === "with_challenge") {
+      rows = rows.filter((a) => typeof a.challengeScore === "number");
+    }
+    return rows;
+  }, [apps, effectiveJobId, challengeFilter]);
 
   const byStage = useMemo(() => {
     const map: Record<StageId, typeof filtered> = {
@@ -86,10 +102,22 @@ export default function PipelineKanbanPage() {
       }
     }
     for (const s of STAGES) {
-      map[s.id].sort((x, y) => (x.boardOrder ?? 0) - (y.boardOrder ?? 0));
+      map[s.id].sort((x, y) => {
+        if (sortBy === "challengeScore") {
+          // Highest score first; nulls sink to the bottom.
+          const xs = typeof x.challengeScore === "number" ? x.challengeScore : -1;
+          const ys = typeof y.challengeScore === "number" ? y.challengeScore : -1;
+          if (ys !== xs) return ys - xs;
+        } else if (sortBy === "matchScore") {
+          if ((y.matchScore ?? 0) !== (x.matchScore ?? 0)) {
+            return (y.matchScore ?? 0) - (x.matchScore ?? 0);
+          }
+        }
+        return (x.boardOrder ?? 0) - (y.boardOrder ?? 0);
+      });
     }
     return map;
-  }, [filtered]);
+  }, [filtered, sortBy]);
 
   const onDrop = (e: React.DragEvent, stage: StageId, position: number) => {
     e.preventDefault();
@@ -130,12 +158,12 @@ export default function PipelineKanbanPage() {
             Drag and drop applicants between stages.
           </p>
         </div>
-        <div className="w-full sm:w-72">
+        <div className="w-full sm:w-auto flex flex-col sm:flex-row gap-2">
           <Select
             value={jobId || (effectiveJobId ? String(effectiveJobId) : "")}
             onValueChange={setJobId}
           >
-            <SelectTrigger data-testid="select-kanban-job">
+            <SelectTrigger data-testid="select-kanban-job" className="sm:w-60">
               <SelectValue placeholder="Pick a job…" />
             </SelectTrigger>
             <SelectContent>
@@ -144,6 +172,35 @@ export default function PipelineKanbanPage() {
                   {j.title}
                 </SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+          <Select
+            value={sortBy}
+            onValueChange={(v) =>
+              setSortBy(v as "boardOrder" | "challengeScore" | "matchScore")
+            }
+          >
+            <SelectTrigger data-testid="select-kanban-sort" className="sm:w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="boardOrder">Manual order</SelectItem>
+              <SelectItem value="challengeScore">Challenge score</SelectItem>
+              <SelectItem value="matchScore">Match score</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select
+            value={challengeFilter}
+            onValueChange={(v) =>
+              setChallengeFilter(v as "all" | "with_challenge")
+            }
+          >
+            <SelectTrigger data-testid="select-kanban-filter" className="sm:w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All applicants</SelectItem>
+              <SelectItem value="with_challenge">Took challenge</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -235,6 +292,16 @@ export default function PipelineKanbanPage() {
                                 data-testid={`badge-mock-interview-${app.id}`}
                               >
                                 AI {app.mockInterviewScore}
+                              </Badge>
+                            ) : null}
+                            {typeof app.challengeScore === "number" ? (
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] px-1.5 py-0 border-amber-500/50 text-amber-700 dark:text-amber-400"
+                                title="Skill-challenge score (0–100)"
+                                data-testid={`badge-challenge-${app.id}`}
+                              >
+                                Challenge {app.challengeScore}
                               </Badge>
                             ) : null}
                             {app.endorsement ? (

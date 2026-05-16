@@ -42,4 +42,8 @@ endorsing institution's name is shown as a "Verified by
 X" badge to the employer.
  */
   endorsement: ApplicationEndorsement | null;
+  /** Score 0–100 from the candidate's skill-challenge
+submission, if the job had a challenge attached.
+ */
+  challengeScore: number | null;
 }

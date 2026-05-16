@@ -6,7 +6,9 @@ import {
   employersTable,
   applicationsTable,
   candidatesTable,
+  jobChallengesTable,
 } from "@workspace/db";
+import { buildDefaultChallengeForSkills } from "./skill-challenges";
 import {
   ListJobsQueryParams,
   CreateJobBody,
@@ -197,6 +199,30 @@ router.post(
       // best-effort
     }
   })();
+
+  // Auto-attach a default skill challenge unless the employer
+  // explicitly opted out (`includeChallenge: false`). Pulls one
+  // template per matching job skill via the shared generator. Done
+  // best-effort — a missing challenge is recoverable via the
+  // PUT /jobs/:id/challenge endpoint.
+  const includeChallenge =
+    (req.body && (req.body as { includeChallenge?: boolean }).includeChallenge) !== false;
+  if (includeChallenge) {
+    try {
+      const built = await buildDefaultChallengeForSkills(created.skills);
+      if (built.questions.length > 0) {
+        await db.insert(jobChallengesTable).values({
+          jobId: created.id,
+          title: "Skill challenge",
+          questions: built.questions,
+          passingScore: 50,
+          templateIds: built.templateIds,
+        });
+      }
+    } catch (err) {
+      req.log.warn({ err }, "auto-attach challenge failed");
+    }
+  }
 
   res.status(201).json(serializeJob(created, employer ?? { name: "", logoUrl: "" }, 0));
 });

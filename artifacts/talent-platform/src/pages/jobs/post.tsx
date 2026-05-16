@@ -82,6 +82,10 @@ export default function JobPost() {
   const { data: tierSettings } = useGetJobTierSettings();
   const [tier, setTier] = useState<Tier>("free");
   const [submitting, setSubmitting] = useState(false);
+  // Auto-attach a default skill challenge built from the job's
+  // skills. Default ON — the candidate apply flow gates on the
+  // challenge instead of cover notes when one is present.
+  const [includeChallenge, setIncludeChallenge] = useState(true);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -136,6 +140,7 @@ export default function JobPost() {
         .split(",")
         .map((s) => s.trim())
         .filter((s) => s !== ""),
+      includeChallenge,
     };
 
     try {
@@ -227,6 +232,31 @@ export default function JobPost() {
               onSubmit={form.handleSubmit(onSubmit)}
               className="space-y-8"
             >
+              {/* Skill-challenge step: candidates take a server-graded
+                  multiple-choice quiz built from the job's skills
+                  instead of writing a cover note. We surface this as
+                  a single high-signal toggle so the post-job flow
+                  stays one page. The actual question set is
+                  customisable later from the job-management screen
+                  via PUT /jobs/:id/challenge. */}
+              <div className="rounded-xl border bg-muted/30 p-4 flex items-start gap-4" data-testid="section-include-challenge">
+                <Switch
+                  checked={includeChallenge}
+                  onCheckedChange={setIncludeChallenge}
+                  data-testid="switch-include-challenge"
+                />
+                <div className="flex-1">
+                  <div className="font-semibold flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-primary" /> Add a skill challenge
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Replaces the cover note with a short quiz built from
+                    your job's skills. Each candidate gets a 0–100 score
+                    you can sort the pipeline by.
+                  </p>
+                </div>
+              </div>
+
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold border-b pb-2">
                   Basic Details

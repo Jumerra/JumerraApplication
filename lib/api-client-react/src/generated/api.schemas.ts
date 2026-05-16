@@ -354,6 +354,10 @@ endorsing institution's name is shown as a "Verified by
 X" badge to the employer.
  */
   endorsement: ApplicationEndorsement | null;
+  /** Score 0–100 from the candidate's skill-challenge
+submission, if the job had a challenge attached.
+ */
+  challengeScore: number | null;
 }
 
 export interface AdminApplicationListResponse {
@@ -1383,6 +1387,11 @@ export interface CreateJob {
   targetSkills?: string[];
   /** Optional location targeting filter for Sponsored push. */
   targetLocation?: string | null;
+  /** When true (default), the server auto-attaches a default
+skill-challenge built from the job's skills. Set false to
+post without a challenge (candidates apply via cover note).
+ */
+  includeChallenge?: boolean;
 }
 
 /**
@@ -1436,6 +1445,72 @@ export interface CreateApplication {
 The mobile For You swipe stack sends `for_you`.
  */
   source?: CreateApplicationSource;
+}
+
+/**
+ * A single skill-challenge question with answer key stripped.
+ */
+export interface ChallengeQuestionPublic {
+  index: number;
+  prompt: string;
+  options: string[];
+}
+
+export interface JobChallenge {
+  jobId: number;
+  title: string;
+  passingScore: number;
+  questions: ChallengeQuestionPublic[];
+}
+
+export interface ChallengeTemplate {
+  id: number;
+  skill: string;
+  title: string;
+  description: string;
+  questionCount: number;
+  preview: ChallengeQuestionPublic[];
+}
+
+export type SubmitChallengeSource =
+  (typeof SubmitChallengeSource)[keyof typeof SubmitChallengeSource];
+
+export const SubmitChallengeSource = {
+  browse: "browse",
+  for_you: "for_you",
+} as const;
+
+export interface SubmitChallenge {
+  answers: number[];
+  source?: SubmitChallengeSource;
+}
+
+export interface ChallengeSubmissionResult {
+  applicationId: number;
+  score: number;
+  correct: number;
+  total: number;
+  alreadySubmitted: boolean;
+}
+
+export type UpdateJobChallengeQuestionsItem = {
+  prompt: string;
+  options: string[];
+  correctIndex: number;
+};
+
+/**
+ * Replace the challenge attached to a job. Supply either
+`questions` (full custom snapshot incl. correctIndex) OR
+`templateIds` (regenerate from these templates). Omit both
+to regenerate from the job's skills.
+
+ */
+export interface UpdateJobChallenge {
+  title?: string;
+  passingScore?: number;
+  templateIds?: number[];
+  questions?: UpdateJobChallengeQuestionsItem[];
 }
 
 export type UpdateApplicationStatus =

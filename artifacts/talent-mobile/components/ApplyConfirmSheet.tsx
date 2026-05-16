@@ -27,6 +27,19 @@ type MockInterviewListResponse = {
   items: MockInterviewSummary[];
 };
 
+type ChallengeQuestionPublic = {
+  index: number;
+  prompt: string;
+  options: string[];
+};
+
+type JobChallenge = {
+  jobId: number;
+  title: string;
+  passingScore: number;
+  questions: ChallengeQuestionPublic[];
+};
+
 type ApplySnapshot = {
   candidate: {
     id: number;
@@ -86,21 +99,34 @@ export function ApplyConfirmSheet({
   const [mockInterview, setMockInterview] = useState<MockInterviewSummary | null>(
     null,
   );
+  // Skill challenge attached to this job (or null). When present,
+  // the sheet swaps the snapshot/Send-application UI for an inline
+  // multiple-choice challenge that grades server-side and creates
+  // the application atomically on submit.
+  const [challenge, setChallenge] = useState<JobChallenge | null>(null);
+  const [answers, setAnswers] = useState<Record<number, number>>({});
 
   useEffect(() => {
     if (!visible || jobId == null) return;
     let cancelled = false;
     setLoading(true);
     setError(null);
+    setAnswers({});
+    setChallenge(null);
     Promise.all([
       customFetch<ApplySnapshot>("/api/me/apply-snapshot"),
       customFetch<MockInterviewListResponse>(
         `/api/me/mock-interviews?jobId=${jobId}`,
       ).catch(() => ({ items: [] }) as MockInterviewListResponse),
+      // 404 when no challenge attached — swallow and keep null.
+      customFetch<JobChallenge>(`/api/jobs/${jobId}/challenge`).catch(
+        () => null,
+      ),
     ])
-      .then(([snap, mockResp]) => {
+      .then(([snap, mockResp, ch]) => {
         if (cancelled) return;
         setSnapshot(snap);
+        setChallenge(ch ?? null);
         // The list endpoint returns `{ items: MockInterview[] }` —
         // ordered newest-first server-side. Prefer latest finalised;
         // fall back to in-progress so the CTA can say "Resume"
@@ -126,20 +152,41 @@ export function ApplyConfirmSheet({
     setSubmitting(true);
     setError(null);
     try {
-      await customFetch("/api/applications", {
-        method: "POST",
-        body: JSON.stringify({
-          jobId,
-          // Server derives candidateId from the session for non-admins;
-          // include a placeholder to satisfy the existing API shape.
-          candidateId: snapshot?.candidate.id ?? 0,
-          coverNote: "I'm interested in this role and would love to chat.",
-          // Tags the application's origin so employers can prioritize
-          // high-intent "for_you" swipe submissions over regular
-          // browse applies.
-          source: applicationSource,
-        }),
-      });
+      if (challenge) {
+        // Challenge gate: ensure every question is answered, then
+        // POST the answers. The server grades, creates the
+        // application atomically, and returns the score.
+        const ordered = challenge.questions.map(
+          (q) => answers[q.index] ?? -1,
+        );
+        if (ordered.some((a) => a < 0)) {
+          setError("Please answer every question before submitting.");
+          setSubmitting(false);
+          return;
+        }
+        await customFetch(`/api/jobs/${jobId}/challenge/submit`, {
+          method: "POST",
+          body: JSON.stringify({
+            answers: ordered,
+            source: applicationSource,
+          }),
+        });
+      } else {
+        await customFetch("/api/applications", {
+          method: "POST",
+          body: JSON.stringify({
+            jobId,
+            // Server derives candidateId from the session for non-admins;
+            // include a placeholder to satisfy the existing API shape.
+            candidateId: snapshot?.candidate.id ?? 0,
+            coverNote: "I'm interested in this role and would love to chat.",
+            // Tags the application's origin so employers can prioritize
+            // high-intent "for_you" swipe submissions over regular
+            // browse applies.
+            source: applicationSource,
+          }),
+        });
+      }
       if (Platform.OS !== "web") {
         Haptics.notificationAsync(
           Haptics.NotificationFeedbackType.Success,
@@ -234,6 +281,78 @@ export function ApplyConfirmSheet({
               <View style={{ paddingVertical: 24, alignItems: "center" }}>
                 <ActivityIndicator color={colors.primary} />
               </View>
+            ) : snapshot && challenge ? (
+              <>
+                <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
+                  Skill challenge
+                </Text>
+                <View
+                  style={[
+                    styles.card,
+                    { backgroundColor: colors.muted, borderColor: colors.border },
+                  ]}
+                >
+                  <Text style={{ color: colors.foreground, fontFamily: "Inter_700Bold", fontSize: 15 }}>
+                    {challenge.title}
+                  </Text>
+                  <Text
+                    style={{
+                      marginTop: 4,
+                      color: colors.mutedForeground,
+                      fontFamily: "Inter_400Regular",
+                      fontSize: 13,
+                    }}
+                  >
+                    Answer below — your score (0–100) replaces the cover note.
+                  </Text>
+                </View>
+                {challenge.questions.map((q) => (
+                  <View
+                    key={q.index}
+                    style={{ marginTop: 12 }}
+                  >
+                    <Text
+                      style={{
+                        color: colors.foreground,
+                        fontFamily: "Inter_600SemiBold",
+                        marginBottom: 6,
+                      }}
+                    >
+                      {q.index + 1}. {q.prompt}
+                    </Text>
+                    {q.options.map((opt, optIdx) => {
+                      const checked = answers[q.index] === optIdx;
+                      return (
+                        <Pressable
+                          key={optIdx}
+                          onPress={() =>
+                            setAnswers((prev) => ({ ...prev, [q.index]: optIdx }))
+                          }
+                          style={{
+                            borderWidth: 1,
+                            borderRadius: 12,
+                            padding: 12,
+                            marginTop: 6,
+                            borderColor: checked ? colors.primary : colors.border,
+                            backgroundColor: checked ? colors.muted : colors.background,
+                          }}
+                          accessibilityRole="radio"
+                          accessibilityState={{ checked }}
+                        >
+                          <Text
+                            style={{
+                              color: colors.foreground,
+                              fontFamily: "Inter_400Regular",
+                            }}
+                          >
+                            {opt}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                ))}
+              </>
             ) : snapshot ? (
               <>
                 <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
@@ -421,7 +540,7 @@ export function ApplyConfirmSheet({
                     fontFamily: "Inter_600SemiBold",
                   }}
                 >
-                  Send application
+                  {challenge ? "Submit challenge & apply" : "Send application"}
                 </Text>
               )}
             </Pressable>

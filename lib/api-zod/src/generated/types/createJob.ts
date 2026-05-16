@@ -30,4 +30,9 @@ export interface CreateJob {
   targetSkills?: string[];
   /** Optional location targeting filter for Sponsored push. */
   targetLocation?: string | null;
+  /** When true (default), the server auto-attaches a default
+skill-challenge built from the job's skills. Set false to
+post without a challenge (candidates apply via cover note).
+ */
+  includeChallenge?: boolean;
 }

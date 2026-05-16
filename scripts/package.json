@@ -6,6 +6,7 @@
   "scripts": {
     "hello": "tsx ./src/hello.ts",
     "migrate-legacy-employer-subs": "tsx ./src/migrate-legacy-employer-subs.ts",
+    "seed-challenge-templates": "tsx ./src/seed-challenge-templates.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {

@@ -31,6 +31,7 @@ import networkRouter from "./network";
 import meRouter from "./me";
 import mockInterviewsRouter from "./mock-interviews";
 import applicationEndorsementsRouter from "./application-endorsements";
+import skillChallengesRouter from "./skill-challenges";
 import { requireAuth } from "../middleware/require-auth";
 
 const router: IRouter = Router();
@@ -108,6 +109,10 @@ router.use(institutionAnalyticsRouter);
 // routes match here instead of falling through to the generic 404 within
 // the legacy routers.
 router.use(applicationEndorsementsRouter);
+// Skill-challenges router owns /jobs/:id/challenge* and
+// /challenge-templates. Mount BEFORE the generic jobsRouter so the
+// challenge sub-routes match here instead of falling through.
+router.use(skillChallengesRouter);
 router.use(candidatesRouter);
 router.use(employersRouter);
 router.use(institutionsRouter);

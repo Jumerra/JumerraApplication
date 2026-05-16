@@ -10,6 +10,8 @@ import {
   employersTable,
   institutionsTable,
   mockInterviewsTable,
+  jobChallengesTable,
+  applicationChallengesTable,
 } from "@workspace/db";
 import { sendNotificationToCandidate } from "../lib/notifier";
 import {
@@ -143,7 +145,17 @@ async function serializeApplication(applicationId: number) {
         }
       : null,
     endorsement,
+    challengeScore: await getChallengeScore(row.application.id),
   };
+}
+
+async function getChallengeScore(applicationId: number): Promise<number | null> {
+  const [row] = await db
+    .select({ score: applicationChallengesTable.score })
+    .from(applicationChallengesTable)
+    .where(eq(applicationChallengesTable.applicationId, applicationId))
+    .limit(1);
+  return row ? row.score : null;
 }
 
 router.get("/applications", requireAuth, async (req, res): Promise<void> => {
@@ -309,9 +321,27 @@ router.get("/applications", requireAuth, async (req, res): Promise<void> => {
     }
   }
 
+  // Bulk-fetch challenge scores for the same applications so the
+  // employer Kanban renders the challenge badge without N+1.
+  const challengeByApp = new Map<number, number>();
+  if (rows.length > 0) {
+    const appIds = rows.map((r) => r.application.id);
+    const subs = await db
+      .select({
+        applicationId: applicationChallengesTable.applicationId,
+        score: applicationChallengesTable.score,
+      })
+      .from(applicationChallengesTable)
+      .where(inArray(applicationChallengesTable.applicationId, appIds));
+    for (const s of subs) {
+      if (s.applicationId != null) challengeByApp.set(s.applicationId, s.score);
+    }
+  }
+
   const result = rows.map((row) => {
     const mock = mockByPair.get(`${row.candidate.id}:${row.job.id}`) ?? null;
     const endorsement = endorseByApp.get(row.application.id) ?? null;
+    const challengeScore = challengeByApp.get(row.application.id) ?? null;
     return {
       id: row.application.id,
       jobId: row.job.id,
@@ -339,6 +369,7 @@ router.get("/applications", requireAuth, async (req, res): Promise<void> => {
           }
         : null,
       endorsement,
+      challengeScore,
     };
   });
 
@@ -374,6 +405,35 @@ router.post("/applications", requireAuth, async (req, res): Promise<void> => {
   if (!job || !candidate) {
     res.status(404).json({ error: "Job or candidate not found" });
     return;
+  }
+
+  // Challenge gate: if this job has a skill challenge attached, the
+  // candidate MUST submit the challenge first (via POST
+  // /jobs/:id/challenge/submit, which creates the application
+  // atomically). A direct POST /applications without a submission
+  // is rejected so cover-note-only applies can't bypass the gate.
+  const [jobChallenge] = await db
+    .select({ id: jobChallengesTable.id })
+    .from(jobChallengesTable)
+    .where(eq(jobChallengesTable.jobId, parsed.data.jobId));
+  if (jobChallenge) {
+    const [submission] = await db
+      .select({ id: applicationChallengesTable.id })
+      .from(applicationChallengesTable)
+      .where(
+        and(
+          eq(applicationChallengesTable.candidateId, parsed.data.candidateId),
+          eq(applicationChallengesTable.jobId, parsed.data.jobId),
+        ),
+      );
+    if (!submission) {
+      res.status(409).json({
+        error:
+          "This job requires a skill challenge. Submit it via /jobs/:id/challenge/submit first.",
+        requiresChallenge: true,
+      });
+      return;
+    }
   }
 
   const { score } = calculateMatchScore(

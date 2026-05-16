@@ -608,6 +608,94 @@ paths:
                 type: array
                 items: { $ref: "#/components/schemas/CandidateMatch" }
 
+  /challenge-templates:
+    get:
+      operationId: listChallengeTemplates
+      tags: [jobs]
+      summary: Browse reusable skill-challenge templates (employer-only).
+      responses:
+        "200":
+          description: Templates
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ChallengeTemplate" }
+  /jobs/{id}/challenge:
+    get:
+      operationId: getJobChallenge
+      tags: [jobs]
+      summary: Fetch a job's skill challenge (answer keys stripped).
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Job challenge
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JobChallenge" }
+        "404": { description: No challenge attached }
+    put:
+      operationId: updateJobChallenge
+      tags: [jobs]
+      summary: Replace the challenge attached to a job (employer-only).
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateJobChallenge" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JobChallenge" }
+    delete:
+      operationId: deleteJobChallenge
+      tags: [jobs]
+      summary: Remove the challenge attached to a job (employer-only).
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "204": { description: Removed }
+  /jobs/{id}/challenge/submit:
+    post:
+      operationId: submitJobChallenge
+      tags: [jobs]
+      summary: Candidate submits answers; server grades and creates the application.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SubmitChallenge" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ChallengeSubmissionResult" }
+        "200":
+          description: Already submitted (returns existing score)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ChallengeSubmissionResult" }
+
   /candidates/{id}/recommendations:
     get:
       operationId: getCandidateRecommendations
@@ -4672,6 +4760,12 @@ components:
           type: string
           nullable: true
           description: Optional location targeting filter for Sponsored push.
+        includeChallenge:
+          type: boolean
+          description: |
+            When true (default), the server auto-attaches a default
+            skill-challenge built from the job's skills. Set false to
+            post without a challenge (candidates apply via cover note).
       required:
         - title
         - employerId
@@ -4732,6 +4826,12 @@ components:
             Institution co-sign on this application, if any. The
             endorsing institution's name is shown as a "Verified by
             X" badge to the employer.
+        challengeScore:
+          type: integer
+          nullable: true
+          description: |
+            Score 0–100 from the candidate's skill-challenge
+            submission, if the job had a challenge attached.
       required:
         - id
         - jobId
@@ -4753,6 +4853,7 @@ components:
         - mockInterviewScore
         - mockInterviewBreakdown
         - endorsement
+        - challengeScore
 
     ApplicationEndorsement:
       type: object
@@ -4821,6 +4922,87 @@ components:
             Origin of the application. Optional; defaults to `browse`.
             The mobile For You swipe stack sends `for_you`.
       required: [jobId, candidateId, coverNote]
+
+    ChallengeQuestionPublic:
+      type: object
+      description: A single skill-challenge question with answer key stripped.
+      properties:
+        index: { type: integer }
+        prompt: { type: string }
+        options:
+          type: array
+          items: { type: string }
+      required: [index, prompt, options]
+
+    JobChallenge:
+      type: object
+      properties:
+        jobId: { type: integer }
+        title: { type: string }
+        passingScore: { type: integer }
+        questions:
+          type: array
+          items: { $ref: "#/components/schemas/ChallengeQuestionPublic" }
+      required: [jobId, title, passingScore, questions]
+
+    ChallengeTemplate:
+      type: object
+      properties:
+        id: { type: integer }
+        skill: { type: string }
+        title: { type: string }
+        description: { type: string }
+        questionCount: { type: integer }
+        preview:
+          type: array
+          items: { $ref: "#/components/schemas/ChallengeQuestionPublic" }
+      required: [id, skill, title, description, questionCount, preview]
+
+    SubmitChallenge:
+      type: object
+      properties:
+        answers:
+          type: array
+          items: { type: integer }
+        source:
+          type: string
+          enum: [browse, for_you]
+      required: [answers]
+
+    ChallengeSubmissionResult:
+      type: object
+      properties:
+        applicationId: { type: integer }
+        score: { type: integer }
+        correct: { type: integer }
+        total: { type: integer }
+        alreadySubmitted: { type: boolean }
+      required: [applicationId, score, correct, total, alreadySubmitted]
+
+    UpdateJobChallenge:
+      type: object
+      description: |
+        Replace the challenge attached to a job. Supply either
+        `questions` (full custom snapshot incl. correctIndex) OR
+        `templateIds` (regenerate from these templates). Omit both
+        to regenerate from the job's skills.
+      properties:
+        title: { type: string }
+        passingScore: { type: integer }
+        templateIds:
+          type: array
+          items: { type: integer }
+        questions:
+          type: array
+          items:
+            type: object
+            properties:
+              prompt: { type: string }
+              options:
+                type: array
+                items: { type: string }
+              correctIndex: { type: integer }
+            required: [prompt, options, correctIndex]
 
     UpdateApplication:
       type: object

@@ -1,4 +1,12 @@
-import { pgTable, serial, text, integer, timestamp, index } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  serial,
+  text,
+  integer,
+  timestamp,
+  index,
+  uniqueIndex,
+} from "drizzle-orm/pg-core";
 
 export const applicationsTable = pgTable(
   "applications",
@@ -39,6 +47,14 @@ export const applicationsTable = pgTable(
     statusUpdatedAtIdx: index("applications_status_updated_at_idx").on(
       t.status,
       t.updatedAt,
+    ),
+    // Hard guarantee against duplicate applications. The
+    // POST /applications and POST /jobs/:id/challenge/submit
+    // endpoints both check first, but two concurrent requests
+    // could otherwise both pass the check and create two rows.
+    jobCandidateUniq: uniqueIndex("applications_job_candidate_uniq").on(
+      t.jobId,
+      t.candidateId,
     ),
   }),
 );

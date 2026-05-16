@@ -1520,6 +1520,12 @@ export const CreateJobBody = zod.object({
     .string()
     .nullish()
     .describe("Optional location targeting filter for Sponsored push."),
+  includeChallenge: zod
+    .boolean()
+    .optional()
+    .describe(
+      "When true (default), the server auto-attaches a default\nskill-challenge built from the job's skills. Set false to\npost without a challenge (candidates apply via cover note).\n",
+    ),
 });
 
 export const GetJobParams = zod.object({
@@ -1602,6 +1608,119 @@ export const GetJobMatchesResponseItem = zod.object({
     ),
 });
 export const GetJobMatchesResponse = zod.array(GetJobMatchesResponseItem);
+
+/**
+ * @summary Browse reusable skill-challenge templates (employer-only).
+ */
+export const ListChallengeTemplatesResponseItem = zod.object({
+  id: zod.number(),
+  skill: zod.string(),
+  title: zod.string(),
+  description: zod.string(),
+  questionCount: zod.number(),
+  preview: zod.array(
+    zod
+      .object({
+        index: zod.number(),
+        prompt: zod.string(),
+        options: zod.array(zod.string()),
+      })
+      .describe("A single skill-challenge question with answer key stripped."),
+  ),
+});
+export const ListChallengeTemplatesResponse = zod.array(
+  ListChallengeTemplatesResponseItem,
+);
+
+/**
+ * @summary Fetch a job's skill challenge (answer keys stripped).
+ */
+export const GetJobChallengeParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetJobChallengeResponse = zod.object({
+  jobId: zod.number(),
+  title: zod.string(),
+  passingScore: zod.number(),
+  questions: zod.array(
+    zod
+      .object({
+        index: zod.number(),
+        prompt: zod.string(),
+        options: zod.array(zod.string()),
+      })
+      .describe("A single skill-challenge question with answer key stripped."),
+  ),
+});
+
+/**
+ * @summary Replace the challenge attached to a job (employer-only).
+ */
+export const UpdateJobChallengeParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateJobChallengeBody = zod
+  .object({
+    title: zod.string().optional(),
+    passingScore: zod.number().optional(),
+    templateIds: zod.array(zod.number()).optional(),
+    questions: zod
+      .array(
+        zod.object({
+          prompt: zod.string(),
+          options: zod.array(zod.string()),
+          correctIndex: zod.number(),
+        }),
+      )
+      .optional(),
+  })
+  .describe(
+    "Replace the challenge attached to a job. Supply either\n`questions` (full custom snapshot incl. correctIndex) OR\n`templateIds` (regenerate from these templates). Omit both\nto regenerate from the job's skills.\n",
+  );
+
+export const UpdateJobChallengeResponse = zod.object({
+  jobId: zod.number(),
+  title: zod.string(),
+  passingScore: zod.number(),
+  questions: zod.array(
+    zod
+      .object({
+        index: zod.number(),
+        prompt: zod.string(),
+        options: zod.array(zod.string()),
+      })
+      .describe("A single skill-challenge question with answer key stripped."),
+  ),
+});
+
+/**
+ * @summary Remove the challenge attached to a job (employer-only).
+ */
+export const DeleteJobChallengeParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
+ * @summary Candidate submits answers; server grades and creates the application.
+ */
+export const SubmitJobChallengeParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const SubmitJobChallengeBody = zod.object({
+  answers: zod.array(zod.number()),
+  source: zod.enum(["browse", "for_you"]).optional(),
+});
+
+export const SubmitJobChallengeResponse = zod.object({
+  applicationId: zod.number(),
+  score: zod.number(),
+  correct: zod.number(),
+  total: zod.number(),
+  alreadySubmitted: zod.boolean(),
+});
 
 /**
  * @summary AI-style ranked job recommendations for a candidate
@@ -1724,6 +1843,12 @@ export const ListApplicationsResponseItem = zod.object({
     .describe(
       'Institution co-sign on this application, if any. The\nendorsing institution\'s name is shown as a \"Verified by\nX\" badge to the employer.\n',
     ),
+  challengeScore: zod
+    .number()
+    .nullable()
+    .describe(
+      "Score 0–100 from the candidate's skill-challenge\nsubmission, if the job had a challenge attached.\n",
+    ),
 });
 export const ListApplicationsResponse = zod.array(ListApplicationsResponseItem);
 
@@ -1823,6 +1948,12 @@ export const UpdateApplicationStatusResponse = zod.object({
     .nullable()
     .describe(
       'Institution co-sign on this application, if any. The\nendorsing institution\'s name is shown as a \"Verified by\nX\" badge to the employer.\n',
+    ),
+  challengeScore: zod
+    .number()
+    .nullable()
+    .describe(
+      "Score 0–100 from the candidate's skill-challenge\nsubmission, if the job had a challenge attached.\n",
     ),
 });
 
@@ -2229,6 +2360,12 @@ export const GetEmployerDashboardResponse = zod.object({
         .describe(
           'Institution co-sign on this application, if any. The\nendorsing institution\'s name is shown as a \"Verified by\nX\" badge to the employer.\n',
         ),
+      challengeScore: zod
+        .number()
+        .nullable()
+        .describe(
+          "Score 0–100 from the candidate's skill-challenge\nsubmission, if the job had a challenge attached.\n",
+        ),
     }),
   ),
 });
@@ -2437,6 +2574,12 @@ export const GetCandidateDashboardResponse = zod.object({
         .nullable()
         .describe(
           'Institution co-sign on this application, if any. The\nendorsing institution\'s name is shown as a \"Verified by\nX\" badge to the employer.\n',
+        ),
+      challengeScore: zod
+        .number()
+        .nullable()
+        .describe(
+          "Score 0–100 from the candidate's skill-challenge\nsubmission, if the job had a challenge attached.\n",
         ),
     }),
   ),
@@ -3211,6 +3354,12 @@ export const AdminListApplicationsResponse = zod.object({
         .nullable()
         .describe(
           'Institution co-sign on this application, if any. The\nendorsing institution\'s name is shown as a \"Verified by\nX\" badge to the employer.\n',
+        ),
+      challengeScore: zod
+        .number()
+        .nullable()
+        .describe(
+          "Score 0–100 from the candidate's skill-challenge\nsubmission, if the job had a challenge attached.\n",
         ),
     }),
   ),

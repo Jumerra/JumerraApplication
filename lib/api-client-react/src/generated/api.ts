@@ -54,6 +54,8 @@ import type {
   CandidateMatch,
   CandidateScoreBreakdown,
   CandidateWeeklyDigestResponse,
+  ChallengeSubmissionResult,
+  ChallengeTemplate,
   ChangePasswordRequest,
   CreateApplication,
   CreateBoostCheckoutRequest,
@@ -108,6 +110,7 @@ import type {
   InviteStaffResponse,
   IssueSkillVerificationRequest,
   Job,
+  JobChallenge,
   JobDetail,
   JobMatch,
   JobTierSettings,
@@ -159,6 +162,7 @@ import type {
   StaffListResponse,
   StaffMemberResponse,
   StartMockInterviewBody,
+  SubmitChallenge,
   SubmitReferenceRequest,
   TalentPool,
   TalentPoolDetail,
@@ -172,6 +176,7 @@ import type {
   UpdateInstitutionFaculty,
   UpdateInstitutionRequest,
   UpdateInstitutionSubscriptionSettingsRequest,
+  UpdateJobChallenge,
   UpdateJobTierSettingsRequest,
   UpdatePartnerRequest,
   UpdatePartnerSettingsRequest,
@@ -2836,6 +2841,427 @@ export function useGetJobMatches<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Browse reusable skill-challenge templates (employer-only).
+ */
+export const getListChallengeTemplatesUrl = () => {
+  return `/api/challenge-templates`;
+};
+
+export const listChallengeTemplates = async (
+  options?: RequestInit,
+): Promise<ChallengeTemplate[]> => {
+  return customFetch<ChallengeTemplate[]>(getListChallengeTemplatesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListChallengeTemplatesQueryKey = () => {
+  return [`/api/challenge-templates`] as const;
+};
+
+export const getListChallengeTemplatesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listChallengeTemplates>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listChallengeTemplates>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListChallengeTemplatesQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listChallengeTemplates>>
+  > = ({ signal }) => listChallengeTemplates({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listChallengeTemplates>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListChallengeTemplatesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listChallengeTemplates>>
+>;
+export type ListChallengeTemplatesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Browse reusable skill-challenge templates (employer-only).
+ */
+
+export function useListChallengeTemplates<
+  TData = Awaited<ReturnType<typeof listChallengeTemplates>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listChallengeTemplates>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListChallengeTemplatesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Fetch a job's skill challenge (answer keys stripped).
+ */
+export const getGetJobChallengeUrl = (id: number) => {
+  return `/api/jobs/${id}/challenge`;
+};
+
+export const getJobChallenge = async (
+  id: number,
+  options?: RequestInit,
+): Promise<JobChallenge> => {
+  return customFetch<JobChallenge>(getGetJobChallengeUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetJobChallengeQueryKey = (id: number) => {
+  return [`/api/jobs/${id}/challenge`] as const;
+};
+
+export const getGetJobChallengeQueryOptions = <
+  TData = Awaited<ReturnType<typeof getJobChallenge>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getJobChallenge>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetJobChallengeQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getJobChallenge>>> = ({
+    signal,
+  }) => getJobChallenge(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getJobChallenge>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetJobChallengeQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getJobChallenge>>
+>;
+export type GetJobChallengeQueryError = ErrorType<void>;
+
+/**
+ * @summary Fetch a job's skill challenge (answer keys stripped).
+ */
+
+export function useGetJobChallenge<
+  TData = Awaited<ReturnType<typeof getJobChallenge>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getJobChallenge>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetJobChallengeQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Replace the challenge attached to a job (employer-only).
+ */
+export const getUpdateJobChallengeUrl = (id: number) => {
+  return `/api/jobs/${id}/challenge`;
+};
+
+export const updateJobChallenge = async (
+  id: number,
+  updateJobChallenge: UpdateJobChallenge,
+  options?: RequestInit,
+): Promise<JobChallenge> => {
+  return customFetch<JobChallenge>(getUpdateJobChallengeUrl(id), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateJobChallenge),
+  });
+};
+
+export const getUpdateJobChallengeMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateJobChallenge>>,
+    TError,
+    { id: number; data: BodyType<UpdateJobChallenge> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateJobChallenge>>,
+  TError,
+  { id: number; data: BodyType<UpdateJobChallenge> },
+  TContext
+> => {
+  const mutationKey = ["updateJobChallenge"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateJobChallenge>>,
+    { id: number; data: BodyType<UpdateJobChallenge> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateJobChallenge(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateJobChallengeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateJobChallenge>>
+>;
+export type UpdateJobChallengeMutationBody = BodyType<UpdateJobChallenge>;
+export type UpdateJobChallengeMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Replace the challenge attached to a job (employer-only).
+ */
+export const useUpdateJobChallenge = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateJobChallenge>>,
+    TError,
+    { id: number; data: BodyType<UpdateJobChallenge> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateJobChallenge>>,
+  TError,
+  { id: number; data: BodyType<UpdateJobChallenge> },
+  TContext
+> => {
+  return useMutation(getUpdateJobChallengeMutationOptions(options));
+};
+
+/**
+ * @summary Remove the challenge attached to a job (employer-only).
+ */
+export const getDeleteJobChallengeUrl = (id: number) => {
+  return `/api/jobs/${id}/challenge`;
+};
+
+export const deleteJobChallenge = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteJobChallengeUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteJobChallengeMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteJobChallenge>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteJobChallenge>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteJobChallenge"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteJobChallenge>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteJobChallenge(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteJobChallengeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteJobChallenge>>
+>;
+
+export type DeleteJobChallengeMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Remove the challenge attached to a job (employer-only).
+ */
+export const useDeleteJobChallenge = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteJobChallenge>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteJobChallenge>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteJobChallengeMutationOptions(options));
+};
+
+/**
+ * @summary Candidate submits answers; server grades and creates the application.
+ */
+export const getSubmitJobChallengeUrl = (id: number) => {
+  return `/api/jobs/${id}/challenge/submit`;
+};
+
+export const submitJobChallenge = async (
+  id: number,
+  submitChallenge: SubmitChallenge,
+  options?: RequestInit,
+): Promise<ChallengeSubmissionResult> => {
+  return customFetch<ChallengeSubmissionResult>(getSubmitJobChallengeUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(submitChallenge),
+  });
+};
+
+export const getSubmitJobChallengeMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof submitJobChallenge>>,
+    TError,
+    { id: number; data: BodyType<SubmitChallenge> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof submitJobChallenge>>,
+  TError,
+  { id: number; data: BodyType<SubmitChallenge> },
+  TContext
+> => {
+  const mutationKey = ["submitJobChallenge"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof submitJobChallenge>>,
+    { id: number; data: BodyType<SubmitChallenge> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return submitJobChallenge(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SubmitJobChallengeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof submitJobChallenge>>
+>;
+export type SubmitJobChallengeMutationBody = BodyType<SubmitChallenge>;
+export type SubmitJobChallengeMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Candidate submits answers; server grades and creates the application.
+ */
+export const useSubmitJobChallenge = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof submitJobChallenge>>,
+    TError,
+    { id: number; data: BodyType<SubmitChallenge> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof submitJobChallenge>>,
+  TError,
+  { id: number; data: BodyType<SubmitChallenge> },
+  TContext
+> => {
+  return useMutation(getSubmitJobChallengeMutationOptions(options));
+};
 
 /**
  * @summary AI-style ranked job recommendations for a candidate

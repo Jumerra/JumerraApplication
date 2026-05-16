@@ -50,6 +50,7 @@ async function serializeApplication(applicationId: number) {
     matchScore: row.application.matchScore,
     coverNote: row.application.coverNote,
     boardOrder: row.application.boardOrder,
+    source: row.application.source,
     appliedAt: row.application.appliedAt.toISOString(),
     updatedAt: row.application.updatedAt.toISOString(),
   };
@@ -133,6 +134,7 @@ router.get("/applications", requireAuth, async (req, res): Promise<void> => {
     matchScore: row.application.matchScore,
     coverNote: row.application.coverNote,
     boardOrder: row.application.boardOrder,
+    source: row.application.source,
     appliedAt: row.application.appliedAt.toISOString(),
     updatedAt: row.application.updatedAt.toISOString(),
   }));
@@ -201,6 +203,10 @@ router.post("/applications", requireAuth, async (req, res): Promise<void> => {
       jobId: parsed.data.jobId,
       candidateId: parsed.data.candidateId,
       coverNote: parsed.data.coverNote,
+      // `source` is optional in the OpenAPI contract and defaults to
+      // "browse" both in the Zod schema and the DB column, so passing
+      // the parsed value here is always safe.
+      source: parsed.data.source ?? "browse",
       status: "applied",
       matchScore: score,
     })

@@ -4530,6 +4530,14 @@ components:
         matchScore: { type: integer }
         coverNote: { type: string }
         boardOrder: { type: integer }
+        source:
+          type: string
+          enum: [browse, for_you]
+          description: |
+            Where the application originated. `for_you` flags swipe-right
+            submissions from the mobile For You stack so employers can
+            prioritize replies to high-intent applicants. Defaults to
+            `browse`.
         appliedAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
       required:
@@ -4546,6 +4554,7 @@ components:
         - matchScore
         - coverNote
         - boardOrder
+        - source
         - appliedAt
         - updatedAt
 
@@ -4555,6 +4564,12 @@ components:
         jobId: { type: integer }
         candidateId: { type: integer }
         coverNote: { type: string }
+        source:
+          type: string
+          enum: [browse, for_you]
+          description: |
+            Origin of the application. Optional; defaults to `browse`.
+            The mobile For You swipe stack sends `for_you`.
       required: [jobId, candidateId, coverNote]
 
     UpdateApplication:

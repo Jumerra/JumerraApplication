@@ -10,6 +10,13 @@ export const applicationsTable = pgTable(
     matchScore: integer("match_score").notNull().default(0),
     coverNote: text("cover_note").notNull().default(""),
     /**
+     * Where the application originated. "browse" is the default for
+     * regular job-detail apply CTAs; "for_you" tags swipe-right
+     * submissions from the mobile For You stack so employers can
+     * prioritize replies to high-intent applicants.
+     */
+    source: text("source").notNull().default("browse"),
+    /**
      * Sort index within a Kanban column. Lower = higher in the column.
      * Defaults to 0 (new applications appear at the top of "Applied").
      * Updated by the employer Kanban via PATCH /applications/:id.

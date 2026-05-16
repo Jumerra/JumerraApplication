@@ -352,6 +352,7 @@ export default function ForYouScreen() {
         jobId={confirmJobId}
         jobTitle={confirmJobTitle}
         employerName={confirmEmployerName}
+        applicationSource="for_you"
         onClose={() => {
           setConfirmJobId(null);
           // Snap card back to neutral if user cancels

@@ -203,12 +203,24 @@ export default function PipelineKanbanPage() {
                     >
                       <Card className="cursor-grab active:cursor-grabbing hover:shadow-sm">
                         <CardContent className="p-3 space-y-1">
-                          <Link
-                            href={`/candidates/${app.candidateId}`}
-                            className="font-medium text-sm hover:underline block truncate"
-                          >
-                            {app.candidateName}
-                          </Link>
+                          <div className="flex items-center gap-1.5">
+                            <Link
+                              href={`/candidates/${app.candidateId}`}
+                              className="font-medium text-sm hover:underline block truncate flex-1 min-w-0"
+                            >
+                              {app.candidateName}
+                            </Link>
+                            {app.source === "for_you" ? (
+                              <Badge
+                                variant="default"
+                                className="text-[10px] px-1.5 py-0 shrink-0"
+                                title="Swipe-right from the For You stack — high intent"
+                                data-testid={`badge-source-for-you-${app.id}`}
+                              >
+                                For You
+                              </Badge>
+                            ) : null}
+                          </div>
                           <div className="text-xs text-muted-foreground truncate">
                             Match {app.matchScore}%
                           </div>

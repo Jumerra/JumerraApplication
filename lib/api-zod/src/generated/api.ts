@@ -1689,6 +1689,11 @@ export const ListApplicationsResponseItem = zod.object({
   matchScore: zod.number(),
   coverNote: zod.string(),
   boardOrder: zod.number(),
+  source: zod
+    .enum(["browse", "for_you"])
+    .describe(
+      "Where the application originated. `for_you` flags swipe-right\nsubmissions from the mobile For You stack so employers can\nprioritize replies to high-intent applicants. Defaults to\n`browse`.\n",
+    ),
   appliedAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
 });
@@ -1698,6 +1703,12 @@ export const CreateApplicationBody = zod.object({
   jobId: zod.number(),
   candidateId: zod.number(),
   coverNote: zod.string(),
+  source: zod
+    .enum(["browse", "for_you"])
+    .optional()
+    .describe(
+      "Origin of the application. Optional; defaults to `browse`.\nThe mobile For You swipe stack sends `for_you`.\n",
+    ),
 });
 
 export const UpdateApplicationStatusParams = zod.object({
@@ -1750,6 +1761,11 @@ export const UpdateApplicationStatusResponse = zod.object({
   matchScore: zod.number(),
   coverNote: zod.string(),
   boardOrder: zod.number(),
+  source: zod
+    .enum(["browse", "for_you"])
+    .describe(
+      "Where the application originated. `for_you` flags swipe-right\nsubmissions from the mobile For You stack so employers can\nprioritize replies to high-intent applicants. Defaults to\n`browse`.\n",
+    ),
   appliedAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
 });
@@ -2122,6 +2138,11 @@ export const GetEmployerDashboardResponse = zod.object({
       matchScore: zod.number(),
       coverNote: zod.string(),
       boardOrder: zod.number(),
+      source: zod
+        .enum(["browse", "for_you"])
+        .describe(
+          "Where the application originated. `for_you` flags swipe-right\nsubmissions from the mobile For You stack so employers can\nprioritize replies to high-intent applicants. Defaults to\n`browse`.\n",
+        ),
       appliedAt: zod.coerce.date(),
       updatedAt: zod.coerce.date(),
     }),
@@ -2298,6 +2319,11 @@ export const GetCandidateDashboardResponse = zod.object({
       matchScore: zod.number(),
       coverNote: zod.string(),
       boardOrder: zod.number(),
+      source: zod
+        .enum(["browse", "for_you"])
+        .describe(
+          "Where the application originated. `for_you` flags swipe-right\nsubmissions from the mobile For You stack so employers can\nprioritize replies to high-intent applicants. Defaults to\n`browse`.\n",
+        ),
       appliedAt: zod.coerce.date(),
       updatedAt: zod.coerce.date(),
     }),
@@ -3039,6 +3065,11 @@ export const AdminListApplicationsResponse = zod.object({
       matchScore: zod.number(),
       coverNote: zod.string(),
       boardOrder: zod.number(),
+      source: zod
+        .enum(["browse", "for_you"])
+        .describe(
+          "Where the application originated. `for_you` flags swipe-right\nsubmissions from the mobile For You stack so employers can\nprioritize replies to high-intent applicants. Defaults to\n`browse`.\n",
+        ),
       appliedAt: zod.coerce.date(),
       updatedAt: zod.coerce.date(),
     }),

@@ -5,9 +5,14 @@
  * Talent Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { CreateApplicationSource } from "./createApplicationSource";
 
 export interface CreateApplication {
   jobId: number;
   candidateId: number;
   coverNote: string;
+  /** Origin of the application. Optional; defaults to `browse`.
+The mobile For You swipe stack sends `for_you`.
+ */
+  source?: CreateApplicationSource;
 }

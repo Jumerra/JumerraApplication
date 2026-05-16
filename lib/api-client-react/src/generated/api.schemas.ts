@@ -294,6 +294,21 @@ export const ApplicationStatus = {
   withdrawn: "withdrawn",
 } as const;
 
+/**
+ * Where the application originated. `for_you` flags swipe-right
+submissions from the mobile For You stack so employers can
+prioritize replies to high-intent applicants. Defaults to
+`browse`.
+
+ */
+export type ApplicationSource =
+  (typeof ApplicationSource)[keyof typeof ApplicationSource];
+
+export const ApplicationSource = {
+  browse: "browse",
+  for_you: "for_you",
+} as const;
+
 export interface Application {
   id: number;
   jobId: number;
@@ -308,6 +323,12 @@ export interface Application {
   matchScore: number;
   coverNote: string;
   boardOrder: number;
+  /** Where the application originated. `for_you` flags swipe-right
+submissions from the mobile For You stack so employers can
+prioritize replies to high-intent applicants. Defaults to
+`browse`.
+ */
+  source: ApplicationSource;
   appliedAt: string;
   updatedAt: string;
 }
@@ -1341,10 +1362,27 @@ export interface CreateJob {
   targetLocation?: string | null;
 }
 
+/**
+ * Origin of the application. Optional; defaults to `browse`.
+The mobile For You swipe stack sends `for_you`.
+
+ */
+export type CreateApplicationSource =
+  (typeof CreateApplicationSource)[keyof typeof CreateApplicationSource];
+
+export const CreateApplicationSource = {
+  browse: "browse",
+  for_you: "for_you",
+} as const;
+
 export interface CreateApplication {
   jobId: number;
   candidateId: number;
   coverNote: string;
+  /** Origin of the application. Optional; defaults to `browse`.
+The mobile For You swipe stack sends `for_you`.
+ */
+  source?: CreateApplicationSource;
 }
 
 export type UpdateApplicationStatus =

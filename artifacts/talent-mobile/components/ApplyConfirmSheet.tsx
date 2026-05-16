@@ -39,6 +39,12 @@ type Props = {
   onClose: () => void;
   /** Called after the application is successfully submitted. */
   onSubmitted?: () => void;
+  /**
+   * Where this submission originated. The For You swipe stack passes
+   * `"for_you"` so employers can prioritize replies; regular
+   * job-detail apply CTAs leave this as the default `"browse"`.
+   */
+  applicationSource?: "browse" | "for_you";
 };
 
 /**
@@ -54,6 +60,7 @@ export function ApplyConfirmSheet({
   employerName,
   onClose,
   onSubmitted,
+  applicationSource = "browse",
 }: Props) {
   const colors = useColors();
   const [snapshot, setSnapshot] = useState<ApplySnapshot | null>(null);
@@ -94,6 +101,10 @@ export function ApplyConfirmSheet({
           // include a placeholder to satisfy the existing API shape.
           candidateId: snapshot?.candidate.id ?? 0,
           coverNote: "I'm interested in this role and would love to chat.",
+          // Tags the application's origin so employers can prioritize
+          // high-intent "for_you" swipe submissions over regular
+          // browse applies.
+          source: applicationSource,
         }),
       });
       if (Platform.OS !== "web") {

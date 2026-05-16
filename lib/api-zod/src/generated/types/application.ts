@@ -5,6 +5,7 @@
  * Talent Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { ApplicationSource } from "./applicationSource";
 import type { ApplicationStatus } from "./applicationStatus";
 
 export interface Application {
@@ -21,6 +22,12 @@ export interface Application {
   matchScore: number;
   coverNote: string;
   boardOrder: number;
+  /** Where the application originated. `for_you` flags swipe-right
+submissions from the mobile For You stack so employers can
+prioritize replies to high-intent applicants. Defaults to
+`browse`.
+ */
+  source: ApplicationSource;
   appliedAt: Date;
   updatedAt: Date;
 }

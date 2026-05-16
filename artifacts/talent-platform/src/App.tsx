@@ -77,6 +77,7 @@ import NotificationsPage from "@/pages/account/notifications";
 import ApplicationDetailPage from "@/pages/account/application-detail";
 import OffersInboxPage from "@/pages/account/offers";
 import EmployerOpenCandidatesPage from "@/pages/dashboard/employer-open-candidates";
+import PublicOpenCandidatesPage from "@/pages/open-candidates";
 import CandidateMentorsPage from "@/pages/dashboard/candidate-mentors";
 import CandidateMentorRequestsPage from "@/pages/dashboard/candidate-mentor-requests";
 import AdminNetworkPage from "@/pages/dashboard/admin/network";
@@ -101,6 +102,7 @@ function Router() {
         <Route path="/institutions" component={InstitutionsList} />
         <Route path="/institutions/:id" component={InstitutionDetail} />
         
+        <Route path="/open-candidates" component={PublicOpenCandidatesPage} />
         <Route path="/candidates" component={CandidatesList} />
         <Route path="/candidates/:id" component={CandidateDetail} />
         <Route path="/references/:token" component={PublicReferenceFormPage} />

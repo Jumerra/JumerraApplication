@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +12,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
   Sparkles,
   Heart,
   X,
@@ -18,13 +28,17 @@ import {
   Briefcase,
   MapPin,
   GraduationCap,
+  Plus,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
   useListTalentPools,
+  useCreateTalentPool,
   getListTalentPoolsQueryKey,
 } from "@workspace/api-client-react";
 import { useAuth } from "@/lib/auth";
+
+const CREATE_POOL_VALUE = "__create__";
 
 type DeckItem = {
   candidate: {
@@ -76,13 +90,18 @@ export function DailyDeckCard() {
       return "default";
     }
   });
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newPoolName, setNewPoolName] = useState("");
+  const [newPoolDescription, setNewPoolDescription] = useState("");
 
+  const qc = useQueryClient();
   const { data: pools } = useListTalentPools(employerId, {
     query: {
       enabled: employerId > 0,
       queryKey: getListTalentPoolsQueryKey(employerId),
     },
   });
+  const createPool = useCreateTalentPool();
 
   useEffect(() => {
     if (typeof window === "undefined" || !poolPrefKey) return;
@@ -112,6 +131,10 @@ export function DailyDeckCard() {
   }, [pools, selectedPoolId, poolPrefKey]);
 
   const handlePoolChange = (next: string) => {
+    if (next === CREATE_POOL_VALUE) {
+      setCreateOpen(true);
+      return;
+    }
     setSelectedPoolId(next);
     if (typeof window === "undefined" || !poolPrefKey) return;
     try {
@@ -337,6 +360,15 @@ export function DailyDeckCard() {
                     {p.name}
                   </SelectItem>
                 ))}
+                <SelectItem
+                  value={CREATE_POOL_VALUE}
+                  data-testid="select-deck-pool-create"
+                >
+                  <span className="inline-flex items-center gap-1.5">
+                    <Plus className="w-3 h-3" />
+                    Create new pool…
+                  </span>
+                </SelectItem>
               </SelectContent>
             </Select>
             <div className="text-xs text-muted-foreground">
@@ -495,6 +527,90 @@ export function DailyDeckCard() {
           </div>
         )}
       </CardContent>
+
+      <Dialog
+        open={createOpen}
+        onOpenChange={(o) => {
+          setCreateOpen(o);
+          if (!o) {
+            setNewPoolName("");
+            setNewPoolDescription("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create a talent pool</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <label className="text-sm font-medium">Name</label>
+              <Input
+                value={newPoolName}
+                onChange={(e) => setNewPoolName(e.target.value)}
+                placeholder="e.g. Backend interns 2027"
+                autoFocus
+                data-testid="input-deck-pool-name"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Description</label>
+              <Textarea
+                value={newPoolDescription}
+                onChange={(e) => setNewPoolDescription(e.target.value)}
+                placeholder="Optional notes about this pool."
+                data-testid="input-deck-pool-description"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setCreateOpen(false)}
+              disabled={createPool.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                const name = newPoolName.trim();
+                if (!name) {
+                  toast.error("Pool name is required");
+                  return;
+                }
+                if (employerId <= 0) return;
+                createPool.mutate(
+                  {
+                    id: employerId,
+                    data: { name, description: newPoolDescription },
+                  },
+                  {
+                    onSuccess: (pool) => {
+                      const key = getListTalentPoolsQueryKey(employerId);
+                      qc.setQueryData<typeof pools>(key, (prev) =>
+                        prev && prev.some((p) => p.id === pool.id)
+                          ? prev
+                          : [...(prev ?? []), pool],
+                      );
+                      qc.invalidateQueries({ queryKey: key });
+                      setSelectedPoolId(String(pool.id));
+                      toast.success(`Created "${pool.name}"`);
+                      setCreateOpen(false);
+                      setNewPoolName("");
+                      setNewPoolDescription("");
+                    },
+                    onError: () => toast.error("Could not create pool"),
+                  },
+                );
+              }}
+              disabled={createPool.isPending}
+              data-testid="button-deck-pool-create-submit"
+            >
+              {createPool.isPending ? "Creating…" : "Create pool"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

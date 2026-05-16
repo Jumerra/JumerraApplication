@@ -407,7 +407,18 @@ export default function CandidateDashboard() {
 
       <GrowthPlanCard />
 
-      <CareerConstellationCard />
+      <section id="career-constellation" className="space-y-3 scroll-mt-20">
+        <div>
+          <h2 className="text-xl font-semibold tracking-tight">
+            Career constellation
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Explore roles you qualify for and ones you're one or two skills
+            away from. Drag to pan, scroll to zoom.
+          </p>
+        </div>
+        <CareerConstellationCard />
+      </section>
 
 
       <div className="grid lg:grid-cols-3 gap-8">

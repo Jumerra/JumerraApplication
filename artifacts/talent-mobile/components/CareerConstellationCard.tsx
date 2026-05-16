@@ -3,6 +3,7 @@ import { Feather } from "@expo/vector-icons";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   StyleSheet,
   Text,
@@ -45,6 +46,25 @@ export function CareerConstellationCard() {
   const [data, setData] = useState<Constellation | null>(null);
   const [loading, setLoading] = useState(true);
   const [openTitle, setOpenTitle] = useState<string | null>(null);
+  const [addingSkill, setAddingSkill] = useState<string | null>(null);
+  const [addedSkills, setAddedSkills] = useState<Set<string>>(new Set());
+
+  const addToGrowthPlan = useCallback(async (skill: string) => {
+    const lower = skill.toLowerCase();
+    setAddingSkill(lower);
+    try {
+      await customFetch(
+        `/api/me/growth-plan/${encodeURIComponent(lower)}/add`,
+        { method: "POST" },
+      );
+      setAddedSkills((s) => new Set(s).add(lower));
+      Alert.alert("Added", `${skill} added to your growth plan`);
+    } catch (err) {
+      Alert.alert("Error", (err as Error).message);
+    } finally {
+      setAddingSkill(null);
+    }
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -150,9 +170,52 @@ export function CareerConstellationCard() {
                     </Text>
                   </View>
                   {r.missingSkills.length > 0 ? (
-                    <Text style={[styles.rowMissing, { color: colors.mutedForeground }]}>
-                      Missing: {r.missingSkills.join(", ")}
-                    </Text>
+                    <View style={styles.missingWrap}>
+                      <Text
+                        style={[
+                          styles.rowMissing,
+                          { color: colors.mutedForeground },
+                        ]}
+                      >
+                        Missing:
+                      </Text>
+                      {r.missingSkills.map((s) => {
+                        const lower = s.toLowerCase();
+                        const isAdded = addedSkills.has(lower);
+                        const isBusy = addingSkill === lower;
+                        return (
+                          <Pressable
+                            key={s}
+                            disabled={isAdded || isBusy}
+                            onPress={(e) => {
+                              e.stopPropagation();
+                              addToGrowthPlan(s);
+                            }}
+                            style={[
+                              styles.skillPill,
+                              {
+                                borderColor: colors.border,
+                                backgroundColor: isAdded
+                                  ? colors.secondary
+                                  : "transparent",
+                              },
+                            ]}
+                            testID={`add-growth-${s}`}
+                          >
+                            <Feather
+                              name={isAdded ? "check" : "plus"}
+                              size={11}
+                              color={colors.primary}
+                            />
+                            <Text
+                              style={[styles.skillPillText, { color: colors.text }]}
+                            >
+                              {s}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
                   ) : (
                     <Text
                       style={[styles.rowMissing, { color: colors.primary }]}
@@ -212,4 +275,21 @@ const styles = StyleSheet.create({
   rowMissing: { fontSize: 12 },
   samples: { marginTop: 6, gap: 2 },
   sample: { fontSize: 12, textDecorationLine: "underline" },
+  missingWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 2,
+  },
+  skillPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  skillPillText: { fontSize: 11, fontWeight: "500" },
 });

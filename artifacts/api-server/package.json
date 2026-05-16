@@ -12,6 +12,7 @@
     "test:weekly-digest": "tsx ./scripts/test-weekly-digest.ts",
     "test:digest-slot": "tsx ./scripts/test-digest-slot.ts",
     "test:growth-plan": "tsx ./scripts/test-growth-plan.ts",
+    "test:career-constellation": "tsx ./scripts/test-career-constellation.ts",
     "test:fast-track": "tsx ./scripts/test-fast-track.ts",
     "test:whatsapp": "tsx ./scripts/test-whatsapp.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"

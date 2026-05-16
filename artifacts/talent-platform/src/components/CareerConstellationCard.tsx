@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   customFetch,
   type CareerConstellation,
@@ -13,7 +13,15 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Sparkles, Plus, X, Network } from "lucide-react";
+import {
+  Sparkles,
+  Plus,
+  X,
+  Network,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
+} from "lucide-react";
 import { Link } from "wouter";
 import { toast } from "sonner";
 
@@ -33,13 +41,18 @@ const NODE_COLORS: Record<number, string> = {
   2: "fill-muted-foreground",
 };
 
+const VIEW_W = 560;
+const VIEW_H = 440;
+const CENTER_X = VIEW_W / 2;
+const CENTER_Y = VIEW_H / 2;
+const RING_RADII = [95, 165, 235] as const;
+
 function layoutRoles(roles: ConstellationRole[]) {
   const byDistance: Record<number, ConstellationRole[]> = { 0: [], 1: [], 2: [] };
   for (const r of roles) {
     const d = Math.max(0, Math.min(2, r.distance));
     byDistance[d].push(r);
   }
-  const radii = { 0: 95, 1: 165, 2: 235 };
   const placements: {
     role: ConstellationRole;
     x: number;
@@ -49,14 +62,14 @@ function layoutRoles(roles: ConstellationRole[]) {
   for (const d of [0, 1, 2] as const) {
     const items = byDistance[d];
     if (items.length === 0) continue;
-    const r = radii[d];
+    const r = RING_RADII[d];
     const startOffset = -Math.PI / 2;
     items.forEach((role, i) => {
       const theta = startOffset + (i * 2 * Math.PI) / items.length;
       placements.push({
         role,
-        x: 280 + r * Math.cos(theta),
-        y: 220 + r * Math.sin(theta),
+        x: CENTER_X + r * Math.cos(theta),
+        y: CENTER_Y + r * Math.sin(theta),
         distance: d,
       });
     });
@@ -70,6 +83,12 @@ export function CareerConstellationCard() {
   const [selected, setSelected] = useState<ConstellationRole | null>(null);
   const [addingSkill, setAddingSkill] = useState<string | null>(null);
   const [addedSkills, setAddedSkills] = useState<Set<string>>(new Set());
+
+  // Pan/zoom state — applied as a single <g transform> on the SVG.
+  const [scale, setScale] = useState(1);
+  const [tx, setTx] = useState(0);
+  const [ty, setTy] = useState(0);
+  const dragRef = useRef<{ x: number; y: number; tx: number; ty: number } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -110,6 +129,15 @@ export function CareerConstellationCard() {
     } finally {
       setAddingSkill(null);
     }
+  }
+
+  function resetView() {
+    setScale(1);
+    setTx(0);
+    setTy(0);
+  }
+  function zoomBy(delta: number) {
+    setScale((s) => Math.max(0.5, Math.min(3, s * delta)));
   }
 
   if (loading) {
@@ -154,92 +182,172 @@ export function CareerConstellationCard() {
           <Network className="w-5 h-5 text-primary" /> Career constellation
         </CardTitle>
         <CardDescription>
-          Roles you qualify for and ones you're 1–2 skills away from. Click a
-          node to see jobs and the missing skills.
+          Click a node to see jobs and the missing skills. Drag the graph to
+          pan, scroll to zoom.
         </CardDescription>
       </CardHeader>
       <CardContent className="grid lg:grid-cols-[2fr,1fr] gap-6">
         <div className="relative w-full aspect-[7/5] min-h-[360px] rounded-xl border bg-gradient-to-br from-primary/5 to-transparent overflow-hidden">
+          <div className="absolute top-2 right-2 z-10 flex gap-1">
+            <Button
+              size="icon"
+              variant="outline"
+              className="h-7 w-7"
+              onClick={() => zoomBy(1.2)}
+              aria-label="Zoom in"
+              data-testid="constellation-zoom-in"
+            >
+              <ZoomIn className="w-3.5 h-3.5" />
+            </Button>
+            <Button
+              size="icon"
+              variant="outline"
+              className="h-7 w-7"
+              onClick={() => zoomBy(1 / 1.2)}
+              aria-label="Zoom out"
+              data-testid="constellation-zoom-out"
+            >
+              <ZoomOut className="w-3.5 h-3.5" />
+            </Button>
+            <Button
+              size="icon"
+              variant="outline"
+              className="h-7 w-7"
+              onClick={resetView}
+              aria-label="Reset view"
+              data-testid="constellation-reset"
+            >
+              <Maximize2 className="w-3.5 h-3.5" />
+            </Button>
+          </div>
           <svg
-            viewBox="0 0 560 440"
-            className="w-full h-full"
+            viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
+            className="w-full h-full select-none touch-none"
             role="img"
             aria-label="Career constellation graph"
+            style={{
+              cursor: dragRef.current ? "grabbing" : "grab",
+            }}
+            onPointerDown={(e) => {
+              (e.target as Element).setPointerCapture(e.pointerId);
+              dragRef.current = { x: e.clientX, y: e.clientY, tx, ty };
+            }}
+            onPointerMove={(e) => {
+              if (!dragRef.current) return;
+              const dx = e.clientX - dragRef.current.x;
+              const dy = e.clientY - dragRef.current.y;
+              setTx(dragRef.current.tx + dx);
+              setTy(dragRef.current.ty + dy);
+            }}
+            onPointerUp={() => {
+              dragRef.current = null;
+            }}
+            onWheel={(e) => {
+              e.preventDefault();
+              zoomBy(e.deltaY < 0 ? 1.1 : 1 / 1.1);
+            }}
           >
-            {[2, 1, 0].map((d) => (
-              <circle
-                key={d}
-                cx={280}
-                cy={220}
-                r={[95, 165, 235][d]}
-                className={RING_COLORS[d]}
-                strokeDasharray="4 4"
-                strokeWidth={1}
-              />
-            ))}
-            {placements.map((p) => (
-              <line
-                key={`l-${p.role.title}`}
-                x1={280}
-                y1={220}
-                x2={p.x}
-                y2={p.y}
-                className="stroke-muted-foreground/20"
-                strokeWidth={1}
-              />
-            ))}
-            <circle cx={280} cy={220} r={28} className="fill-primary" />
-            <text
-              x={280}
-              y={224}
-              textAnchor="middle"
-              className="fill-primary-foreground text-[11px] font-semibold"
+            <g
+              transform={`translate(${tx} ${ty}) scale(${scale}) translate(${(1 - scale) * 0} ${(1 - scale) * 0})`}
+              transform-origin={`${CENTER_X} ${CENTER_Y}`}
             >
-              You
-            </text>
-            {placements.map((p) => {
-              const isSelected = selected?.title === p.role.title;
-              return (
-                <g
-                  key={p.role.title}
-                  onClick={() => setSelected(p.role)}
-                  style={{ cursor: "pointer" }}
-                  data-testid={`constellation-node-${p.role.title}`}
-                >
-                  <circle
-                    cx={p.x}
-                    cy={p.y}
-                    r={isSelected ? 16 : 12}
-                    className={`${NODE_COLORS[p.distance]} transition-all`}
-                    stroke={isSelected ? "white" : "transparent"}
-                    strokeWidth={isSelected ? 3 : 0}
-                  />
-                  <text
-                    x={p.x}
-                    y={p.y - 18}
-                    textAnchor="middle"
-                    className="fill-foreground text-[10px] font-semibold"
+              {[2, 1, 0].map((d) => (
+                <circle
+                  key={d}
+                  cx={CENTER_X}
+                  cy={CENTER_Y}
+                  r={RING_RADII[d]}
+                  className={RING_COLORS[d]}
+                  strokeDasharray="4 4"
+                  strokeWidth={1}
+                />
+              ))}
+              {placements.map((p) => {
+                // Edge from center to node, labeled with the first
+                // missing skill (the gap the candidate must close).
+                const midX = (CENTER_X + p.x) / 2;
+                const midY = (CENTER_Y + p.y) / 2;
+                const label =
+                  p.distance === 0
+                    ? "qualified"
+                    : p.role.missingSkills[0] ?? "";
+                return (
+                  <g key={`edge-${p.role.title}`}>
+                    <line
+                      x1={CENTER_X}
+                      y1={CENTER_Y}
+                      x2={p.x}
+                      y2={p.y}
+                      className="stroke-muted-foreground/30"
+                      strokeWidth={1}
+                    />
+                    {label ? (
+                      <g>
+                        <rect
+                          x={midX - label.length * 3.2 - 4}
+                          y={midY - 8}
+                          width={label.length * 6.4 + 8}
+                          height={14}
+                          rx={6}
+                          className="fill-background"
+                          opacity={0.92}
+                        />
+                        <text
+                          x={midX}
+                          y={midY + 2}
+                          textAnchor="middle"
+                          className="fill-muted-foreground text-[9px]"
+                        >
+                          {label}
+                        </text>
+                      </g>
+                    ) : null}
+                  </g>
+                );
+              })}
+              <circle cx={CENTER_X} cy={CENTER_Y} r={28} className="fill-primary" />
+              <text
+                x={CENTER_X}
+                y={CENTER_Y + 4}
+                textAnchor="middle"
+                className="fill-primary-foreground text-[11px] font-semibold"
+              >
+                You
+              </text>
+              {placements.map((p) => {
+                const isSelected = selected?.title === p.role.title;
+                return (
+                  <g
+                    key={p.role.title}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelected(p.role);
+                    }}
+                    style={{ cursor: "pointer" }}
+                    data-testid={`constellation-node-${p.role.title}`}
                   >
-                    {p.role.title.length > 22
-                      ? `${p.role.title.slice(0, 22)}…`
-                      : p.role.title}
-                  </text>
-                  {p.distance > 0 && p.role.missingSkills.length > 0 ? (
+                    <circle
+                      cx={p.x}
+                      cy={p.y}
+                      r={isSelected ? 16 : 12}
+                      className={`${NODE_COLORS[p.distance]} transition-all`}
+                      stroke={isSelected ? "white" : "transparent"}
+                      strokeWidth={isSelected ? 3 : 0}
+                    />
                     <text
                       x={p.x}
-                      y={p.y + 28}
+                      y={p.y - 18}
                       textAnchor="middle"
-                      className="fill-muted-foreground text-[9px]"
+                      className="fill-foreground text-[10px] font-semibold"
                     >
-                      missing: {p.role.missingSkills.slice(0, 1).join(", ")}
-                      {p.role.missingSkills.length > 1
-                        ? ` +${p.role.missingSkills.length - 1}`
-                        : ""}
+                      {p.role.title.length > 22
+                        ? `${p.role.title.slice(0, 22)}…`
+                        : p.role.title}
                     </text>
-                  ) : null}
-                </g>
-              );
-            })}
+                  </g>
+                );
+              })}
+            </g>
           </svg>
           <div className="absolute bottom-2 left-2 flex gap-2 text-[10px]">
             {(Object.keys(RING_LABELS) as unknown as number[]).map((dStr) => {

@@ -359,6 +359,38 @@ export default function PipelineKanbanPage() {
                                 Verified by {app.endorsement.institutionName}
                               </Badge>
                             ) : null}
+                            {(() => {
+                              // introEndorsements is added by the server
+                              // serializer for employer/admin viewers but
+                              // isn't in the generated OpenAPI types yet.
+                              const introEndos = (
+                                app as unknown as {
+                                  introEndorsements?: Array<{
+                                    id: number;
+                                    alumniName: string;
+                                    alumniAvatarUrl: string | null;
+                                    response: string | null;
+                                  }>;
+                                }
+                              ).introEndorsements;
+                              if (!introEndos || introEndos.length === 0)
+                                return null;
+                              return introEndos.map((endo) => (
+                                <Badge
+                                  key={endo.id}
+                                  variant="outline"
+                                  className="text-[10px] px-1.5 py-0 border-sky-500/50 text-sky-700 dark:text-sky-400"
+                                  title={
+                                    endo.response
+                                      ? `${endo.alumniName}: ${endo.response}`
+                                      : `Warm intro from ${endo.alumniName}`
+                                  }
+                                  data-testid={`badge-intro-${app.id}-${endo.id}`}
+                                >
+                                  Intro from {endo.alumniName}
+                                </Badge>
+                              ));
+                            })()}
                           </div>
                         </CardContent>
                       </Card>

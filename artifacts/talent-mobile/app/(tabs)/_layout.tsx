@@ -7,9 +7,10 @@ import { SymbolView } from "expo-symbols";
 import React from "react";
 import { Platform, StyleSheet, View, useColorScheme } from "react-native";
 
+import { useAuth } from "@/hooks/useAuth";
 import { useColors } from "@/hooks/useColors";
 
-function NativeTabLayout() {
+function NativeTabLayout({ isEmployer }: { isEmployer: boolean }) {
   return (
     <NativeTabs>
       <NativeTabs.Trigger name="index">
@@ -20,6 +21,17 @@ function NativeTabLayout() {
         <Icon sf={{ default: "sparkles", selected: "sparkles" }} />
         <Label>For You</Label>
       </NativeTabs.Trigger>
+      {isEmployer ? (
+        <NativeTabs.Trigger name="daily-picks">
+          <Icon sf={{ default: "rectangle.stack", selected: "rectangle.stack.fill" }} />
+          <Label>Daily Picks</Label>
+        </NativeTabs.Trigger>
+      ) : (
+        <NativeTabs.Trigger name="daily-picks" hidden>
+          <Icon sf={{ default: "rectangle.stack", selected: "rectangle.stack.fill" }} />
+          <Label>Daily Picks</Label>
+        </NativeTabs.Trigger>
+      )}
       <NativeTabs.Trigger name="search">
         <Icon sf="magnifyingglass" />
         <Label>Search</Label>
@@ -40,7 +52,7 @@ function NativeTabLayout() {
   );
 }
 
-function ClassicTabLayout() {
+function ClassicTabLayout({ isEmployer }: { isEmployer: boolean }) {
   const colors = useColors();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
@@ -107,6 +119,22 @@ function ClassicTabLayout() {
         }}
       />
       <Tabs.Screen
+        name="daily-picks"
+        options={{
+          title: "Daily Picks",
+          // Hide the tab entirely (and disable deep-link routing) for
+          // non-employer accounts. The screen itself still renders an
+          // employer-only empty state as a defensive fallback.
+          href: isEmployer ? undefined : null,
+          tabBarIcon: ({ color }) =>
+            isIOS ? (
+              <SymbolView name="rectangle.stack" tintColor={color} size={24} />
+            ) : (
+              <Feather name="layers" size={22} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
         name="search"
         options={{
           title: "Search",
@@ -159,8 +187,10 @@ function ClassicTabLayout() {
 }
 
 export default function TabLayout() {
+  const { user } = useAuth();
+  const isEmployer = user?.role === "employer";
   if (isLiquidGlassAvailable()) {
-    return <NativeTabLayout />;
+    return <NativeTabLayout isEmployer={isEmployer} />;
   }
-  return <ClassicTabLayout />;
+  return <ClassicTabLayout isEmployer={isEmployer} />;
 }

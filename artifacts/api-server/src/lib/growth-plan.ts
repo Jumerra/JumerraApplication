@@ -284,6 +284,11 @@ export async function repingEmployersForCompletedSkill(
         ),
       );
 
+    // Only count this employer as "notified" if at least one staff
+    // notification actually succeeded. An employer with no active staff
+    // (or a transient sendNotification failure for every recipient)
+    // shouldn't be reported back to the candidate as a successful ping.
+    let anyDelivered = false;
     for (const u of staff) {
       try {
         await sendNotification({
@@ -300,6 +305,7 @@ export async function repingEmployersForCompletedSkill(
             skill: skillKey,
           },
         });
+        anyDelivered = true;
       } catch (err) {
         logger.warn(
           { err, employerId, candidateId, skill: skillKey },
@@ -307,7 +313,7 @@ export async function repingEmployersForCompletedSkill(
         );
       }
     }
-    notified += 1;
+    if (anyDelivered) notified += 1;
   }
   return { employersNotified: notified };
 }

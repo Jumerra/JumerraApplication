@@ -6,7 +6,9 @@ import {
   timestamp,
   uniqueIndex,
   index,
+  check,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { candidatesTable } from "./candidates";
 import { employersTable } from "./employers";
 import { applicationsTable } from "./applications";
@@ -67,6 +69,13 @@ export const candidateGrowthSkillsTable = pgTable(
     perCandidateStatusIdx: index("candidate_growth_skills_status_idx").on(
       t.candidateId,
       t.status,
+    ),
+    // DB-level guard so a stray write (raw SQL, migration, future
+    // ORM bug) can never leave a row in an unknown state. App code
+    // already restricts writes to these four values.
+    statusCheck: check(
+      "candidate_growth_skills_status_check",
+      sql`status in ('active','completed','dismissed','superseded')`,
     ),
   }),
 );

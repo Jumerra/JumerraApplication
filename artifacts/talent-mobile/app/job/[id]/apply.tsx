@@ -26,6 +26,9 @@ export default function ApplyScreen() {
   // confirmation, matching the For You swipe-right experience.
   const [open, setOpen] = useState(true);
 
+  // Cancel path: dismiss the sheet and go back. NOT used for success —
+  // success uses `onSubmitted` which navigates to /applications, so we
+  // must not also fire `router.back()` or we end up double-navigating.
   const close = () => {
     setOpen(false);
     if (router.canGoBack()) {

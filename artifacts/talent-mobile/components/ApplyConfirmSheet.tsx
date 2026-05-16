@@ -101,8 +101,17 @@ export function ApplyConfirmSheet({
           Haptics.NotificationFeedbackType.Success,
         ).catch(() => {});
       }
-      onSubmitted?.();
-      onClose();
+      // Hand off to the parent. The parent is responsible for closing
+      // the sheet and any post-submit navigation. We must NOT also call
+      // `onClose()` here — when the parent navigates away on success
+      // (e.g. router.replace), a second `onClose()` that does
+      // router.back() races against it and lands the user on the wrong
+      // screen.
+      if (onSubmitted) {
+        onSubmitted();
+      } else {
+        onClose();
+      }
     } catch (err) {
       const status =
         err && typeof err === "object" && "status" in err

@@ -56,7 +56,7 @@ export function WeeklyDigestCard({ candidateId }: { candidateId: number }) {
             <Stat label="Applied" value={digest.applicationsSent} />
             <Stat label="Interviews" value={digest.interviewsScheduled} />
           </View>
-          {digest.newMatches.slice(0, 2).map((m) => (
+          {digest.newMatches.slice(0, 3).map((m) => (
             <Pressable
               key={m.jobId}
               onPress={() => router.push(`/job/${m.jobId}` as never)}

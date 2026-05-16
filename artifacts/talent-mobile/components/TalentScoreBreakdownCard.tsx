@@ -24,7 +24,10 @@ export function TalentScoreBreakdownCard({
 
   if (!data) return null;
 
-  const top = data.suggestions[0];
+  // Spec: surface all 3 ranked next-action suggestions (mobile parity
+  // with the web TalentScoreBreakdown panel). Server already caps the
+  // list at 3, but slice defensively in case a stale client sees more.
+  const topSuggestions = data.suggestions.slice(0, 3);
 
   return (
     <View
@@ -92,43 +95,54 @@ export function TalentScoreBreakdownCard({
         ))}
       </View>
 
-      {top ? (
-        <Pressable
-          onPress={() => router.push(top.link as never)}
-          style={[
-            styles.cta,
-            {
-              backgroundColor: colors.primary + "12",
-              borderColor: colors.primary + "33",
-              borderRadius: colors.radius,
-            },
-          ]}
-        >
-          <Feather name="zap" size={14} color={colors.primary} />
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.ctaTitle, { color: colors.foreground }]}>
-              {top.title}
-            </Text>
-            <Text
-              style={[styles.ctaSub, { color: colors.mutedForeground }]}
-              numberOfLines={2}
+      {topSuggestions.length > 0 ? (
+        <View style={styles.ctaList}>
+          {topSuggestions.map((s) => (
+            <Pressable
+              key={`${s.title}-${s.link}`}
+              onPress={() => router.push(s.link as never)}
+              style={[
+                styles.cta,
+                {
+                  backgroundColor: colors.primary + "12",
+                  borderColor: colors.primary + "33",
+                  borderRadius: colors.radius,
+                },
+              ]}
             >
-              {top.description}
-            </Text>
-          </View>
-          <View
-            style={[
-              styles.ctaBadge,
-              { backgroundColor: colors.primary, borderRadius: colors.radius },
-            ]}
-          >
-            <Text
-              style={[styles.ctaBadgeText, { color: colors.primaryForeground }]}
-            >
-              +{top.impact}
-            </Text>
-          </View>
-        </Pressable>
+              <Feather name="zap" size={14} color={colors.primary} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.ctaTitle, { color: colors.foreground }]}>
+                  {s.title}
+                </Text>
+                <Text
+                  style={[styles.ctaSub, { color: colors.mutedForeground }]}
+                  numberOfLines={2}
+                >
+                  {s.description}
+                </Text>
+              </View>
+              <View
+                style={[
+                  styles.ctaBadge,
+                  {
+                    backgroundColor: colors.primary,
+                    borderRadius: colors.radius,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.ctaBadgeText,
+                    { color: colors.primaryForeground },
+                  ]}
+                >
+                  +{s.impact}
+                </Text>
+              </View>
+            </Pressable>
+          ))}
+        </View>
       ) : null}
     </View>
   );
@@ -191,6 +205,9 @@ const styles = StyleSheet.create({
   },
   barFill: {
     height: "100%",
+  },
+  ctaList: {
+    gap: 8,
   },
   cta: {
     flexDirection: "row",

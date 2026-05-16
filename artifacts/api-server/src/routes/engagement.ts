@@ -312,7 +312,8 @@ router.get(
     res.json({
       score: overall,
       components,
-      suggestions: suggestions.slice(0, 4),
+      // Spec: surface exactly the top 3 ranked next actions.
+      suggestions: suggestions.slice(0, 3),
     });
   },
 );

@@ -14,7 +14,7 @@
  * deployment shape.
  */
 
-import { and, desc, eq, gt, gte, ilike, sql } from "drizzle-orm";
+import { and, desc, eq, gt, gte, ilike, lt, sql } from "drizzle-orm";
 import {
   db,
   applicationsTable,
@@ -31,15 +31,31 @@ import { logger } from "./logger";
 import { calculateMatchScore } from "./matching";
 import { sendEngagementEmail } from "./email";
 
-function weekStartUTC(d = new Date()): Date {
-  const out = new Date(
+/**
+ * Returns the most-recently-completed Monday→Sunday window in UTC.
+ *
+ * `start` is inclusive (the previous Monday at 00:00:00 UTC); `end` is
+ * exclusive (the *current* week's Monday at 00:00:00 UTC). Using a
+ * complete, closed window means:
+ *   - Every metric query is bounded on both sides (`>= start AND < end`)
+ *     so a digest generated at any point during the current week
+ *     covers exactly one full week of activity.
+ *   - The (candidateId, weekStart) unique index can write the row once
+ *     and never need an in-place update — the underlying data for that
+ *     window is frozen by the time we run.
+ */
+function previousCompleteWeekUTC(d = new Date()): { start: Date; end: Date } {
+  const today = new Date(
     Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()),
   );
-  // 0=Sun..6=Sat — anchor to Monday
-  const dow = out.getUTCDay();
-  const offset = dow === 0 ? 6 : dow - 1;
-  out.setUTCDate(out.getUTCDate() - offset);
-  return out;
+  // 0=Sun..6=Sat. Days since the Monday that *started* the current week.
+  const dow = today.getUTCDay();
+  const offsetToCurMonday = dow === 0 ? 6 : dow - 1;
+  const end = new Date(today);
+  end.setUTCDate(today.getUTCDate() - offsetToCurMonday); // current Monday
+  const start = new Date(end);
+  start.setUTCDate(end.getUTCDate() - 7); // previous Monday
+  return { start, end };
 }
 
 function fmtDate(d: Date): string {
@@ -49,6 +65,7 @@ function fmtDate(d: Date): string {
 async function runDigestForCandidate(
   candidateId: number,
   weekStart: Date,
+  weekEnd: Date,
 ): Promise<void> {
   // Idempotency check via unique index — skip if already generated.
   const [existing] = await db
@@ -76,6 +93,7 @@ async function runDigestForCandidate(
       and(
         eq(profileViewsTable.candidateId, candidateId),
         gte(profileViewsTable.viewedAt, weekStart),
+        lt(profileViewsTable.viewedAt, weekEnd),
       ),
     );
   const profileViews = Number(viewsRow[0]?.count ?? 0);
@@ -88,6 +106,7 @@ async function runDigestForCandidate(
       and(
         eq(applicationsTable.candidateId, candidateId),
         gte(applicationsTable.appliedAt, weekStart),
+        lt(applicationsTable.appliedAt, weekEnd),
       ),
     );
   const applicationsSent = apps.length;
@@ -100,7 +119,9 @@ async function runDigestForCandidate(
     .select({ job: jobsTable, employer: employersTable })
     .from(jobsTable)
     .innerJoin(employersTable, eq(employersTable.id, jobsTable.employerId))
-    .where(gte(jobsTable.postedAt, weekStart))
+    .where(
+      and(gte(jobsTable.postedAt, weekStart), lt(jobsTable.postedAt, weekEnd)),
+    )
     .limit(50);
 
   const newMatches = allJobs
@@ -119,7 +140,9 @@ async function runDigestForCandidate(
       };
     })
     .sort((a, b) => b.matchScore - a.matchScore)
-    .slice(0, 5);
+    // Spec: digest surfaces exactly 3 newly matched jobs. Web and
+    // mobile both render the full list — no client-side trimming.
+    .slice(0, 3);
 
   await db.insert(candidateWeeklyDigestsTable).values({
     candidateId,
@@ -190,7 +213,7 @@ async function runDigestForCandidate(
 }
 
 export async function runWeeklyDigestSweep(): Promise<void> {
-  const weekStart = weekStartUTC();
+  const { start: weekStart, end: weekEnd } = previousCompleteWeekUTC();
   const candidates = await db
     .select({ id: candidatesTable.id })
     .from(candidatesTable);
@@ -207,7 +230,7 @@ export async function runWeeklyDigestSweep(): Promise<void> {
           ),
         );
       if (before.length > 0) continue;
-      await runDigestForCandidate(id, weekStart);
+      await runDigestForCandidate(id, weekStart, weekEnd);
       generated += 1;
     } catch (err) {
       logger.warn({ err, candidateId: id }, "Digest sweep failed for candidate");

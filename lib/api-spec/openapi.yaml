@@ -46,6 +46,8 @@ tags:
     description: Candidate-facing AI helpers (cover-note draft, interview prep, CV critique)
   - name: employer-pools
     description: Employer-private talent pools, message templates, and bulk outreach
+  - name: mock-interviews
+    description: AI-led, job-tuned mock interviews scored against a technical/communication/culture rubric
 paths:
   /healthz:
     get:
@@ -3148,6 +3150,117 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/InstitutionCohortCurve" }
+
+  /me/mock-interviews:
+    get:
+      operationId: listMyMockInterviews
+      tags: [mock-interviews]
+      summary: List the candidate's mock interviews (optionally filtered by jobId)
+      parameters:
+        - in: query
+          name: jobId
+          required: false
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Mock interviews
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MockInterviewListResponse" }
+        "403": { description: Candidate-only }
+    post:
+      operationId: startMockInterview
+      tags: [mock-interviews]
+      summary: Start (or resume) a mock interview for a specific job
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StartMockInterviewBody" }
+      responses:
+        "200":
+          description: Existing in-progress interview was returned
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MockInterview" }
+        "201":
+          description: New interview created with generated questions
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MockInterview" }
+        "403": { description: Candidate-only }
+        "404": { description: Job or candidate not found }
+        "429": { description: Daily AI limit reached }
+        "503": { description: AI service unavailable }
+
+  /me/mock-interviews/{id}:
+    get:
+      operationId: getMockInterview
+      tags: [mock-interviews]
+      summary: Fetch one mock interview (candidate, admin, or owning employer)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Mock interview
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MockInterview" }
+        "403": { description: Not allowed }
+        "404": { description: Not found }
+
+  /me/mock-interviews/{id}/answer:
+    post:
+      operationId: answerMockInterview
+      tags: [mock-interviews]
+      summary: Submit an answer to the next pending question and receive its score
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AnswerMockInterviewBody" }
+      responses:
+        "200":
+          description: Answer scored, transcript updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AnswerMockInterviewResponse" }
+        "400": { description: Invalid answer }
+        "403": { description: Not allowed }
+        "404": { description: Not found }
+        "409": { description: Out-of-order or interview not in progress }
+        "429": { description: Daily AI limit reached }
+        "503": { description: AI service unavailable }
+
+  /me/mock-interviews/{id}/finalise:
+    post:
+      operationId: finaliseMockInterview
+      tags: [mock-interviews]
+      summary: Aggregate sub-scores, finalise the transcript, attach to a pre-existing application if any
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Finalised mock interview
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MockInterview" }
+        "400": { description: Nothing to finalise }
+        "403": { description: Not allowed }
+        "404": { description: Not found }
+        "409": { description: Cannot finalise }
+
 components:
   schemas:
     Error:
@@ -4540,6 +4653,17 @@ components:
             `browse`.
         appliedAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+        mockInterviewId:
+          type: integer
+          nullable: true
+          description: Linked mock interview row id, if the candidate finalised one for this job.
+        mockInterviewScore:
+          type: integer
+          nullable: true
+          description: Overall mock-interview score 0–100, if any.
+        mockInterviewBreakdown:
+          nullable: true
+          $ref: "#/components/schemas/MockInterviewBreakdown"
       required:
         - id
         - jobId
@@ -4557,6 +4681,9 @@ components:
         - source
         - appliedAt
         - updatedAt
+        - mockInterviewId
+        - mockInterviewScore
+        - mockInterviewBreakdown
 
     CreateApplication:
       type: object
@@ -6023,3 +6150,131 @@ components:
         - placedMembers
         - points
         - placementsLocked
+
+    MockInterviewBreakdown:
+      type: object
+      properties:
+        technical: { type: integer }
+        communication: { type: integer }
+        culture: { type: integer }
+      required: [technical, communication, culture]
+
+    MockInterviewQuestion:
+      type: object
+      properties:
+        id: { type: integer }
+        text: { type: string }
+        focus:
+          type: string
+          enum: [technical, communication, culture]
+      required: [id, text, focus]
+
+    MockInterviewTranscriptEntry:
+      type: object
+      properties:
+        questionIndex: { type: integer }
+        question: { type: string }
+        answer: { type: string }
+        focus:
+          type: string
+          enum: [technical, communication, culture]
+          description: |
+            Focus axis of the question this answer addressed. Persisted
+            so finalise-time aggregation can weight per-axis scores by
+            the question's intent.
+        scores: { $ref: "#/components/schemas/MockInterviewBreakdown" }
+        feedback: { type: string }
+        answeredAt: { type: string, format: date-time }
+      required:
+        - questionIndex
+        - question
+        - answer
+        - focus
+        - scores
+        - feedback
+        - answeredAt
+
+    MockInterview:
+      type: object
+      properties:
+        id: { type: integer }
+        candidateId: { type: integer }
+        jobId: { type: integer }
+        applicationId:
+          type: integer
+          nullable: true
+        status:
+          type: string
+          enum: [in_progress, finalised, abandoned]
+        questions:
+          type: array
+          items: { $ref: "#/components/schemas/MockInterviewQuestion" }
+        transcript:
+          type: array
+          items: { $ref: "#/components/schemas/MockInterviewTranscriptEntry" }
+        scoreOverall:
+          type: integer
+          nullable: true
+        scoreTechnical:
+          type: integer
+          nullable: true
+        scoreCommunication:
+          type: integer
+          nullable: true
+        scoreCulture:
+          type: integer
+          nullable: true
+        summary:
+          type: string
+          nullable: true
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+        - id
+        - candidateId
+        - jobId
+        - applicationId
+        - status
+        - questions
+        - transcript
+        - scoreOverall
+        - scoreTechnical
+        - scoreCommunication
+        - scoreCulture
+        - summary
+        - createdAt
+        - updatedAt
+        - completedAt
+
+    MockInterviewListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/MockInterview" }
+      required: [items]
+
+    StartMockInterviewBody:
+      type: object
+      properties:
+        jobId: { type: integer }
+      required: [jobId]
+
+    AnswerMockInterviewBody:
+      type: object
+      properties:
+        questionIndex: { type: integer }
+        answer: { type: string, minLength: 5 }
+      required: [questionIndex, answer]
+
+    AnswerMockInterviewResponse:
+      type: object
+      properties:
+        interview: { $ref: "#/components/schemas/MockInterview" }
+        lastAnswer: { $ref: "#/components/schemas/MockInterviewTranscriptEntry" }
+        done: { type: boolean }
+      required: [interview, lastAnswer, done]

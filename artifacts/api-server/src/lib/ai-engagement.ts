@@ -19,12 +19,23 @@ export class AiUnavailableError extends Error {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-export type AiKind = "cover_note" | "interview_prep" | "cv_critique";
+export type AiKind =
+  | "cover_note"
+  | "interview_prep"
+  | "cv_critique"
+  | "mock_interview_questions"
+  | "mock_interview_answer";
 
 export const DAILY_LIMITS: Record<AiKind, number> = {
   cover_note: 20,
   interview_prep: 20,
   cv_critique: 10,
+  // Per-job question generation is cached, so repeats are free; this
+  // limit caps fresh job/retake combinations per day.
+  mock_interview_questions: 30,
+  // Each scored answer counts; an 8-question interview burns 8 slots.
+  // Sized so a candidate can do ~10 full retakes in one day.
+  mock_interview_answer: 80,
 };
 
 function hashKey(parts: unknown[]): string {

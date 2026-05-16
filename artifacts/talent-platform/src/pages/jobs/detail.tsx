@@ -134,9 +134,24 @@ export default function JobDetail() {
             <CardContent className="p-6">
               <div className="space-y-6">
                 {role === "candidate" || !role ? (
-                  <Button className="w-full h-12 text-lg font-medium" asChild>
-                    <Link href={`/apply/${job.id}`}>Apply Now</Link>
-                  </Button>
+                  <div className="space-y-2">
+                    <Button className="w-full h-12 text-lg font-medium" asChild>
+                      <Link href={`/apply/${job.id}`}>Apply Now</Link>
+                    </Button>
+                    {role === "candidate" ? (
+                      <Button
+                        variant="outline"
+                        className="w-full h-11"
+                        asChild
+                        data-testid="button-mock-interview-cta"
+                      >
+                        <Link href={`/jobs/${job.id}/mock-interview`}>
+                          <Sparkles className="w-4 h-4 mr-2" />
+                          Take AI mock interview
+                        </Link>
+                      </Button>
+                    ) : null}
+                  </div>
                 ) : (
                   <div className="rounded-md border border-dashed border-muted-foreground/30 bg-muted/40 p-3 text-center text-sm text-muted-foreground">
                     Only candidates can apply for jobs. You're signed in as

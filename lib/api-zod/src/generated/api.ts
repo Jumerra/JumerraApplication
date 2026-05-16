@@ -1696,6 +1696,23 @@ export const ListApplicationsResponseItem = zod.object({
     ),
   appliedAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
+  mockInterviewId: zod
+    .number()
+    .nullable()
+    .describe(
+      "Linked mock interview row id, if the candidate finalised one for this job.",
+    ),
+  mockInterviewScore: zod
+    .number()
+    .nullable()
+    .describe("Overall mock-interview score 0–100, if any."),
+  mockInterviewBreakdown: zod
+    .object({
+      technical: zod.number(),
+      communication: zod.number(),
+      culture: zod.number(),
+    })
+    .nullable(),
 });
 export const ListApplicationsResponse = zod.array(ListApplicationsResponseItem);
 
@@ -1768,6 +1785,23 @@ export const UpdateApplicationStatusResponse = zod.object({
     ),
   appliedAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
+  mockInterviewId: zod
+    .number()
+    .nullable()
+    .describe(
+      "Linked mock interview row id, if the candidate finalised one for this job.",
+    ),
+  mockInterviewScore: zod
+    .number()
+    .nullable()
+    .describe("Overall mock-interview score 0–100, if any."),
+  mockInterviewBreakdown: zod
+    .object({
+      technical: zod.number(),
+      communication: zod.number(),
+      culture: zod.number(),
+    })
+    .nullable(),
 });
 
 /**
@@ -2145,6 +2179,23 @@ export const GetEmployerDashboardResponse = zod.object({
         ),
       appliedAt: zod.coerce.date(),
       updatedAt: zod.coerce.date(),
+      mockInterviewId: zod
+        .number()
+        .nullable()
+        .describe(
+          "Linked mock interview row id, if the candidate finalised one for this job.",
+        ),
+      mockInterviewScore: zod
+        .number()
+        .nullable()
+        .describe("Overall mock-interview score 0–100, if any."),
+      mockInterviewBreakdown: zod
+        .object({
+          technical: zod.number(),
+          communication: zod.number(),
+          culture: zod.number(),
+        })
+        .nullable(),
     }),
   ),
 });
@@ -2326,6 +2377,23 @@ export const GetCandidateDashboardResponse = zod.object({
         ),
       appliedAt: zod.coerce.date(),
       updatedAt: zod.coerce.date(),
+      mockInterviewId: zod
+        .number()
+        .nullable()
+        .describe(
+          "Linked mock interview row id, if the candidate finalised one for this job.",
+        ),
+      mockInterviewScore: zod
+        .number()
+        .nullable()
+        .describe("Overall mock-interview score 0–100, if any."),
+      mockInterviewBreakdown: zod
+        .object({
+          technical: zod.number(),
+          communication: zod.number(),
+          culture: zod.number(),
+        })
+        .nullable(),
     }),
   ),
 });
@@ -3072,6 +3140,23 @@ export const AdminListApplicationsResponse = zod.object({
         ),
       appliedAt: zod.coerce.date(),
       updatedAt: zod.coerce.date(),
+      mockInterviewId: zod
+        .number()
+        .nullable()
+        .describe(
+          "Linked mock interview row id, if the candidate finalised one for this job.",
+        ),
+      mockInterviewScore: zod
+        .number()
+        .nullable()
+        .describe("Overall mock-interview score 0–100, if any."),
+      mockInterviewBreakdown: zod
+        .object({
+          technical: zod.number(),
+          communication: zod.number(),
+          culture: zod.number(),
+        })
+        .nullable(),
     }),
   ),
 });
@@ -4991,4 +5076,280 @@ export const GetInstitutionCohortCurveResponse = zod.object({
     }),
   ),
   placementsLocked: zod.boolean(),
+});
+
+/**
+ * @summary List the candidate's mock interviews (optionally filtered by jobId)
+ */
+export const ListMyMockInterviewsQueryParams = zod.object({
+  jobId: zod.coerce.number().optional(),
+});
+
+export const ListMyMockInterviewsResponse = zod.object({
+  items: zod.array(
+    zod.object({
+      id: zod.number(),
+      candidateId: zod.number(),
+      jobId: zod.number(),
+      applicationId: zod.number().nullable(),
+      status: zod.enum(["in_progress", "finalised", "abandoned"]),
+      questions: zod.array(
+        zod.object({
+          id: zod.number(),
+          text: zod.string(),
+          focus: zod.enum(["technical", "communication", "culture"]),
+        }),
+      ),
+      transcript: zod.array(
+        zod.object({
+          questionIndex: zod.number(),
+          question: zod.string(),
+          answer: zod.string(),
+          focus: zod
+            .enum(["technical", "communication", "culture"])
+            .describe(
+              "Focus axis of the question this answer addressed. Persisted\nso finalise-time aggregation can weight per-axis scores by\nthe question's intent.\n",
+            ),
+          scores: zod.object({
+            technical: zod.number(),
+            communication: zod.number(),
+            culture: zod.number(),
+          }),
+          feedback: zod.string(),
+          answeredAt: zod.coerce.date(),
+        }),
+      ),
+      scoreOverall: zod.number().nullable(),
+      scoreTechnical: zod.number().nullable(),
+      scoreCommunication: zod.number().nullable(),
+      scoreCulture: zod.number().nullable(),
+      summary: zod.string().nullable(),
+      createdAt: zod.coerce.date(),
+      updatedAt: zod.coerce.date(),
+      completedAt: zod.coerce.date().nullable(),
+    }),
+  ),
+});
+
+/**
+ * @summary Start (or resume) a mock interview for a specific job
+ */
+export const StartMockInterviewBody = zod.object({
+  jobId: zod.number(),
+});
+
+export const StartMockInterviewResponse = zod.object({
+  id: zod.number(),
+  candidateId: zod.number(),
+  jobId: zod.number(),
+  applicationId: zod.number().nullable(),
+  status: zod.enum(["in_progress", "finalised", "abandoned"]),
+  questions: zod.array(
+    zod.object({
+      id: zod.number(),
+      text: zod.string(),
+      focus: zod.enum(["technical", "communication", "culture"]),
+    }),
+  ),
+  transcript: zod.array(
+    zod.object({
+      questionIndex: zod.number(),
+      question: zod.string(),
+      answer: zod.string(),
+      focus: zod
+        .enum(["technical", "communication", "culture"])
+        .describe(
+          "Focus axis of the question this answer addressed. Persisted\nso finalise-time aggregation can weight per-axis scores by\nthe question's intent.\n",
+        ),
+      scores: zod.object({
+        technical: zod.number(),
+        communication: zod.number(),
+        culture: zod.number(),
+      }),
+      feedback: zod.string(),
+      answeredAt: zod.coerce.date(),
+    }),
+  ),
+  scoreOverall: zod.number().nullable(),
+  scoreTechnical: zod.number().nullable(),
+  scoreCommunication: zod.number().nullable(),
+  scoreCulture: zod.number().nullable(),
+  summary: zod.string().nullable(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+  completedAt: zod.coerce.date().nullable(),
+});
+
+/**
+ * @summary Fetch one mock interview (candidate, admin, or owning employer)
+ */
+export const GetMockInterviewParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetMockInterviewResponse = zod.object({
+  id: zod.number(),
+  candidateId: zod.number(),
+  jobId: zod.number(),
+  applicationId: zod.number().nullable(),
+  status: zod.enum(["in_progress", "finalised", "abandoned"]),
+  questions: zod.array(
+    zod.object({
+      id: zod.number(),
+      text: zod.string(),
+      focus: zod.enum(["technical", "communication", "culture"]),
+    }),
+  ),
+  transcript: zod.array(
+    zod.object({
+      questionIndex: zod.number(),
+      question: zod.string(),
+      answer: zod.string(),
+      focus: zod
+        .enum(["technical", "communication", "culture"])
+        .describe(
+          "Focus axis of the question this answer addressed. Persisted\nso finalise-time aggregation can weight per-axis scores by\nthe question's intent.\n",
+        ),
+      scores: zod.object({
+        technical: zod.number(),
+        communication: zod.number(),
+        culture: zod.number(),
+      }),
+      feedback: zod.string(),
+      answeredAt: zod.coerce.date(),
+    }),
+  ),
+  scoreOverall: zod.number().nullable(),
+  scoreTechnical: zod.number().nullable(),
+  scoreCommunication: zod.number().nullable(),
+  scoreCulture: zod.number().nullable(),
+  summary: zod.string().nullable(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+  completedAt: zod.coerce.date().nullable(),
+});
+
+/**
+ * @summary Submit an answer to the next pending question and receive its score
+ */
+export const AnswerMockInterviewParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const answerMockInterviewBodyAnswerMin = 5;
+
+export const AnswerMockInterviewBody = zod.object({
+  questionIndex: zod.number(),
+  answer: zod.string().min(answerMockInterviewBodyAnswerMin),
+});
+
+export const AnswerMockInterviewResponse = zod.object({
+  interview: zod.object({
+    id: zod.number(),
+    candidateId: zod.number(),
+    jobId: zod.number(),
+    applicationId: zod.number().nullable(),
+    status: zod.enum(["in_progress", "finalised", "abandoned"]),
+    questions: zod.array(
+      zod.object({
+        id: zod.number(),
+        text: zod.string(),
+        focus: zod.enum(["technical", "communication", "culture"]),
+      }),
+    ),
+    transcript: zod.array(
+      zod.object({
+        questionIndex: zod.number(),
+        question: zod.string(),
+        answer: zod.string(),
+        focus: zod
+          .enum(["technical", "communication", "culture"])
+          .describe(
+            "Focus axis of the question this answer addressed. Persisted\nso finalise-time aggregation can weight per-axis scores by\nthe question's intent.\n",
+          ),
+        scores: zod.object({
+          technical: zod.number(),
+          communication: zod.number(),
+          culture: zod.number(),
+        }),
+        feedback: zod.string(),
+        answeredAt: zod.coerce.date(),
+      }),
+    ),
+    scoreOverall: zod.number().nullable(),
+    scoreTechnical: zod.number().nullable(),
+    scoreCommunication: zod.number().nullable(),
+    scoreCulture: zod.number().nullable(),
+    summary: zod.string().nullable(),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+    completedAt: zod.coerce.date().nullable(),
+  }),
+  lastAnswer: zod.object({
+    questionIndex: zod.number(),
+    question: zod.string(),
+    answer: zod.string(),
+    focus: zod
+      .enum(["technical", "communication", "culture"])
+      .describe(
+        "Focus axis of the question this answer addressed. Persisted\nso finalise-time aggregation can weight per-axis scores by\nthe question's intent.\n",
+      ),
+    scores: zod.object({
+      technical: zod.number(),
+      communication: zod.number(),
+      culture: zod.number(),
+    }),
+    feedback: zod.string(),
+    answeredAt: zod.coerce.date(),
+  }),
+  done: zod.boolean(),
+});
+
+/**
+ * @summary Aggregate sub-scores, finalise the transcript, attach to a pre-existing application if any
+ */
+export const FinaliseMockInterviewParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const FinaliseMockInterviewResponse = zod.object({
+  id: zod.number(),
+  candidateId: zod.number(),
+  jobId: zod.number(),
+  applicationId: zod.number().nullable(),
+  status: zod.enum(["in_progress", "finalised", "abandoned"]),
+  questions: zod.array(
+    zod.object({
+      id: zod.number(),
+      text: zod.string(),
+      focus: zod.enum(["technical", "communication", "culture"]),
+    }),
+  ),
+  transcript: zod.array(
+    zod.object({
+      questionIndex: zod.number(),
+      question: zod.string(),
+      answer: zod.string(),
+      focus: zod
+        .enum(["technical", "communication", "culture"])
+        .describe(
+          "Focus axis of the question this answer addressed. Persisted\nso finalise-time aggregation can weight per-axis scores by\nthe question's intent.\n",
+        ),
+      scores: zod.object({
+        technical: zod.number(),
+        communication: zod.number(),
+        culture: zod.number(),
+      }),
+      feedback: zod.string(),
+      answeredAt: zod.coerce.date(),
+    }),
+  ),
+  scoreOverall: zod.number().nullable(),
+  scoreTechnical: zod.number().nullable(),
+  scoreCommunication: zod.number().nullable(),
+  scoreCulture: zod.number().nullable(),
+  summary: zod.string().nullable(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+  completedAt: zod.coerce.date().nullable(),
 });

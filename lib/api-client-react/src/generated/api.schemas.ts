@@ -309,6 +309,12 @@ export const ApplicationSource = {
   for_you: "for_you",
 } as const;
 
+export interface MockInterviewBreakdown {
+  technical: number;
+  communication: number;
+  culture: number;
+}
+
 export interface Application {
   id: number;
   jobId: number;
@@ -331,6 +337,11 @@ prioritize replies to high-intent applicants. Defaults to
   source: ApplicationSource;
   appliedAt: string;
   updatedAt: string;
+  /** Linked mock interview row id, if the candidate finalised one for this job. */
+  mockInterviewId: number | null;
+  /** Overall mock-interview score 0–100, if any. */
+  mockInterviewScore: number | null;
+  mockInterviewBreakdown: MockInterviewBreakdown | null;
 }
 
 export interface AdminApplicationListResponse {
@@ -2698,6 +2709,97 @@ export interface InstitutionCohortCurve {
   placementsLocked: boolean;
 }
 
+export type MockInterviewQuestionFocus =
+  (typeof MockInterviewQuestionFocus)[keyof typeof MockInterviewQuestionFocus];
+
+export const MockInterviewQuestionFocus = {
+  technical: "technical",
+  communication: "communication",
+  culture: "culture",
+} as const;
+
+export interface MockInterviewQuestion {
+  id: number;
+  text: string;
+  focus: MockInterviewQuestionFocus;
+}
+
+/**
+ * Focus axis of the question this answer addressed. Persisted
+so finalise-time aggregation can weight per-axis scores by
+the question's intent.
+
+ */
+export type MockInterviewTranscriptEntryFocus =
+  (typeof MockInterviewTranscriptEntryFocus)[keyof typeof MockInterviewTranscriptEntryFocus];
+
+export const MockInterviewTranscriptEntryFocus = {
+  technical: "technical",
+  communication: "communication",
+  culture: "culture",
+} as const;
+
+export interface MockInterviewTranscriptEntry {
+  questionIndex: number;
+  question: string;
+  answer: string;
+  /** Focus axis of the question this answer addressed. Persisted
+so finalise-time aggregation can weight per-axis scores by
+the question's intent.
+ */
+  focus: MockInterviewTranscriptEntryFocus;
+  scores: MockInterviewBreakdown;
+  feedback: string;
+  answeredAt: string;
+}
+
+export type MockInterviewStatus =
+  (typeof MockInterviewStatus)[keyof typeof MockInterviewStatus];
+
+export const MockInterviewStatus = {
+  in_progress: "in_progress",
+  finalised: "finalised",
+  abandoned: "abandoned",
+} as const;
+
+export interface MockInterview {
+  id: number;
+  candidateId: number;
+  jobId: number;
+  applicationId: number | null;
+  status: MockInterviewStatus;
+  questions: MockInterviewQuestion[];
+  transcript: MockInterviewTranscriptEntry[];
+  scoreOverall: number | null;
+  scoreTechnical: number | null;
+  scoreCommunication: number | null;
+  scoreCulture: number | null;
+  summary: string | null;
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+}
+
+export interface MockInterviewListResponse {
+  items: MockInterview[];
+}
+
+export interface StartMockInterviewBody {
+  jobId: number;
+}
+
+export interface AnswerMockInterviewBody {
+  questionIndex: number;
+  /** @minLength 5 */
+  answer: string;
+}
+
+export interface AnswerMockInterviewResponse {
+  interview: MockInterview;
+  lastAnswer: MockInterviewTranscriptEntry;
+  done: boolean;
+}
+
 export type ListCandidatesParams = {
   search?: string;
   location?: string;
@@ -2930,4 +3032,8 @@ export const AdminGetHiresAnalyticsBucket = {
 export type GetInstitutionPlacementAnalyticsParams = {
   facultyId?: number;
   departmentId?: number;
+};
+
+export type ListMyMockInterviewsParams = {
+  jobId?: number;
 };

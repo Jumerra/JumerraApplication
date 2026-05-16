@@ -255,6 +255,10 @@ export default function JobDetailScreen() {
             </Section>
           ) : null}
 
+          {isCandidate ? (
+            <MockInterviewCta jobId={jobId} />
+          ) : null}
+
           {job.benefits?.length ? (
             <Section title="Benefits">
               <View style={{ gap: 10 }}>
@@ -508,6 +512,55 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
 });
+
+function MockInterviewCta({ jobId }: { jobId: number }) {
+  const colors = useColors();
+  return (
+    <Pressable
+      onPress={() =>
+        router.push(`/job/${jobId}/mock-interview` as never)
+      }
+      style={({ pressed }) => [
+        {
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 12,
+          padding: 14,
+          borderWidth: 1,
+          borderColor: colors.primary + "60",
+          backgroundColor: colors.primary + "10",
+          borderRadius: colors.radius * 1.25,
+          opacity: pressed ? 0.85 : 1,
+        },
+      ]}
+      testID="button-mock-interview-cta"
+    >
+      <Feather name="zap" size={20} color={colors.primary} />
+      <View style={{ flex: 1 }}>
+        <Text
+          style={{
+            color: colors.foreground,
+            fontFamily: "Inter_700Bold",
+            fontSize: 14,
+          }}
+        >
+          Take an AI mock interview
+        </Text>
+        <Text
+          style={{
+            color: colors.mutedForeground,
+            fontFamily: "Inter_400Regular",
+            fontSize: 12,
+            marginTop: 2,
+          }}
+        >
+          6 role-tuned questions, scored instantly. Employers see your score.
+        </Text>
+      </View>
+      <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
+    </Pressable>
+  );
+}
 
 function MatchExplainer({ candidateId, jobId }: { candidateId: number; jobId: number }) {
   const { data, isLoading } = useGetCandidateJobMatch(candidateId, jobId, {

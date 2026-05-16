@@ -221,8 +221,22 @@ export default function PipelineKanbanPage() {
                               </Badge>
                             ) : null}
                           </div>
-                          <div className="text-xs text-muted-foreground truncate">
-                            Match {app.matchScore}%
+                          <div className="text-xs text-muted-foreground truncate flex items-center gap-1.5 flex-wrap">
+                            <span>Match {app.matchScore}%</span>
+                            {typeof app.mockInterviewScore === "number" ? (
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] px-1.5 py-0 border-primary/40 text-primary"
+                                title={
+                                  app.mockInterviewBreakdown
+                                    ? `Tech ${app.mockInterviewBreakdown.technical} · Comm ${app.mockInterviewBreakdown.communication} · Culture ${app.mockInterviewBreakdown.culture}`
+                                    : undefined
+                                }
+                                data-testid={`badge-mock-interview-${app.id}`}
+                              >
+                                AI {app.mockInterviewScore}
+                              </Badge>
+                            ) : null}
                           </div>
                         </CardContent>
                       </Card>

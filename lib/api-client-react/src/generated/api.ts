@@ -37,6 +37,8 @@ import type {
   AiCvCritiqueResponse,
   AiInterviewPrepRequest,
   AiInterviewPrepResponse,
+  AnswerMockInterviewBody,
+  AnswerMockInterviewResponse,
   Application,
   ApplicationTimeline,
   AssignAccountManagerRequest,
@@ -114,6 +116,7 @@ import type {
   ListInstitutionsParams,
   ListInterviewInvitesForCandidateParams,
   ListJobsParams,
+  ListMyMockInterviewsParams,
   ListOnboardedUsers200,
   ListRegistrations200,
   ListRegistrationsParams,
@@ -122,6 +125,8 @@ import type {
   MatchBreakdown,
   MessageTemplate,
   MigrateLegacyEmployerSubscriptionsResponse,
+  MockInterview,
+  MockInterviewListResponse,
   OkResponse,
   OnboardRequest,
   OnboardResponse,
@@ -150,6 +155,7 @@ import type {
   Skill,
   StaffListResponse,
   StaffMemberResponse,
+  StartMockInterviewBody,
   SubmitReferenceRequest,
   TalentPool,
   TalentPoolDetail,
@@ -13472,3 +13478,453 @@ export function useGetInstitutionCohortCurve<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary List the candidate's mock interviews (optionally filtered by jobId)
+ */
+export const getListMyMockInterviewsUrl = (
+  params?: ListMyMockInterviewsParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/me/mock-interviews?${stringifiedParams}`
+    : `/api/me/mock-interviews`;
+};
+
+export const listMyMockInterviews = async (
+  params?: ListMyMockInterviewsParams,
+  options?: RequestInit,
+): Promise<MockInterviewListResponse> => {
+  return customFetch<MockInterviewListResponse>(
+    getListMyMockInterviewsUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListMyMockInterviewsQueryKey = (
+  params?: ListMyMockInterviewsParams,
+) => {
+  return [`/api/me/mock-interviews`, ...(params ? [params] : [])] as const;
+};
+
+export const getListMyMockInterviewsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listMyMockInterviews>>,
+  TError = ErrorType<void>,
+>(
+  params?: ListMyMockInterviewsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listMyMockInterviews>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListMyMockInterviewsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listMyMockInterviews>>
+  > = ({ signal }) =>
+    listMyMockInterviews(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listMyMockInterviews>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListMyMockInterviewsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listMyMockInterviews>>
+>;
+export type ListMyMockInterviewsQueryError = ErrorType<void>;
+
+/**
+ * @summary List the candidate's mock interviews (optionally filtered by jobId)
+ */
+
+export function useListMyMockInterviews<
+  TData = Awaited<ReturnType<typeof listMyMockInterviews>>,
+  TError = ErrorType<void>,
+>(
+  params?: ListMyMockInterviewsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listMyMockInterviews>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListMyMockInterviewsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Start (or resume) a mock interview for a specific job
+ */
+export const getStartMockInterviewUrl = () => {
+  return `/api/me/mock-interviews`;
+};
+
+export const startMockInterview = async (
+  startMockInterviewBody: StartMockInterviewBody,
+  options?: RequestInit,
+): Promise<MockInterview> => {
+  return customFetch<MockInterview>(getStartMockInterviewUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(startMockInterviewBody),
+  });
+};
+
+export const getStartMockInterviewMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof startMockInterview>>,
+    TError,
+    { data: BodyType<StartMockInterviewBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof startMockInterview>>,
+  TError,
+  { data: BodyType<StartMockInterviewBody> },
+  TContext
+> => {
+  const mutationKey = ["startMockInterview"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof startMockInterview>>,
+    { data: BodyType<StartMockInterviewBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return startMockInterview(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type StartMockInterviewMutationResult = NonNullable<
+  Awaited<ReturnType<typeof startMockInterview>>
+>;
+export type StartMockInterviewMutationBody = BodyType<StartMockInterviewBody>;
+export type StartMockInterviewMutationError = ErrorType<void>;
+
+/**
+ * @summary Start (or resume) a mock interview for a specific job
+ */
+export const useStartMockInterview = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof startMockInterview>>,
+    TError,
+    { data: BodyType<StartMockInterviewBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof startMockInterview>>,
+  TError,
+  { data: BodyType<StartMockInterviewBody> },
+  TContext
+> => {
+  return useMutation(getStartMockInterviewMutationOptions(options));
+};
+
+/**
+ * @summary Fetch one mock interview (candidate, admin, or owning employer)
+ */
+export const getGetMockInterviewUrl = (id: number) => {
+  return `/api/me/mock-interviews/${id}`;
+};
+
+export const getMockInterview = async (
+  id: number,
+  options?: RequestInit,
+): Promise<MockInterview> => {
+  return customFetch<MockInterview>(getGetMockInterviewUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetMockInterviewQueryKey = (id: number) => {
+  return [`/api/me/mock-interviews/${id}`] as const;
+};
+
+export const getGetMockInterviewQueryOptions = <
+  TData = Awaited<ReturnType<typeof getMockInterview>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getMockInterview>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetMockInterviewQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getMockInterview>>
+  > = ({ signal }) => getMockInterview(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getMockInterview>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetMockInterviewQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getMockInterview>>
+>;
+export type GetMockInterviewQueryError = ErrorType<void>;
+
+/**
+ * @summary Fetch one mock interview (candidate, admin, or owning employer)
+ */
+
+export function useGetMockInterview<
+  TData = Awaited<ReturnType<typeof getMockInterview>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getMockInterview>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetMockInterviewQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Submit an answer to the next pending question and receive its score
+ */
+export const getAnswerMockInterviewUrl = (id: number) => {
+  return `/api/me/mock-interviews/${id}/answer`;
+};
+
+export const answerMockInterview = async (
+  id: number,
+  answerMockInterviewBody: AnswerMockInterviewBody,
+  options?: RequestInit,
+): Promise<AnswerMockInterviewResponse> => {
+  return customFetch<AnswerMockInterviewResponse>(
+    getAnswerMockInterviewUrl(id),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(answerMockInterviewBody),
+    },
+  );
+};
+
+export const getAnswerMockInterviewMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof answerMockInterview>>,
+    TError,
+    { id: number; data: BodyType<AnswerMockInterviewBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof answerMockInterview>>,
+  TError,
+  { id: number; data: BodyType<AnswerMockInterviewBody> },
+  TContext
+> => {
+  const mutationKey = ["answerMockInterview"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof answerMockInterview>>,
+    { id: number; data: BodyType<AnswerMockInterviewBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return answerMockInterview(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AnswerMockInterviewMutationResult = NonNullable<
+  Awaited<ReturnType<typeof answerMockInterview>>
+>;
+export type AnswerMockInterviewMutationBody = BodyType<AnswerMockInterviewBody>;
+export type AnswerMockInterviewMutationError = ErrorType<void>;
+
+/**
+ * @summary Submit an answer to the next pending question and receive its score
+ */
+export const useAnswerMockInterview = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof answerMockInterview>>,
+    TError,
+    { id: number; data: BodyType<AnswerMockInterviewBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof answerMockInterview>>,
+  TError,
+  { id: number; data: BodyType<AnswerMockInterviewBody> },
+  TContext
+> => {
+  return useMutation(getAnswerMockInterviewMutationOptions(options));
+};
+
+/**
+ * @summary Aggregate sub-scores, finalise the transcript, attach to a pre-existing application if any
+ */
+export const getFinaliseMockInterviewUrl = (id: number) => {
+  return `/api/me/mock-interviews/${id}/finalise`;
+};
+
+export const finaliseMockInterview = async (
+  id: number,
+  options?: RequestInit,
+): Promise<MockInterview> => {
+  return customFetch<MockInterview>(getFinaliseMockInterviewUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getFinaliseMockInterviewMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof finaliseMockInterview>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof finaliseMockInterview>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["finaliseMockInterview"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof finaliseMockInterview>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return finaliseMockInterview(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type FinaliseMockInterviewMutationResult = NonNullable<
+  Awaited<ReturnType<typeof finaliseMockInterview>>
+>;
+
+export type FinaliseMockInterviewMutationError = ErrorType<void>;
+
+/**
+ * @summary Aggregate sub-scores, finalise the transcript, attach to a pre-existing application if any
+ */
+export const useFinaliseMockInterview = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof finaliseMockInterview>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof finaliseMockInterview>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getFinaliseMockInterviewMutationOptions(options));
+};

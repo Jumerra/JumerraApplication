@@ -12,6 +12,7 @@ import JobsList from "@/pages/jobs/index";
 import JobDetail from "@/pages/jobs/detail";
 import JobPost from "@/pages/jobs/post";
 import JobApply from "@/pages/jobs/apply";
+import MockInterviewPage from "@/pages/jobs/mock-interview";
 import EmployersList from "@/pages/employers/index";
 import EmployerDetail from "@/pages/employers/detail";
 import InstitutionsList from "@/pages/institutions/index";
@@ -105,6 +106,7 @@ function Router() {
         <Route path="/dashboard/candidate/mentors" component={CandidateMentorsPage} />
         <Route path="/dashboard/candidate/mentor-requests" component={CandidateMentorRequestsPage} />
         <Route path="/account/applications/:id" component={ApplicationDetailPage} />
+        <Route path="/jobs/:jobId/mock-interview" component={MockInterviewPage} />
         <Route path="/interviews/:id" component={InterviewInvitePage} />
         <Route path="/dashboard/employer">
           <EmployerLayout><EmployerDashboard /></EmployerLayout>

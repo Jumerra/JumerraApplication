@@ -29,6 +29,7 @@ import employerPoolsRouter from "./employer-pools";
 import institutionAnalyticsRouter from "./institution-analytics";
 import networkRouter from "./network";
 import meRouter from "./me";
+import mockInterviewsRouter from "./mock-interviews";
 import { requireAuth } from "../middleware/require-auth";
 
 const router: IRouter = Router();
@@ -40,6 +41,7 @@ const router: IRouter = Router();
 // below to make the order explicit.
 router.use(networkRouter);
 router.use(meRouter);
+router.use(mockInterviewsRouter);
 
 router.use("/candidates", requireAuth);
 router.use("/applications", requireAuth);

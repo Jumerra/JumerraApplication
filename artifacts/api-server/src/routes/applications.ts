@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, inArray } from "drizzle-orm";
 import {
   db,
   applicationsTable,
@@ -7,6 +7,7 @@ import {
   jobsTable,
   candidatesTable,
   employersTable,
+  mockInterviewsTable,
 } from "@workspace/db";
 import { sendNotificationToCandidate } from "../lib/notifier";
 import {
@@ -20,6 +21,57 @@ import { requireAuth } from "../middleware/require-auth";
 import { requirePermission } from "../lib/permissions";
 
 const router: IRouter = Router();
+
+/**
+ * Look up the most recent finalised mock interview for (candidate,
+ * job) and return its sub-scores. Used by both serializeApplication
+ * (employer view) and the linker that runs on POST /applications.
+ */
+async function findLatestFinalisedMockInterview(
+  candidateId: number,
+  jobId: number,
+): Promise<{
+  id: number;
+  scoreOverall: number;
+  scoreTechnical: number;
+  scoreCommunication: number;
+  scoreCulture: number;
+} | null> {
+  const [row] = await db
+    .select({
+      id: mockInterviewsTable.id,
+      scoreOverall: mockInterviewsTable.scoreOverall,
+      scoreTechnical: mockInterviewsTable.scoreTechnical,
+      scoreCommunication: mockInterviewsTable.scoreCommunication,
+      scoreCulture: mockInterviewsTable.scoreCulture,
+    })
+    .from(mockInterviewsTable)
+    .where(
+      and(
+        eq(mockInterviewsTable.candidateId, candidateId),
+        eq(mockInterviewsTable.jobId, jobId),
+        eq(mockInterviewsTable.status, "finalised"),
+      ),
+    )
+    .orderBy(desc(mockInterviewsTable.completedAt))
+    .limit(1);
+  if (
+    !row ||
+    row.scoreOverall == null ||
+    row.scoreTechnical == null ||
+    row.scoreCommunication == null ||
+    row.scoreCulture == null
+  ) {
+    return null;
+  }
+  return {
+    id: row.id,
+    scoreOverall: row.scoreOverall,
+    scoreTechnical: row.scoreTechnical,
+    scoreCommunication: row.scoreCommunication,
+    scoreCulture: row.scoreCulture,
+  };
+}
 
 async function serializeApplication(applicationId: number) {
   const [row] = await db
@@ -36,6 +88,10 @@ async function serializeApplication(applicationId: number) {
     .where(eq(applicationsTable.id, applicationId));
 
   if (!row) return null;
+  const mock = await findLatestFinalisedMockInterview(
+    row.candidate.id,
+    row.job.id,
+  );
   return {
     id: row.application.id,
     jobId: row.job.id,
@@ -53,6 +109,15 @@ async function serializeApplication(applicationId: number) {
     source: row.application.source,
     appliedAt: row.application.appliedAt.toISOString(),
     updatedAt: row.application.updatedAt.toISOString(),
+    mockInterviewId: mock?.id ?? null,
+    mockInterviewScore: mock?.scoreOverall ?? null,
+    mockInterviewBreakdown: mock
+      ? {
+          technical: mock.scoreTechnical,
+          communication: mock.scoreCommunication,
+          culture: mock.scoreCulture,
+        }
+      : null,
   };
 }
 
@@ -120,24 +185,98 @@ router.get("/applications", requireAuth, async (req, res): Promise<void> => {
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .orderBy(desc(applicationsTable.appliedAt));
 
-  const result = rows.map((row) => ({
-    id: row.application.id,
-    jobId: row.job.id,
-    jobTitle: row.job.title,
-    candidateId: row.candidate.id,
-    candidateName: row.candidate.fullName,
-    candidateAvatarUrl: row.candidate.avatarUrl,
-    employerId: row.employer.id,
-    employerName: row.employer.name,
-    employerLogoUrl: row.employer.logoUrl,
-    status: row.application.status,
-    matchScore: row.application.matchScore,
-    coverNote: row.application.coverNote,
-    boardOrder: row.application.boardOrder,
-    source: row.application.source,
-    appliedAt: row.application.appliedAt.toISOString(),
-    updatedAt: row.application.updatedAt.toISOString(),
-  }));
+  // Bulk-fetch the latest finalised mock interview for every
+  // (candidate, job) pair in one query so the Kanban / dashboard
+  // list calls don't N+1 against mock_interviews.
+  const mockByPair = new Map<
+    string,
+    {
+      id: number;
+      scoreOverall: number;
+      scoreTechnical: number;
+      scoreCommunication: number;
+      scoreCulture: number;
+    }
+  >();
+  if (rows.length > 0) {
+    const pairKeys = rows.map(
+      (r) => `${r.candidate.id}:${r.job.id}` as const,
+    );
+    const candidateIds = Array.from(new Set(rows.map((r) => r.candidate.id)));
+    const jobIds = Array.from(new Set(rows.map((r) => r.job.id)));
+    const mocks = await db
+      .select({
+        id: mockInterviewsTable.id,
+        candidateId: mockInterviewsTable.candidateId,
+        jobId: mockInterviewsTable.jobId,
+        scoreOverall: mockInterviewsTable.scoreOverall,
+        scoreTechnical: mockInterviewsTable.scoreTechnical,
+        scoreCommunication: mockInterviewsTable.scoreCommunication,
+        scoreCulture: mockInterviewsTable.scoreCulture,
+        completedAt: mockInterviewsTable.completedAt,
+      })
+      .from(mockInterviewsTable)
+      .where(
+        and(
+          eq(mockInterviewsTable.status, "finalised"),
+          inArray(mockInterviewsTable.candidateId, candidateIds),
+          inArray(mockInterviewsTable.jobId, jobIds),
+        ),
+      )
+      .orderBy(desc(mockInterviewsTable.completedAt));
+    const wantedKeys = new Set<string>(pairKeys);
+    for (const m of mocks) {
+      const key = `${m.candidateId}:${m.jobId}`;
+      // ORDER BY desc + first-write-wins gives us the latest per pair
+      if (!wantedKeys.has(key) || mockByPair.has(key)) continue;
+      if (
+        m.scoreOverall == null ||
+        m.scoreTechnical == null ||
+        m.scoreCommunication == null ||
+        m.scoreCulture == null
+      ) {
+        continue;
+      }
+      mockByPair.set(key, {
+        id: m.id,
+        scoreOverall: m.scoreOverall,
+        scoreTechnical: m.scoreTechnical,
+        scoreCommunication: m.scoreCommunication,
+        scoreCulture: m.scoreCulture,
+      });
+    }
+  }
+
+  const result = rows.map((row) => {
+    const mock = mockByPair.get(`${row.candidate.id}:${row.job.id}`) ?? null;
+    return {
+      id: row.application.id,
+      jobId: row.job.id,
+      jobTitle: row.job.title,
+      candidateId: row.candidate.id,
+      candidateName: row.candidate.fullName,
+      candidateAvatarUrl: row.candidate.avatarUrl,
+      employerId: row.employer.id,
+      employerName: row.employer.name,
+      employerLogoUrl: row.employer.logoUrl,
+      status: row.application.status,
+      matchScore: row.application.matchScore,
+      coverNote: row.application.coverNote,
+      boardOrder: row.application.boardOrder,
+      source: row.application.source,
+      appliedAt: row.application.appliedAt.toISOString(),
+      updatedAt: row.application.updatedAt.toISOString(),
+      mockInterviewId: mock?.id ?? null,
+      mockInterviewScore: mock?.scoreOverall ?? null,
+      mockInterviewBreakdown: mock
+        ? {
+            technical: mock.scoreTechnical,
+            communication: mock.scoreCommunication,
+            culture: mock.scoreCulture,
+          }
+        : null,
+    };
+  });
 
   res.json(result);
 });
@@ -211,6 +350,24 @@ router.post("/applications", requireAuth, async (req, res): Promise<void> => {
       matchScore: score,
     })
     .returning();
+
+  // Link the most recent finalised mock interview for this (candidate,
+  // job) — the score appears next to the keyword match score in the
+  // employer Kanban. Best-effort: never block application creation.
+  try {
+    const mock = await findLatestFinalisedMockInterview(
+      parsed.data.candidateId,
+      parsed.data.jobId,
+    );
+    if (mock) {
+      await db
+        .update(mockInterviewsTable)
+        .set({ applicationId: created.id })
+        .where(eq(mockInterviewsTable.id, mock.id));
+    }
+  } catch (err) {
+    req.log.warn({ err }, "link mock interview to application failed");
+  }
 
   // Seed the timeline with the initial "applied" milestone so the
   // candidate-side timeline view always has at least one row of

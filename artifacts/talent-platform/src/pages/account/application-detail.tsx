@@ -8,7 +8,7 @@ import { ApplicationTimeline } from "@/components/application-timeline";
 import { InterviewPrepPanel } from "@/components/InterviewPrepPanel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Sparkles } from "lucide-react";
 
 const PREP_STATUSES = new Set(["screening", "interview", "offer", "hired"]);
 
@@ -51,10 +51,41 @@ export default function ApplicationDetailPage() {
           </CardContent>
         </Card>
       ) : null}
+      {app && typeof app.mockInterviewScore === "number" ? (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-primary" /> AI mock interview
+            </CardTitle>
+            <Badge className="bg-primary text-primary-foreground">
+              {app.mockInterviewScore}/100
+            </Badge>
+          </CardHeader>
+          {app.mockInterviewBreakdown ? (
+            <CardContent className="grid grid-cols-3 gap-3">
+              <Tile label="Technical" value={app.mockInterviewBreakdown.technical} />
+              <Tile
+                label="Communication"
+                value={app.mockInterviewBreakdown.communication}
+              />
+              <Tile label="Culture" value={app.mockInterviewBreakdown.culture} />
+            </CardContent>
+          ) : null}
+        </Card>
+      ) : null}
       {app && candidateId > 0 && PREP_STATUSES.has(app.status) ? (
         <InterviewPrepPanel candidateId={candidateId} jobId={app.jobId} />
       ) : null}
       {applicationId > 0 ? <ApplicationTimeline applicationId={applicationId} /> : null}
+    </div>
+  );
+}
+
+function Tile({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-lg border bg-background p-3 text-center">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="text-xl font-bold">{value}</div>
     </div>
   );
 }

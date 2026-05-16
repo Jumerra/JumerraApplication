@@ -7,6 +7,7 @@
  */
 import type { ApplicationSource } from "./applicationSource";
 import type { ApplicationStatus } from "./applicationStatus";
+import type { MockInterviewBreakdown } from "./mockInterviewBreakdown";
 
 export interface Application {
   id: number;
@@ -30,4 +31,9 @@ prioritize replies to high-intent applicants. Defaults to
   source: ApplicationSource;
   appliedAt: Date;
   updatedAt: Date;
+  /** Linked mock interview row id, if the candidate finalised one for this job. */
+  mockInterviewId: number | null;
+  /** Overall mock-interview score 0–100, if any. */
+  mockInterviewScore: number | null;
+  mockInterviewBreakdown: MockInterviewBreakdown | null;
 }

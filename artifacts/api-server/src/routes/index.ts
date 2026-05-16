@@ -27,9 +27,17 @@ import engagementRouter from "./engagement";
 import aiRouter from "./ai";
 import employerPoolsRouter from "./employer-pools";
 import institutionAnalyticsRouter from "./institution-analytics";
+import networkRouter from "./network";
 import { requireAuth } from "../middleware/require-auth";
 
 const router: IRouter = Router();
+
+// `/employers/:id/reviews` is public marketplace content (verified-hire
+// reviews are intentionally browseable without an account). The /employers
+// router itself doesn't sit behind a global requireAuth, but the network
+// router (which owns this path) is mounted before the candidates gate
+// below to make the order explicit.
+router.use(networkRouter);
 
 router.use("/candidates", requireAuth);
 router.use("/applications", requireAuth);

@@ -72,6 +72,9 @@ import ChangePasswordPage from "@/pages/account/change-password";
 import ProfilePage from "@/pages/account/profile";
 import ProfileViewsPage from "@/pages/account/profile-views";
 import ApplicationDetailPage from "@/pages/account/application-detail";
+import CandidateMentorsPage from "@/pages/dashboard/candidate-mentors";
+import CandidateMentorRequestsPage from "@/pages/dashboard/candidate-mentor-requests";
+import AdminNetworkPage from "@/pages/dashboard/admin/network";
 
 const queryClient = new QueryClient();
 
@@ -98,6 +101,8 @@ function Router() {
         <Route path="/references/:token" component={PublicReferenceFormPage} />
         
         <Route path="/dashboard/candidate" component={CandidateDashboard} />
+        <Route path="/dashboard/candidate/mentors" component={CandidateMentorsPage} />
+        <Route path="/dashboard/candidate/mentor-requests" component={CandidateMentorRequestsPage} />
         <Route path="/account/applications/:id" component={ApplicationDetailPage} />
         <Route path="/interviews/:id" component={InterviewInvitePage} />
         <Route path="/dashboard/employer">
@@ -153,6 +158,9 @@ function Router() {
         </Route>
         <Route path="/dashboard/admin/site-content">
           <AdminLayout><AdminSiteContentPage /></AdminLayout>
+        </Route>
+        <Route path="/dashboard/admin/network">
+          <AdminLayout><AdminNetworkPage /></AdminLayout>
         </Route>
         <Route path="/dashboard/admin/partners">
           <AdminLayout><AdminPartnersPage /></AdminLayout>

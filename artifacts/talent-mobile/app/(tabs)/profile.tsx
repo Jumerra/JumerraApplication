@@ -1,4 +1,5 @@
 import { Feather } from "@expo/vector-icons";
+import { customFetch } from "@workspace/api-client-react";
 import {
   ApiError,
   getGetCandidateQueryKey,
@@ -28,6 +29,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   View,
 } from "react-native";
@@ -429,6 +431,8 @@ export default function ProfileScreen() {
 
       <PremiumSection candidateId={candidateId} />
 
+      <MentorSection candidateId={candidateId} />
+
       <View style={styles.section}>
         <CvCritiqueCard candidateId={candidateId} />
       </View>
@@ -599,6 +603,101 @@ function InstitutionsRow({
             </View>
           ))}
         </View>
+      </View>
+    </View>
+  );
+}
+
+function MentorSection({ candidateId }: { candidateId: number }) {
+  const colors = useColors();
+  const [optin, setOptin] = React.useState<boolean | null>(null);
+
+  React.useEffect(() => {
+    customFetch<{ alumniMentorOptin?: boolean }>(`/api/candidates/${candidateId}`)
+      .then((d) => setOptin(d?.alumniMentorOptin ?? false))
+      .catch(() => setOptin(false));
+  }, [candidateId]);
+
+  const toggle = async (next: boolean) => {
+    setOptin(next);
+    try {
+      await customFetch(`/api/candidates/${candidateId}/mentor-optin`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ optin: next }),
+      });
+    } catch (err) {
+      setOptin(!next);
+      Alert.alert("Couldn't update", (err as Error).message);
+    }
+  };
+
+  return (
+    <View style={styles.section}>
+      <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
+        Alumni network
+      </Text>
+      <View
+        style={{
+          backgroundColor: colors.card,
+          borderColor: colors.border,
+          borderWidth: 1,
+          borderRadius: colors.radius * 1.5,
+          padding: 16,
+          gap: 14,
+        }}
+      >
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+          <Feather name="users" size={18} color={colors.primary} />
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: colors.foreground, fontFamily: "Inter_600SemiBold", fontSize: 14 }}>
+              Be listed as a mentor
+            </Text>
+            <Text style={{ color: colors.mutedForeground, fontSize: 12, marginTop: 2 }}>
+              Other students at your institution can request a one-shot intro.
+            </Text>
+          </View>
+          <Switch
+            value={!!optin}
+            onValueChange={toggle}
+            disabled={optin == null}
+          />
+        </View>
+
+        <Pressable
+          onPress={() => router.push("/network/mentors")}
+          style={({ pressed }) => [
+            {
+              backgroundColor: colors.primary,
+              borderRadius: colors.radius,
+              paddingVertical: 10,
+              alignItems: "center",
+              opacity: pressed ? 0.85 : 1,
+            },
+          ]}
+        >
+          <Text style={{ color: colors.primaryForeground, fontFamily: "Inter_600SemiBold", fontSize: 14 }}>
+            Find a mentor
+          </Text>
+        </Pressable>
+
+        <Pressable
+          onPress={() => router.push("/network/mentor-requests")}
+          style={({ pressed }) => [
+            {
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 6,
+              opacity: pressed ? 0.7 : 1,
+            },
+          ]}
+        >
+          <Feather name="inbox" size={14} color={colors.mutedForeground} />
+          <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_500Medium", fontSize: 13 }}>
+            View requests sent to me
+          </Text>
+        </Pressable>
       </View>
     </View>
   );

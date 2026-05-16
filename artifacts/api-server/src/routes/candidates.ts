@@ -68,6 +68,7 @@ function serializeCandidate(
     openToOffersSince: c.openToOffersSince
       ? c.openToOffersSince.toISOString()
       : null,
+    alumniMentorOptin: c.alumniMentorOptin ?? false,
     institutionId: primary?.id ?? c.institutionId ?? null,
     institutionName: primary?.name ?? null,
     institutions: institutions.map((i) => ({

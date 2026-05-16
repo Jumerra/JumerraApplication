@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { MapPin, Globe, Users, Briefcase, ExternalLink, CheckCircle2 } from "lucide-react";
+import { EmployerReviews } from "@/components/employer-reviews";
 
 export default function EmployerDetail() {
   const { id } = useParams();
@@ -113,6 +114,10 @@ export default function EmployerDetail() {
               ))}
             </div>
           )}
+        </div>
+
+        <div className="mt-12">
+          <EmployerReviews employerId={Number(id)} />
         </div>
       </div>
     </div>

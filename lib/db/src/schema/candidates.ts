@@ -36,6 +36,10 @@ export const candidatesTable = pgTable("candidates", {
   openToOffersSince: timestamp("open_to_offers_since", {
     withTimezone: true,
   }).defaultNow(),
+  // Opts the candidate in to the institution-scoped Alumni Mentor
+  // directory. When true, other verified members of the same institution
+  // can see them in the mentor browser and send a one-shot intro request.
+  alumniMentorOptin: boolean("alumni_mentor_optin").notNull().default(false),
   aiCvUnlocked: boolean("ai_cv_unlocked").notNull().default(false),
   aiCvUnlockedAt: timestamp("ai_cv_unlocked_at", { withTimezone: true }),
   aiCvText: text("ai_cv_text"),

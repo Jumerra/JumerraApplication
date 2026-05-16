@@ -26,6 +26,7 @@ import { JobCard } from "@/components/JobCard";
 import { JobRow } from "@/components/JobRow";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { SectionHeader } from "@/components/SectionHeader";
+import { StudentStoriesPanel } from "@/components/StudentStoriesPanel";
 import { TalentScoreBreakdownCard } from "@/components/TalentScoreBreakdownCard";
 import { WeeklyDigestCard } from "@/components/WeeklyDigestCard";
 import { useAuth } from "@/hooks/useAuth";
@@ -235,6 +236,8 @@ export default function DiscoverScreen() {
           </View>
         )}
       </View>
+
+      <StudentStoriesPanel />
     </ScrollView>
   );
 }

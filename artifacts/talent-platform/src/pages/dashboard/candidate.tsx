@@ -10,7 +10,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Briefcase, CheckCircle2, Clock, MailOpen, TrendingUp, Sparkles, Star, Eye, Lock, Building2 } from "lucide-react";
+import { Briefcase, CheckCircle2, Clock, MailOpen, TrendingUp, Sparkles, Star, Eye, Lock, Building2, GraduationCap } from "lucide-react";
+import { customFetch } from "@workspace/api-client-react";
+import { useEffect } from "react";
+import { Switch } from "@/components/ui/switch";
+import { toast } from "sonner";
 import { Link } from "wouter";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { BoostCard } from "@/components/boost-card";
@@ -154,6 +158,68 @@ function ProfileViewsCard({ candidateId }: { candidateId: number }) {
   );
 }
 
+function MentorshipCard({ candidateId }: { candidateId: number }) {
+  const [optin, setOptin] = useState<boolean | null>(null);
+  useEffect(() => {
+    customFetch<{ alumniMentorOptin?: boolean }>(
+      `/api/candidates/${candidateId}`,
+    )
+      .then((d) => setOptin(d?.alumniMentorOptin ?? false))
+      .catch(() => setOptin(false));
+  }, [candidateId]);
+
+  const toggle = async (next: boolean) => {
+    setOptin(next);
+    try {
+      await customFetch(`/api/candidates/${candidateId}/mentor-optin`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ optin: next }),
+      });
+      toast.success(next ? "You're now listed as a mentor" : "Mentor listing off");
+    } catch (err) {
+      setOptin(!next);
+      toast.error((err as Error).message);
+    }
+  };
+
+  return (
+    <Card className="bg-gradient-to-br from-primary/5 to-transparent border-primary/20 shadow-sm">
+      <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
+        <div className="space-y-1">
+          <CardTitle className="text-base flex items-center gap-2">
+            <GraduationCap className="w-5 h-5 text-primary" /> Alumni network
+          </CardTitle>
+          <CardDescription>
+            Browse mentors at your verified institution, or list yourself to
+            help others.
+          </CardDescription>
+        </div>
+        <Link
+          to="/dashboard/candidate/mentors"
+          className="text-sm text-primary hover:underline whitespace-nowrap"
+        >
+          Find a mentor →
+        </Link>
+      </CardHeader>
+      <CardContent className="flex items-center justify-between gap-4">
+        <div>
+          <p className="text-sm font-medium">Be listed as a mentor</p>
+          <p className="text-xs text-muted-foreground">
+            Other students at your institution can request a one-shot intro.
+          </p>
+        </div>
+        <Switch
+          checked={!!optin}
+          onCheckedChange={toggle}
+          disabled={optin == null}
+          aria-label="Toggle mentor listing"
+        />
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function CandidateDashboard() {
   const { userId } = useAuth();
   const id = userId || 1;
@@ -256,6 +322,8 @@ export default function CandidateDashboard() {
       </div>
 
       <ProfileViewsCard candidateId={id} />
+
+      <MentorshipCard candidateId={id} />
 
 
       <div className="grid lg:grid-cols-3 gap-8">

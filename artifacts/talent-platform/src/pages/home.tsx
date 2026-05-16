@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ArrowRight, Building2, GraduationCap, MapPin, Sparkles, TrendingUp, UserCircle2, CheckCircle2, Briefcase } from "lucide-react";
 import { motion, type Variants } from "framer-motion";
+import { StudentStoriesPanel } from "@/components/student-stories-panel";
 
 const container: Variants = {
   hidden: { opacity: 0 },
@@ -329,6 +330,9 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* Student Stories — admin-moderated spotlights of recent placements */}
+      <StudentStoriesPanel />
 
       {/* Our Partners (admin-managed; renders only when enabled and non-empty) */}
       <PartnersMarquee />

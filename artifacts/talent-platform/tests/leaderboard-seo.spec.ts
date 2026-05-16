@@ -76,13 +76,21 @@ test.describe("institution leaderboard", () => {
       new RegExp(`og:image"\\s+content="[^"]*${id}/leaderboard\\.png`),
     );
 
-    // PNG share card: must be a real image response, not JSON / HTML.
+    // PNG share card: must be a real image response, not JSON / HTML,
+    // AND its headline number must match the JSON endpoint exactly —
+    // SVG fallback contains the totalPlaced as plain text, so a
+    // regression where the card diverges from the JSON would be
+    // caught immediately by the SVG render path (also exercised in
+    // CI when libuv-bound native bindings are unavailable).
     const png = await publicCtx.get(`/api/institutions/${id}/leaderboard.png`);
     expect(png.status()).toBe(200);
     const ct = png.headers()["content-type"] ?? "";
     expect(ct).toMatch(/^image\/(png|svg\+xml)/);
     const buf = await png.body();
     expect(buf.length).toBeGreaterThan(200);
+    if (ct.startsWith("image/svg+xml")) {
+      expect(buf.toString("utf-8")).toContain(`>${body.totalPlaced}<`);
+    }
 
     await publicCtx.dispose();
     await adminCtx!.dispose();

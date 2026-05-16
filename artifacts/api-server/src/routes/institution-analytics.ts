@@ -1340,68 +1340,62 @@ router.get(
       res.status(400).json({ error: "Invalid institution id" });
       return;
     }
-    const [institution] = await db
-      .select()
-      .from(institutionsTable)
-      .where(eq(institutionsTable.id, institutionId))
-      .limit(1);
-    if (!institution || !institution.publicLeaderboardEnabled) {
-      res.status(404).json({ error: "Leaderboard not available" });
-      return;
+    // Headline numbers must match the JSON leaderboard exactly —
+    // otherwise the share card preview tells a different story than
+    // the page it links to. Rather than duplicate the (non-trivial)
+    // aggregation logic, dispatch the same Express app internally to
+    // reuse the JSON endpoint as the single source of truth.
+    type LeaderboardJson = {
+      institutionName: string;
+      totalPlaced: number;
+      medianTimeToPlacementDays: number;
+      topEmployers: Array<{ employerName: string; hires: number }>;
+    };
+    let lb: LeaderboardJson | null = null;
+    try {
+      const proxy = await fetch(
+        `http://localhost:80/api/institutions/${institutionId}/leaderboard`,
+        { headers: { accept: "application/json" } },
+      );
+      if (proxy.status === 404) {
+        res.status(404).json({ error: "Leaderboard not available" });
+        return;
+      }
+      if (proxy.ok) {
+        lb = (await proxy.json()) as LeaderboardJson;
+      }
+    } catch (err) {
+      req.log.warn({ err }, "leaderboard.png internal fetch failed");
     }
-
-    // Count placed students (status = "hired") scoped to this institution.
-    const candidateIds = await getCandidateIdsForInstitution(institutionId);
-    let totalPlaced = 0;
-    let medianDays = 0;
-    let topEmployer: string | null = null;
-    if (candidateIds.length > 0) {
-      const placed = await db
+    // Fallback (only hit if internal proxy is unreachable, e.g. boot):
+    // confirm opt-out from the DB so we never render a card for an
+    // institution that turned the leaderboard off.
+    if (!lb) {
+      const [institution] = await db
         .select({
-          appliedAt: applicationsTable.appliedAt,
-          updatedAt: applicationsTable.updatedAt,
-          employerName: employersTable.name,
+          name: institutionsTable.name,
+          publicLeaderboardEnabled: institutionsTable.publicLeaderboardEnabled,
         })
-        .from(applicationsTable)
-        .innerJoin(jobsTable, eq(applicationsTable.jobId, jobsTable.id))
-        .innerJoin(employersTable, eq(jobsTable.employerId, employersTable.id))
-        .where(
-          and(
-            eq(applicationsTable.status, "hired"),
-            inArray(applicationsTable.candidateId, candidateIds),
-          ),
-        );
-      totalPlaced = placed.length;
-      const ttp: number[] = [];
-      const empCount = new Map<string, number>();
-      for (const p of placed) {
-        if (p.appliedAt && p.updatedAt) {
-          const days = Math.max(
-            0,
-            Math.round(
-              (p.updatedAt.getTime() - p.appliedAt.getTime()) /
-                (1000 * 60 * 60 * 24),
-            ),
-          );
-          ttp.push(days);
-        }
-        empCount.set(p.employerName, (empCount.get(p.employerName) ?? 0) + 1);
+        .from(institutionsTable)
+        .where(eq(institutionsTable.id, institutionId))
+        .limit(1);
+      if (!institution || !institution.publicLeaderboardEnabled) {
+        res.status(404).json({ error: "Leaderboard not available" });
+        return;
       }
-      medianDays = leaderboardMedian(ttp);
-      let bestCount = 0;
-      for (const [name, c] of empCount) {
-        if (c > bestCount) {
-          bestCount = c;
-          topEmployer = name;
-        }
-      }
+      lb = {
+        institutionName: institution.name,
+        totalPlaced: 0,
+        medianTimeToPlacementDays: 0,
+        topEmployers: [],
+      };
     }
 
     const svg = buildShareCardSvg({
-      institutionName: institution.name,
-      totalPlaced,
-      medianDays,
-      topEmployer,
+      institutionName: lb.institutionName,
+      totalPlaced: lb.totalPlaced,
+      medianDays: lb.medianTimeToPlacementDays,
+      topEmployer: lb.topEmployers[0]?.employerName ?? null,
     });
 
     try {

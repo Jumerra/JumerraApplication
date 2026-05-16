@@ -7108,3 +7108,78 @@ export const DismissGrowthSkillParams = zod.object({
 export const DismissGrowthSkillResponse = zod.object({
   ok: zod.boolean(),
 });
+
+/**
+ * @summary List API keys for an institution (owner or admin only)
+ */
+export const ListInstitutionApiKeysParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ListInstitutionApiKeysResponseItem = zod.object({
+  id: zod.number(),
+  label: zod.string(),
+  prefix: zod
+    .string()
+    .describe("First 12 chars of the plaintext key (e.g. `jum_a1b2c3d4`)."),
+  createdAt: zod.coerce.date(),
+  lastUsedAt: zod.coerce.date().nullish(),
+  revokedAt: zod.coerce.date().nullish(),
+});
+export const ListInstitutionApiKeysResponse = zod.array(
+  ListInstitutionApiKeysResponseItem,
+);
+
+/**
+ * @summary Mint a new API key. The plaintext key is returned ONCE in the
+`key` field; only its SHA-256 is persisted. Institution Pro only.
+
+ */
+export const CreateInstitutionApiKeyParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const createInstitutionApiKeyBodyLabelMax = 80;
+
+export const CreateInstitutionApiKeyBody = zod.object({
+  label: zod
+    .string()
+    .max(createInstitutionApiKeyBodyLabelMax)
+    .optional()
+    .describe('Optional human label. Defaults to \"Untitled key\".'),
+});
+
+/**
+ * @summary Revoke (soft-delete) an API key. Idempotent against a re-revoke.
+ */
+export const RevokeInstitutionApiKeyParams = zod.object({
+  id: zod.coerce.number(),
+  keyId: zod.coerce.number(),
+});
+
+export const RevokeInstitutionApiKeyResponse = zod.object({
+  ok: zod.boolean(),
+});
+
+/**
+ * @summary Server-to-server SIS endpoint. Authenticates via
+`Authorization: Bearer <key>` (no session cookie). Returns the
+verified roster for the institution that minted the key.
+
+ */
+export const SisListStudentsResponse = zod.object({
+  institutionId: zod.number(),
+  generatedAt: zod.coerce.date(),
+  students: zod.array(
+    zod.object({
+      candidateId: zod.number(),
+      fullName: zod.string(),
+      email: zod.string(),
+      phone: zod.string().nullish(),
+      verifiedAt: zod.coerce.date(),
+      verifiedByName: zod.string().nullish(),
+      facultyName: zod.string().nullish(),
+      departmentName: zod.string().nullish(),
+    }),
+  ),
+});

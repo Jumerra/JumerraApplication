@@ -5,6 +5,50 @@
  * Talent Platform API
  * OpenAPI spec version: 0.1.0
  */
+export interface RequiresUpgrade {
+  error: string;
+  requiresUpgrade: boolean;
+  kind: string;
+}
+
+export interface InstitutionApiKey {
+  id: number;
+  label: string;
+  /** First 12 chars of the plaintext key (e.g. `jum_a1b2c3d4`). */
+  prefix: string;
+  createdAt: string;
+  lastUsedAt?: string | null;
+  revokedAt?: string | null;
+}
+
+export interface InstitutionApiKeyCreated {
+  id: number;
+  label: string;
+  prefix: string;
+  /** The plaintext key. Returned exactly ONCE on creation; only its
+SHA-256 hash is stored server-side. Treat as a secret.
+ */
+  key: string;
+  createdAt: string;
+}
+
+export interface SisStudentRow {
+  candidateId: number;
+  fullName: string;
+  email: string;
+  phone?: string | null;
+  verifiedAt: string;
+  verifiedByName?: string | null;
+  facultyName?: string | null;
+  departmentName?: string | null;
+}
+
+export interface SisStudentRoster {
+  institutionId: number;
+  generatedAt: string;
+  students: SisStudentRow[];
+}
+
 export interface GrowthPlanResource {
   title: string;
   url: string;
@@ -3902,5 +3946,17 @@ export type CompleteGrowthSkill200 = {
 };
 
 export type DismissGrowthSkill200 = {
+  ok: boolean;
+};
+
+export type CreateInstitutionApiKeyBody = {
+  /**
+   * Optional human label. Defaults to "Untitled key".
+   * @maxLength 80
+   */
+  label?: string;
+};
+
+export type RevokeInstitutionApiKey200 = {
   ok: boolean;
 };

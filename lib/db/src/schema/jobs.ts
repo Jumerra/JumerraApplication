@@ -61,6 +61,8 @@ export const jobsTable = pgTable(
     postedAt: timestamp("posted_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    // Soft-delete marker. Null = active. See lib/soft-delete.ts.
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
   (t) => ({
     jobsTierIdx: index("jobs_tier_idx").on(t.tier, t.tierExpiresAt),

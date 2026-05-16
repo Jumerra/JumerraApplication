@@ -50,6 +50,8 @@ tags:
     description: AI-led, job-tuned mock interviews scored against a technical/communication/culture rubric
   - name: reverse-offers
     description: Open-to-offers auction windows and employer-initiated reverse offers
+  - name: institution-api-keys
+    description: Owner-minted SIS API keys (Institution Pro) and the public roster endpoint
 paths:
   /healthz:
     get:
@@ -4235,8 +4237,183 @@ paths:
         "401": { description: Not authenticated }
         "403": { description: Only candidates have a growth plan }
 
+  /institutions/{id}/api-keys:
+    get:
+      operationId: listInstitutionApiKeys
+      tags: [institution-api-keys, institutions]
+      summary: List API keys for an institution (owner or admin only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: API keys (plaintext is never returned here)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/InstitutionApiKey" }
+        "400": { description: Invalid id }
+        "401": { description: Not authenticated }
+        "403": { description: Owners or admin only }
+    post:
+      operationId: createInstitutionApiKey
+      tags: [institution-api-keys, institutions]
+      summary: |
+        Mint a new API key. The plaintext key is returned ONCE in the
+        `key` field; only its SHA-256 is persisted. Institution Pro only.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                label:
+                  type: string
+                  maxLength: 80
+                  description: Optional human label. Defaults to "Untitled key".
+      responses:
+        "201":
+          description: Created — plaintext returned exactly once.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InstitutionApiKeyCreated" }
+        "400": { description: Invalid id or label too long }
+        "401": { description: Not authenticated }
+        "402":
+          description: Institution Pro required
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RequiresUpgrade" }
+        "403": { description: Owners only }
+
+  /institutions/{id}/api-keys/{keyId}:
+    delete:
+      operationId: revokeInstitutionApiKey
+      tags: [institution-api-keys, institutions]
+      summary: Revoke (soft-delete) an API key. Idempotent against a re-revoke.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+        - in: path
+          name: keyId
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+        "400": { description: Invalid id }
+        "401": { description: Not authenticated }
+        "403": { description: Owners only }
+        "404": { description: Key not found or already revoked }
+
+  /api/v1/institutions/students:
+    get:
+      operationId: sisListStudents
+      tags: [institution-api-keys]
+      summary: |
+        Server-to-server SIS endpoint. Authenticates via
+        `Authorization: Bearer <key>` (no session cookie). Returns the
+        verified roster for the institution that minted the key.
+      security:
+        - InstitutionApiKey: []
+      responses:
+        "200":
+          description: Verified roster
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SisStudentRoster" }
+        "401": { description: "Missing, invalid, or revoked API key" }
+        "402":
+          description: Institution Pro required
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RequiresUpgrade" }
+
 components:
+  securitySchemes:
+    InstitutionApiKey:
+      type: http
+      scheme: bearer
+      bearerFormat: jum_<hex>
+      description: Institution-issued API key (prefixed `jum_`). Pro only.
   schemas:
+    RequiresUpgrade:
+      type: object
+      required: [error, requiresUpgrade, kind]
+      properties:
+        error: { type: string }
+        requiresUpgrade: { type: boolean, enum: [true] }
+        kind: { type: string }
+    InstitutionApiKey:
+      type: object
+      required: [id, label, prefix, createdAt]
+      properties:
+        id: { type: integer }
+        label: { type: string }
+        prefix:
+          type: string
+          description: First 12 chars of the plaintext key (e.g. `jum_a1b2c3d4`).
+        createdAt: { type: string, format: date-time }
+        lastUsedAt:
+          type: string
+          format: date-time
+          nullable: true
+        revokedAt:
+          type: string
+          format: date-time
+          nullable: true
+    InstitutionApiKeyCreated:
+      type: object
+      required: [id, label, prefix, key, createdAt]
+      properties:
+        id: { type: integer }
+        label: { type: string }
+        prefix: { type: string }
+        key:
+          type: string
+          description: |
+            The plaintext key. Returned exactly ONCE on creation; only its
+            SHA-256 hash is stored server-side. Treat as a secret.
+        createdAt: { type: string, format: date-time }
+    SisStudentRow:
+      type: object
+      required: [candidateId, fullName, email, verifiedAt]
+      properties:
+        candidateId: { type: integer }
+        fullName: { type: string }
+        email: { type: string }
+        phone: { type: string, nullable: true }
+        verifiedAt: { type: string, format: date-time }
+        verifiedByName: { type: string, nullable: true }
+        facultyName: { type: string, nullable: true }
+        departmentName: { type: string, nullable: true }
+    SisStudentRoster:
+      type: object
+      required: [institutionId, generatedAt, students]
+      properties:
+        institutionId: { type: integer }
+        generatedAt: { type: string, format: date-time }
+        students:
+          type: array
+          items: { $ref: "#/components/schemas/SisStudentRow" }
     GrowthPlanResource:
       type: object
       required: [title, url, estMinutes]

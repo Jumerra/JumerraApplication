@@ -57,6 +57,8 @@ export const institutionsTable = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    // Soft-delete marker. Null = active. See lib/soft-delete.ts.
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
   (t) => ({
     institutionAccountManagerIdx: index(

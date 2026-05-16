@@ -79,6 +79,12 @@ export const candidatesTable = pgTable("candidates", {
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
+  // Soft-delete marker. Null = active. When set, the candidate is
+  // hidden from public listings, search, and matching but rows that
+  // reference it (applications, endorsements, hires, …) survive so
+  // the historical workflow data stays intact. Restoring is a matter
+  // of clearing the column — see lib/soft-delete.ts on the server.
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
 });
 
 export type Candidate = typeof candidatesTable.$inferSelect;

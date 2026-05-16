@@ -71,6 +71,7 @@ import type {
   CreateCandidate,
   CreateEmployer,
   CreateInstitution,
+  CreateInstitutionApiKeyBody,
   CreateInstitutionCohortRequest,
   CreateInstitutionDepartment,
   CreateInstitutionFacility,
@@ -113,6 +114,8 @@ import type {
   HiresAnalyticsResponse,
   Institution,
   InstitutionAnalyticsResponse,
+  InstitutionApiKey,
+  InstitutionApiKeyCreated,
   InstitutionCohort,
   InstitutionCohortCurve,
   InstitutionCohortLeaderboard,
@@ -176,8 +179,10 @@ import type {
   ReportApplicationSalary200,
   ReportSalary,
   RequestReferenceRequest,
+  RequiresUpgrade,
   ReverseOffer,
   ReverseOfferInput,
+  RevokeInstitutionApiKey200,
   SalaryBand,
   SalaryInsight,
   SavedSearch,
@@ -190,6 +195,7 @@ import type {
   SetMyEmployerFastTrackBody,
   SetupPasswordRequest,
   SetupTokenInfo,
+  SisStudentRoster,
   SiteContentResponse,
   Skill,
   StaffListResponse,
@@ -17554,3 +17560,356 @@ export const useDismissGrowthSkill = <
 > => {
   return useMutation(getDismissGrowthSkillMutationOptions(options));
 };
+
+/**
+ * @summary List API keys for an institution (owner or admin only)
+ */
+export const getListInstitutionApiKeysUrl = (id: number) => {
+  return `/api/institutions/${id}/api-keys`;
+};
+
+export const listInstitutionApiKeys = async (
+  id: number,
+  options?: RequestInit,
+): Promise<InstitutionApiKey[]> => {
+  return customFetch<InstitutionApiKey[]>(getListInstitutionApiKeysUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListInstitutionApiKeysQueryKey = (id: number) => {
+  return [`/api/institutions/${id}/api-keys`] as const;
+};
+
+export const getListInstitutionApiKeysQueryOptions = <
+  TData = Awaited<ReturnType<typeof listInstitutionApiKeys>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listInstitutionApiKeys>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListInstitutionApiKeysQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listInstitutionApiKeys>>
+  > = ({ signal }) => listInstitutionApiKeys(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listInstitutionApiKeys>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListInstitutionApiKeysQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listInstitutionApiKeys>>
+>;
+export type ListInstitutionApiKeysQueryError = ErrorType<void>;
+
+/**
+ * @summary List API keys for an institution (owner or admin only)
+ */
+
+export function useListInstitutionApiKeys<
+  TData = Awaited<ReturnType<typeof listInstitutionApiKeys>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listInstitutionApiKeys>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListInstitutionApiKeysQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Mint a new API key. The plaintext key is returned ONCE in the
+`key` field; only its SHA-256 is persisted. Institution Pro only.
+
+ */
+export const getCreateInstitutionApiKeyUrl = (id: number) => {
+  return `/api/institutions/${id}/api-keys`;
+};
+
+export const createInstitutionApiKey = async (
+  id: number,
+  createInstitutionApiKeyBody?: CreateInstitutionApiKeyBody,
+  options?: RequestInit,
+): Promise<InstitutionApiKeyCreated> => {
+  return customFetch<InstitutionApiKeyCreated>(
+    getCreateInstitutionApiKeyUrl(id),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(createInstitutionApiKeyBody),
+    },
+  );
+};
+
+export const getCreateInstitutionApiKeyMutationOptions = <
+  TError = ErrorType<void | RequiresUpgrade>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createInstitutionApiKey>>,
+    TError,
+    { id: number; data: BodyType<CreateInstitutionApiKeyBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createInstitutionApiKey>>,
+  TError,
+  { id: number; data: BodyType<CreateInstitutionApiKeyBody> },
+  TContext
+> => {
+  const mutationKey = ["createInstitutionApiKey"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createInstitutionApiKey>>,
+    { id: number; data: BodyType<CreateInstitutionApiKeyBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return createInstitutionApiKey(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateInstitutionApiKeyMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createInstitutionApiKey>>
+>;
+export type CreateInstitutionApiKeyMutationBody =
+  BodyType<CreateInstitutionApiKeyBody>;
+export type CreateInstitutionApiKeyMutationError =
+  ErrorType<void | RequiresUpgrade>;
+
+/**
+ * @summary Mint a new API key. The plaintext key is returned ONCE in the
+`key` field; only its SHA-256 is persisted. Institution Pro only.
+
+ */
+export const useCreateInstitutionApiKey = <
+  TError = ErrorType<void | RequiresUpgrade>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createInstitutionApiKey>>,
+    TError,
+    { id: number; data: BodyType<CreateInstitutionApiKeyBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createInstitutionApiKey>>,
+  TError,
+  { id: number; data: BodyType<CreateInstitutionApiKeyBody> },
+  TContext
+> => {
+  return useMutation(getCreateInstitutionApiKeyMutationOptions(options));
+};
+
+/**
+ * @summary Revoke (soft-delete) an API key. Idempotent against a re-revoke.
+ */
+export const getRevokeInstitutionApiKeyUrl = (id: number, keyId: number) => {
+  return `/api/institutions/${id}/api-keys/${keyId}`;
+};
+
+export const revokeInstitutionApiKey = async (
+  id: number,
+  keyId: number,
+  options?: RequestInit,
+): Promise<RevokeInstitutionApiKey200> => {
+  return customFetch<RevokeInstitutionApiKey200>(
+    getRevokeInstitutionApiKeyUrl(id, keyId),
+    {
+      ...options,
+      method: "DELETE",
+    },
+  );
+};
+
+export const getRevokeInstitutionApiKeyMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof revokeInstitutionApiKey>>,
+    TError,
+    { id: number; keyId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof revokeInstitutionApiKey>>,
+  TError,
+  { id: number; keyId: number },
+  TContext
+> => {
+  const mutationKey = ["revokeInstitutionApiKey"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof revokeInstitutionApiKey>>,
+    { id: number; keyId: number }
+  > = (props) => {
+    const { id, keyId } = props ?? {};
+
+    return revokeInstitutionApiKey(id, keyId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RevokeInstitutionApiKeyMutationResult = NonNullable<
+  Awaited<ReturnType<typeof revokeInstitutionApiKey>>
+>;
+
+export type RevokeInstitutionApiKeyMutationError = ErrorType<void>;
+
+/**
+ * @summary Revoke (soft-delete) an API key. Idempotent against a re-revoke.
+ */
+export const useRevokeInstitutionApiKey = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof revokeInstitutionApiKey>>,
+    TError,
+    { id: number; keyId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof revokeInstitutionApiKey>>,
+  TError,
+  { id: number; keyId: number },
+  TContext
+> => {
+  return useMutation(getRevokeInstitutionApiKeyMutationOptions(options));
+};
+
+/**
+ * @summary Server-to-server SIS endpoint. Authenticates via
+`Authorization: Bearer <key>` (no session cookie). Returns the
+verified roster for the institution that minted the key.
+
+ */
+export const getSisListStudentsUrl = () => {
+  return `/api/api/v1/institutions/students`;
+};
+
+export const sisListStudents = async (
+  options?: RequestInit,
+): Promise<SisStudentRoster> => {
+  return customFetch<SisStudentRoster>(getSisListStudentsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getSisListStudentsQueryKey = () => {
+  return [`/api/api/v1/institutions/students`] as const;
+};
+
+export const getSisListStudentsQueryOptions = <
+  TData = Awaited<ReturnType<typeof sisListStudents>>,
+  TError = ErrorType<void | RequiresUpgrade>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof sisListStudents>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getSisListStudentsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof sisListStudents>>> = ({
+    signal,
+  }) => sisListStudents({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof sisListStudents>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type SisListStudentsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof sisListStudents>>
+>;
+export type SisListStudentsQueryError = ErrorType<void | RequiresUpgrade>;
+
+/**
+ * @summary Server-to-server SIS endpoint. Authenticates via
+`Authorization: Bearer <key>` (no session cookie). Returns the
+verified roster for the institution that minted the key.
+
+ */
+
+export function useSisListStudents<
+  TData = Awaited<ReturnType<typeof sisListStudents>>,
+  TError = ErrorType<void | RequiresUpgrade>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof sisListStudents>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getSisListStudentsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}

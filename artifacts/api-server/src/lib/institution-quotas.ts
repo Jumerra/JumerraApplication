@@ -109,6 +109,36 @@ export type QuotaError = {
 };
 
 /**
+ * Pure quota evaluator (no DB access) used by `enforceStarterQuota`
+ * and exposed for unit testing. Returns the 402 payload when the
+ * Starter cap is exceeded, or `null` when the action is allowed.
+ *
+ * `premium` short-circuits to allowed — Pro institutions ignore the
+ * Starter caps entirely.
+ */
+export function evaluateStarterQuota(opts: {
+  premium: boolean;
+  kind: QuotaKind;
+  current: number;
+  limits?: typeof STARTER_LIMITS;
+}): QuotaError | null {
+  if (opts.premium) return null;
+  const limits = opts.limits ?? STARTER_LIMITS;
+  const limit = limits[opts.kind];
+  if (opts.current < limit) return null;
+  return {
+    status: 402,
+    body: {
+      error: STARTER_LIMIT_MESSAGES[opts.kind](limit),
+      requiresUpgrade: true,
+      kind: opts.kind,
+      limit,
+      current: opts.current,
+    },
+  };
+}
+
+/**
  * Throws-as-return: returns a `QuotaError` payload the caller should
  * forward verbatim (`res.status(err.status).json(err.body)`), or
  * `null` when the action is allowed.
@@ -121,21 +151,14 @@ export async function enforceStarterQuota(
   institutionId: number,
   kind: QuotaKind,
 ): Promise<QuotaError | null> {
-  if (await isInstitutionPremium(institutionId)) return null;
+  const premium = await isInstitutionPremium(institutionId);
+  if (premium) return null;
   const counts = await loadQuotaCounts(institutionId);
-  const current = counts[kind];
-  const limit = STARTER_LIMITS[kind];
-  if (current < limit) return null;
-  return {
-    status: 402,
-    body: {
-      error: STARTER_LIMIT_MESSAGES[kind](limit),
-      requiresUpgrade: true,
-      kind,
-      limit,
-      current,
-    },
-  };
+  return evaluateStarterQuota({
+    premium,
+    kind,
+    current: counts[kind],
+  });
 }
 
 const STARTER_LIMIT_MESSAGES: Record<QuotaKind, (limit: number) => string> = {

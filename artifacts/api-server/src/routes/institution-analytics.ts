@@ -675,14 +675,36 @@ router.delete(
       return;
     }
 
-    // Scoped staff can only remove candidates within their scope.
-    const effectiveDeptIds = await narrowDepartmentScope(scope, institutionId);
-    const allowedIds = new Set(
-      await getScopedStudentIds(institutionId, effectiveDeptIds),
-    );
-    if (!allowedIds.has(candidateId)) {
-      res.status(403).json({ error: "Candidate is outside your scope" });
-      return;
+    // Scoped staff can only remove candidates whose affiliation
+    // department is within their scope. We check the affiliation
+    // *regardless of verification status* so stale memberships (e.g.
+    // a previously-verified student whose verification was revoked)
+    // can still be cleaned up by staff. Owner-equivalent viewers
+    // (orgWide=true) can always remove.
+    if (!scope.orgWide) {
+      const effectiveDeptIds = await narrowDepartmentScope(
+        scope,
+        institutionId,
+      );
+      const [link] = await db
+        .select({ departmentId: candidateInstitutionsTable.departmentId })
+        .from(candidateInstitutionsTable)
+        .where(
+          and(
+            eq(candidateInstitutionsTable.institutionId, institutionId),
+            eq(candidateInstitutionsTable.candidateId, candidateId),
+          ),
+        )
+        .limit(1);
+      const inScope =
+        link != null &&
+        link.departmentId != null &&
+        (effectiveDeptIds === null ||
+          effectiveDeptIds.includes(link.departmentId));
+      if (!inScope) {
+        res.status(403).json({ error: "Candidate is outside your scope" });
+        return;
+      }
     }
 
     await db

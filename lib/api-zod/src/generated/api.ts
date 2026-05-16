@@ -1890,6 +1890,94 @@ export const SetMyEmployerFastTrackResponse = zod
   .describe("Fast-Track 48hr-response pledge state for one employer (task");
 
 /**
+ * Returns up to 10 high-fit candidates for the calling employer,
+ranked across the employer's active public job postings.
+The deck is cached per (employer, local calendar day) using the
+employer's `dailyDeckTimezone`, and naturally excludes anyone
+already shortlisted or dismissed.
+
+ * @summary Today's swipe-back candidate deck for the signed-in employer.
+ */
+export const GetMyDailyDeckResponse = zod.object({
+  deckDate: zod
+    .string()
+    .describe("YYYY-MM-DD in the employer's local timezone"),
+  openJobsCount: zod.number(),
+  items: zod.array(
+    zod.object({
+      candidate: zod.object({
+        id: zod.number(),
+        fullName: zod.string(),
+        headline: zod.string().nullish(),
+        location: zod.string().nullish(),
+        avatarUrl: zod.string().nullish(),
+        bio: zod.string().nullish(),
+        skills: zod.array(zod.string()),
+        talentScore: zod.number(),
+        yearsExperience: zod.number(),
+        openToOffers: zod.boolean(),
+      }),
+      bestJobId: zod.number().nullish(),
+      bestJobTitle: zod.string().nullish(),
+      matchScore: zod.number(),
+      matchedSkills: zod.array(zod.string()),
+      missingSkills: zod.array(zod.string()),
+      summary: zod.string(),
+    }),
+  ),
+});
+
+/**
+ * @summary Right-swipe — add a deck candidate to a talent pool and notify them.
+ */
+export const ShortlistDailyDeckCandidateParams = zod.object({
+  candidateId: zod.coerce.number(),
+});
+
+export const ShortlistDailyDeckCandidateBody = zod.object({
+  poolId: zod
+    .number()
+    .optional()
+    .describe("Existing pool to add into; must belong to caller's employer."),
+  jobId: zod
+    .number()
+    .optional()
+    .describe(
+      "When set, routes into a per-role pool named after the job title.",
+    ),
+  poolName: zod
+    .string()
+    .optional()
+    .describe("Override the auto-derived pool name."),
+});
+
+export const ShortlistDailyDeckCandidateResponse = zod.object({
+  ok: zod.boolean(),
+  poolId: zod.number(),
+});
+
+/**
+ * @summary Left-swipe — permanently dismiss a deck candidate for this employer (optionally scoped to one job).
+ */
+export const DismissDailyDeckCandidateParams = zod.object({
+  candidateId: zod.coerce.number(),
+});
+
+export const dismissDailyDeckCandidateBodyReasonMax = 280;
+
+export const DismissDailyDeckCandidateBody = zod.object({
+  reason: zod.string().max(dismissDailyDeckCandidateBodyReasonMax).optional(),
+  jobId: zod
+    .number()
+    .nullish()
+    .describe("Scope dismissal to a specific job; null = employer-wide."),
+});
+
+export const DismissDailyDeckCandidateResponse = zod.object({
+  ok: zod.boolean(),
+});
+
+/**
  * @summary AI-style ranked job recommendations for a candidate
  */
 export const GetCandidateRecommendationsParams = zod.object({

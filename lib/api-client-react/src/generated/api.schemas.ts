@@ -3299,6 +3299,57 @@ export interface MockInterview {
   completedAt: string | null;
 }
 
+export interface DailyDeckCandidate {
+  id: number;
+  fullName: string;
+  headline?: string | null;
+  location?: string | null;
+  avatarUrl?: string | null;
+  bio?: string | null;
+  skills: string[];
+  talentScore: number;
+  yearsExperience: number;
+  openToOffers: boolean;
+}
+
+export interface DailyDeckItem {
+  candidate: DailyDeckCandidate;
+  bestJobId?: number | null;
+  bestJobTitle?: string | null;
+  matchScore: number;
+  matchedSkills: string[];
+  missingSkills: string[];
+  summary: string;
+}
+
+export interface DailyDeckResponse {
+  /** YYYY-MM-DD in the employer's local timezone */
+  deckDate: string;
+  openJobsCount: number;
+  items: DailyDeckItem[];
+}
+
+export interface DailyDeckShortlistBody {
+  /** Existing pool to add into; must belong to caller's employer. */
+  poolId?: number;
+  /** When set, routes into a per-role pool named after the job title. */
+  jobId?: number;
+  /** Override the auto-derived pool name. */
+  poolName?: string;
+}
+
+export interface DailyDeckShortlistResponse {
+  ok: boolean;
+  poolId: number;
+}
+
+export interface DailyDeckDismissBody {
+  /** @maxLength 280 */
+  reason?: string;
+  /** Scope dismissal to a specific job; null = employer-wide. */
+  jobId?: number | null;
+}
+
 export interface MockInterviewListResponse {
   items: MockInterview[];
 }
@@ -3414,6 +3465,10 @@ export type SetMyEmployerFastTrackBody = {
 
 export type SetMyEmployerFastTrack409 = {
   error?: string;
+};
+
+export type DismissDailyDeckCandidate200 = {
+  ok: boolean;
 };
 
 export type ListApplicationsParams = {

@@ -760,6 +760,90 @@ paths:
                 properties:
                   error: { type: string }
 
+  /me/daily-deck:
+    get:
+      operationId: getMyDailyDeck
+      tags: [employers]
+      summary: Today's swipe-back candidate deck for the signed-in employer.
+      description: |
+        Returns up to 10 high-fit candidates for the calling employer,
+        ranked across the employer's active public job postings.
+        The deck is cached per (employer, local calendar day) using the
+        employer's `dailyDeckTimezone`, and naturally excludes anyone
+        already shortlisted or dismissed.
+      responses:
+        "200":
+          description: Today's deck
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DailyDeckResponse" }
+        "403":
+          description: Caller is not an employer
+        "404":
+          description: Employer record not found
+
+  /me/daily-deck/{candidateId}/shortlist:
+    post:
+      operationId: shortlistDailyDeckCandidate
+      tags: [employers]
+      summary: Right-swipe — add a deck candidate to a talent pool and notify them.
+      parameters:
+        - in: path
+          name: candidateId
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DailyDeckShortlistBody" }
+      responses:
+        "200":
+          description: Shortlisted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DailyDeckShortlistResponse" }
+        "400":
+          description: Invalid candidate id or body
+        "403":
+          description: Caller is not an employer
+        "404":
+          description: Candidate, job, or pool not found
+
+  /me/daily-deck/{candidateId}/dismiss:
+    post:
+      operationId: dismissDailyDeckCandidate
+      tags: [employers]
+      summary: Left-swipe — permanently dismiss a deck candidate for this employer (optionally scoped to one job).
+      parameters:
+        - in: path
+          name: candidateId
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DailyDeckDismissBody" }
+      responses:
+        "200":
+          description: Dismissed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                required: [ok]
+        "400":
+          description: Invalid candidate id or body
+        "403":
+          description: Caller is not an employer
+        "404":
+          description: Candidate or job not found
+        "500":
+          description: Database write failed
+
   /candidates/{id}/recommendations:
     get:
       operationId: getCandidateRecommendations
@@ -7657,6 +7741,69 @@ components:
         - createdAt
         - updatedAt
         - completedAt
+
+    DailyDeckCandidate:
+      type: object
+      properties:
+        id: { type: integer }
+        fullName: { type: string }
+        headline: { type: string, nullable: true }
+        location: { type: string, nullable: true }
+        avatarUrl: { type: string, nullable: true }
+        bio: { type: string, nullable: true }
+        skills:
+          type: array
+          items: { type: string }
+        talentScore: { type: integer }
+        yearsExperience: { type: integer }
+        openToOffers: { type: boolean }
+      required: [id, fullName, skills, talentScore, yearsExperience, openToOffers]
+
+    DailyDeckItem:
+      type: object
+      properties:
+        candidate: { $ref: "#/components/schemas/DailyDeckCandidate" }
+        bestJobId: { type: integer, nullable: true }
+        bestJobTitle: { type: string, nullable: true }
+        matchScore: { type: integer }
+        matchedSkills:
+          type: array
+          items: { type: string }
+        missingSkills:
+          type: array
+          items: { type: string }
+        summary: { type: string }
+      required: [candidate, matchScore, matchedSkills, missingSkills, summary]
+
+    DailyDeckResponse:
+      type: object
+      properties:
+        deckDate: { type: string, description: "YYYY-MM-DD in the employer's local timezone" }
+        openJobsCount: { type: integer }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/DailyDeckItem" }
+      required: [deckDate, openJobsCount, items]
+
+    DailyDeckShortlistBody:
+      type: object
+      properties:
+        poolId: { type: integer, description: "Existing pool to add into; must belong to caller's employer." }
+        jobId: { type: integer, description: "When set, routes into a per-role pool named after the job title." }
+        poolName: { type: string, description: "Override the auto-derived pool name." }
+
+    DailyDeckShortlistResponse:
+      type: object
+      properties:
+        ok: { type: boolean }
+        poolId: { type: integer }
+      required: [ok, poolId]
+
+    DailyDeckDismissBody:
+      type: object
+      properties:
+        reason: { type: string, maxLength: 280 }
+        jobId: { type: integer, nullable: true, description: "Scope dismissal to a specific job; null = employer-wide." }
 
     MockInterviewListResponse:
       type: object

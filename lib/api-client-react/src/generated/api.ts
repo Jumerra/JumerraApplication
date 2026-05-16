@@ -81,7 +81,12 @@ import type {
   CreateSavedSearch,
   CreateTalentPoolRequest,
   CvSettings,
+  DailyDeckDismissBody,
+  DailyDeckResponse,
+  DailyDeckShortlistBody,
+  DailyDeckShortlistResponse,
   DeclineInterviewInviteRequest,
+  DismissDailyDeckCandidate200,
   DismissGrowthSkill200,
   Employer,
   EmployerAnalyticsResponse,
@@ -3546,6 +3551,269 @@ export const useSetMyEmployerFastTrack = <
   TContext
 > => {
   return useMutation(getSetMyEmployerFastTrackMutationOptions(options));
+};
+
+/**
+ * Returns up to 10 high-fit candidates for the calling employer,
+ranked across the employer's active public job postings.
+The deck is cached per (employer, local calendar day) using the
+employer's `dailyDeckTimezone`, and naturally excludes anyone
+already shortlisted or dismissed.
+
+ * @summary Today's swipe-back candidate deck for the signed-in employer.
+ */
+export const getGetMyDailyDeckUrl = () => {
+  return `/api/me/daily-deck`;
+};
+
+export const getMyDailyDeck = async (
+  options?: RequestInit,
+): Promise<DailyDeckResponse> => {
+  return customFetch<DailyDeckResponse>(getGetMyDailyDeckUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetMyDailyDeckQueryKey = () => {
+  return [`/api/me/daily-deck`] as const;
+};
+
+export const getGetMyDailyDeckQueryOptions = <
+  TData = Awaited<ReturnType<typeof getMyDailyDeck>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getMyDailyDeck>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetMyDailyDeckQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyDailyDeck>>> = ({
+    signal,
+  }) => getMyDailyDeck({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getMyDailyDeck>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetMyDailyDeckQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getMyDailyDeck>>
+>;
+export type GetMyDailyDeckQueryError = ErrorType<void>;
+
+/**
+ * @summary Today's swipe-back candidate deck for the signed-in employer.
+ */
+
+export function useGetMyDailyDeck<
+  TData = Awaited<ReturnType<typeof getMyDailyDeck>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getMyDailyDeck>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetMyDailyDeckQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Right-swipe — add a deck candidate to a talent pool and notify them.
+ */
+export const getShortlistDailyDeckCandidateUrl = (candidateId: number) => {
+  return `/api/me/daily-deck/${candidateId}/shortlist`;
+};
+
+export const shortlistDailyDeckCandidate = async (
+  candidateId: number,
+  dailyDeckShortlistBody?: DailyDeckShortlistBody,
+  options?: RequestInit,
+): Promise<DailyDeckShortlistResponse> => {
+  return customFetch<DailyDeckShortlistResponse>(
+    getShortlistDailyDeckCandidateUrl(candidateId),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(dailyDeckShortlistBody),
+    },
+  );
+};
+
+export const getShortlistDailyDeckCandidateMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof shortlistDailyDeckCandidate>>,
+    TError,
+    { candidateId: number; data: BodyType<DailyDeckShortlistBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof shortlistDailyDeckCandidate>>,
+  TError,
+  { candidateId: number; data: BodyType<DailyDeckShortlistBody> },
+  TContext
+> => {
+  const mutationKey = ["shortlistDailyDeckCandidate"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof shortlistDailyDeckCandidate>>,
+    { candidateId: number; data: BodyType<DailyDeckShortlistBody> }
+  > = (props) => {
+    const { candidateId, data } = props ?? {};
+
+    return shortlistDailyDeckCandidate(candidateId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ShortlistDailyDeckCandidateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof shortlistDailyDeckCandidate>>
+>;
+export type ShortlistDailyDeckCandidateMutationBody =
+  BodyType<DailyDeckShortlistBody>;
+export type ShortlistDailyDeckCandidateMutationError = ErrorType<void>;
+
+/**
+ * @summary Right-swipe — add a deck candidate to a talent pool and notify them.
+ */
+export const useShortlistDailyDeckCandidate = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof shortlistDailyDeckCandidate>>,
+    TError,
+    { candidateId: number; data: BodyType<DailyDeckShortlistBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof shortlistDailyDeckCandidate>>,
+  TError,
+  { candidateId: number; data: BodyType<DailyDeckShortlistBody> },
+  TContext
+> => {
+  return useMutation(getShortlistDailyDeckCandidateMutationOptions(options));
+};
+
+/**
+ * @summary Left-swipe — permanently dismiss a deck candidate for this employer (optionally scoped to one job).
+ */
+export const getDismissDailyDeckCandidateUrl = (candidateId: number) => {
+  return `/api/me/daily-deck/${candidateId}/dismiss`;
+};
+
+export const dismissDailyDeckCandidate = async (
+  candidateId: number,
+  dailyDeckDismissBody?: DailyDeckDismissBody,
+  options?: RequestInit,
+): Promise<DismissDailyDeckCandidate200> => {
+  return customFetch<DismissDailyDeckCandidate200>(
+    getDismissDailyDeckCandidateUrl(candidateId),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(dailyDeckDismissBody),
+    },
+  );
+};
+
+export const getDismissDailyDeckCandidateMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof dismissDailyDeckCandidate>>,
+    TError,
+    { candidateId: number; data: BodyType<DailyDeckDismissBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof dismissDailyDeckCandidate>>,
+  TError,
+  { candidateId: number; data: BodyType<DailyDeckDismissBody> },
+  TContext
+> => {
+  const mutationKey = ["dismissDailyDeckCandidate"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof dismissDailyDeckCandidate>>,
+    { candidateId: number; data: BodyType<DailyDeckDismissBody> }
+  > = (props) => {
+    const { candidateId, data } = props ?? {};
+
+    return dismissDailyDeckCandidate(candidateId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DismissDailyDeckCandidateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof dismissDailyDeckCandidate>>
+>;
+export type DismissDailyDeckCandidateMutationBody =
+  BodyType<DailyDeckDismissBody>;
+export type DismissDailyDeckCandidateMutationError = ErrorType<void>;
+
+/**
+ * @summary Left-swipe — permanently dismiss a deck candidate for this employer (optionally scoped to one job).
+ */
+export const useDismissDailyDeckCandidate = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof dismissDailyDeckCandidate>>,
+    TError,
+    { candidateId: number; data: BodyType<DailyDeckDismissBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof dismissDailyDeckCandidate>>,
+  TError,
+  { candidateId: number; data: BodyType<DailyDeckDismissBody> },
+  TContext
+> => {
+  return useMutation(getDismissDailyDeckCandidateMutationOptions(options));
 };
 
 /**

@@ -12,7 +12,7 @@
  */
 
 import { Router, type IRouter } from "express";
-import { and, eq, gte, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, isNull, or } from "drizzle-orm";
 import { z } from "zod";
 import {
   db,
@@ -32,7 +32,28 @@ const router: IRouter = Router();
 const DECK_SIZE = 10;
 const CANDIDATE_POOL_CAP = 500;
 
-function todayUTCDate(): string {
+/**
+ * Returns the YYYY-MM-DD calendar date *in the given IANA timezone*.
+ * The deck rolls over at local midnight in the employer's preferred
+ * zone so the "today" key matches what the recruiter sees on their
+ * own clock, not UTC's clock. Falls back to UTC if the zone is
+ * invalid (Intl throws RangeError on unknown identifiers).
+ */
+function localDeckDate(timeZone: string): string {
+  try {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(new Date());
+    const y = parts.find((p) => p.type === "year")?.value;
+    const m = parts.find((p) => p.type === "month")?.value;
+    const d = parts.find((p) => p.type === "day")?.value;
+    if (y && m && d) return `${y}-${m}-${d}`;
+  } catch {
+    // fall through to UTC
+  }
   return new Date().toISOString().slice(0, 10);
 }
 
@@ -166,7 +187,7 @@ function serializeCandidate(c: typeof candidatesTable.$inferSelect) {
 router.get("/me/daily-deck", requireAuth, async (req, res) => {
   const employer = await resolveEmployer(req, res);
   if (!employer) return;
-  const deckDate = todayUTCDate();
+  const deckDate = localDeckDate(employer.dailyDeckTimezone ?? "UTC");
 
   // Already-shortlisted candidates (anyone in any pool for this employer)
   // and explicitly dismissed ones are excluded from new decks.
@@ -328,12 +349,31 @@ router.post(
       return;
     }
 
-    // Resolve / create the pool. Default to a per-employer
-    // "Daily picks" pool so the user doesn't have to choose one
-    // before they can swipe.
+    // Resolve / create the pool. When a `jobId` is supplied (e.g.
+    // from `bestJobId` on the deck card) we route into a per-role
+    // shortlist pool named after the job title, so the matching role
+    // gets its own pipeline. Falls back to a per-employer "Daily
+    // picks" pool when no job context is available.
     let poolId = parsed.data.poolId;
     if (!poolId) {
-      const name = parsed.data.poolName ?? "Daily picks";
+      let derivedName = parsed.data.poolName ?? "Daily picks";
+      if (parsed.data.jobId) {
+        const [job] = await db
+          .select({
+            id: jobsTable.id,
+            title: jobsTable.title,
+            employerId: jobsTable.employerId,
+          })
+          .from(jobsTable)
+          .where(eq(jobsTable.id, parsed.data.jobId))
+          .limit(1);
+        if (!job || job.employerId !== employer.id) {
+          res.status(404).json({ error: "Job not found" });
+          return;
+        }
+        derivedName = parsed.data.poolName ?? `${job.title} shortlist`;
+      }
+      const name = derivedName;
       const [existing] = await db
         .select()
         .from(employerTalentPoolsTable)
@@ -452,6 +492,31 @@ router.post(
       return;
     }
 
+    // Validate candidate exists up-front so we return 404 instead of
+    // an opaque 500 from a downstream FK violation. Per-role dismissal
+    // is supported via optional jobId (verified to belong to this
+    // employer when provided).
+    const [candidate] = await db
+      .select({ id: candidatesTable.id })
+      .from(candidatesTable)
+      .where(eq(candidatesTable.id, candidateId))
+      .limit(1);
+    if (!candidate) {
+      res.status(404).json({ error: "Candidate not found" });
+      return;
+    }
+    if (parsed.data.jobId) {
+      const [job] = await db
+        .select({ id: jobsTable.id, employerId: jobsTable.employerId })
+        .from(jobsTable)
+        .where(eq(jobsTable.id, parsed.data.jobId))
+        .limit(1);
+      if (!job || job.employerId !== employer.id) {
+        res.status(404).json({ error: "Job not found" });
+        return;
+      }
+    }
+
     try {
       await db
         .insert(employerDismissedCandidatesTable)
@@ -463,18 +528,19 @@ router.post(
         })
         .onConflictDoNothing();
     } catch (err) {
-      // Unique-violation race is fine; anything else we log.
+      // Unique-violation race is fine (the partial unique indexes
+      // already guarantee idempotency). Anything else is a real DB
+      // failure and should surface to the client as a 500.
       const code = (err as { code?: string }).code;
       if (code !== "23505") {
-        req.log.warn({ err }, "daily-deck: dismiss insert failed");
+        req.log.error({ err }, "daily-deck: dismiss insert failed");
+        res.status(500).json({ error: "Could not record dismissal" });
+        return;
       }
     }
 
     res.json({ ok: true });
   },
 );
-
-// Silence unused-import warnings for sql (kept for future timezone work).
-void sql;
 
 export default router;

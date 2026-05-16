@@ -66,6 +66,14 @@ export const employersTable = pgTable(
     fastTrackRevokedUntil: timestamp("fast_track_revoked_until", {
       withTimezone: true,
     }),
+    /**
+     * IANA timezone name (e.g. "Africa/Accra", "Europe/London") used to
+     * compute the local calendar day for the employer's daily candidate
+     * deck (task #79). The deck rolls over at local midnight in this
+     * zone so a recruiter in Accra and one in Tokyo both get a fresh
+     * deck at their own start-of-day. Defaults to UTC for legacy rows.
+     */
+    dailyDeckTimezone: text("daily_deck_timezone").notNull().default("UTC"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

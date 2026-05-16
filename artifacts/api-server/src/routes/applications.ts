@@ -17,6 +17,8 @@ import {
   usersTable,
 } from "@workspace/db";
 import { sendNotification, sendNotificationToCandidate } from "../lib/notifier";
+import { sendHireNotificationEmail, originForBackground } from "../lib/email";
+import { logger as rootLogger } from "../lib/logger";
 import { candidateInstitutionsTable } from "@workspace/db";
 import { isNotNull } from "drizzle-orm";
 import {
@@ -955,6 +957,8 @@ async function notifyInstitutionsOfHire(
   const recipients = await db
     .select({
       userId: usersTable.id,
+      email: usersTable.email,
+      fullName: usersTable.fullName,
       institutionId: usersTable.institutionId,
       institutionName: institutionsTable.name,
     })
@@ -972,9 +976,10 @@ async function notifyInstitutionsOfHire(
     );
   if (recipients.length === 0) return;
 
+  const dashboardLink = `${originForBackground()}/dashboard/institution/analytics`;
   await Promise.all(
-    recipients.map((r) =>
-      sendNotification({
+    recipients.map(async (r) => {
+      await sendNotification({
         userId: r.userId,
         kind: "institution_student_hired",
         title: `${ctx.candidateName} was hired`,
@@ -986,8 +991,25 @@ async function notifyInstitutionsOfHire(
           candidateId,
           institutionId: r.institutionId,
         },
-      }),
-    ),
+      });
+      // Real email fan-out via Resend (no-op stub when RESEND_API_KEY
+      // is unset). Sent in parallel with the in-app notification so a
+      // delivery failure can't suppress the inbox row.
+      try {
+        await sendHireNotificationEmail({
+          to: r.email,
+          recipientName: r.fullName,
+          candidateName: ctx.candidateName,
+          employerName: ctx.employerName,
+          jobTitle: ctx.jobTitle,
+          institutionName: r.institutionName,
+          link: dashboardLink,
+          logger: rootLogger,
+        });
+      } catch (err) {
+        log.warn({ err, userId: r.userId }, "hire notification email failed");
+      }
+    }),
   );
 }
 

@@ -64,6 +64,12 @@ async function buildAll() {
       "@aws-sdk/*",
       "@azure/*",
       "@opentelemetry/*",
+      // Sentry's Node SDK dynamically requires several @opentelemetry/*
+      // instrumentation packages. Bundling it causes esbuild to emit
+      // hard imports for those packages, breaking at runtime when
+      // @opentelemetry/* are external (above). Keep Sentry external too
+      // so Node's resolver handles the whole tree from node_modules.
+      "@sentry/*",
       "@google-cloud/*",
       "@google/*",
       "googleapis",

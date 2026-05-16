@@ -35,7 +35,11 @@ import type { User } from "@workspace/db";
 import { requireAdmin } from "../middleware/require-auth";
 import { requirePermission } from "../lib/permissions";
 import { createSetupToken, findUserByEmail } from "../lib/auth";
-import { sendAuthLinkEmail, originFromReq } from "../lib/email";
+import {
+  sendAuthLinkEmail,
+  sendRegistrationDecisionEmail,
+  originFromReq,
+} from "../lib/email";
 import {
   PERMISSIONS,
   PERMISSION_KEYS,
@@ -212,6 +216,25 @@ router.post("/admin/registrations/:id/approve", requirePermission("registrations
         .where(eq(pendingRegistrationsTable.id, reg.id));
     });
 
+    // Best-effort decision notification. Failures are logged but never
+    // block the approval — admins still see ok=true and can resend
+    // manually via the password-reset flow if email later fails.
+    if (user.role === "candidate" || user.role === "employer" || user.role === "institution") {
+      try {
+        await sendRegistrationDecisionEmail({
+          to: user.email,
+          recipientName: user.fullName,
+          decision: "approved",
+          role: user.role,
+          note: decisionNote,
+          signInUrl: `${originFromReq(req)}/login`,
+          logger: req.log,
+        });
+      } catch (err) {
+        req.log.warn({ err }, "approval email send failed");
+      }
+    }
+
     res.json({ ok: true });
   } catch (err) {
     req.log.error({ err }, "approve failed");
@@ -232,6 +255,12 @@ router.post("/admin/registrations/:id/reject", requirePermission("registrations:
       res.status(404).json({ error: "Registration not found" });
       return;
     }
+    const [userRow] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.id, reg.userId))
+      .limit(1);
+    const note = (req.body?.note as string) ?? null;
     await db
       .update(usersTable)
       .set({ status: "rejected" })
@@ -241,9 +270,29 @@ router.post("/admin/registrations/:id/reject", requirePermission("registrations:
       .set({
         reviewedAt: new Date(),
         reviewedBy: req.currentUser!.id,
-        decisionNote: (req.body?.note as string) ?? null,
+        decisionNote: note,
       })
       .where(eq(pendingRegistrationsTable.id, reg.id));
+    if (
+      userRow &&
+      (userRow.role === "candidate" ||
+        userRow.role === "employer" ||
+        userRow.role === "institution")
+    ) {
+      try {
+        await sendRegistrationDecisionEmail({
+          to: userRow.email,
+          recipientName: userRow.fullName,
+          decision: "rejected",
+          role: userRow.role,
+          note,
+          signInUrl: `${originFromReq(req)}/login`,
+          logger: req.log,
+        });
+      } catch (err) {
+        req.log.warn({ err }, "rejection email send failed");
+      }
+    }
     res.json({ ok: true });
   } catch (err) {
     req.log.error({ err }, "reject failed");

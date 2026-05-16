@@ -21,6 +21,7 @@
     "@anthropic-ai/sdk": "^0.91.1",
     "@google-cloud/storage": "^7.19.0",
     "@resvg/resvg-js": "^2.6.2",
+    "@sentry/node": "^10.53.1",
     "@workspace/api-zod": "workspace:*",
     "@workspace/db": "workspace:*",
     "bcryptjs": "^3.0.3",
@@ -34,7 +35,9 @@
     "google-auth-library": "^10.6.2",
     "pino": "^9",
     "pino-http": "^10",
+    "resend": "^6.12.3",
     "stripe": "^22.1.0",
+    "ulid": "^3.0.2",
     "zod": "catalog:"
   },
   "devDependencies": {

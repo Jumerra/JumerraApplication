@@ -1,11 +1,13 @@
-import express, { type Express } from "express";
+import express, { type Express, type ErrorRequestHandler } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
 import { buildSessionMiddleware, sessionPartitionedCookiePatch } from "./lib/session";
 import { sessionTokenBridge } from "./middleware/session-token-bridge";
+import { requestIdMiddleware } from "./middleware/request-id";
 import { seedSystemRoles } from "./lib/permissions";
+import { attachSentryErrorHandler } from "./lib/sentry-server";
 
 // Fire-and-forget on boot; logs but doesn't block startup. Safe because
 // it's idempotent (no-op when system rows already exist).
@@ -16,9 +18,18 @@ seedSystemRoles().catch((err) => {
 const app: Express = express();
 app.set("trust proxy", 1);
 
+// Request-id MUST be installed before pino-http so the very first log
+// line for the request already carries the id. ULID-based, configurable
+// via incoming `x-request-id` for end-to-end tracing.
+app.use(requestIdMiddleware());
+
 app.use(
   pinoHttp({
     logger,
+    // pino-http will call `req.id ||= genReqId(...)` internally; by
+    // returning the id we set above, we keep one canonical id per
+    // request across log lines AND the response header.
+    genReqId: (req) => (req as unknown as { id?: string }).id ?? "",
     serializers: {
       req(req) {
         return {
@@ -115,6 +126,9 @@ app.use(
       callback(null, false);
     },
     credentials: true,
+    // Expose x-request-id so browser clients can surface it in error
+    // toasts / Sentry breadcrumbs for correlation with server logs.
+    exposedHeaders: ["x-request-id"],
   }),
 );
 // Raw body parsing for payment-provider webhooks MUST come before
@@ -142,5 +156,25 @@ app.use(sessionTokenBridge());
 app.use(buildSessionMiddleware());
 
 app.use("/api", router);
+
+// Sentry's express error handler runs first (only when initialized),
+// then our own JSON error renderer so the client always gets a JSON
+// body instead of Express's default HTML 500 page.
+attachSentryErrorHandler(app);
+
+const jsonErrorHandler: ErrorRequestHandler = (err, req, res, _next) => {
+  // Log with the request-id so an operator can grep the same id in
+  // Sentry, the response body, and the log stream.
+  req.log?.error(
+    { err, requestId: (req as unknown as { id?: string }).id },
+    "unhandled route error",
+  );
+  if (res.headersSent) return;
+  res.status(500).json({
+    error: "Internal server error",
+    requestId: (req as unknown as { id?: string }).id ?? null,
+  });
+};
+app.use(jsonErrorHandler);
 
 export default app;

@@ -227,6 +227,10 @@ export class ApiError<T = unknown> extends Error {
   readonly response: Response;
   readonly method: string;
   readonly url: string;
+  /** The `x-request-id` echoed by the server, when present. Useful for
+   * Sentry breadcrumbs / "show this id to support" UI affordances so a
+   * user-reported failure can be grepped in the server logs. */
+  readonly requestId: string | null;
 
   constructor(
     response: Response,
@@ -243,6 +247,7 @@ export class ApiError<T = unknown> extends Error {
     this.response = response;
     this.method = requestInfo.method;
     this.url = response.url || requestInfo.url;
+    this.requestId = response.headers.get("x-request-id");
   }
 }
 

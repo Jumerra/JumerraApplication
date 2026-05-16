@@ -1,3 +1,12 @@
+// Sentry must initialize before any module that uses http/express so
+// its instrumentation can patch the runtime in time. Same for env
+// validation — fail loudly + early rather than on the first request.
+import { initSentry } from "./lib/sentry-server";
+import { validateEnv } from "./lib/env-validator";
+
+validateEnv();
+initSentry();
+
 import app from "./app";
 import { logger } from "./lib/logger";
 import { startEngagementScheduler } from "./lib/digest-worker";

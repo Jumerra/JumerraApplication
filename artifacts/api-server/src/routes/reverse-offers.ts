@@ -491,6 +491,16 @@ router.post(
       res.status(409).json({ error: `Offer is already ${offer.status}` });
       return;
     }
+    // Candidate-authored counters (parentOfferId set) are awaiting an
+    // employer response — the candidate must not self-accept their own
+    // counter. Only the original employer-authored offer can be accepted
+    // by the candidate. Same goes for decline/counter below.
+    if (offer.parentOfferId) {
+      res.status(409).json({
+        error: "This is your counter offer. Wait for the employer to respond.",
+      });
+      return;
+    }
 
     // Find or create a placeholder "reverse-offer" job for the employer
     // so we can produce an application row. We deliberately do NOT
@@ -593,6 +603,12 @@ router.post(
       res.status(409).json({ error: `Offer is already ${offer.status}` });
       return;
     }
+    if (offer.parentOfferId) {
+      res.status(409).json({
+        error: "This is your counter offer. Wait for the employer to respond.",
+      });
+      return;
+    }
     const flipped = await db
       .update(reverseOffersTable)
       .set({ status: "declined" })
@@ -655,8 +671,10 @@ router.post(
       return;
     }
 
-    // Single-counter only — if this offer already has a counter chain
-    // (parentOfferId set), refuse another round.
+    // Single-counter only — if this offer is itself a counter
+    // (parentOfferId set), it's the candidate's own pending counter
+    // and they must wait for the employer to respond. Refuse another
+    // round either way.
     if (offer.parentOfferId) {
       res
         .status(409)
@@ -716,6 +734,167 @@ router.post(
     }
 
     res.status(201).json(serializeOffer(counter!));
+  },
+);
+
+// ---------------------------------------------------------------------
+// Employer endpoints for responding to a candidate's counter-offer.
+// A counter is a reverse_offers row with parentOfferId set; its owner
+// (the candidate) cannot accept/decline it themselves — only the
+// employer who posted the original offer can.
+// ---------------------------------------------------------------------
+
+async function loadCounterForEmployer(
+  offerId: number,
+  employerId: number,
+): Promise<typeof reverseOffersTable.$inferSelect | null> {
+  const [row] = await db
+    .select()
+    .from(reverseOffersTable)
+    .where(
+      and(
+        eq(reverseOffersTable.id, offerId),
+        eq(reverseOffersTable.employerId, employerId),
+      ),
+    )
+    .limit(1);
+  return row ?? null;
+}
+
+router.post(
+  "/me/sent-offers/:id/accept-counter",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const user = req.currentUser!;
+    if (user.role !== "employer" || !user.employerId) {
+      res.status(403).json({ error: "Employers only" });
+      return;
+    }
+    const offerId = Number(req.params.id);
+    if (!Number.isInteger(offerId) || offerId <= 0) {
+      res.status(400).json({ error: "Invalid offer id" });
+      return;
+    }
+    const offer = await loadCounterForEmployer(offerId, user.employerId);
+    if (!offer || !offer.parentOfferId) {
+      res.status(404).json({ error: "Counter not found" });
+      return;
+    }
+    if (offer.status !== "pending") {
+      res.status(409).json({ error: `Counter is already ${offer.status}` });
+      return;
+    }
+
+    // Same private job + application bridge as the candidate-accept
+    // path, then atomic flip with rollback on lost race.
+    const [job] = await db
+      .insert(jobsTable)
+      .values({
+        employerId: offer.employerId,
+        title: offer.jobTitle,
+        summary: `Counter offer accepted by employer.`,
+        description: `Counter offer accepted. Salary ${offer.salaryMin}-${offer.salaryMax} ${offer.currency}.`,
+        location: "Remote",
+        type: "full_time",
+        currency: offer.currency,
+        salaryMin: offer.salaryMin,
+        salaryMax: offer.salaryMax,
+      })
+      .returning();
+    const [app] = await db
+      .insert(applicationsTable)
+      .values({
+        jobId: job!.id,
+        candidateId: offer.candidateId,
+        status: "offer",
+        source: "reverse_offer",
+        matchScore: 100,
+      })
+      .returning();
+    await db.insert(applicationStatusHistoryTable).values({
+      applicationId: app!.id,
+      status: "offer",
+    });
+    const flipped = await db
+      .update(reverseOffersTable)
+      .set({ status: "accepted", applicationId: app!.id })
+      .where(
+        and(
+          eq(reverseOffersTable.id, offer.id),
+          eq(reverseOffersTable.status, "pending"),
+        ),
+      )
+      .returning();
+    if (flipped.length === 0) {
+      await db
+        .delete(applicationStatusHistoryTable)
+        .where(eq(applicationStatusHistoryTable.applicationId, app!.id));
+      await db.delete(applicationsTable).where(eq(applicationsTable.id, app!.id));
+      await db.delete(jobsTable).where(eq(jobsTable.id, job!.id));
+      res.status(409).json({ error: "Counter is no longer pending" });
+      return;
+    }
+
+    // Notify candidate.
+    const [candUser] = await db
+      .select({ userId: usersTable.id })
+      .from(usersTable)
+      .where(eq(usersTable.candidateId, offer.candidateId))
+      .limit(1);
+    if (candUser?.userId) {
+      await sendNotification({
+        userId: candUser.userId,
+        kind: "reverse_offer_counter_accepted",
+        title: "Counter accepted",
+        body: `Your counter for ${offer.jobTitle} was accepted.`,
+        link: "/account/offers",
+        category: "applicationStatus",
+        data: { offerId: offer.id, applicationId: app!.id },
+      });
+    }
+    res.json(serializeOffer(flipped[0]!));
+  },
+);
+
+router.post(
+  "/me/sent-offers/:id/decline-counter",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const user = req.currentUser!;
+    if (user.role !== "employer" || !user.employerId) {
+      res.status(403).json({ error: "Employers only" });
+      return;
+    }
+    const offerId = Number(req.params.id);
+    if (!Number.isInteger(offerId) || offerId <= 0) {
+      res.status(400).json({ error: "Invalid offer id" });
+      return;
+    }
+    const offer = await loadCounterForEmployer(offerId, user.employerId);
+    if (!offer || !offer.parentOfferId) {
+      res.status(404).json({ error: "Counter not found" });
+      return;
+    }
+    if (offer.status !== "pending") {
+      res.status(409).json({ error: `Counter is already ${offer.status}` });
+      return;
+    }
+    const flipped = await db
+      .update(reverseOffersTable)
+      .set({ status: "declined" })
+      .where(
+        and(
+          eq(reverseOffersTable.id, offer.id),
+          eq(reverseOffersTable.status, "pending"),
+        ),
+      )
+      .returning();
+    if (flipped.length === 0) {
+      res.status(409).json({ error: "Counter is no longer pending" });
+      return;
+    }
+    // Silent on the candidate side, matching the original decline UX.
+    res.json(serializeOffer(flipped[0]!));
   },
 );
 

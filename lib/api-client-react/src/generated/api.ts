@@ -5918,6 +5918,174 @@ export const useCounterReverseOffer = <
   return useMutation(getCounterReverseOfferMutationOptions(options));
 };
 
+/**
+ * @summary Employer accepts a candidate's counter offer
+ */
+export const getAcceptReverseOfferCounterUrl = (id: number) => {
+  return `/api/me/sent-offers/${id}/accept-counter`;
+};
+
+export const acceptReverseOfferCounter = async (
+  id: number,
+  options?: RequestInit,
+): Promise<ReverseOffer> => {
+  return customFetch<ReverseOffer>(getAcceptReverseOfferCounterUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getAcceptReverseOfferCounterMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof acceptReverseOfferCounter>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof acceptReverseOfferCounter>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["acceptReverseOfferCounter"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof acceptReverseOfferCounter>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return acceptReverseOfferCounter(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AcceptReverseOfferCounterMutationResult = NonNullable<
+  Awaited<ReturnType<typeof acceptReverseOfferCounter>>
+>;
+
+export type AcceptReverseOfferCounterMutationError = ErrorType<void>;
+
+/**
+ * @summary Employer accepts a candidate's counter offer
+ */
+export const useAcceptReverseOfferCounter = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof acceptReverseOfferCounter>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof acceptReverseOfferCounter>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getAcceptReverseOfferCounterMutationOptions(options));
+};
+
+/**
+ * @summary Employer declines a candidate's counter offer
+ */
+export const getDeclineReverseOfferCounterUrl = (id: number) => {
+  return `/api/me/sent-offers/${id}/decline-counter`;
+};
+
+export const declineReverseOfferCounter = async (
+  id: number,
+  options?: RequestInit,
+): Promise<ReverseOffer> => {
+  return customFetch<ReverseOffer>(getDeclineReverseOfferCounterUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getDeclineReverseOfferCounterMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof declineReverseOfferCounter>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof declineReverseOfferCounter>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["declineReverseOfferCounter"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof declineReverseOfferCounter>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return declineReverseOfferCounter(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeclineReverseOfferCounterMutationResult = NonNullable<
+  Awaited<ReturnType<typeof declineReverseOfferCounter>>
+>;
+
+export type DeclineReverseOfferCounterMutationError = ErrorType<void>;
+
+/**
+ * @summary Employer declines a candidate's counter offer
+ */
+export const useDeclineReverseOfferCounter = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof declineReverseOfferCounter>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof declineReverseOfferCounter>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeclineReverseOfferCounterMutationOptions(options));
+};
+
 export const getRegisterUserUrl = () => {
   return `/api/auth/register`;
 };

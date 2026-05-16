@@ -3,6 +3,8 @@ import {
   useListOpenCandidates,
   usePostReverseOffer,
   useListMySentOffers,
+  useAcceptReverseOfferCounter,
+  useDeclineReverseOfferCounter,
   getListMySentOffersQueryKey,
   type OpenCandidateCard,
 } from "@workspace/api-client-react";
@@ -137,6 +139,20 @@ export default function EmployerOpenCandidatesPage() {
   const [showSent, setShowSent] = useState(false);
   const { data: rows, isLoading } = useListOpenCandidates(skill ? { skill } : undefined);
   const { data: sent } = useListMySentOffers();
+  const qc = useQueryClient();
+  const acceptCounter = useAcceptReverseOfferCounter();
+  const declineCounter = useDeclineReverseOfferCounter();
+
+  async function handleCounter(id: number, accept: boolean) {
+    try {
+      if (accept) await acceptCounter.mutateAsync({ id });
+      else await declineCounter.mutateAsync({ id });
+      await qc.invalidateQueries({ queryKey: getListMySentOffersQueryKey() });
+      toast.success(accept ? "Counter accepted" : "Counter declined");
+    } catch (err: any) {
+      toast.error(err?.data?.error ?? "Could not respond to counter");
+    }
+  }
 
   return (
     <div className="container px-4 py-8 max-w-7xl mx-auto space-y-6">
@@ -222,18 +238,46 @@ export default function EmployerOpenCandidatesPage() {
           <CardContent className="space-y-2">
             {(!sent || sent.length === 0) ? (
               <p className="text-sm text-muted-foreground">No offers sent yet.</p>
-            ) : sent.map((o) => (
-              <div key={o.id} className="flex items-center justify-between gap-3 p-3 rounded-lg border" data-testid={`row-sent-${o.id}`}>
-                <div className="min-w-0">
-                  <p className="font-medium text-sm truncate">{o.jobTitle}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {o.currency} {o.salaryMin.toLocaleString()}–{o.salaryMax.toLocaleString()} · {new Date(o.createdAt).toLocaleDateString()}
-                    {o.status === "accepted" && o.candidateName && ` · ${o.candidateName}`}
-                  </p>
+            ) : sent.map((o) => {
+              const isCandidateCounter = Boolean(o.parentOfferId) && o.status === "pending";
+              return (
+                <div key={o.id} className="flex items-center justify-between gap-3 p-3 rounded-lg border" data-testid={`row-sent-${o.id}`}>
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm truncate">
+                      {o.jobTitle}
+                      {isCandidateCounter && <span className="ml-2 text-xs font-normal text-amber-600">Counter from candidate</span>}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {o.currency} {o.salaryMin.toLocaleString()}–{o.salaryMax.toLocaleString()} · {new Date(o.createdAt).toLocaleDateString()}
+                      {o.status === "accepted" && o.candidateName && ` · ${o.candidateName}`}
+                    </p>
+                  </div>
+                  {isCandidateCounter ? (
+                    <div className="flex gap-2 shrink-0">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleCounter(o.id, false)}
+                        disabled={declineCounter.isPending || acceptCounter.isPending}
+                        data-testid={`button-decline-counter-${o.id}`}
+                      >
+                        Decline
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => handleCounter(o.id, true)}
+                        disabled={acceptCounter.isPending || declineCounter.isPending}
+                        data-testid={`button-accept-counter-${o.id}`}
+                      >
+                        Accept counter
+                      </Button>
+                    </div>
+                  ) : (
+                    <Badge variant={o.status === "accepted" ? "default" : "outline"} className="capitalize">{o.status}</Badge>
+                  )}
                 </div>
-                <Badge variant={o.status === "accepted" ? "default" : "outline"} className="capitalize">{o.status}</Badge>
-              </div>
-            ))}
+              );
+            })}
           </CardContent>
         )}
       </Card>

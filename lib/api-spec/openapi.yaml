@@ -1310,6 +1310,46 @@ paths:
         "404": { description: Not found }
         "409": { description: Offer is not pending or already countered }
 
+  /me/sent-offers/{id}/accept-counter:
+    post:
+      operationId: acceptReverseOfferCounter
+      tags: [reverse-offers]
+      summary: Employer accepts a candidate's counter offer
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Counter accepted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReverseOffer" }
+        "403": { description: Employers only }
+        "404": { description: Not found }
+        "409": { description: Counter is not pending }
+
+  /me/sent-offers/{id}/decline-counter:
+    post:
+      operationId: declineReverseOfferCounter
+      tags: [reverse-offers]
+      summary: Employer declines a candidate's counter offer
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Counter declined
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReverseOffer" }
+        "403": { description: Employers only }
+        "404": { description: Not found }
+        "409": { description: Counter is not pending }
+
   /auth/register:
     post:
       operationId: registerUser

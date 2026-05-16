@@ -3136,6 +3136,84 @@ export const CounterReverseOfferBody = zod.object({
   note: zod.string().max(counterReverseOfferBodyNoteMax).optional(),
 });
 
+/**
+ * @summary Employer accepts a candidate's counter offer
+ */
+export const AcceptReverseOfferCounterParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AcceptReverseOfferCounterResponse = zod
+  .object({
+    id: zod.number(),
+    candidateId: zod.number().nullish(),
+    employerId: zod.number(),
+    employerName: zod.string().nullish(),
+    employerLogoUrl: zod.string().nullish(),
+    candidateName: zod.string().nullish(),
+    candidateHeadline: zod.string().nullish(),
+    candidateAvatarUrl: zod.string().nullish(),
+    jobTitle: zod.string(),
+    salaryMin: zod.number(),
+    salaryMax: zod.number(),
+    currency: zod.string(),
+    startDate: zod.string().nullish(),
+    note: zod.string(),
+    status: zod.enum([
+      "pending",
+      "accepted",
+      "declined",
+      "countered",
+      "expired",
+    ]),
+    parentOfferId: zod.number().nullish(),
+    applicationId: zod.number().nullish(),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+  })
+  .describe(
+    "Reverse offer payload. `candidateId` is omitted from employer-facing\nresponses (post-offer, sent-offers) for any non-accepted offer to\npreserve the candidate's anonymity. It is always present on the\ncandidate's own inbox responses.\n",
+  );
+
+/**
+ * @summary Employer declines a candidate's counter offer
+ */
+export const DeclineReverseOfferCounterParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const DeclineReverseOfferCounterResponse = zod
+  .object({
+    id: zod.number(),
+    candidateId: zod.number().nullish(),
+    employerId: zod.number(),
+    employerName: zod.string().nullish(),
+    employerLogoUrl: zod.string().nullish(),
+    candidateName: zod.string().nullish(),
+    candidateHeadline: zod.string().nullish(),
+    candidateAvatarUrl: zod.string().nullish(),
+    jobTitle: zod.string(),
+    salaryMin: zod.number(),
+    salaryMax: zod.number(),
+    currency: zod.string(),
+    startDate: zod.string().nullish(),
+    note: zod.string(),
+    status: zod.enum([
+      "pending",
+      "accepted",
+      "declined",
+      "countered",
+      "expired",
+    ]),
+    parentOfferId: zod.number().nullish(),
+    applicationId: zod.number().nullish(),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+  })
+  .describe(
+    "Reverse offer payload. `candidateId` is omitted from employer-facing\nresponses (post-offer, sent-offers) for any non-accepted offer to\npreserve the candidate's anonymity. It is always present on the\ncandidate's own inbox responses.\n",
+  );
+
 export const RegisterUserBody = zod.object({
   email: zod.string(),
   password: zod.string(),

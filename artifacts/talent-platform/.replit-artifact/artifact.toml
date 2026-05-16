@@ -18,13 +18,24 @@ localPort = 23057
 run = "pnpm --filter @workspace/talent-platform run dev"
 
 [services.production]
-build = [ "pnpm", "--filter", "@workspace/talent-platform", "run", "build" ]
-publicDir = "artifacts/talent-platform/dist/public"
-serve = "static"
 
-[[services.production.rewrites]]
-from = "/*"
-to = "/index.html"
+[services.production.build]
+args = ["pnpm", "--filter", "@workspace/talent-platform", "run", "build"]
+
+[services.production.build.env]
+NODE_ENV = "production"
+
+# We use `vite preview` in production instead of the default static
+# serve so the per-route SEO meta-tag plugin can run for
+# `/institutions/:id/leaderboard`. Other routes fall through to the
+# normal SPA index.html served by Vite's preview middleware.
+[services.production.run]
+args = ["pnpm", "--filter", "@workspace/talent-platform", "run", "serve"]
+
+[services.production.run.env]
+PORT = "23057"
+BASE_PATH = "/"
+NODE_ENV = "production"
 
 [services.env]
 PORT = "23057"

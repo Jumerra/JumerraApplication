@@ -56,6 +56,23 @@ function currentAcademicYear(now: Date = new Date()): number {
   return month >= 7 ? year + 1 : year;
 }
 
+/**
+ * Returns the [start, end) UTC bounds of the current academic year:
+ * Aug 1 of (currentAcademicYear-1) through Aug 1 of currentAcademicYear.
+ * Used to constrain placement metrics to "this year" as required by
+ * the Institution Superpowers spec.
+ */
+function currentAcademicYearWindow(now: Date = new Date()): {
+  start: Date;
+  end: Date;
+  year: number;
+} {
+  const year = currentAcademicYear(now);
+  const start = new Date(Date.UTC(year - 1, 7, 1)); // Aug 1, prior calendar year
+  const end = new Date(Date.UTC(year, 7, 1)); // Aug 1, graduation calendar year
+  return { start, end, year };
+}
+
 // ---------------------------------------------------------------------------
 // GET /institutions/:id/analytics/placement
 //   Authenticated; same scope rules as /students. Returns placement
@@ -139,8 +156,10 @@ router.get(
       return;
     }
 
-    // Pull all hires for our scoped students, joined to job + employer
-    // + the candidate's department for this institution.
+    // Pull hires for our scoped students within the current academic
+    // year window, joined to job + employer + the candidate's
+    // department for this institution.
+    const { start: ayStart, end: ayEnd } = currentAcademicYearWindow();
     const hires = await db
       .select({
         candidateId: applicationsTable.candidateId,
@@ -199,7 +218,13 @@ router.get(
       });
     }
 
-    // Collapse to the FIRST hire per candidate (earliest updatedAt).
+    // Filter to hires in the current academic year window.
+    const hiresThisYear = hires.filter(
+      (h) => h.firstHiredAt >= ayStart && h.firstHiredAt < ayEnd,
+    );
+
+    // Collapse to the FIRST hire per candidate (earliest updatedAt) within
+    // the current academic year.
     const firstHire = new Map<
       number,
       {
@@ -211,7 +236,7 @@ router.get(
         employerLogoUrl: string;
       }
     >();
-    for (const h of hires) {
+    for (const h of hiresThisYear) {
       const cur = firstHire.get(h.candidateId);
       const salary = jobMidpointSalary({
         salaryMin: h.salaryMin,
@@ -343,19 +368,24 @@ router.get(
       institutionId,
     );
     if (!placementsUnlocked) {
-      res.json({ year: new Date().getUTCFullYear(), employers: [] });
+      res.json({
+        year: currentAcademicYearWindow().year,
+        employers: [],
+      });
       return;
     }
+
+    const { start: ayStart, end: ayEnd, year: academicYear } =
+      currentAcademicYearWindow();
 
     const studentIds = await getCandidateIdsForInstitution(institutionId, {
       verifiedOnly: true,
     });
     if (studentIds.length === 0) {
-      res.json({ year: new Date().getUTCFullYear(), employers: [] });
+      res.json({ year: academicYear, employers: [] });
       return;
     }
 
-    const yearStart = new Date(Date.UTC(new Date().getUTCFullYear(), 0, 1));
     const hires = await db
       .select({
         candidateId: applicationsTable.candidateId,
@@ -379,7 +409,7 @@ router.get(
       { name: string; logoUrl: string; hires: number }
     >();
     for (const h of hires) {
-      if (h.hiredAt < yearStart) continue;
+      if (h.hiredAt < ayStart || h.hiredAt >= ayEnd) continue;
       const entry = counts.get(h.employerId) ?? {
         name: h.employerName,
         logoUrl: h.employerLogoUrl,
@@ -399,7 +429,7 @@ router.get(
       .sort((a, b) => b.hires - a.hires)
       .slice(0, 10);
 
-    res.json({ year: new Date().getUTCFullYear(), employers });
+    res.json({ year: academicYear, employers });
   },
 );
 

@@ -179,24 +179,9 @@ export async function getScopedStudentIds(
     return all;
   }
   const rows = await db
-    .select({ candidateId: candidateInstitutionsTable.candidateId })
-    .from(candidateInstitutionsTable)
-    .where(
-      and(
-        eq(candidateInstitutionsTable.institutionId, institutionId),
-        inArray(
-          candidateInstitutionsTable.departmentId,
-          effectiveDepartmentIds,
-        ),
-      ),
-    );
-  // verifiedOnly filter — re-query to get verifiedAt, or filter via a
-  // second pass. Keep it simple: redo the join with verifiedAt filter.
-  const verified = await db
     .select({
       candidateId: candidateInstitutionsTable.candidateId,
       verifiedAt: candidateInstitutionsTable.verifiedAt,
-      departmentId: candidateInstitutionsTable.departmentId,
     })
     .from(candidateInstitutionsTable)
     .where(
@@ -209,10 +194,8 @@ export async function getScopedStudentIds(
       ),
     );
   const ids = new Set<number>();
-  for (const r of verified) {
+  for (const r of rows) {
     if (r.verifiedAt != null) ids.add(r.candidateId);
   }
-  // Suppress unused 'rows' lint
-  void rows;
   return Array.from(ids);
 }

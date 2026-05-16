@@ -23,6 +23,10 @@ type MockInterviewSummary = {
   scoreOverall: number | null;
 };
 
+type MockInterviewListResponse = {
+  items: MockInterviewSummary[];
+};
+
 type ApplySnapshot = {
   candidate: {
     id: number;
@@ -90,17 +94,20 @@ export function ApplyConfirmSheet({
     setError(null);
     Promise.all([
       customFetch<ApplySnapshot>("/api/me/apply-snapshot"),
-      customFetch<MockInterviewSummary[]>(
+      customFetch<MockInterviewListResponse>(
         `/api/me/mock-interviews?jobId=${jobId}`,
-      ).catch(() => [] as MockInterviewSummary[]),
+      ).catch(() => ({ items: [] }) as MockInterviewListResponse),
     ])
-      .then(([snap, mocks]) => {
+      .then(([snap, mockResp]) => {
         if (cancelled) return;
         setSnapshot(snap);
-        // Prefer latest finalised; fall back to in-progress so the
-        // CTA can say "Resume" instead of "Take" when applicable.
-        const finalised = mocks.find((m) => m.status === "finalised");
-        const inProgress = mocks.find((m) => m.status === "in_progress");
+        // The list endpoint returns `{ items: MockInterview[] }` —
+        // ordered newest-first server-side. Prefer latest finalised;
+        // fall back to in-progress so the CTA can say "Resume"
+        // instead of "Take" when applicable.
+        const items = mockResp?.items ?? [];
+        const finalised = items.find((m) => m.status === "finalised");
+        const inProgress = items.find((m) => m.status === "in_progress");
         setMockInterview(finalised ?? inProgress ?? null);
       })
       .catch(() => {

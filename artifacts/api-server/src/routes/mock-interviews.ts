@@ -198,12 +198,14 @@ Respond with JSON exactly:
           : "technical";
         return [{ id: i + 1, text, focus }];
       });
-      if (questions.length < 4) {
+      // Product spec: 6–8 questions per interview. Reject below the
+      // floor so an under-baked AI response can't produce a 4-question
+      // "interview" that scores against the same rubric.
+      if (questions.length < 6) {
         throw new AiUnavailableError(
-          `AI returned ${questions.length} usable questions; expected at least 4`,
+          `AI returned ${questions.length} usable questions; expected 6–8`,
         );
       }
-      // Cap at 8 — never let the model bloat the interview.
       return { questions: questions.slice(0, 8) };
     },
   });
@@ -765,8 +767,20 @@ router.post("/me/mock-interviews/:id/finalise", async (req, res) => {
   }
   const transcript =
     (row.transcript as MockInterviewTranscriptEntry[] | null) ?? [];
-  if (transcript.length === 0) {
-    res.status(400).json({ error: "Answer at least one question first" });
+  const questions =
+    (row.questions as MockInterviewQuestion[] | null) ?? [];
+  // Don't let a candidate finalise (and show employers a score) on a
+  // partial interview. They must answer every generated question.
+  if (
+    questions.length === 0 ||
+    transcript.length < questions.length
+  ) {
+    res.status(400).json({
+      error: `Answer all ${questions.length} questions before finishing.`,
+      code: "incomplete_interview",
+      answered: transcript.length,
+      total: questions.length,
+    });
     return;
   }
   const agg = aggregateScores(transcript);

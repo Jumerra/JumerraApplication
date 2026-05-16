@@ -606,7 +606,15 @@ export function DailyDeckCard() {
                           : [...(prev ?? []), pool],
                       );
                       qc.invalidateQueries({ queryKey: key });
-                      setSelectedPoolId(String(pool.id));
+                      const nextId = String(pool.id);
+                      setSelectedPoolId(nextId);
+                      if (typeof window !== "undefined" && poolPrefKey) {
+                        try {
+                          window.localStorage.setItem(poolPrefKey, nextId);
+                        } catch {
+                          // ignore
+                        }
+                      }
                       toast.success(`Created "${pool.name}"`);
                       setCreateOpen(false);
                       setNewPoolName("");

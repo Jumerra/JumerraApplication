@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
-import { and, desc, eq, gt, ilike, sql } from "drizzle-orm";
+import { and, desc, eq, gt, sql } from "drizzle-orm";
+import { jobMatchesFilters, savedSearchToFilters } from "../lib/job-filters";
 import {
   db,
   applicationsTable,
@@ -30,6 +31,19 @@ function canActOnCandidate(user: User | undefined, candidateId: number): boolean
   if (user.role === "admin") return true;
   if (user.role === "candidate" && user.candidateId === candidateId) return true;
   return false;
+}
+
+/**
+ * Parse a route param as a positive integer ID. Returns null for any
+ * non-numeric, fractional, zero, or negative value. Saved-search
+ * routes use this to short-circuit malformed requests with a 400
+ * before they reach DB queries that would otherwise surface as 500s.
+ */
+function parsePositiveIntParam(raw: string | undefined): number | null {
+  if (!raw) return null;
+  if (!/^[1-9]\d*$/.test(raw)) return null;
+  const n = Number(raw);
+  return Number.isSafeInteger(n) && n > 0 ? n : null;
 }
 
 /**
@@ -550,21 +564,26 @@ router.get("/applications/:id/timeline", async (req, res): Promise<void> => {
 // Saved searches
 // ---------------------------------------------------------------------------
 
+/**
+ * Count jobs newer than `lastSeenJobId` that match a saved search,
+ * using the *exact same* predicate as `GET /jobs` and the alert
+ * sweep in `digest-worker.ts`. Pre-pass-3 this used a bespoke SQL
+ * matcher (id + jobType + ilike(title)) that drifted from the real
+ * /jobs semantics, so the "new" badge could disagree with what a
+ * fired alert would actually surface. Now both are routed through
+ * `jobMatchesFilters`. Bounded scan (200) mirrors the worker.
+ */
 async function newMatchCount(
-  searchText: string | null,
-  jobType: string | null,
-  lastSeenJobId: number,
+  search: typeof candidateSavedSearchesTable.$inferSelect,
 ): Promise<number> {
-  const conds = [gt(jobsTable.id, lastSeenJobId)];
-  if (jobType) conds.push(eq(jobsTable.type, jobType));
-  if (searchText && searchText.trim()) {
-    conds.push(ilike(jobsTable.title, `%${searchText.trim()}%`));
-  }
-  const [row] = await db
-    .select({ count: sql<number>`count(*)::int` })
+  const candidates = await db
+    .select()
     .from(jobsTable)
-    .where(and(...conds));
-  return Number(row?.count ?? 0);
+    .where(gt(jobsTable.id, search.lastSeenJobId))
+    .orderBy(desc(jobsTable.id))
+    .limit(200);
+  const filters = savedSearchToFilters(search);
+  return candidates.filter((j) => jobMatchesFilters(j, filters)).length;
 }
 
 function parseFiltersJson(raw: string | null | undefined): Record<string, unknown> {
@@ -602,7 +621,11 @@ function serializeSavedSearch(
 router.get(
   "/candidates/:id/saved-searches",
   async (req, res): Promise<void> => {
-    const candidateId = Number(req.params.id);
+    const candidateId = parsePositiveIntParam(req.params.id);
+    if (candidateId === null) {
+      res.status(400).json({ error: "Invalid candidate id" });
+      return;
+    }
     if (!canActOnCandidate(req.currentUser, candidateId)) {
       res.status(403).json({ error: "Forbidden" });
       return;
@@ -615,7 +638,7 @@ router.get(
 
     const enriched = await Promise.all(
       rows.map(async (s) => {
-        const c = await newMatchCount(s.searchText, s.jobType, s.lastSeenJobId);
+        const c = await newMatchCount(s);
         return serializeSavedSearch(s, c);
       }),
     );
@@ -626,7 +649,11 @@ router.get(
 router.post(
   "/candidates/:id/saved-searches",
   async (req, res): Promise<void> => {
-    const candidateId = Number(req.params.id);
+    const candidateId = parsePositiveIntParam(req.params.id);
+    if (candidateId === null) {
+      res.status(400).json({ error: "Invalid candidate id" });
+      return;
+    }
     if (!canActOnCandidate(req.currentUser, candidateId)) {
       res.status(403).json({ error: "Forbidden" });
       return;
@@ -668,8 +695,12 @@ router.post(
 router.patch(
   "/candidates/:id/saved-searches/:searchId",
   async (req, res): Promise<void> => {
-    const candidateId = Number(req.params.id);
-    const searchId = Number(req.params.searchId);
+    const candidateId = parsePositiveIntParam(req.params.id);
+    const searchId = parsePositiveIntParam(req.params.searchId);
+    if (candidateId === null || searchId === null) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
     if (!canActOnCandidate(req.currentUser, candidateId)) {
       res.status(403).json({ error: "Forbidden" });
       return;
@@ -727,11 +758,7 @@ router.patch(
             .where(eq(candidateSavedSearchesTable.id, searchId))
             .returning();
 
-    const c = await newMatchCount(
-      updated.searchText,
-      updated.jobType,
-      updated.lastSeenJobId,
-    );
+    const c = await newMatchCount(updated);
     res.json(serializeSavedSearch(updated, c));
   },
 );
@@ -739,8 +766,12 @@ router.patch(
 router.delete(
   "/candidates/:id/saved-searches/:searchId",
   async (req, res): Promise<void> => {
-    const candidateId = Number(req.params.id);
-    const searchId = Number(req.params.searchId);
+    const candidateId = parsePositiveIntParam(req.params.id);
+    const searchId = parsePositiveIntParam(req.params.searchId);
+    if (candidateId === null || searchId === null) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
     if (!canActOnCandidate(req.currentUser, candidateId)) {
       res.status(403).json({ error: "Forbidden" });
       return;

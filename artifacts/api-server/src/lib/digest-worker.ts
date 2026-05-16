@@ -18,6 +18,7 @@ import { and, desc, eq, gt, gte, lt, sql } from "drizzle-orm";
 import {
   db,
   applicationsTable,
+  applicationStatusHistoryTable,
   candidatesTable,
   candidateSavedSearchesTable,
   candidateWeeklyDigestsTable,
@@ -99,7 +100,7 @@ async function runDigestForCandidate(
     );
   const profileViews = Number(viewsRow[0]?.count ?? 0);
 
-  // -- Applications sent + interviews scheduled --------------------------
+  // -- Applications sent (this week) ------------------------------------
   const apps = await db
     .select()
     .from(applicationsTable)
@@ -111,9 +112,31 @@ async function runDigestForCandidate(
       ),
     );
   const applicationsSent = apps.length;
-  const interviewsScheduled = apps.filter(
-    (a) => a.status === "interview",
-  ).length;
+
+  // -- Interviews scheduled (this week) ---------------------------------
+  // Counts every transition into "interview" within the window, across
+  // *all* of the candidate's applications — not just ones that were
+  // also applied this week. Older applications that finally got an
+  // interview this week are exactly the kind of progress a weekly
+  // digest is supposed to celebrate. We dedupe by application_id so a
+  // back-and-forth (e.g. interview → screening → interview) only
+  // counts once per app per week.
+  const interviewRows = await db
+    .selectDistinct({ appId: applicationStatusHistoryTable.applicationId })
+    .from(applicationStatusHistoryTable)
+    .innerJoin(
+      applicationsTable,
+      eq(applicationsTable.id, applicationStatusHistoryTable.applicationId),
+    )
+    .where(
+      and(
+        eq(applicationsTable.candidateId, candidateId),
+        eq(applicationStatusHistoryTable.status, "interview"),
+        gte(applicationStatusHistoryTable.changedAt, weekStart),
+        lt(applicationStatusHistoryTable.changedAt, weekEnd),
+      ),
+    );
+  const interviewsScheduled = interviewRows.length;
 
   // -- New top job matches -----------------------------------------------
   const allJobs = await db

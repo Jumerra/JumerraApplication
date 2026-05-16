@@ -143,6 +143,45 @@ export async function sendEndorsementEmail(
   return { sent: false, reason: "email-not-configured" };
 }
 
+/**
+ * Send a Fast-Track SLA email to an employer staff member.
+ *
+ * Kinds:
+ *   - "fast_track_warning": one breach in the rolling 30d window
+ *   - "fast_track_revoked": auto-revoke after >=2 breaches
+ *
+ * Same stub policy as the other senders — when no provider is wired
+ * we log only ids (never the recipient address) and return
+ * `{ sent: false, reason: "email-not-configured" }`. Pairs with the
+ * in-app notification dispatched alongside.
+ */
+export interface SendFastTrackEmailArgs {
+  to: string;
+  employerId: number;
+  employerName: string;
+  userId: number;
+  kind: "fast_track_warning" | "fast_track_revoked";
+  breachCount: number;
+  /** ISO timestamp; only present for the revoke kind. */
+  revokedUntil?: string;
+  logger: Logger;
+}
+
+export async function sendFastTrackEmail(
+  args: SendFastTrackEmailArgs,
+): Promise<SendResult> {
+  args.logger.info(
+    {
+      employerId: args.employerId,
+      userId: args.userId,
+      kind: args.kind,
+      breachCount: args.breachCount,
+    },
+    "fast-track email queued (provider not configured)",
+  );
+  return { sent: false, reason: "email-not-configured" };
+}
+
 /** Convenience helper to derive an absolute origin from an Express request. */
 export function originFromReq(req: {
   protocol: string;

@@ -153,9 +153,38 @@ export default function JobDetailScreen() {
             >
               {job.title}
             </Text>
-            {job.tier && job.tier !== "free" ? (
-              <View style={{ flexDirection: "row", marginTop: 6 }}>
-                <TierBadge tier={job.tier} size="md" />
+            {(job.tier && job.tier !== "free") || job.fastTrack ? (
+              <View style={{ flexDirection: "row", marginTop: 6, gap: 6, flexWrap: "wrap" }}>
+                {job.tier && job.tier !== "free" ? (
+                  <TierBadge tier={job.tier} size="md" />
+                ) : null}
+                {job.fastTrack ? (
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 5,
+                      paddingHorizontal: 10,
+                      paddingVertical: 5,
+                      borderRadius: 999,
+                      backgroundColor: "#fef3c7",
+                      borderWidth: 1,
+                      borderColor: "#fcd34d",
+                    }}
+                    testID="badge-fast-track"
+                  >
+                    <Feather name="zap" size={12} color="#92400e" />
+                    <Text
+                      style={{
+                        fontFamily: "Inter_700Bold",
+                        fontSize: 11,
+                        color: "#92400e",
+                      }}
+                    >
+                      48hr Fast-Track
+                    </Text>
+                  </View>
+                ) : null}
               </View>
             ) : null}
 

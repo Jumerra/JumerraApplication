@@ -31,6 +31,7 @@ import {
   notificationsTable,
 } from "@workspace/db";
 import { logger } from "./logger";
+import { sendFastTrackEmail } from "./email";
 
 const FORTY_EIGHT_HOURS_MS = 48 * 60 * 60 * 1000;
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
@@ -203,15 +204,24 @@ export async function toggleFastTrack(
   return getFastTrackState(employerId);
 }
 
-/** Notify every employer staff user. Best-effort. */
+/**
+ * Notify every employer staff user via BOTH channels required by the
+ * Fast-Track spec: an in-app notification (bell) AND an email (warning
+ * on the first breach, revoke + warning on the second). The email
+ * sender is a stub today but logs the queued event so behaviour is
+ * verifiable end-to-end; once Resend is wired in, callers don't change.
+ */
 async function notifyEmployerStaff(
   employerId: number,
-  kind: string,
+  employerName: string,
+  kind: "fast_track_warning" | "fast_track_revoked",
   title: string,
   body: string,
+  breachCount: number,
+  revokedUntil?: Date,
 ): Promise<void> {
   const staff = await db
-    .select({ id: usersTable.id })
+    .select({ id: usersTable.id, email: usersTable.email })
     .from(usersTable)
     .where(eq(usersTable.employerId, employerId));
   for (const s of staff) {
@@ -225,6 +235,22 @@ async function notifyEmployerStaff(
       });
     } catch (err) {
       logger.warn({ err, userId: s.id }, "fast-track notify failed");
+    }
+    if (s.email) {
+      try {
+        await sendFastTrackEmail({
+          to: s.email,
+          employerId,
+          employerName,
+          userId: s.id,
+          kind,
+          breachCount,
+          revokedUntil: revokedUntil?.toISOString(),
+          logger,
+        });
+      } catch (err) {
+        logger.warn({ err, userId: s.id }, "fast-track email failed");
+      }
     }
   }
 }
@@ -339,9 +365,12 @@ export async function sweepFastTrackBreaches(): Promise<{
         .where(eq(employersTable.id, emp.id));
       await notifyEmployerStaff(
         emp.id,
+        emp.name,
         "fast_track_revoked",
         "Fast-Track pledge revoked",
         `Your 48-hour response pledge was revoked after ${recent.length} breaches in the last 30 days. You can re-enable it on ${until.toLocaleDateString()}.`,
+        recent.length,
+        until,
       );
       revoked += 1;
     } else if (inserted > 0 && recent.length === 1) {
@@ -350,9 +379,11 @@ export async function sweepFastTrackBreaches(): Promise<{
       // the one breach is still in the window.
       await notifyEmployerStaff(
         emp.id,
+        emp.name,
         "fast_track_warning",
         "Fast-Track SLA warning",
         `An application waited longer than 48 hours. One more breach in the next 30 days will revoke your Fast-Track badge.`,
+        recent.length,
       );
       warned += 1;
     }

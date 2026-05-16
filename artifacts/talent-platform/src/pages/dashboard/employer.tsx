@@ -11,6 +11,7 @@ import { Link } from "wouter";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { toast } from "sonner";
 import { InterviewScheduleDialog } from "@/components/interview-schedule-dialog";
+import { SalaryBand } from "@/components/SalaryBand";
 
 export default function EmployerDashboard() {
   const { userId } = useAuth();
@@ -229,6 +230,12 @@ export default function EmployerDashboard() {
                         {job.applicationsCount} applicants • {job.location}
                         {tier !== "free" && expires ? ` • Tier ends ${expires}` : ""}
                       </p>
+                      <div className="mt-2">
+                        <SalaryBand
+                          jobId={job.id}
+                          label="Market rate (real hires)"
+                        />
+                      </div>
                     </div>
                     <div className="flex items-center gap-1">
                       {tier === "free" && (

@@ -85,13 +85,13 @@ router.get("/salary-insights", attachUser, async (req, res): Promise<void> => {
       user.role === "admin" ||
       user.role === "employer" ||
       (user.role === "institution" && user.institutionId === institutionId);
-    if (!allowed && user.role === "candidate") {
+    if (!allowed && user.role === "candidate" && user.candidateId) {
       const [aff] = await db
         .select({ id: candidateInstitutionsTable.id })
         .from(candidateInstitutionsTable)
         .where(
           and(
-            eq(candidateInstitutionsTable.candidateId, user.id),
+            eq(candidateInstitutionsTable.candidateId, user.candidateId),
             eq(candidateInstitutionsTable.institutionId, institutionId),
           ),
         )

@@ -4897,7 +4897,7 @@ when the cohort is smaller, the response carries
 
  * @summary Anonymous salary band derived from real hires
  */
-export const getGetSalaryBandUrl = (params: GetSalaryBandParams) => {
+export const getGetSalaryBandUrl = (params?: GetSalaryBandParams) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
@@ -4914,7 +4914,7 @@ export const getGetSalaryBandUrl = (params: GetSalaryBandParams) => {
 };
 
 export const getSalaryBand = async (
-  params: GetSalaryBandParams,
+  params?: GetSalaryBandParams,
   options?: RequestInit,
 ): Promise<SalaryBand> => {
   return customFetch<SalaryBand>(getGetSalaryBandUrl(params), {
@@ -4931,7 +4931,7 @@ export const getGetSalaryBandQueryOptions = <
   TData = Awaited<ReturnType<typeof getSalaryBand>>,
   TError = ErrorType<void>,
 >(
-  params: GetSalaryBandParams,
+  params?: GetSalaryBandParams,
   options?: {
     query?: UseQueryOptions<
       Awaited<ReturnType<typeof getSalaryBand>>,
@@ -4969,7 +4969,7 @@ export function useGetSalaryBand<
   TData = Awaited<ReturnType<typeof getSalaryBand>>,
   TError = ErrorType<void>,
 >(
-  params: GetSalaryBandParams,
+  params?: GetSalaryBandParams,
   options?: {
     query?: UseQueryOptions<
       Awaited<ReturnType<typeof getSalaryBand>>,

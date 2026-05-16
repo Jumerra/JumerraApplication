@@ -1055,8 +1055,24 @@ paths:
       parameters:
         - in: query
           name: jobId
-          required: true
+          required: false
           schema: { type: integer }
+          description: |
+            Anchor by an existing job (preferred). Either `jobId` or
+            `title` must be supplied.
+        - in: query
+          name: title
+          required: false
+          schema: { type: string }
+          description: |
+            Alternative anchor — used by the employer post screen to
+            preview a band BEFORE the job exists. Matched
+            case-insensitively against existing job titles.
+        - in: query
+          name: currency
+          required: false
+          schema: { type: string }
+          description: Used with `title` to pick the currency bucket.
         - in: query
           name: institutionId
           required: false
@@ -1067,6 +1083,7 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/SalaryBand" }
+        "400": { description: Missing both jobId and title }
         "404": { description: Job not found }
 
   /applications/{id}/report-salary:

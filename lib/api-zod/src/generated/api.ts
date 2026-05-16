@@ -2809,7 +2809,22 @@ when the cohort is smaller, the response carries
  * @summary Anonymous salary band derived from real hires
  */
 export const GetSalaryBandQueryParams = zod.object({
-  jobId: zod.coerce.number(),
+  jobId: zod.coerce
+    .number()
+    .optional()
+    .describe(
+      "Anchor by an existing job (preferred). Either `jobId` or\n`title` must be supplied.\n",
+    ),
+  title: zod.coerce
+    .string()
+    .optional()
+    .describe(
+      "Alternative anchor — used by the employer post screen to\npreview a band BEFORE the job exists. Matched\ncase-insensitively against existing job titles.\n",
+    ),
+  currency: zod.coerce
+    .string()
+    .optional()
+    .describe("Used with `title` to pick the currency bucket."),
   institutionId: zod.coerce.number().optional(),
 });
 

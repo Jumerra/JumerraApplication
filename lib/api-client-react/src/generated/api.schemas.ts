@@ -3161,7 +3161,23 @@ export const ListInterviewInvitesForCandidateStatus = {
 } as const;
 
 export type GetSalaryBandParams = {
-  jobId: number;
+  /**
+ * Anchor by an existing job (preferred). Either `jobId` or
+`title` must be supplied.
+
+ */
+  jobId?: number;
+  /**
+ * Alternative anchor — used by the employer post screen to
+preview a band BEFORE the job exists. Matched
+case-insensitively against existing job titles.
+
+ */
+  title?: string;
+  /**
+   * Used with `title` to pick the currency bucket.
+   */
+  currency?: string;
   institutionId?: number;
 };
 

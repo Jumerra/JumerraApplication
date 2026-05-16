@@ -2,8 +2,10 @@ import {
   useGetJob,
   useGetJobMatches,
   useGetJobChallenge,
+  useGetCandidate,
   getGetJobMatchesQueryKey,
   getGetJobChallengeQueryKey,
+  getGetCandidateQueryKey,
 } from "@workspace/api-client-react";
 import { Link, useParams } from "wouter";
 import { Badge } from "@/components/ui/badge";
@@ -37,6 +39,20 @@ export default function JobDetail() {
     },
   });
   const [showSample, setShowSample] = useState(false);
+  // For signed-in candidates, fetch their primary institution so the
+  // job-detail page can also show a "Hires from your school earned…"
+  // band scoped to that institution alongside the platform-wide band.
+  const { data: candidate } = useGetCandidate(userId ?? 0, {
+    query: {
+      queryKey: getGetCandidateQueryKey(userId ?? 0),
+      enabled: role === "candidate" && !!userId,
+    },
+  });
+  const candidateInstitutionId =
+    candidate?.institutions?.find((i) => i.isPrimary)?.id ??
+    candidate?.institutions?.[0]?.id ??
+    candidate?.institutionId ??
+    undefined;
 
   if (isLoading) {
     return <div className="container py-12"><div className="animate-pulse h-96 bg-muted rounded-xl" /></div>;
@@ -245,8 +261,14 @@ export default function JobDetail() {
                 </div>
 
                 {job.id ? (
-                  <div className="pt-6 border-t">
+                  <div className="pt-6 border-t space-y-3">
                     <SalaryBand jobId={job.id} />
+                    {candidateInstitutionId ? (
+                      <SalaryBand
+                        jobId={job.id}
+                        institutionId={candidateInstitutionId}
+                      />
+                    ) : null}
                   </div>
                 ) : null}
 

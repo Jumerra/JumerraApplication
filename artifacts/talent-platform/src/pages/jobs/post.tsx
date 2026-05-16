@@ -46,6 +46,7 @@ import {
   Star,
   Loader2,
 } from "lucide-react";
+import { SalaryBand } from "@/components/SalaryBand";
 
 const formSchema = z.object({
   title: z.string().min(5, "Title must be at least 5 characters"),
@@ -559,6 +560,13 @@ export default function JobPost() {
                       </FormItem>
                     )}
                   />
+                  <div className="md:col-span-2">
+                    <SalaryBand
+                      title={form.watch("title")}
+                      currency={form.watch("currency")}
+                      label="Calibrate against real hires"
+                    />
+                  </div>
                   <FormField
                     control={form.control}
                     name="skills"

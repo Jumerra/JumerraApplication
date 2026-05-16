@@ -5,7 +5,9 @@ import {
 import { Banknote, Info } from "lucide-react";
 
 interface Props {
-  jobId: number;
+  jobId?: number;
+  title?: string;
+  currency?: string;
   institutionId?: number;
   label?: string;
 }
@@ -16,13 +18,29 @@ interface Props {
  * when the cohort is too small we show a neutral "Not enough data yet"
  * notice instead of a misleading number.
  */
-export function SalaryBand({ jobId, institutionId, label }: Props) {
-  const params = { jobId, ...(institutionId ? { institutionId } : {}) };
+export function SalaryBand({
+  jobId,
+  title,
+  currency,
+  institutionId,
+  label,
+}: Props) {
+  const params = {
+    ...(jobId ? { jobId } : {}),
+    ...(title ? { title } : {}),
+    ...(currency ? { currency } : {}),
+    ...(institutionId ? { institutionId } : {}),
+  };
+  const enabled = Boolean(jobId || (title && title.length >= 2));
   const { data, isLoading } = useGetSalaryBand(params, {
-    query: { queryKey: getGetSalaryBandQueryKey(params), retry: false },
+    query: {
+      queryKey: getGetSalaryBandQueryKey(params),
+      retry: false,
+      enabled,
+    },
   });
 
-  if (isLoading || !data) return null;
+  if (!enabled || isLoading || !data) return null;
 
   if (data.insufficient) {
     return (

@@ -266,23 +266,33 @@ export async function runDigestForCandidate(
   weekStart: Date,
   weekEnd: Date,
   weekStartKey: string,
+  options: { preview?: boolean } = {},
 ): Promise<void> {
+  const preview = options.preview === true;
+
   // Idempotency check via unique index — skip if already generated.
   // `weekStartKey` is the *local* week-start date in the candidate's
   // timezone; passing it in (rather than recomputing from `weekStart`
   // which is a UTC instant) keeps the idempotency key aligned with the
   // candidate's local week even when their local Monday 00:00 falls on
   // a different UTC calendar day than UTC Monday 00:00.
-  const [existing] = await db
-    .select({ id: candidateWeeklyDigestsTable.id })
-    .from(candidateWeeklyDigestsTable)
-    .where(
-      and(
-        eq(candidateWeeklyDigestsTable.candidateId, candidateId),
-        eq(candidateWeeklyDigestsTable.weekStart, weekStartKey),
-      ),
-    );
-  if (existing) return;
+  //
+  // Skipped entirely for previews — a preview must always produce
+  // output regardless of whether the real weekly row already exists,
+  // and must never touch that row (see writes below for the matching
+  // guards).
+  if (!preview) {
+    const [existing] = await db
+      .select({ id: candidateWeeklyDigestsTable.id })
+      .from(candidateWeeklyDigestsTable)
+      .where(
+        and(
+          eq(candidateWeeklyDigestsTable.candidateId, candidateId),
+          eq(candidateWeeklyDigestsTable.weekStart, weekStartKey),
+        ),
+      );
+    if (existing) return;
+  }
 
   const [candidate] = await db
     .select()
@@ -362,6 +372,11 @@ export async function runDigestForCandidate(
     .select({ jobId: candidateDismissedJobsTable.jobId })
     .from(candidateDismissedJobsTable)
     .where(eq(candidateDismissedJobsTable.candidateId, candidateId));
+  // Preview reads prior digests too — the goal is faithful parity with
+  // what the scheduled run would produce, so we keep the same
+  // "already-surfaced in a previous week" exclusion. Only delivery
+  // mechanics (slot gate, idempotency writes, opt-out gating) differ
+  // in preview mode.
   const priorDigests = await db
     .select({ json: candidateWeeklyDigestsTable.newMatchesJson })
     .from(candidateWeeklyDigestsTable)
@@ -399,14 +414,19 @@ export async function runDigestForCandidate(
     .sort((a, b) => b.matchScore - a.matchScore)
     .slice(0, 5);
 
-  await db.insert(candidateWeeklyDigestsTable).values({
-    candidateId,
-    weekStart: weekStartKey,
-    profileViews,
-    applicationsSent,
-    interviewsScheduled,
-    newMatchesJson: JSON.stringify(newMatches),
-  });
+  // Previews never write to candidate_weekly_digests — they must not
+  // burn the real weekly idempotency row, and must not affect the
+  // seenJobIds set used by future digests.
+  if (!preview) {
+    await db.insert(candidateWeeklyDigestsTable).values({
+      candidateId,
+      weekStart: weekStartKey,
+      profileViews,
+      applicationsSent,
+      interviewsScheduled,
+      newMatchesJson: JSON.stringify(newMatches),
+    });
+  }
 
   // In-app + push notification + email handoff (all best effort).
   // The `weeklyDigest` preference gates *delivery* (push + email), not
@@ -427,17 +447,25 @@ export async function runDigestForCandidate(
         .limit(1);
       const wantsDigest = prefRow?.weeklyDigest ?? true;
 
-      if (wantsDigest) {
+      // Preview deliveries always write the in-app row and send email
+      // regardless of `weeklyDigest` — the candidate explicitly asked
+      // for this one delivery so they can confirm the format. (Push
+      // is still gated by the notifier's per-category check inside
+      // `sendNotificationToCandidate`, which is fine: previewing the
+      // *format* is what matters, and a candidate who muted push
+      // wouldn't want a push from a preview either.)
+      const previewPrefix = preview ? "Preview · " : "";
+      if (wantsDigest || preview) {
         const topLine = newMatches[0]
           ? ` Top pick: ${newMatches[0].title} at ${newMatches[0].employerName} (${newMatches[0].matchScore}%).`
           : "";
         await sendNotificationToCandidate(candidateId, {
           kind: "weekly_digest",
-          title: `Your week on Jumerra: ${newMatches.length} new match${newMatches.length === 1 ? "" : "es"}`,
+          title: `${previewPrefix}Your week on Jumerra: ${newMatches.length} new match${newMatches.length === 1 ? "" : "es"}`,
           body: `${profileViews} profile views · ${applicationsSent} applications.${topLine}`,
           link: "/account/dashboard",
           category: "weeklyDigest",
-          data: { weekStart: weekStartKey },
+          data: { weekStart: weekStartKey, preview: preview || undefined },
         });
       } else {
         // Pref off: still keep an in-app row so the inbox + dashboard
@@ -476,28 +504,43 @@ export async function runDigestForCandidate(
         }
       }
       emailLines.push(``, `Sign in to Jumerra to see the full breakdown.`);
-      const result = wantsDigest
+      if (preview) {
+        emailLines.unshift(
+          `(This is a preview of your weekly digest, sent on demand from your notification preferences. Your scheduled digest will still arrive at your chosen slot.)`,
+          ``,
+        );
+      }
+      const shouldSendEmail = wantsDigest || preview;
+      const result = shouldSendEmail
         ? await sendEngagementEmail({
             to: candUser.email,
             kind: "weekly_digest",
-            subject: `Your week on Jumerra`,
+            subject: preview
+              ? `Preview: your week on Jumerra`
+              : `Your week on Jumerra`,
             body: emailLines.join("\n"),
             candidateId,
             logger,
           })
         : { sent: false as const, reason: "user-opted-out" as const };
-      await db
-        .update(candidateWeeklyDigestsTable)
-        .set({
-          emailSentAt: result.sent ? new Date() : null,
-          emailSendResult: result.sent ? `sent:${result.provider}` : `pending:${result.reason}`,
-        })
-        .where(
-          and(
-            eq(candidateWeeklyDigestsTable.candidateId, candidateId),
-            eq(candidateWeeklyDigestsTable.weekStart, weekStartKey),
-          ),
-        );
+      // Only the real (non-preview) run owns the candidate_weekly_digests
+      // row; previews never wrote it above and must not touch it here
+      // either (otherwise a preview after the real digest had been
+      // dispatched would clobber its `emailSentAt`/`emailSendResult`).
+      if (!preview) {
+        await db
+          .update(candidateWeeklyDigestsTable)
+          .set({
+            emailSentAt: result.sent ? new Date() : null,
+            emailSendResult: result.sent ? `sent:${result.provider}` : `pending:${result.reason}`,
+          })
+          .where(
+            and(
+              eq(candidateWeeklyDigestsTable.candidateId, candidateId),
+              eq(candidateWeeklyDigestsTable.weekStart, weekStartKey),
+            ),
+          );
+      }
     }
   } catch (err) {
     logger.warn({ err, candidateId }, "Failed to enqueue weekly digest notification");

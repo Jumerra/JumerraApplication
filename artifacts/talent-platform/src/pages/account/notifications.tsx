@@ -90,6 +90,35 @@ export default function NotificationsPage() {
   const [prefs, setPrefs] = useState<Prefs | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<keyof Prefs | null>(null);
+  const [sendingPreview, setSendingPreview] = useState(false);
+
+  async function sendDigestPreview() {
+    setSendingPreview(true);
+    try {
+      const res = await fetch("/api/me/digest-preview", {
+        method: "POST",
+        credentials: "include",
+      });
+      if (res.status === 429) {
+        const data = (await res.json().catch(() => null)) as
+          | { error?: string }
+          | null;
+        toast.error(
+          data?.error ??
+            "You can only send a preview once per hour. Please try again later.",
+        );
+        return;
+      }
+      if (!res.ok) throw new Error("preview failed");
+      toast.success(
+        "Preview sent. Check your email and in-app inbox in a moment.",
+      );
+    } catch {
+      toast.error("Couldn't send the preview. Try again in a moment.");
+    } finally {
+      setSendingPreview(false);
+    }
+  }
 
   useEffect(() => {
     if (!sessionUser) return;
@@ -267,6 +296,23 @@ export default function NotificationsPage() {
                 Turn on Weekly digest above to start receiving these.
               </p>
             ) : null}
+            <div className="sm:col-span-2 flex flex-col gap-2 pt-2 border-t">
+              <div className="flex flex-wrap items-center gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={sendDigestPreview}
+                  disabled={sendingPreview}
+                >
+                  {sendingPreview ? "Sending…" : "Send me a preview"}
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  Sends the digest now so you can check the format. Limited
+                  to once per hour.
+                </p>
+              </div>
+            </div>
           </CardContent>
         </Card>
       ) : null}

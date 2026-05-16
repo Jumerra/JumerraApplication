@@ -21,6 +21,10 @@ import {
   notificationPrefsTable,
 } from "@workspace/db";
 import { calculateMatchScore } from "../lib/matching";
+import {
+  previousCompleteWeekLocal,
+  runDigestForCandidate,
+} from "../lib/digest-worker";
 import { requireAuth } from "../middleware/require-auth";
 
 const router: IRouter = Router();
@@ -229,6 +233,91 @@ router.put("/me/notification-prefs", async (req, res) => {
 
   const effectiveTz = await resolveDigestTz(me.candidateId ?? null, merged.digestTz);
   res.json({ ...merged, effectiveDigestTz: effectiveTz });
+});
+
+// --- Weekly digest preview ------------------------------------------------
+
+/**
+ * Per-candidate "send me a preview" rate limit. In-memory by design:
+ * the rate limit is a UX guard against accidental double-taps and
+ * mild abuse, not a security control — losing it across deploys is
+ * fine, and the cost of one extra preview email per candidate per
+ * deploy is negligible. Keyed by candidateId (not userId) because the
+ * digest itself is candidate-scoped. The map grows by at most one
+ * entry per candidate that ever previews, which is fine at our scale;
+ * if it ever needs pruning, swap in a TTL cache here.
+ */
+const PREVIEW_COOLDOWN_MS = 60 * 60 * 1000; // 1 hour
+const digestPreviewLastFiredAt = new Map<number, number>();
+
+function consumeDigestPreviewSlot(candidateId: number, now: number): {
+  ok: boolean;
+  retryAfterSeconds: number;
+} {
+  const last = digestPreviewLastFiredAt.get(candidateId);
+  if (last != null && now - last < PREVIEW_COOLDOWN_MS) {
+    return {
+      ok: false,
+      retryAfterSeconds: Math.ceil((PREVIEW_COOLDOWN_MS - (now - last)) / 1000),
+    };
+  }
+  digestPreviewLastFiredAt.set(candidateId, now);
+  return { ok: true, retryAfterSeconds: 0 };
+}
+
+router.post("/me/digest-preview", async (req, res) => {
+  const me = req.currentUser!;
+  if (me.role !== "candidate" || me.candidateId == null) {
+    res.status(403).json({ error: "Weekly digest is candidate-only" });
+    return;
+  }
+  const candidateId = me.candidateId;
+
+  const now = Date.now();
+  const slot = consumeDigestPreviewSlot(candidateId, now);
+  if (!slot.ok) {
+    res.setHeader("Retry-After", String(slot.retryAfterSeconds));
+    res.status(429).json({
+      error:
+        "You can only send a preview once per hour. Please try again later.",
+      retryAfterSeconds: slot.retryAfterSeconds,
+    });
+    return;
+  }
+
+  // Use the candidate's effective digest timezone for the reporting
+  // window so the preview summarises the same Mon→Mon week the real
+  // worker would summarise at the next slot fire.
+  const [prefRow] = await db
+    .select({ digestTz: notificationPrefsTable.digestTz })
+    .from(notificationPrefsTable)
+    .where(eq(notificationPrefsTable.userId, me.id))
+    .limit(1);
+  const effectiveTz = await resolveDigestTz(
+    candidateId,
+    prefRow?.digestTz ?? null,
+  );
+  const { start, end, localWeekStartDate } = previousCompleteWeekLocal(
+    effectiveTz,
+  );
+
+  try {
+    await runDigestForCandidate(
+      candidateId,
+      start,
+      end,
+      localWeekStartDate,
+      { preview: true },
+    );
+    res.json({ ok: true, weekStart: localWeekStartDate });
+  } catch (err) {
+    // Roll the rate-limit slot back so the candidate isn't punished
+    // for a server-side failure — they should be able to retry
+    // immediately once we recover.
+    digestPreviewLastFiredAt.delete(candidateId);
+    req.log.warn({ err, candidateId }, "digest preview failed");
+    res.status(500).json({ error: "Failed to send digest preview" });
+  }
 });
 
 // --- For You feed --------------------------------------------------------

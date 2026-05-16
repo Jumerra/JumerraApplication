@@ -4,6 +4,7 @@ import { router, Stack } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Platform,
   Pressable,
   ScrollView,
@@ -88,6 +89,36 @@ export default function NotificationPreferencesScreen() {
   const [prefs, setPrefs] = useState<Prefs | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<keyof Prefs | null>(null);
+  const [sendingPreview, setSendingPreview] = useState(false);
+
+  const sendDigestPreview = async () => {
+    setSendingPreview(true);
+    try {
+      await customFetch("/api/me/digest-preview", { method: "POST" });
+      Alert.alert(
+        "Preview sent",
+        "Check your email and in-app inbox in a moment to see how your weekly digest will look.",
+      );
+    } catch (err: unknown) {
+      // customFetch surfaces a 429 as an Error whose message contains
+      // the server's JSON. Show the rate-limit copy when we can detect
+      // it, otherwise a generic retry message.
+      const msg = (err as Error)?.message ?? "";
+      if (msg.includes("once per hour") || msg.includes("429")) {
+        Alert.alert(
+          "Try again later",
+          "You can only send a preview once per hour.",
+        );
+      } else {
+        Alert.alert(
+          "Couldn't send preview",
+          "Something went wrong. Please try again in a moment.",
+        );
+      }
+    } finally {
+      setSendingPreview(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -333,6 +364,67 @@ export default function NotificationPreferencesScreen() {
                   Turn on Weekly digest above to start receiving these.
                 </Text>
               ) : null}
+
+              <View
+                style={{
+                  marginTop: 14,
+                  paddingTop: 14,
+                  borderTopWidth: 1,
+                  borderTopColor: colors.border,
+                }}
+              >
+                <Pressable
+                  onPress={sendDigestPreview}
+                  disabled={sendingPreview}
+                  style={{
+                    alignSelf: "flex-start",
+                    paddingVertical: 10,
+                    paddingHorizontal: 14,
+                    borderRadius: 10,
+                    borderWidth: 1,
+                    borderColor: colors.primary,
+                    backgroundColor: "transparent",
+                    opacity: sendingPreview ? 0.6 : 1,
+                    flexDirection: "row",
+                    alignItems: "center",
+                  }}
+                >
+                  {sendingPreview ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={colors.primary}
+                      style={{ marginRight: 8 }}
+                    />
+                  ) : (
+                    <Feather
+                      name="send"
+                      size={14}
+                      color={colors.primary}
+                      style={{ marginRight: 8 }}
+                    />
+                  )}
+                  <Text
+                    style={{
+                      color: colors.primary,
+                      fontFamily: "Inter_600SemiBold",
+                      fontSize: 13,
+                    }}
+                  >
+                    {sendingPreview ? "Sending…" : "Send me a preview"}
+                  </Text>
+                </Pressable>
+                <Text
+                  style={{
+                    marginTop: 8,
+                    fontFamily: "Inter_400Regular",
+                    fontSize: 11,
+                    color: colors.mutedForeground,
+                  }}
+                >
+                  Sends the digest now so you can check the format. Limited
+                  to once per hour.
+                </Text>
+              </View>
             </View>
           </View>
         ) : null}

@@ -58,6 +58,11 @@ export default function PipelineKanbanPage() {
   const [challengeFilter, setChallengeFilter] = useState<
     "all" | "with_challenge"
   >("all");
+  // Source filter — "for_you" surfaces only candidates who
+  // swiped-right from the mobile For You stack (high intent).
+  // Combined with the challengeScore sort, this powers the
+  // employer "For You" view of the pipeline.
+  const [sourceFilter, setSourceFilter] = useState<"all" | "for_you">("all");
 
   const numericJobId = jobId ? Number(jobId) : undefined;
   const { data: apps, isLoading } = useListApplications(
@@ -84,8 +89,11 @@ export default function PipelineKanbanPage() {
     if (challengeFilter === "with_challenge") {
       rows = rows.filter((a) => typeof a.challengeScore === "number");
     }
+    if (sourceFilter === "for_you") {
+      rows = rows.filter((a) => a.source === "for_you");
+    }
     return rows;
-  }, [apps, effectiveJobId, challengeFilter]);
+  }, [apps, effectiveJobId, challengeFilter, sourceFilter]);
 
   const byStage = useMemo(() => {
     const map: Record<StageId, typeof filtered> = {
@@ -201,6 +209,21 @@ export default function PipelineKanbanPage() {
             <SelectContent>
               <SelectItem value="all">All applicants</SelectItem>
               <SelectItem value="with_challenge">Took challenge</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select
+            value={sourceFilter}
+            onValueChange={(v) => setSourceFilter(v as "all" | "for_you")}
+          >
+            <SelectTrigger
+              data-testid="select-kanban-source"
+              className="sm:w-44"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All sources</SelectItem>
+              <SelectItem value="for_you">For You only</SelectItem>
             </SelectContent>
           </Select>
         </div>

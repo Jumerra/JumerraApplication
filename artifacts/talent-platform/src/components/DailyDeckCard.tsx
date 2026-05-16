@@ -164,18 +164,57 @@ export function DailyDeckCard() {
     [data, index],
   );
 
+  // Undoes the last swipe. Calls the matching DELETE endpoint, then
+  // rewinds the deck pointer so the original card resurfaces (the
+  // underlying `data.items` array still contains it — we only advance
+  // `index` on swipe). Toast on the original action stays mounted by
+  // sonner's `id` system so a successful undo replaces it.
+  const undoSwipe = async (
+    swipedIndex: number,
+    item: DeckItem,
+    action: "shortlist" | "dismiss",
+    extra: { poolId?: number } = {},
+    toastId?: string | number,
+  ) => {
+    try {
+      const url = `/api/me/daily-deck/${item.candidate.id}/${action}`;
+      const body =
+        action === "shortlist"
+          ? JSON.stringify({ poolId: extra.poolId })
+          : JSON.stringify({});
+      const res = await fetch(url, {
+        method: "DELETE",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body,
+      });
+      if (!res.ok) throw new Error("undo failed");
+      setIndex((i) => (i > swipedIndex ? swipedIndex : i));
+      setHistory((h) =>
+        h.filter(
+          (e) => !(e.item.candidate.id === item.candidate.id && e.action === action),
+        ),
+      );
+      toast.success(`Restored ${item.candidate.fullName}`, { id: toastId });
+    } catch {
+      toast.error("Could not undo — please refresh", { id: toastId });
+    }
+  };
+
   const shortlist = async () => {
     if (!current || busy) return;
+    const swipedItem = current;
+    const swipedIndex = index;
     setBusy(true);
     try {
       const res = await fetch(
-        `/api/me/daily-deck/${current.candidate.id}/shortlist`,
+        `/api/me/daily-deck/${swipedItem.candidate.id}/shortlist`,
         {
           method: "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            jobId: current.bestJobId ?? undefined,
+            jobId: swipedItem.bestJobId ?? undefined,
             poolId:
               selectedPoolId === "default"
                 ? undefined
@@ -184,11 +223,25 @@ export function DailyDeckCard() {
         },
       );
       if (!res.ok) throw new Error("shortlist failed");
-      toast.success(
-        `${current.candidate.fullName} added to ${selectedPoolName}`,
-      );
-      setHistory((h) => [...h, { item: current, action: "shortlist" }]);
+      const json = (await res.json()) as { poolId?: number };
+      setHistory((h) => [...h, { item: swipedItem, action: "shortlist" }]);
       setIndex((i) => i + 1);
+      const tid = `deck-shortlist-${swipedItem.candidate.id}-${Date.now()}`;
+      toast.success(`${swipedItem.candidate.fullName} added to ${selectedPoolName}`, {
+        id: tid,
+        duration: 5000,
+        action: {
+          label: "Undo",
+          onClick: () =>
+            void undoSwipe(
+              swipedIndex,
+              swipedItem,
+              "shortlist",
+              { poolId: json.poolId },
+              tid,
+            ),
+        },
+      });
     } catch {
       toast.error("Could not add to talent pool");
     } finally {
@@ -198,10 +251,12 @@ export function DailyDeckCard() {
 
   const dismiss = async () => {
     if (!current || busy) return;
+    const swipedItem = current;
+    const swipedIndex = index;
     setBusy(true);
     try {
       const res = await fetch(
-        `/api/me/daily-deck/${current.candidate.id}/dismiss`,
+        `/api/me/daily-deck/${swipedItem.candidate.id}/dismiss`,
         {
           method: "POST",
           credentials: "include",
@@ -210,8 +265,18 @@ export function DailyDeckCard() {
         },
       );
       if (!res.ok) throw new Error("dismiss failed");
-      setHistory((h) => [...h, { item: current, action: "dismiss" }]);
+      setHistory((h) => [...h, { item: swipedItem, action: "dismiss" }]);
       setIndex((i) => i + 1);
+      const tid = `deck-dismiss-${swipedItem.candidate.id}-${Date.now()}`;
+      toast(`${swipedItem.candidate.fullName} skipped`, {
+        id: tid,
+        duration: 5000,
+        action: {
+          label: "Undo",
+          onClick: () =>
+            void undoSwipe(swipedIndex, swipedItem, "dismiss", {}, tid),
+        },
+      });
     } catch {
       toast.error("Could not dismiss candidate");
     } finally {

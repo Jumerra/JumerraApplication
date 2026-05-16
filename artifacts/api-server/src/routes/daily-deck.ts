@@ -12,7 +12,7 @@
  */
 
 import { Router, type IRouter } from "express";
-import { and, eq, gte, inArray, isNull, or } from "drizzle-orm";
+import { and, eq, gt, gte, inArray, isNull, or } from "drizzle-orm";
 import { z } from "zod";
 import {
   db,
@@ -23,10 +23,20 @@ import {
   employerTalentPoolsTable,
   employerTalentPoolMembersTable,
   jobsTable,
+  notificationsTable,
+  usersTable,
 } from "@workspace/db";
 import { calculateMatchScore } from "../lib/matching";
 import { sendNotificationToCandidate } from "../lib/notifier";
 import { requireAuth } from "../middleware/require-auth";
+
+/**
+ * Window in milliseconds during which a freshly-sent shortlist
+ * notification can still be retracted by an undo. Matches the
+ * client-side toast duration so we don't yank an alert the candidate
+ * may already have seen.
+ */
+const UNDO_NOTIFICATION_WINDOW_MS = 10_000;
 
 const router: IRouter = Router();
 const DECK_SIZE = 10;
@@ -485,6 +495,96 @@ router.post(
   },
 );
 
+/**
+ * Undo a shortlist. Removes the membership row for (poolId, candidateId)
+ * if that pool belongs to the calling employer, and best-effort
+ * retracts the candidate-facing "added to shortlist" notification if
+ * it is still fresh (unread + younger than UNDO_NOTIFICATION_WINDOW_MS).
+ *
+ * Idempotent: repeated calls return 200 even if there is nothing left
+ * to undo.
+ */
+const UndoShortlistBody = z.object({
+  poolId: z.number().int().positive(),
+});
+
+router.delete(
+  "/me/daily-deck/:candidateId/shortlist",
+  requireAuth,
+  async (req, res) => {
+    const employer = await resolveEmployer(req, res);
+    if (!employer) return;
+    const candidateId = Number(req.params.candidateId);
+    if (!Number.isFinite(candidateId) || candidateId <= 0) {
+      res.status(400).json({ error: "Invalid candidate id" });
+      return;
+    }
+    const parsed = UndoShortlistBody.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+
+    // Verify the pool belongs to this employer before deleting any
+    // membership row — prevents one employer scrubbing another's
+    // shortlist by guessing pool ids.
+    const [owned] = await db
+      .select({ id: employerTalentPoolsTable.id })
+      .from(employerTalentPoolsTable)
+      .where(
+        and(
+          eq(employerTalentPoolsTable.id, parsed.data.poolId),
+          eq(employerTalentPoolsTable.employerId, employer.id),
+        ),
+      )
+      .limit(1);
+    if (!owned) {
+      res.status(404).json({ error: "Pool not found" });
+      return;
+    }
+
+    await db
+      .delete(employerTalentPoolMembersTable)
+      .where(
+        and(
+          eq(employerTalentPoolMembersTable.poolId, parsed.data.poolId),
+          eq(employerTalentPoolMembersTable.candidateId, candidateId),
+        ),
+      );
+
+    // Best-effort retraction of the candidate-facing notification.
+    // Only touches rows that are (a) for this candidate's user, (b)
+    // the shortlist kind, (c) still unread, and (d) created inside
+    // the undo window — so a candidate who already saw and read the
+    // alert keeps it in their bell, and we never delete unrelated
+    // notifications.
+    try {
+      const [u] = await db
+        .select({ id: usersTable.id })
+        .from(usersTable)
+        .where(eq(usersTable.candidateId, candidateId))
+        .limit(1);
+      if (u) {
+        const cutoff = new Date(Date.now() - UNDO_NOTIFICATION_WINDOW_MS);
+        await db
+          .delete(notificationsTable)
+          .where(
+            and(
+              eq(notificationsTable.userId, u.id),
+              eq(notificationsTable.kind, "employer_interest"),
+              isNull(notificationsTable.readAt),
+              gt(notificationsTable.createdAt, cutoff),
+            ),
+          );
+      }
+    } catch (err) {
+      req.log.warn({ err }, "daily-deck: notification retract failed");
+    }
+
+    res.json({ ok: true });
+  },
+);
+
 const DismissBody = z.object({
   reason: z.string().max(280).optional(),
   jobId: z.number().int().positive().nullish(),
@@ -553,6 +653,53 @@ router.post(
         return;
       }
     }
+
+    res.json({ ok: true });
+  },
+);
+
+/**
+ * Undo a dismiss. Deletes the matching row from
+ * `employer_dismissed_candidates` so the candidate becomes eligible to
+ * resurface in future decks. Idempotent.
+ */
+const UndoDismissBody = z.object({
+  jobId: z.number().int().positive().nullish(),
+});
+
+router.delete(
+  "/me/daily-deck/:candidateId/dismiss",
+  requireAuth,
+  async (req, res) => {
+    const employer = await resolveEmployer(req, res);
+    if (!employer) return;
+    const candidateId = Number(req.params.candidateId);
+    if (!Number.isFinite(candidateId) || candidateId <= 0) {
+      res.status(400).json({ error: "Invalid candidate id" });
+      return;
+    }
+    const parsed = UndoDismissBody.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+
+    // Scope the delete to (employerId, candidateId, jobId) — matching
+    // the same composite that the POST inserts. The jobId predicate
+    // uses isNull when omitted so we don't accidentally wipe per-role
+    // dismissals when the client undoes a global one (or vice versa).
+    const jobId = parsed.data.jobId ?? null;
+    await db
+      .delete(employerDismissedCandidatesTable)
+      .where(
+        and(
+          eq(employerDismissedCandidatesTable.employerId, employer.id),
+          eq(employerDismissedCandidatesTable.candidateId, candidateId),
+          jobId == null
+            ? isNull(employerDismissedCandidatesTable.jobId)
+            : eq(employerDismissedCandidatesTable.jobId, jobId),
+        ),
+      );
 
     res.json({ ok: true });
   },

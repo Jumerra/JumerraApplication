@@ -17,6 +17,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { EmployerReviewsCard } from "@/components/EmployerReviewsCard";
 import { EmptyState } from "@/components/EmptyState";
 import { JobTypeBadge } from "@/components/JobTypeBadge";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
@@ -274,6 +275,10 @@ export default function JobDetailScreen() {
                 ))}
               </View>
             </Section>
+          ) : null}
+
+          {job.employerId ? (
+            <EmployerReviewsCard employerId={job.employerId} />
           ) : null}
         </View>
       </ScrollView>

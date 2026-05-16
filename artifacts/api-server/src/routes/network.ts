@@ -177,12 +177,31 @@ router.get(
       return;
     }
 
+    // Mentors must (a) be opted in AND (b) have actually been hired at
+    // some point — i.e. they're alumni who can speak to working life,
+    // not just other students.
+    const hiredRows = await db
+      .selectDistinct({ candidateId: applicationsTable.candidateId })
+      .from(applicationsTable)
+      .where(
+        and(
+          inArray(applicationsTable.candidateId, mentorCandidateIds),
+          eq(applicationsTable.status, "hired"),
+        ),
+      );
+    const hiredIds = new Set(hiredRows.map((r) => r.candidateId));
+    const eligibleIds = mentorCandidateIds.filter((cid) => hiredIds.has(cid));
+    if (eligibleIds.length === 0) {
+      res.json({ mentors: [] });
+      return;
+    }
+
     const candidates = await db
       .select()
       .from(candidatesTable)
       .where(
         and(
-          inArray(candidatesTable.id, mentorCandidateIds),
+          inArray(candidatesTable.id, eligibleIds),
           eq(candidatesTable.alumniMentorOptin, true),
         ),
       );
@@ -727,6 +746,47 @@ router.get("/placement-stories", async (_req, res): Promise<void> => {
     })),
   });
 });
+
+/**
+ * GET /employers/:id/reviews/eligibility
+ * Tells the client whether the current user can submit a review for this
+ * employer (verified hire) and which of their verified institutions they
+ * should attribute the review to. Used to gate the "Write review" CTA.
+ */
+router.get(
+  "/employers/:id/reviews/eligibility",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const employerId = Number(req.params.id);
+    if (!Number.isInteger(employerId)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    const me = req.currentUser!;
+    if (me.candidateId == null) {
+      res.json({ canReview: false, institutions: [] });
+      return;
+    }
+    const wasHired = await candidateWasHiredAtEmployer(
+      me.candidateId,
+      employerId,
+    );
+    if (!wasHired) {
+      res.json({ canReview: false, institutions: [] });
+      return;
+    }
+    const instIds = await verifiedInstitutionIdsForCandidate(me.candidateId);
+    if (instIds.length === 0) {
+      res.json({ canReview: false, institutions: [] });
+      return;
+    }
+    const institutions = await db
+      .select({ id: institutionsTable.id, name: institutionsTable.name })
+      .from(institutionsTable)
+      .where(inArray(institutionsTable.id, instIds));
+    res.json({ canReview: true, institutions });
+  },
+);
 
 const CreateStoryBody = z.object({
   employerId: z.number().int().positive(),

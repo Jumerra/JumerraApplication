@@ -32,6 +32,7 @@ export function EmployerReviews({ employerId }: { employerId: number }) {
   const [body, setBody] = useState("");
   const [institutionId, setInstitutionId] = useState<number | null>(null);
   const [myInsts, setMyInsts] = useState<{ id: number; name: string }[]>([]);
+  const [canReview, setCanReview] = useState(false);
 
   const reload = async () => {
     const data = await customFetch<{ reviews: Review[] }>(
@@ -44,19 +45,23 @@ export function EmployerReviews({ employerId }: { employerId: number }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [employerId]);
 
-  // Fetch my verified institutions to populate the picker (candidates only).
+  // Only verified hires of THIS employer can write a review. The server
+  // is the source of truth — it returns the candidate's verified
+  // institutions only when they actually have a hired application here.
   useEffect(() => {
     if (role !== "candidate" || !userId) return;
     customFetch<{
-      institutions?: { id: number; name: string; isVerified: boolean }[];
-    }>(`/api/candidates/${userId}`).then((data) => {
-      const verified = (data?.institutions ?? [])
-        .filter((a) => a.isVerified)
-        .map((a) => ({ id: a.id, name: a.name }));
-      setMyInsts(verified);
-      if (verified.length > 0) setInstitutionId(verified[0].id);
-    }).catch(() => {});
-  }, [role, userId]);
+      canReview: boolean;
+      institutions: { id: number; name: string }[];
+    }>(`/api/employers/${employerId}/reviews/eligibility`)
+      .then((data) => {
+        setCanReview(!!data?.canReview);
+        const insts = data?.institutions ?? [];
+        setMyInsts(insts);
+        if (insts.length > 0) setInstitutionId(insts[0].id);
+      })
+      .catch(() => setCanReview(false));
+  }, [role, userId, employerId]);
 
   const grouped = (reviews ?? []).reduce<Record<string, Review[]>>((acc, r) => {
     const k = r.institution.name;
@@ -94,12 +99,10 @@ export function EmployerReviews({ employerId }: { employerId: number }) {
         <CardTitle className="flex items-center gap-2 text-xl">
           <MessageSquare className="w-5 h-5" /> Employee reviews
         </CardTitle>
-        {role === "candidate" && (
+        {role === "candidate" && canReview && (
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-              <Button size="sm" disabled={myInsts.length === 0}>
-                Write review
-              </Button>
+              <Button size="sm">Write review</Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>

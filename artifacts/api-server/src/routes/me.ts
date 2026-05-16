@@ -589,7 +589,10 @@ router.post("/me/whatsapp/start-verification", async (req, res) => {
       whatsappOtpHash: otpHash,
       whatsappOtpExpiresAt: expiresAt,
       whatsappOtpAttempts: 0,
-      whatsappVerifiedAt: null,
+      // Preserve verification on a plain resend (same number, already
+      // verified). Only clear when the user is switching numbers, so a
+      // "Resend code" tap doesn't temporarily disable WA dispatch.
+      whatsappVerifiedAt: sql`CASE WHEN ${usersTable.whatsappNumber} = ${normalized} THEN ${usersTable.whatsappVerifiedAt} ELSE NULL END`,
     })
     .where(
       and(

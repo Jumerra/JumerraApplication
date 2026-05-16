@@ -319,7 +319,9 @@ export async function repingEmployersForCompletedSkill(
 export type GrowthPlanItem = {
   id: number;
   skill: string;
-  status: "active" | "completed" | "dismissed";
+  // Public API states only. Internal states ("dismissed", "superseded")
+  // are filtered out by the serializer below and never reach clients.
+  status: "active" | "completed";
   addedAt: string;
   completedAt: string | null;
   targetDate: string | null;
@@ -353,7 +355,7 @@ export async function listGrowthPlan(
       return {
         id: r.id,
         skill: r.skill,
-        status: r.status as "active" | "completed" | "dismissed",
+        status: r.status as "active" | "completed",
         addedAt: r.addedAt.toISOString(),
         completedAt: r.completedAt ? r.completedAt.toISOString() : null,
         targetDate: r.targetDate ? r.targetDate.toISOString() : null,

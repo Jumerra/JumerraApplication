@@ -16,13 +16,19 @@ import { applicationsTable } from "./applications";
  * Task #75.
  *
  * `skill` is the lowercased skill name (matches how
- * `calculateMatchScore` normalises). A row is in one of three states:
- *   - "active"     : showing on the dashboard, not yet completed
- *   - "completed"  : the candidate marked it done (optionally with a
- *                    verificationUrl). Stays in the table so the
- *                    re-ping logic can find recently-completed skills.
- *   - "dismissed"  : the candidate said "not for me" — the analyser
- *                    must not re-surface this skill.
+ * `calculateMatchScore` normalises). A row is in one of four states:
+ *   - "active"      : public — showing on the dashboard, not yet
+ *                     completed.
+ *   - "completed"   : public — the candidate marked it done (optionally
+ *                     with a verificationUrl). Stays in the table so the
+ *                     re-ping logic can find recently-completed skills.
+ *   - "dismissed"   : internal — the candidate said "not for me"; the
+ *                     analyser must not re-surface this skill and the
+ *                     /me/growth-plan serializer filters it out.
+ *   - "superseded"  : internal — was once active but fell out of the
+ *                     current top-3. Kept (not deleted) so we have a
+ *                     history of what we suggested, but filtered out of
+ *                     the API response just like "dismissed".
  *
  * Unique (candidateId, skill) so the analyser can upsert safely; it
  * also keeps the table tight (no duplicate rows for the same skill).

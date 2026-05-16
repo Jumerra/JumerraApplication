@@ -271,13 +271,17 @@ router.post(
 );
 
 router.post("/cv/checkout/verify", requireAuth, async (req, res) => {
+  const body = (req.body ?? {}) as { sessionId?: unknown };
+  const sessionId = body.sessionId;
+  if (typeof sessionId !== "string" || sessionId.length === 0) {
+    res.status(400).json({ error: "sessionId required" });
+    return;
+  }
+  // Tracked across the try/catch so logs always carry the payment-owner
+  // candidate id even when an admin is verifying on behalf of a candidate
+  // (req.currentUser.candidateId is null for admins).
+  let paymentCandidateId: number | null = null;
   try {
-    const body = (req.body ?? {}) as { sessionId?: unknown };
-    const sessionId = body.sessionId;
-    if (typeof sessionId !== "string" || sessionId.length === 0) {
-      res.status(400).json({ error: "sessionId required" });
-      return;
-    }
 
     const paymentRows = await db
       .select()
@@ -289,6 +293,7 @@ router.post("/cv/checkout/verify", requireAuth, async (req, res) => {
       res.status(404).json({ error: "Session not found" });
       return;
     }
+    paymentCandidateId = payment.candidateId;
 
     if (!ensureOwnerOrAdmin(payment.candidateId, req.currentUser!)) {
       res.status(403).json({ error: "Not allowed" });
@@ -361,8 +366,21 @@ router.post("/cv/checkout/verify", requireAuth, async (req, res) => {
 
     res.json({ status: "paid", unlocked: true });
   } catch (err) {
-    req.log.error({ err }, "cv checkout verify failed");
-    res.status(500).json({ error: "Verification failed" });
+    const mapped = mapStripeCheckoutError(err);
+    req.log.error(
+      {
+        err,
+        sessionId,
+        candidateId:
+          paymentCandidateId ?? req.currentUser?.candidateId ?? null,
+        actorCandidateId: req.currentUser?.candidateId ?? null,
+        purpose: "ai_cv_unlock",
+        errCode: mapped.body.code,
+        ...mapped.logFields,
+      },
+      "cv checkout verify failed",
+    );
+    res.status(mapped.status).json(mapped.body);
   }
 });
 

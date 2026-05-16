@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ApplicationTimelineCurrentMilestone } from "./applicationTimelineCurrentMilestone";
+import type { ApplicationTimelineEndorsement } from "./applicationTimelineEndorsement";
 import type { ApplicationTimelineEtaSource } from "./applicationTimelineEtaSource";
 import type { ApplicationTimelineMilestone } from "./applicationTimelineMilestone";
 
@@ -21,4 +22,5 @@ export interface ApplicationTimeline {
   /** Number of historical transitions backing the etaDays median. */
   etaSampleSize: number;
   etaLabel: string;
+  endorsement: ApplicationTimelineEndorsement | null;
 }

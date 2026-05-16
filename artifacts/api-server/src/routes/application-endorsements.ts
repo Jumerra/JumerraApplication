@@ -19,6 +19,7 @@ import {
   resolveInstitutionScope,
 } from "../lib/institution-scope";
 import { sendNotification, sendNotificationToCandidate } from "../lib/notifier";
+import { sendEndorsementEmail, originFromReq } from "../lib/email";
 
 const router: IRouter = Router();
 
@@ -411,6 +412,33 @@ router.post(
       });
     } catch (err) {
       req.log.warn({ err }, "endorse: candidate notify failed");
+    }
+
+    // Email channel: the in-app/push dispatcher above handles bell +
+    // native push, but the task requirement explicitly calls for an
+    // email too. Resolve the candidate's user row for the address and
+    // hand off to the email stub (no-op until Resend is wired up).
+    try {
+      const [candUser] = await db
+        .select({ email: usersTable.email, fullName: usersTable.fullName })
+        .from(usersTable)
+        .where(eq(usersTable.candidateId, loaded.candidateId))
+        .limit(1);
+      if (candUser?.email) {
+        await sendEndorsementEmail({
+          to: candUser.email,
+          candidateId: loaded.candidateId,
+          candidateName: candUser.fullName,
+          institutionId,
+          institutionName: loaded.institutionName,
+          jobTitle: loaded.jobTitle,
+          note,
+          applicationLink: `${originFromReq(req)}/account/applications/${applicationId}`,
+          logger: req.log,
+        });
+      }
+    } catch (err) {
+      req.log.warn({ err }, "endorse: candidate email send failed");
     }
 
     // Notify the employer (best-effort).

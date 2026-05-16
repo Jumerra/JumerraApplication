@@ -49,6 +49,7 @@ export * from "./applicationSource";
 export * from "./applicationStatus";
 export * from "./applicationTimeline";
 export * from "./applicationTimelineCurrentMilestone";
+export * from "./applicationTimelineEndorsement";
 export * from "./applicationTimelineEtaSource";
 export * from "./applicationTimelineMilestone";
 export * from "./applicationTimelineMilestoneKey";

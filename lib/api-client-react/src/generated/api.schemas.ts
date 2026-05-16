@@ -2496,6 +2496,19 @@ export const ApplicationTimelineEtaSource = {
   none: "none",
 } as const;
 
+/**
+ * Surfaced on the candidate-facing timeline when their institution
+has co-signed the application. Rendered as a "Verified by
+[Institution]" milestone event between status milestones.
+
+ */
+export interface ApplicationTimelineEndorsement {
+  institutionId: number;
+  institutionName: string;
+  note: string | null;
+  endorsedAt: string;
+}
+
 export interface ApplicationTimeline {
   applicationId: number;
   currentStatus: string;
@@ -2508,6 +2521,7 @@ export interface ApplicationTimeline {
   /** Number of historical transitions backing the etaDays median. */
   etaSampleSize: number;
   etaLabel: string;
+  endorsement: ApplicationTimelineEndorsement | null;
 }
 
 /**

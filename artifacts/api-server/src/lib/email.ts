@@ -96,6 +96,53 @@ export async function sendEngagementEmail(
   return { sent: false, reason: "email-not-configured" };
 }
 
+/**
+ * Send a candidate-facing endorsement email when their institution
+ * co-signs one of their applications.
+ *
+ * Follows the same stub pattern as the other senders in this file:
+ * when no provider is configured we log a redacted line (candidateId
+ * + institutionId, never the recipient address) and return
+ * `{ sent: false, reason: "email-not-configured" }`. Callers should
+ * use this *in addition* to the in-app/push dispatcher in
+ * `notifier.ts` — the dispatcher covers the in-app bell + native
+ * push; this covers the email channel that the product requirement
+ * explicitly calls for.
+ */
+export interface SendEndorsementEmailArgs {
+  to: string;
+  candidateId: number;
+  candidateName: string;
+  institutionId: number;
+  institutionName: string;
+  jobTitle: string;
+  note: string | null;
+  applicationLink: string;
+  logger: Logger;
+}
+
+export async function sendEndorsementEmail(
+  args: SendEndorsementEmailArgs,
+): Promise<SendResult> {
+  // Policy: log only ids — never the recipient address, the note, or
+  // the candidate's name (PII). An operator should still be able to
+  // confirm the attempt happened end-to-end.
+  args.logger.info(
+    {
+      candidateId: args.candidateId,
+      institutionId: args.institutionId,
+      kind: "application_endorsed",
+    },
+    "endorsement email queued (provider not configured)",
+  );
+
+  // TODO: once the Resend integration is connected, send via Resend
+  // here and return { sent: true, provider: "resend" }. Until then,
+  // the in-app + push notification dispatched alongside this call
+  // ensures the candidate still hears about the endorsement.
+  return { sent: false, reason: "email-not-configured" };
+}
+
 /** Convenience helper to derive an absolute origin from an Express request. */
 export function originFromReq(req: {
   protocol: string;

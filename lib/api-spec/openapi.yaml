@@ -5990,7 +5990,23 @@ components:
           type: integer
           description: Number of historical transitions backing the etaDays median.
         etaLabel: { type: string }
-      required: [applicationId, currentStatus, currentMilestone, milestones, etaSource, etaSampleSize, etaLabel]
+        endorsement:
+          nullable: true
+          $ref: "#/components/schemas/ApplicationTimelineEndorsement"
+      required: [applicationId, currentStatus, currentMilestone, milestones, etaSource, etaSampleSize, etaLabel, endorsement]
+
+    ApplicationTimelineEndorsement:
+      type: object
+      description: |
+        Surfaced on the candidate-facing timeline when their institution
+        has co-signed the application. Rendered as a "Verified by
+        [Institution]" milestone event between status milestones.
+      properties:
+        institutionId: { type: integer }
+        institutionName: { type: string }
+        note: { type: string, nullable: true }
+        endorsedAt: { type: string, format: date-time }
+      required: [institutionId, institutionName, note, endorsedAt]
 
     SavedSearch:
       type: object

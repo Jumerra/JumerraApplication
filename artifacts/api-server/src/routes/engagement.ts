@@ -4,8 +4,10 @@ import { jobMatchesFilters, savedSearchToFilters } from "../lib/job-filters";
 import {
   db,
   applicationsTable,
+  applicationEndorsementsTable,
   applicationStatusHistoryTable,
   candidatesTable,
+  institutionsTable,
   candidateSavedSearchesTable,
   candidateWeeklyDigestsTable,
   jobsTable,
@@ -548,6 +550,26 @@ router.get("/applications/:id/timeline", async (req, res): Promise<void> => {
     }
   }
 
+  // Endorsement event (nullable): surfaces "Verified by [Institution]"
+  // on the candidate-facing timeline so the co-sign is discoverable
+  // outside the application-detail header card. Joined to institutions
+  // for the display name; LEFT JOIN-style guarded by limit(1) since
+  // the endorsements table has UNIQUE(applicationId).
+  const [endorsementRow] = await db
+    .select({
+      institutionId: applicationEndorsementsTable.institutionId,
+      institutionName: institutionsTable.name,
+      note: applicationEndorsementsTable.note,
+      endorsedAt: applicationEndorsementsTable.createdAt,
+    })
+    .from(applicationEndorsementsTable)
+    .innerJoin(
+      institutionsTable,
+      eq(institutionsTable.id, applicationEndorsementsTable.institutionId),
+    )
+    .where(eq(applicationEndorsementsTable.applicationId, id))
+    .limit(1);
+
   res.json({
     applicationId: id,
     currentStatus: row.app.status,
@@ -557,6 +579,14 @@ router.get("/applications/:id/timeline", async (req, res): Promise<void> => {
     etaSource,
     etaSampleSize,
     etaLabel,
+    endorsement: endorsementRow
+      ? {
+          institutionId: endorsementRow.institutionId,
+          institutionName: endorsementRow.institutionName,
+          note: endorsementRow.note,
+          endorsedAt: endorsementRow.endorsedAt.toISOString(),
+        }
+      : null,
   });
 });
 

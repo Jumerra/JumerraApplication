@@ -4659,6 +4659,17 @@ export const GetApplicationTimelineResponse = zod.object({
     .number()
     .describe("Number of historical transitions backing the etaDays median."),
   etaLabel: zod.string(),
+  endorsement: zod
+    .object({
+      institutionId: zod.number(),
+      institutionName: zod.string(),
+      note: zod.string().nullable(),
+      endorsedAt: zod.coerce.date(),
+    })
+    .nullable()
+    .describe(
+      'Surfaced on the candidate-facing timeline when their institution\nhas co-signed the application. Rendered as a \"Verified by\n[Institution]\" milestone event between status milestones.\n',
+    ),
 });
 
 /**

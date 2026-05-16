@@ -17,7 +17,6 @@ export type GrowthPlanItemStatus =
 export const GrowthPlanItemStatus = {
   active: "active",
   completed: "completed",
-  dismissed: "dismissed",
 } as const;
 
 export interface GrowthPlanItem {

@@ -136,6 +136,13 @@ router.post(
       return;
     }
 
+    // Idempotent: only the first transition into "completed" fires the
+    // re-ping. Subsequent /complete calls just return ok with no work.
+    if (row.status === "completed") {
+      res.json({ ok: true, employersNotified: 0 });
+      return;
+    }
+
     await db
       .update(candidateGrowthSkillsTable)
       .set({

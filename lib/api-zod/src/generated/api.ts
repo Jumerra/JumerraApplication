@@ -6383,7 +6383,7 @@ export const GetMyGrowthPlanResponse = zod.object({
     zod.object({
       id: zod.number(),
       skill: zod.string(),
-      status: zod.enum(["active", "completed", "dismissed"]),
+      status: zod.enum(["active", "completed"]),
       addedAt: zod.coerce.date(),
       completedAt: zod.coerce.date().nullish(),
       targetDate: zod.coerce.date().nullish(),

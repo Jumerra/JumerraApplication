@@ -3876,7 +3876,9 @@ components:
         skill: { type: string }
         status:
           type: string
-          enum: [active, completed, dismissed]
+          # GET /me/growth-plan only ever returns public states — internal
+          # ones (dismissed/superseded) are filtered server-side.
+          enum: [active, completed]
         addedAt: { type: string, format: date-time }
         completedAt:
           type: string

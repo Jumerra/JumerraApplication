@@ -10,6 +10,7 @@
     "test:job-tier": "tsx ./scripts/test-job-tier-flows.ts",
     "test:notifications": "tsx ./scripts/test-notifications.ts",
     "test:weekly-digest": "tsx ./scripts/test-weekly-digest.ts",
+    "test:digest-slot": "tsx ./scripts/test-digest-slot.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

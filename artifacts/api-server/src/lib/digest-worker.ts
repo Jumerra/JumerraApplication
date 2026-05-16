@@ -504,7 +504,7 @@ export async function runDigestForCandidate(
   }
 }
 
-export async function runWeeklyDigestSweep(): Promise<void> {
+export async function runWeeklyDigestSweep(now: Date = new Date()): Promise<void> {
   // Join candidates → users → notification_prefs so we can read each
   // candidate's chosen delivery slot (day-of-week + hour + optional tz
   // override). Defaults (Mon 09:00, candidate.timezone) are applied
@@ -525,7 +525,6 @@ export async function runWeeklyDigestSweep(): Promise<void> {
     );
   let generated = 0;
   let skippedByTimeWindow = 0;
-  const now = new Date();
   for (const { id, timezone, digestDow, digestHour, digestTz } of candidates) {
     try {
       // Effective slot/tz: per-user prefs win, else candidate.timezone,

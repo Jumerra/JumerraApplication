@@ -35,6 +35,7 @@ import skillChallengesRouter from "./skill-challenges";
 import salaryInsightsRouter from "./salary-insights";
 import reverseOffersRouter from "./reverse-offers";
 import alumniIntrosRouter from "./alumni-intros";
+import growthPlanRouter from "./growth-plan";
 import { requireAuth } from "../middleware/require-auth";
 
 const router: IRouter = Router();
@@ -128,6 +129,11 @@ router.use(reverseOffersRouter);
 // /jobs/:id/intro-requests, and /me/intro-requests*. Must sit BEFORE
 // the generic jobsRouter so the jobs/:id sub-routes are matched here.
 router.use(alumniIntrosRouter);
+// Growth-plan endpoints: /me/growth-plan*. Mounted before
+// candidatesRouter so the /me/* paths don't get caught by the
+// /candidates requireAuth gate (the router has its own per-route
+// requireAuth).
+router.use(growthPlanRouter);
 router.use(candidatesRouter);
 router.use(employersRouter);
 router.use(institutionsRouter);

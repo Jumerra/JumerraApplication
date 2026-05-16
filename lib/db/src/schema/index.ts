@@ -28,3 +28,4 @@ export * from "./application-endorsements";
 export * from "./skill-challenges";
 export * from "./reverse-offers";
 export * from "./alumni-intros";
+export * from "./growth-skills";

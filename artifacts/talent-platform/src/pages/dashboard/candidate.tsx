@@ -25,6 +25,7 @@ import { PendingInterviewInvitesCard } from "@/components/pending-interview-invi
 import { useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { WhyMatched } from "@/components/WhyMatched";
+import { GrowthPlanCard } from "@/components/GrowthPlanCard";
 import type { JobMatch } from "@workspace/api-client-react";
 
 function RecommendedJobRow({ job }: { job: JobMatch }) {
@@ -402,6 +403,8 @@ export default function CandidateDashboard() {
       <MentorshipCard candidateId={id} />
 
       <IntroRequestsCard candidateId={id} />
+
+      <GrowthPlanCard />
 
 
       <div className="grid lg:grid-cols-3 gap-8">

@@ -37,6 +37,7 @@ import { calculateMatchScore } from "./matching";
 import { sendEngagementEmail } from "./email";
 import { sendNotificationToCandidate } from "./notifier";
 import { jobMatchesFilters, savedSearchToFilters } from "./job-filters";
+import { listGrowthPlan } from "./growth-plan";
 
 /**
  * Resolve the actual UTC instant for a wall-clock local date in `tz`.
@@ -454,6 +455,24 @@ export async function runDigestForCandidate(
       // `sendNotificationToCandidate`, which is fine: previewing the
       // *format* is what matters, and a candidate who muted push
       // wouldn't want a push from a preview either.)
+      // Growth-plan: surface the top missing skill from recent
+      // rejections in the digest so candidates see momentum, not just
+      // matches. Best-effort — failure here must not skip the digest.
+      let growthLine = "";
+      let growthItems: Awaited<ReturnType<typeof listGrowthPlan>> = [];
+      try {
+        growthItems = await listGrowthPlan(candidateId);
+        const top = growthItems.find((g) => g.status === "active");
+        if (top) {
+          growthLine = ` Growing: ${top.skill} (missed on ${top.rejectionCount} job${top.rejectionCount === 1 ? "" : "s"}).`;
+        }
+      } catch (err) {
+        logger.warn(
+          { err, candidateId },
+          "digest: growth-plan lookup failed",
+        );
+      }
+
       const previewPrefix = preview ? "Preview · " : "";
       if (wantsDigest || preview) {
         const topLine = newMatches[0]
@@ -462,7 +481,7 @@ export async function runDigestForCandidate(
         await sendNotificationToCandidate(candidateId, {
           kind: "weekly_digest",
           title: `${previewPrefix}Your week on Jumerra: ${newMatches.length} new match${newMatches.length === 1 ? "" : "es"}`,
-          body: `${profileViews} profile views · ${applicationsSent} applications.${topLine}`,
+          body: `${profileViews} profile views · ${applicationsSent} applications.${topLine}${growthLine}`,
           link: "/account/dashboard",
           category: "weeklyDigest",
           data: { weekStart: weekStartKey, preview: preview || undefined },
@@ -501,6 +520,21 @@ export async function runDigestForCandidate(
           emailLines.push(
             `  • ${m.title} at ${m.employerName} — ${m.matchScore}% match`,
           );
+        }
+      }
+      const activeGrowth = growthItems.filter((g) => g.status === "active");
+      if (activeGrowth.length > 0) {
+        emailLines.push(
+          ``,
+          `Your growth plan (free resources to unlock the jobs you missed):`,
+        );
+        for (const g of activeGrowth) {
+          emailLines.push(
+            `  • ${g.skill} — missed on ${g.rejectionCount} job${g.rejectionCount === 1 ? "" : "s"}`,
+          );
+          for (const r of g.resources) {
+            emailLines.push(`      › ${r.title} — ${r.url}`);
+          }
         }
       }
       emailLines.push(``, `Sign in to Jumerra to see the full breakdown.`);

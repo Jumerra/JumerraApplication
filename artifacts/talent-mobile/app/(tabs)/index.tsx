@@ -29,6 +29,7 @@ import { SectionHeader } from "@/components/SectionHeader";
 import { StudentStoriesPanel } from "@/components/StudentStoriesPanel";
 import { TalentScoreBreakdownCard } from "@/components/TalentScoreBreakdownCard";
 import { WeeklyDigestCard } from "@/components/WeeklyDigestCard";
+import { GrowthPlanCard } from "@/components/GrowthPlanCard";
 import { useAuth } from "@/hooks/useAuth";
 import { useColors } from "@/hooks/useColors";
 
@@ -151,6 +152,7 @@ export default function DiscoverScreen() {
         <View style={{ gap: 14, marginBottom: 24 }}>
           <TalentScoreBreakdownCard candidateId={candidateId} />
           <WeeklyDigestCard candidateId={candidateId} />
+          <GrowthPlanCard />
         </View>
       ) : null}
 

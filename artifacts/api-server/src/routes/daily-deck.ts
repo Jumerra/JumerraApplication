@@ -288,34 +288,29 @@ router.get("/me/daily-deck", requireAuth, async (req, res) => {
       (c): c is typeof candidatesTable.$inferSelect => c != null,
     )
     .map((c) => {
+      // We already early-returned above when jobs.length === 0, so
+      // here we always score against at least one job and pick the
+      // best (jobId, score, breakdown) tuple.
       let bestJobId: number | null = null;
       let bestJobTitle: string | null = null;
       let bestScore = 0;
       let bestMatched: string[] = [];
       let bestMissing: string[] = [];
       let bestSummary = "";
-      if (jobs.length === 0) {
-        const br = calculateMatchScore([], c.skills, c.yearsExperience, c.talentScore);
-        bestScore = br.score;
-        bestMatched = br.matchedSkills;
-        bestMissing = br.missingSkills;
-        bestSummary = br.summary;
-      } else {
-        for (const j of jobs) {
-          const br = calculateMatchScore(
-            j.skills,
-            c.skills,
-            c.yearsExperience,
-            c.talentScore,
-          );
-          if (br.score > bestScore || bestJobId == null) {
-            bestScore = br.score;
-            bestMatched = br.matchedSkills;
-            bestMissing = br.missingSkills;
-            bestSummary = br.summary;
-            bestJobId = j.id;
-            bestJobTitle = j.title;
-          }
+      for (const j of jobs) {
+        const br = calculateMatchScore(
+          j.skills,
+          c.skills,
+          c.yearsExperience,
+          c.talentScore,
+        );
+        if (br.score > bestScore || bestJobId == null) {
+          bestScore = br.score;
+          bestMatched = br.matchedSkills;
+          bestMissing = br.missingSkills;
+          bestSummary = br.summary;
+          bestJobId = j.id;
+          bestJobTitle = j.title;
         }
       }
       return {

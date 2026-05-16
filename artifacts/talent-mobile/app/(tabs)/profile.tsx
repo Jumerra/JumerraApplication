@@ -149,7 +149,7 @@ export default function ProfileScreen() {
     >
       <View style={styles.editButtonRow}>
         <Pressable
-          onPress={() => router.push("/offers" as any)}
+          onPress={() => router.push("/offers" as never)}
           style={({ pressed }) => [
             {
               flexDirection: "row",

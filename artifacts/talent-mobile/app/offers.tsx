@@ -239,7 +239,7 @@ export default function OffersScreen() {
             )}
             {offer.status === "accepted" && offer.applicationId && (
               <Pressable
-                onPress={() => router.push(`/application/${offer.applicationId}` as any)}
+                onPress={() => router.push(`/application/${offer.applicationId}` as never)}
                 style={[styles.outlineBtn, { marginTop: 12, alignSelf: "flex-start" }]}
               >
                 <Text style={styles.outlineBtnText}>View application</Text>

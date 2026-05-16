@@ -715,6 +715,11 @@ Each row carries the institution that issued it and when.
  */
   verifiedSkills: VerifiedSkill[];
   backgroundCheck: BackgroundCheck;
+  /** True when the candidate has at least one verified affiliation
+with an institution on an active Pro subscription. Drives the
+employer-side "Pro" ribbon and the matching tie-break bonus.
+ */
+  verifiedByPremium?: boolean;
   createdAt: string;
 }
 
@@ -1235,6 +1240,11 @@ export interface Institution {
   studentCount: number;
   placementRate: number;
   createdAt: string;
+  /** URL-safe slug for the public branded profile at
+`/public/institutions/{slug}`. Auto-generated from name on
+create/rename; legacy rows may be null and resolve by id.
+ */
+  slug?: string | null;
   /** Owning account-manager admin user id (admin-only field) */
   accountManagerId?: number | null;
   /** Owning account-manager display name (admin-only field) */
@@ -3432,6 +3442,11 @@ export interface DailyDeckCandidate {
   talentScore: number;
   yearsExperience: number;
   openToOffers: boolean;
+  /** True when this candidate has at least one verified affiliation
+with an institution on an active Pro subscription. Drives the
+employer-side "Verified · Pro" ribbon on deck cards.
+ */
+  verifiedByPremium?: boolean;
 }
 
 export interface DailyDeckItem {
@@ -3545,6 +3560,10 @@ export type ListInstitutionsMine =
 export const ListInstitutionsMine = {
   NUMBER_1: "1",
 } as const;
+
+export type GetPublicInstitution200 = Institution & {
+  description: string;
+};
 
 export type ListInstitutionStudentsParams = {
   /**

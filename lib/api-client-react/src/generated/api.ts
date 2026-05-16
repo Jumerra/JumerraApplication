@@ -107,6 +107,7 @@ import type {
   GetInstitutionCohortLeaderboardParams,
   GetInstitutionPlacementAnalyticsParams,
   GetMyGrowthPlan200,
+  GetPublicInstitution200,
   GetSalaryBandParams,
   HealthStatus,
   HiresAnalyticsResponse,
@@ -2182,6 +2183,104 @@ export const useDeleteMyInstitutionFacility = <
 > => {
   return useMutation(getDeleteMyInstitutionFacilityMutationOptions(options));
 };
+
+/**
+ * @summary Public branded institution profile. Anonymous; accepts either
+the URL slug or numeric id. Returns brand fields (bannerUrl,
+featuredPrograms) used by the standalone public page.
+
+ */
+export const getGetPublicInstitutionUrl = (slugOrId: string) => {
+  return `/api/public/institutions/${slugOrId}`;
+};
+
+export const getPublicInstitution = async (
+  slugOrId: string,
+  options?: RequestInit,
+): Promise<GetPublicInstitution200> => {
+  return customFetch<GetPublicInstitution200>(
+    getGetPublicInstitutionUrl(slugOrId),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetPublicInstitutionQueryKey = (slugOrId: string) => {
+  return [`/api/public/institutions/${slugOrId}`] as const;
+};
+
+export const getGetPublicInstitutionQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPublicInstitution>>,
+  TError = ErrorType<void>,
+>(
+  slugOrId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPublicInstitution>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetPublicInstitutionQueryKey(slugOrId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getPublicInstitution>>
+  > = ({ signal }) =>
+    getPublicInstitution(slugOrId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!slugOrId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPublicInstitution>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetPublicInstitutionQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPublicInstitution>>
+>;
+export type GetPublicInstitutionQueryError = ErrorType<void>;
+
+/**
+ * @summary Public branded institution profile. Anonymous; accepts either
+the URL slug or numeric id. Returns brand fields (bannerUrl,
+featuredPrograms) used by the standalone public page.
+
+ */
+
+export function useGetPublicInstitution<
+  TData = Awaited<ReturnType<typeof getPublicInstitution>>,
+  TError = ErrorType<void>,
+>(
+  slugOrId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPublicInstitution>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetPublicInstitutionQueryOptions(slugOrId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 export const getGetInstitutionUrl = (id: number) => {
   return `/api/institutions/${id}`;

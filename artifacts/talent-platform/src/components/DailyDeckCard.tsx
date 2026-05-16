@@ -52,6 +52,7 @@ type DeckItem = {
     talentScore: number;
     yearsExperience: number;
     openToOffers: boolean;
+    verifiedByPremium?: boolean;
   };
   bestJobId: number | null;
   bestJobTitle: string | null;
@@ -426,9 +427,19 @@ export function DailyDeckCard() {
                             {current.candidate.headline}
                           </p>
                         </div>
-                        <Badge className="bg-primary/10 text-primary border-primary/20 shrink-0">
-                          {current.matchScore}% match
-                        </Badge>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {current.candidate.verifiedByPremium ? (
+                            <Badge
+                              className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                              data-testid="badge-verified-pro"
+                            >
+                              Verified · Pro
+                            </Badge>
+                          ) : null}
+                          <Badge className="bg-primary/10 text-primary border-primary/20">
+                            {current.matchScore}% match
+                          </Badge>
+                        </div>
                       </div>
                       <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-muted-foreground">
                         {current.candidate.location ? (

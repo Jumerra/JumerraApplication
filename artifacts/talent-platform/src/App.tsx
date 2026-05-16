@@ -17,6 +17,7 @@ import EmployersList from "@/pages/employers/index";
 import EmployerDetail from "@/pages/employers/detail";
 import InstitutionsList from "@/pages/institutions/index";
 import InstitutionDetail from "@/pages/institutions/detail";
+import PublicInstitutionPage from "@/pages/public/institution";
 import InstitutionLeaderboardPage from "@/pages/institutions/leaderboard";
 import CandidatesList from "@/pages/candidates/index";
 import CandidateDetail from "@/pages/candidates/detail";
@@ -103,6 +104,7 @@ function Router() {
         <Route path="/employers" component={EmployersList} />
         <Route path="/employers/:id" component={EmployerDetail} />
         
+        <Route path="/public/institutions/:slugOrId" component={PublicInstitutionPage} />
         <Route path="/institutions" component={InstitutionsList} />
         <Route
           path="/institutions/:id/leaderboard"

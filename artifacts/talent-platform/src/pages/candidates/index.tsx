@@ -465,7 +465,18 @@ export default function CandidatesList() {
                     className="w-16 h-16 rounded-full object-cover bg-muted border-2 border-background shadow-sm" 
                   />
                   <div className="flex-1 min-w-0 pt-1">
-                    <h3 className="text-lg font-bold truncate group-hover:text-primary transition-colors">{candidate.fullName}</h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-lg font-bold truncate group-hover:text-primary transition-colors">{candidate.fullName}</h3>
+                      {candidate.verifiedByPremium ? (
+                        <span
+                          className="inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 shrink-0"
+                          title="Verified by a Pro institution"
+                          data-testid={`badge-verified-pro-${candidate.id}`}
+                        >
+                          <BadgeCheck className="w-3 h-3" /> Pro
+                        </span>
+                      ) : null}
+                    </div>
                     <p className="text-sm font-medium text-muted-foreground truncate">{candidate.headline}</p>
                   </div>
                 </div>

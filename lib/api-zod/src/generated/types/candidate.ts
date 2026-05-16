@@ -44,5 +44,10 @@ Each row carries the institution that issued it and when.
  */
   verifiedSkills: VerifiedSkill[];
   backgroundCheck: BackgroundCheck;
+  /** True when the candidate has at least one verified affiliation
+with an institution on an active Pro subscription. Drives the
+employer-side "Pro" ribbon and the matching tie-break bonus.
+ */
+  verifiedByPremium?: boolean;
   createdAt: Date;
 }

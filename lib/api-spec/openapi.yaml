@@ -444,6 +444,32 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/OkResponse" }
+  /public/institutions/{slugOrId}:
+    get:
+      operationId: getPublicInstitution
+      tags: [institutions]
+      summary: |
+        Public branded institution profile. Anonymous; accepts either
+        the URL slug or numeric id. Returns brand fields (bannerUrl,
+        featuredPrograms) used by the standalone public page.
+      parameters:
+        - in: path
+          name: slugOrId
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Public institution profile
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Institution"
+                  - type: object
+                    properties:
+                      description: { type: string }
+                    required: [description]
+        "404": { description: Not found }
   /institutions/{id}:
     get:
       operationId: getInstitution
@@ -4745,6 +4771,12 @@ components:
             $ref: "#/components/schemas/VerifiedSkill"
         backgroundCheck:
           $ref: "#/components/schemas/BackgroundCheck"
+        verifiedByPremium:
+          type: boolean
+          description: |
+            True when the candidate has at least one verified affiliation
+            with an institution on an active Pro subscription. Drives the
+            employer-side "Pro" ribbon and the matching tie-break bonus.
         createdAt: { type: string, format: date-time }
       required:
         - id
@@ -5253,6 +5285,13 @@ components:
         studentCount: { type: integer }
         placementRate: { type: number }
         createdAt: { type: string, format: date-time }
+        slug:
+          type: string
+          nullable: true
+          description: |
+            URL-safe slug for the public branded profile at
+            `/public/institutions/{slug}`. Auto-generated from name on
+            create/rename; legacy rows may be null and resolve by id.
         accountManagerId:
           type: integer
           nullable: true
@@ -7928,6 +7967,12 @@ components:
         talentScore: { type: integer }
         yearsExperience: { type: integer }
         openToOffers: { type: boolean }
+        verifiedByPremium:
+          type: boolean
+          description: |
+            True when this candidate has at least one verified affiliation
+            with an institution on an active Pro subscription. Drives the
+            employer-side "Verified · Pro" ribbon on deck cards.
       required: [id, fullName, skills, talentScore, yearsExperience, openToOffers]
 
     DailyDeckItem:

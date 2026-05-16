@@ -17,4 +17,9 @@ export interface DailyDeckCandidate {
   talentScore: number;
   yearsExperience: number;
   openToOffers: boolean;
+  /** True when this candidate has at least one verified affiliation
+with an institution on an active Pro subscription. Drives the
+employer-side "Verified · Pro" ribbon on deck cards.
+ */
+  verifiedByPremium?: boolean;
 }

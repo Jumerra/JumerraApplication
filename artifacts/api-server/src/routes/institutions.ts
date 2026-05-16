@@ -35,6 +35,41 @@ import {
   getCandidateIdsForInstitution,
   getInstitutionIdForDepartment,
 } from "../lib/candidate-institutions";
+
+/**
+ * URL-safe slug from an institution name. Lowercase, dashes between
+ * alphanumeric runs, capped at 80 chars. Used for branded public
+ * profile URLs (`/public/institutions/:slug`); falls back to numeric
+ * id when slug is null or collides.
+ */
+function generateInstitutionSlug(name: string): string {
+  const base = name
+    .toLowerCase()
+    .replace(/['"]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "")
+    .slice(0, 80);
+  return base || "institution";
+}
+
+async function generateUniqueInstitutionSlug(
+  name: string,
+  excludeId: number | null = null,
+): Promise<string> {
+  const base = generateInstitutionSlug(name);
+  let candidate = base;
+  for (let i = 0; i < 6; i++) {
+    const [row] = await db
+      .select({ id: institutionsTable.id })
+      .from(institutionsTable)
+      .where(eq(institutionsTable.slug, candidate))
+      .limit(1);
+    if (!row || row.id === excludeId) return candidate;
+    candidate = `${base}-${Math.random().toString(36).slice(2, 6)}`;
+  }
+  // Final fallback: timestamp suffix essentially guarantees uniqueness.
+  return `${base}-${Date.now().toString(36)}`;
+}
 import {
   requireAdmin,
   requireAuth,
@@ -191,6 +226,7 @@ function serializeInstitution(
     studentCount,
     placementRate,
     createdAt: i.createdAt.toISOString(),
+    slug: i.slug ?? null,
   };
   const withFlags = {
     ...base,
@@ -322,9 +358,68 @@ router.post("/institutions", requireAdmin, async (req, res): Promise<void> => {
     return;
   }
 
-  const [created] = await db.insert(institutionsTable).values(parsed.data).returning();
-  res.status(201).json(serializeInstitution(created, 0, 0));
+  // Race-safe slug write: pre-check uses generateUniqueInstitutionSlug,
+  // but a concurrent insert could still steal the same slug between SELECT
+  // and INSERT. Catch the unique-violation (23505) and retry with a
+  // random suffix so the API returns 201 instead of 500.
+  let created: typeof institutionsTable.$inferSelect | undefined;
+  for (let attempt = 0; attempt < 3 && !created; attempt++) {
+    const slug = await generateUniqueInstitutionSlug(parsed.data.name);
+    try {
+      [created] = await db
+        .insert(institutionsTable)
+        .values({ ...parsed.data, slug })
+        .returning();
+    } catch (err) {
+      const code = (err as { code?: string } | null)?.code;
+      if (code === "23505" && attempt < 2) continue;
+      throw err;
+    }
+  }
+  res.status(201).json(serializeInstitution(created!, 0, 0));
 });
+
+/**
+ * Public branded institution profile.  Accepts either the URL slug or
+ * the numeric id (legacy rows whose slug hasn't been generated yet
+ * still resolve by id).  Mounted at `/public/institutions/:slugOrId`
+ * (outside the `/institutions` requireAuth gate in routes/index.ts),
+ * so anonymous visitors can view it.  Returns the same shape as
+ * `GET /institutions/:id` minus admin-only fields.
+ */
+router.get(
+  "/public/institutions/:slugOrId",
+  async (req, res): Promise<void> => {
+    const { slugOrId } = req.params;
+    let institution: typeof institutionsTable.$inferSelect | undefined;
+    if (/^\d+$/.test(slugOrId)) {
+      [institution] = await db
+        .select()
+        .from(institutionsTable)
+        .where(eq(institutionsTable.id, Number(slugOrId)))
+        .limit(1);
+    } else {
+      [institution] = await db
+        .select()
+        .from(institutionsTable)
+        .where(eq(institutionsTable.slug, slugOrId))
+        .limit(1);
+    }
+    if (!institution) {
+      res.status(404).json({ error: "Institution not found" });
+      return;
+    }
+    const stats = await getInstitutionStats(institution.id);
+    res.json({
+      ...serializeInstitution(
+        institution,
+        stats.studentCount,
+        stats.placementRate,
+      ),
+      description: institution.description,
+    });
+  },
+);
 
 router.get("/institutions/:id", async (req, res): Promise<void> => {
   const params = GetInstitutionParams.safeParse(req.params);
@@ -1069,10 +1164,27 @@ router.patch(
       res.status(400).json({ error: parsed.error.message });
       return;
     }
-    const updates = parsed.data;
+    const updates: Record<string, unknown> = { ...parsed.data };
     if (Object.keys(updates).length === 0) {
       res.status(400).json({ error: "No fields to update" });
       return;
+    }
+    // Backfill slug for legacy rows that never had one generated, but
+    // do NOT regenerate on every name change — that would break every
+    // previously-shared `/public/institutions/{old-slug}` link. Owners
+    // who want a new vanity URL can ask support to rotate it.
+    if (typeof updates.name === "string" && updates.name.trim().length > 0) {
+      const [current] = await db
+        .select({ slug: institutionsTable.slug })
+        .from(institutionsTable)
+        .where(eq(institutionsTable.id, institutionId))
+        .limit(1);
+      if (!current?.slug) {
+        updates.slug = await generateUniqueInstitutionSlug(
+          updates.name,
+          institutionId,
+        );
+      }
     }
     // Pro-gate the branded fields. Touching either of them on a Starter
     // org returns 402 so the client can show the upgrade modal. We check

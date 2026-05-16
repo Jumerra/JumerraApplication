@@ -128,6 +128,12 @@ export const ListCandidatesResponseItem = zod.object({
     updatedAt: zod.coerce.date().nullish(),
     updatedByName: zod.string().nullish(),
   }),
+  verifiedByPremium: zod
+    .boolean()
+    .optional()
+    .describe(
+      'True when the candidate has at least one verified affiliation\nwith an institution on an active Pro subscription. Drives the\nemployer-side \"Pro\" ribbon and the matching tie-break bonus.\n',
+    ),
   createdAt: zod.coerce.date(),
 });
 export const ListCandidatesResponse = zod.array(ListCandidatesResponseItem);
@@ -247,6 +253,12 @@ export const GetCandidateResponse = zod
       updatedAt: zod.coerce.date().nullish(),
       updatedByName: zod.string().nullish(),
     }),
+    verifiedByPremium: zod
+      .boolean()
+      .optional()
+      .describe(
+        'True when the candidate has at least one verified affiliation\nwith an institution on an active Pro subscription. Drives the\nemployer-side \"Pro\" ribbon and the matching tie-break bonus.\n',
+      ),
     createdAt: zod.coerce.date(),
   })
   .and(
@@ -568,6 +580,12 @@ export const UpdateCandidateResponse = zod
       updatedAt: zod.coerce.date().nullish(),
       updatedByName: zod.string().nullish(),
     }),
+    verifiedByPremium: zod
+      .boolean()
+      .optional()
+      .describe(
+        'True when the candidate has at least one verified affiliation\nwith an institution on an active Pro subscription. Drives the\nemployer-side \"Pro\" ribbon and the matching tie-break bonus.\n',
+      ),
     createdAt: zod.coerce.date(),
   })
   .and(
@@ -803,6 +821,12 @@ export const ListInstitutionsResponseItem = zod.object({
   studentCount: zod.number(),
   placementRate: zod.number(),
   createdAt: zod.coerce.date(),
+  slug: zod
+    .string()
+    .nullish()
+    .describe(
+      "URL-safe slug for the public branded profile at\n`\/public\/institutions\/{slug}`. Auto-generated from name on\ncreate\/rename; legacy rows may be null and resolve by id.\n",
+    ),
   accountManagerId: zod
     .number()
     .nullish()
@@ -954,6 +978,12 @@ export const UpdateMyInstitutionResponse = zod.object({
   studentCount: zod.number(),
   placementRate: zod.number(),
   createdAt: zod.coerce.date(),
+  slug: zod
+    .string()
+    .nullish()
+    .describe(
+      "URL-safe slug for the public branded profile at\n`\/public\/institutions\/{slug}`. Auto-generated from name on\ncreate\/rename; legacy rows may be null and resolve by id.\n",
+    ),
   accountManagerId: zod
     .number()
     .nullish()
@@ -1297,6 +1327,81 @@ export const DeleteMyInstitutionFacilityResponse = zod.object({
   ok: zod.boolean(),
 });
 
+/**
+ * @summary Public branded institution profile. Anonymous; accepts either
+the URL slug or numeric id. Returns brand fields (bannerUrl,
+featuredPrograms) used by the standalone public page.
+
+ */
+export const GetPublicInstitutionParams = zod.object({
+  slugOrId: zod.coerce.string(),
+});
+
+export const GetPublicInstitutionResponse = zod
+  .object({
+    id: zod.number(),
+    name: zod.string(),
+    type: zod
+      .enum([
+        "university",
+        "college",
+        "polytechnic",
+        "nursing_training",
+        "bootcamp",
+        "shs",
+        "vocational",
+        "other",
+      ])
+      .describe(
+        "Standardized institution kind. New values are added to the end so existing data stays valid.",
+      ),
+    location: zod.string(),
+    logoUrl: zod.string(),
+    websiteUrl: zod.string(),
+    studentCount: zod.number(),
+    placementRate: zod.number(),
+    createdAt: zod.coerce.date(),
+    slug: zod
+      .string()
+      .nullish()
+      .describe(
+        "URL-safe slug for the public branded profile at\n`\/public\/institutions\/{slug}`. Auto-generated from name on\ncreate\/rename; legacy rows may be null and resolve by id.\n",
+      ),
+    accountManagerId: zod
+      .number()
+      .nullish()
+      .describe("Owning account-manager admin user id (admin-only field)"),
+    accountManagerName: zod
+      .string()
+      .nullish()
+      .describe("Owning account-manager display name (admin-only field)"),
+    publicLeaderboardEnabled: zod
+      .boolean()
+      .describe(
+        "When false, the public cohort placement leaderboard page returns 404 to anonymous visitors. Default true.",
+      ),
+    bannerUrl: zod
+      .string()
+      .nullish()
+      .describe("Pro-only branded hero banner image for the public profile."),
+    featuredPrograms: zod
+      .array(
+        zod.object({
+          title: zod.string(),
+          description: zod.string(),
+        }),
+      )
+      .nullish()
+      .describe(
+        "Pro-only highlighted academic programs (e.g. flagship majors)\nshown on the public profile. Each entry is `{title, description}`.\n",
+      ),
+  })
+  .and(
+    zod.object({
+      description: zod.string(),
+    }),
+  );
+
 export const GetInstitutionParams = zod.object({
   id: zod.coerce.number(),
 });
@@ -1325,6 +1430,12 @@ export const GetInstitutionResponse = zod
     studentCount: zod.number(),
     placementRate: zod.number(),
     createdAt: zod.coerce.date(),
+    slug: zod
+      .string()
+      .nullish()
+      .describe(
+        "URL-safe slug for the public branded profile at\n`\/public\/institutions\/{slug}`. Auto-generated from name on\ncreate\/rename; legacy rows may be null and resolve by id.\n",
+      ),
     accountManagerId: zod
       .number()
       .nullish()
@@ -2022,6 +2133,12 @@ export const GetMyDailyDeckResponse = zod.object({
         talentScore: zod.number(),
         yearsExperience: zod.number(),
         openToOffers: zod.boolean(),
+        verifiedByPremium: zod
+          .boolean()
+          .optional()
+          .describe(
+            'True when this candidate has at least one verified affiliation\nwith an institution on an active Pro subscription. Drives the\nemployer-side \"Verified · Pro\" ribbon on deck cards.\n',
+          ),
       }),
       bestJobId: zod.number().nullish(),
       bestJobTitle: zod.string().nullish(),

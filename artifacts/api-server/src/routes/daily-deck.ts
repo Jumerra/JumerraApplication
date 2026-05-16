@@ -12,16 +12,18 @@
  */
 
 import { Router, type IRouter } from "express";
-import { and, eq, gt, gte, inArray, isNull, or } from "drizzle-orm";
+import { and, eq, gt, gte, inArray, isNotNull, isNull, or } from "drizzle-orm";
 import { z } from "zod";
 import {
   db,
   candidatesTable,
+  candidateInstitutionsTable,
   employersTable,
   employerDailyDecksTable,
   employerDismissedCandidatesTable,
   employerTalentPoolsTable,
   employerTalentPoolMembersTable,
+  institutionSubscriptionsTable,
   jobsTable,
   notificationsTable,
   usersTable,
@@ -211,14 +213,16 @@ function rankCandidates(
   jobs: Array<{ id: number; title: string; skills: string[] }>,
   excludeIds: Set<number>,
   limit: number,
+  premiumVerifiedIds: Set<number> = new Set(),
 ): RankedCandidate[] {
   const ranked: RankedCandidate[] = [];
   for (const c of candidates) {
     if (excludeIds.has(c.id)) continue;
     if (!c.openToOffers) continue;
+    const verifiedByPremium = premiumVerifiedIds.has(c.id);
     let best: RankedCandidate | null = null;
     if (jobs.length === 0) {
-      const br = calculateMatchScore([], c.skills, c.yearsExperience, c.talentScore);
+      const br = calculateMatchScore([], c.skills, c.yearsExperience, c.talentScore, { verifiedByPremium });
       best = {
         candidateId: c.id,
         bestJobId: null,
@@ -235,6 +239,7 @@ function rankCandidates(
           c.skills,
           c.yearsExperience,
           c.talentScore,
+          { verifiedByPremium },
         );
         if (!best || br.score > best.matchScore) {
           best = {
@@ -255,7 +260,10 @@ function rankCandidates(
   return ranked.slice(0, limit);
 }
 
-function serializeCandidate(c: typeof candidatesTable.$inferSelect) {
+function serializeCandidate(
+  c: typeof candidatesTable.$inferSelect,
+  verifiedByPremium: boolean,
+) {
   return {
     id: c.id,
     fullName: c.fullName,
@@ -267,7 +275,37 @@ function serializeCandidate(c: typeof candidatesTable.$inferSelect) {
     talentScore: c.talentScore,
     yearsExperience: c.yearsExperience,
     openToOffers: c.openToOffers,
+    verifiedByPremium,
   };
+}
+
+/**
+ * Batched lookup: which of these candidate ids are verified students
+ * of at least one active-Pro institution?  Drives both the daily-deck
+ * Pro ribbon and the matching tie-break bonus.  Single query, no N+1.
+ */
+async function getPremiumVerifiedCandidateIds(
+  candidateIds: number[],
+): Promise<Set<number>> {
+  if (candidateIds.length === 0) return new Set();
+  const rows = await db
+    .select({ candidateId: candidateInstitutionsTable.candidateId })
+    .from(candidateInstitutionsTable)
+    .innerJoin(
+      institutionSubscriptionsTable,
+      eq(
+        institutionSubscriptionsTable.institutionId,
+        candidateInstitutionsTable.institutionId,
+      ),
+    )
+    .where(
+      and(
+        inArray(candidateInstitutionsTable.candidateId, candidateIds),
+        isNotNull(candidateInstitutionsTable.verifiedAt),
+        inArray(institutionSubscriptionsTable.status, ["active", "trialing"]),
+      ),
+    );
+  return new Set(rows.map((r) => r.candidateId));
 }
 
 router.get("/me/daily-deck", requireAuth, async (req, res) => {
@@ -331,7 +369,18 @@ router.get("/me/daily-deck", requireAuth, async (req, res) => {
       .select()
       .from(candidatesTable)
       .limit(CANDIDATE_POOL_CAP);
-    const ranked = rankCandidates(candidates, jobs, excludeIds, DECK_SIZE);
+    // Batched Pro-verification flag for the whole pool so the matching
+    // tie-break bonus actually fires during ranking.
+    const poolPremiumIds = await getPremiumVerifiedCandidateIds(
+      candidates.map((c) => c.id),
+    );
+    const ranked = rankCandidates(
+      candidates,
+      jobs,
+      excludeIds,
+      DECK_SIZE,
+      poolPremiumIds,
+    );
     orderedIds = ranked.map((r) => r.candidateId);
     try {
       await db
@@ -359,6 +408,10 @@ router.get("/me/daily-deck", requireAuth, async (req, res) => {
     .from(candidatesTable)
     .where(inArray(candidatesTable.id, orderedIds));
   const byId = new Map(detailRows.map((c) => [c.id, c]));
+  // Resolve Pro-verification once for the final deck so we can both
+  // tag the response (ribbon) and feed it into the rescore below.
+  const premiumVerifiedIds =
+    await getPremiumVerifiedCandidateIds(orderedIds);
   const items = orderedIds
     .map((id: number) => byId.get(id))
     .filter(
@@ -374,12 +427,14 @@ router.get("/me/daily-deck", requireAuth, async (req, res) => {
       let bestMatched: string[] = [];
       let bestMissing: string[] = [];
       let bestSummary = "";
+      const verifiedByPremium = premiumVerifiedIds.has(c.id);
       for (const j of jobs) {
         const br = calculateMatchScore(
           j.skills,
           c.skills,
           c.yearsExperience,
           c.talentScore,
+          { verifiedByPremium },
         );
         if (br.score > bestScore || bestJobId == null) {
           bestScore = br.score;
@@ -391,7 +446,7 @@ router.get("/me/daily-deck", requireAuth, async (req, res) => {
         }
       }
       return {
-        candidate: serializeCandidate(c),
+        candidate: serializeCandidate(c, verifiedByPremium),
         bestJobId,
         bestJobTitle,
         matchScore: bestScore,

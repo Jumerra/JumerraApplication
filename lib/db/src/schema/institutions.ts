@@ -22,6 +22,7 @@ export const institutionsTable = pgTable(
     logoUrl: text("logo_url").notNull(),
     websiteUrl: text("website_url").notNull(),
     description: text("description").notNull(),
+    slug: text("slug"),
     /**
      * Admin user (`role='admin' AND org_role='account_manager'`) who
      * "owns" this institution in the platform-admin CRM sense. See
@@ -61,6 +62,7 @@ export const institutionsTable = pgTable(
     institutionAccountManagerIdx: index(
       "institution_account_manager_idx",
     ).on(t.accountManagerId),
+    institutionSlugIdx: uniqueIndex("institution_slug_idx").on(t.slug),
   }),
 );
 

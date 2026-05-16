@@ -169,6 +169,7 @@ export * from "./generateCvRequest";
 export * from "./getInstitutionCohortLeaderboardParams";
 export * from "./getInstitutionPlacementAnalyticsParams";
 export * from "./getMyGrowthPlan200";
+export * from "./getPublicInstitution200";
 export * from "./getSalaryBandParams";
 export * from "./growthPlanItem";
 export * from "./growthPlanItemStatus";

@@ -18,6 +18,11 @@ export interface Institution {
   studentCount: number;
   placementRate: number;
   createdAt: Date;
+  /** URL-safe slug for the public branded profile at
+`/public/institutions/{slug}`. Auto-generated from name on
+create/rename; legacy rows may be null and resolve by id.
+ */
+  slug?: string | null;
   /** Owning account-manager admin user id (admin-only field) */
   accountManagerId?: number | null;
   /** Owning account-manager display name (admin-only field) */

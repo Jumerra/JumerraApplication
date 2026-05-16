@@ -32,9 +32,16 @@ export default function AdminNetworkPage() {
   const [reviews, setReviews] = useState<ReviewItem[] | null>(null);
   const [stories, setStories] = useState<StoryItem[] | null>(null);
   const [filter, setFilter] = useState<"pending" | "approved" | "rejected" | "all">("pending");
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const reload = async () => {
-    const [r, s] = await Promise.all([
+    setLoadError(null);
+    // Use `allSettled` so a single endpoint failure (e.g. 401 in
+    // demo/View-as mode where there's no real admin session) doesn't
+    // collapse the whole page into an unhandled rejection. Each panel
+    // independently shows either its data, an empty state, or an
+    // inline error.
+    const [r, s] = await Promise.allSettled([
       customFetch<{ reviews: ReviewItem[] }>(
         `/api/admin/employer-reviews?status=${filter}`,
       ),
@@ -42,11 +49,35 @@ export default function AdminNetworkPage() {
         `/api/admin/placement-stories?status=${filter}`,
       ),
     ]);
-    setReviews(r?.reviews ?? []);
-    setStories(s?.stories ?? []);
+    if (r.status === "fulfilled") {
+      setReviews(r.value?.reviews ?? []);
+    } else {
+      setReviews([]);
+      setLoadError(
+        (r.reason as Error)?.message ??
+          "Could not load employer reviews.",
+      );
+    }
+    if (s.status === "fulfilled") {
+      setStories(s.value?.stories ?? []);
+    } else {
+      setStories([]);
+      setLoadError(
+        (prev) =>
+          prev ??
+          (s.reason as Error)?.message ??
+          "Could not load placement stories.",
+      );
+    }
   };
   useEffect(() => {
-    reload();
+    // Swallow async errors at the boundary too — `reload()` already
+    // handles per-call failures, but if the function itself throws
+    // synchronously (shouldn't, but defense in depth) we don't want
+    // an unhandled promise rejection in the console.
+    reload().catch((err) => {
+      setLoadError((err as Error)?.message ?? "Failed to load.");
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter]);
 
@@ -102,6 +133,14 @@ export default function AdminNetworkPage() {
           <option value="all">All</option>
         </select>
       </div>
+
+      {loadError ? (
+        <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {loadError.includes("401") || /not authenticated/i.test(loadError)
+            ? "You need to be signed in as an admin to moderate the community. Sign in with an admin account and reload this page."
+            : loadError}
+        </div>
+      ) : null}
 
       <Card>
         <CardHeader>

@@ -75,8 +75,8 @@ export default function ApplicationsScreen() {
     },
   });
 
-  const goToJob = useCallback((id: number) => {
-    router.push(`/job/${id}` as never);
+  const goToApplication = useCallback((id: number) => {
+    router.push(`/application/${id}` as never);
   }, []);
 
   const renderItem = useCallback(
@@ -88,10 +88,10 @@ export default function ApplicationsScreen() {
         status={item.status}
         matchScore={item.matchScore}
         appliedAt={item.appliedAt}
-        onPress={() => goToJob(item.jobId)}
+        onPress={() => goToApplication(item.id)}
       />
     ),
-    [goToJob],
+    [goToApplication],
   );
 
   const dashboard = dashboardQuery.data;

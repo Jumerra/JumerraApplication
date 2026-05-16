@@ -14,6 +14,8 @@ import { Briefcase, CheckCircle2, Clock, MailOpen, TrendingUp, Sparkles, Star, E
 import { Link } from "wouter";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { BoostCard } from "@/components/boost-card";
+import { TalentScoreBreakdown } from "@/components/talent-score-breakdown";
+import { WeeklyDigestCard } from "@/components/weekly-digest-card";
 import { CvCard } from "@/components/cv-card";
 import { PendingInterviewInvitesCard } from "@/components/pending-interview-invites-card";
 
@@ -131,6 +133,13 @@ export default function CandidateDashboard() {
             </div>
           </div>
         </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <TalentScoreBreakdown candidateId={id} />
+        </div>
+        <WeeklyDigestCard candidateId={id} />
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

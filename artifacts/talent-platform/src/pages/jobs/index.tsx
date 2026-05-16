@@ -7,11 +7,15 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search, MapPin, Briefcase, Star, Megaphone } from "lucide-react";
 import { useState } from "react";
+import { useAuth } from "@/lib/auth";
+import { SavedSearchesCard } from "@/components/saved-searches-card";
 
 export default function JobsList() {
   const [search, setSearch] = useState("");
   const [type, setType] = useState<any>(undefined);
-  
+  const { role, userId } = useAuth();
+  const candidateId = role === "candidate" ? (userId ?? 0) : 0;
+
   const { data: jobs, isLoading } = useListJobs({ 
     search: search || undefined,
     type: type !== "all" ? type : undefined
@@ -51,6 +55,18 @@ export default function JobsList() {
           </Select>
         </div>
       </Card>
+
+      {candidateId > 0 ? (
+        <div className="mb-8">
+          <SavedSearchesCard
+            candidateId={candidateId}
+            currentFilters={{
+              searchText: search || undefined,
+              jobType: type && type !== "all" ? type : undefined,
+            }}
+          />
+        </div>
+      ) : null}
 
       {isLoading ? (
         <div className="space-y-4">

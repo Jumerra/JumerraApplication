@@ -4240,3 +4240,184 @@ export const UpdateStaffRoleResponse = zod.object({
     createdAt: zod.coerce.date(),
   }),
 });
+
+/**
+ * @summary Explainable Talent Score with personalised next actions
+ */
+export const GetCandidateScoreBreakdownParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetCandidateScoreBreakdownResponse = zod.object({
+  score: zod.number(),
+  components: zod.array(
+    zod.object({
+      key: zod.enum([
+        "profile",
+        "skills",
+        "experience",
+        "verifications",
+        "applications",
+      ]),
+      label: zod.string(),
+      weight: zod.number().describe("0-100, weight in overall score"),
+      score: zod.number().describe("0-100 component score"),
+      contribution: zod.number().describe("weight \* score \/ 100"),
+    }),
+  ),
+  suggestions: zod.array(
+    zod.object({
+      key: zod.string(),
+      title: zod.string(),
+      description: zod.string(),
+      impact: zod.number().describe("Estimated points if completed"),
+      link: zod.string(),
+    }),
+  ),
+});
+
+/**
+ * @summary Latest weekly engagement digest for the candidate (may be null)
+ */
+export const GetCandidateWeeklyDigestParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetCandidateWeeklyDigestResponse = zod.object({
+  digest: zod
+    .object({
+      weekStart: zod.coerce.date(),
+      profileViews: zod.number(),
+      applicationsSent: zod.number(),
+      interviewsScheduled: zod.number(),
+      newMatches: zod.array(
+        zod.object({
+          jobId: zod.number(),
+          title: zod.string(),
+          employerName: zod.string(),
+          matchScore: zod.number(),
+        }),
+      ),
+      generatedAt: zod.coerce.date(),
+    })
+    .nullable(),
+});
+
+/**
+ * @summary Application milestone timeline with employer-response ETA
+ */
+export const GetApplicationTimelineParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetApplicationTimelineResponse = zod.object({
+  applicationId: zod.number(),
+  currentStatus: zod.string(),
+  milestones: zod.array(
+    zod.object({
+      status: zod.enum([
+        "applied",
+        "screening",
+        "interview",
+        "offer",
+        "hired",
+        "rejected",
+        "withdrawn",
+      ]),
+      label: zod.string(),
+      reachedAt: zod.coerce.date().nullable(),
+      isReached: zod.boolean(),
+      isCurrent: zod.boolean(),
+    }),
+  ),
+  etaDays: zod
+    .number()
+    .nullish()
+    .describe(
+      "Median days employers take to move past the current step (null if unknown).",
+    ),
+  etaLabel: zod.string(),
+});
+
+/**
+ * @summary List the candidate's saved job searches
+ */
+export const ListSavedSearchesParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ListSavedSearchesResponseItem = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  searchText: zod.string().nullable(),
+  jobType: zod.string().nullable(),
+  alertsEnabled: zod.boolean(),
+  createdAt: zod.coerce.date(),
+  newMatchCount: zod
+    .number()
+    .describe("Jobs newer than lastSeen still matching the filters."),
+});
+export const ListSavedSearchesResponse = zod.array(
+  ListSavedSearchesResponseItem,
+);
+
+/**
+ * @summary Save a job-search query for alerts
+ */
+export const CreateSavedSearchParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const createSavedSearchBodyNameMax = 80;
+
+export const createSavedSearchBodyAlertsEnabledDefault = true;
+
+export const CreateSavedSearchBody = zod.object({
+  name: zod.string().min(1).max(createSavedSearchBodyNameMax),
+  searchText: zod.string().nullish(),
+  jobType: zod
+    .enum(["full_time", "part_time", "internship", "contract", "remote"])
+    .nullish(),
+  alertsEnabled: zod
+    .boolean()
+    .default(createSavedSearchBodyAlertsEnabledDefault),
+});
+
+/**
+ * @summary Toggle alerts or rename a saved search
+ */
+export const UpdateSavedSearchParams = zod.object({
+  id: zod.coerce.number(),
+  searchId: zod.coerce.number(),
+});
+
+export const updateSavedSearchBodyNameMax = 80;
+
+export const UpdateSavedSearchBody = zod.object({
+  name: zod.string().min(1).max(updateSavedSearchBodyNameMax).optional(),
+  alertsEnabled: zod.boolean().optional(),
+  markSeen: zod
+    .boolean()
+    .optional()
+    .describe("Reset lastSeenJobId to current max."),
+});
+
+export const UpdateSavedSearchResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  searchText: zod.string().nullable(),
+  jobType: zod.string().nullable(),
+  alertsEnabled: zod.boolean(),
+  createdAt: zod.coerce.date(),
+  newMatchCount: zod
+    .number()
+    .describe("Jobs newer than lastSeen still matching the filters."),
+});
+
+/**
+ * @summary Delete a saved search
+ */
+export const DeleteSavedSearchParams = zod.object({
+  id: zod.coerce.number(),
+  searchId: zod.coerce.number(),
+});

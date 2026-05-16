@@ -26,6 +26,8 @@ import { JobCard } from "@/components/JobCard";
 import { JobRow } from "@/components/JobRow";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { SectionHeader } from "@/components/SectionHeader";
+import { TalentScoreBreakdownCard } from "@/components/TalentScoreBreakdownCard";
+import { WeeklyDigestCard } from "@/components/WeeklyDigestCard";
 import { useAuth } from "@/hooks/useAuth";
 import { useColors } from "@/hooks/useColors";
 
@@ -143,6 +145,13 @@ export default function DiscoverScreen() {
       </View>
 
       {isInitialLoading ? <LoadingSpinner /> : null}
+
+      {hasCandidateRecord ? (
+        <View style={{ gap: 14, marginBottom: 24 }}>
+          <TalentScoreBreakdownCard candidateId={candidateId} />
+          <WeeklyDigestCard candidateId={candidateId} />
+        </View>
+      ) : null}
 
       <View style={styles.section}>
         <View style={styles.sectionHeaderWrap}>

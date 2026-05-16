@@ -22,6 +22,8 @@ import { EmptyState } from "@/components/EmptyState";
 import { FilterChip } from "@/components/FilterChip";
 import { JobRow } from "@/components/JobRow";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { SavedSearchesSection } from "@/components/SavedSearchesSection";
+import { useAuth } from "@/hooks/useAuth";
 import { useColors } from "@/hooks/useColors";
 
 const WEB_TOP_INSET = Platform.OS === "web" ? 67 : 0;
@@ -40,6 +42,11 @@ const FILTERS: { value: FilterValue; label: string }[] = [
 export default function SearchScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
+  const candidateId =
+    user?.role === "candidate" && user.candidateId != null
+      ? user.candidateId
+      : 0;
 
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -133,6 +140,16 @@ export default function SearchScreen() {
           ))}
         </ScrollView>
       </View>
+
+      {candidateId > 0 ? (
+        <SavedSearchesSection
+          candidateId={candidateId}
+          currentFilters={{
+            searchText: debouncedSearch || undefined,
+            jobType: filter !== "all" ? filter : undefined,
+          }}
+        />
+      ) : null}
 
       <FlatList<Job>
         data={data ?? []}

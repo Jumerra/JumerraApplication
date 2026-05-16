@@ -3,9 +3,12 @@ import { eq, and, desc } from "drizzle-orm";
 import {
   db,
   applicationsTable,
+  applicationStatusHistoryTable,
   jobsTable,
   candidatesTable,
   employersTable,
+  notificationsTable,
+  usersTable,
 } from "@workspace/db";
 import {
   ListApplicationsQueryParams,
@@ -168,6 +171,15 @@ router.post("/applications", requireAuth, async (req, res): Promise<void> => {
     })
     .returning();
 
+  // Seed the timeline with the initial "applied" milestone so the
+  // candidate-side timeline view always has at least one row of
+  // history for any application created post-engagement-loops.
+  await db.insert(applicationStatusHistoryTable).values({
+    applicationId: created.id,
+    status: "applied",
+    changedBy: req.currentUser?.id ?? null,
+  });
+
   const serialized = await serializeApplication(created.id);
   res.status(201).json(serialized);
 });
@@ -212,6 +224,13 @@ router.patch(
     return;
   }
 
+  // Look up the previous status so we only insert a history row + send
+  // a notification when something actually changed.
+  const [prev] = await db
+    .select({ status: applicationsTable.status, candidateId: applicationsTable.candidateId })
+    .from(applicationsTable)
+    .where(eq(applicationsTable.id, params.data.id));
+
   const [updated] = await db
     .update(applicationsTable)
     .set({ status: parsed.data.status })
@@ -221,6 +240,32 @@ router.patch(
   if (!updated) {
     res.status(404).json({ error: "Application not found" });
     return;
+  }
+
+  if (prev && prev.status !== parsed.data.status) {
+    await db.insert(applicationStatusHistoryTable).values({
+      applicationId: updated.id,
+      status: parsed.data.status,
+      changedBy: user.id,
+    });
+    // Notify the candidate (best-effort; never block the response).
+    try {
+      const [candUser] = await db
+        .select({ userId: usersTable.id })
+        .from(usersTable)
+        .where(eq(usersTable.candidateId, prev.candidateId));
+      if (candUser) {
+        await db.insert(notificationsTable).values({
+          userId: candUser.userId,
+          kind: "application_status_changed",
+          title: `Your application moved to ${parsed.data.status}`,
+          body: "Tap to see the next step in your timeline.",
+          link: `/account/applications/${updated.id}`,
+        });
+      }
+    } catch (err) {
+      req.log.warn({ err }, "Failed to enqueue status-change notification");
+    }
   }
 
   const serialized = await serializeApplication(updated.id);

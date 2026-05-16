@@ -65,6 +65,7 @@ import ForgotPasswordPage from "@/pages/auth/forgot-password";
 import ChangePasswordPage from "@/pages/account/change-password";
 import ProfilePage from "@/pages/account/profile";
 import ProfileViewsPage from "@/pages/account/profile-views";
+import ApplicationDetailPage from "@/pages/account/application-detail";
 
 const queryClient = new QueryClient();
 
@@ -91,6 +92,7 @@ function Router() {
         <Route path="/references/:token" component={PublicReferenceFormPage} />
         
         <Route path="/dashboard/candidate" component={CandidateDashboard} />
+        <Route path="/account/applications/:id" component={ApplicationDetailPage} />
         <Route path="/interviews/:id" component={InterviewInvitePage} />
         <Route path="/dashboard/employer">
           <EmployerLayout><EmployerDashboard /></EmployerLayout>

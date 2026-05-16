@@ -17,3 +17,4 @@ export * from "./partners";
 export * from "./interviews";
 export * from "./profile-views";
 export * from "./trust";
+export * from "./engagement";

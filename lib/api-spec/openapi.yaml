@@ -2550,6 +2550,139 @@ paths:
         "403": { description: Owner access required }
         "404": { description: Member not found }
 
+  /candidates/{id}/score-breakdown:
+    get:
+      operationId: getCandidateScoreBreakdown
+      tags: [candidates]
+      summary: Explainable Talent Score with personalised next actions
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Score breakdown
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CandidateScoreBreakdown" }
+        "404": { description: Candidate not found }
+
+  /candidates/{id}/weekly-digest:
+    get:
+      operationId: getCandidateWeeklyDigest
+      tags: [candidates]
+      summary: Latest weekly engagement digest for the candidate (may be null)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Latest digest or null
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CandidateWeeklyDigestResponse" }
+
+  /applications/{id}/timeline:
+    get:
+      operationId: getApplicationTimeline
+      tags: [applications]
+      summary: Application milestone timeline with employer-response ETA
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Timeline
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApplicationTimeline" }
+        "404": { description: Application not found }
+
+  /candidates/{id}/saved-searches:
+    get:
+      operationId: listSavedSearches
+      tags: [candidates]
+      summary: List the candidate's saved job searches
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Saved searches
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SavedSearch" }
+    post:
+      operationId: createSavedSearch
+      tags: [candidates]
+      summary: Save a job-search query for alerts
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateSavedSearch" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SavedSearch" }
+
+  /candidates/{id}/saved-searches/{searchId}:
+    patch:
+      operationId: updateSavedSearch
+      tags: [candidates]
+      summary: Toggle alerts or rename a saved search
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+        - in: path
+          name: searchId
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateSavedSearch" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SavedSearch" }
+    delete:
+      operationId: deleteSavedSearch
+      tags: [candidates]
+      summary: Delete a saved search
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+        - in: path
+          name: searchId
+          required: true
+          schema: { type: integer }
+      responses:
+        "204": { description: Deleted }
+
 components:
   schemas:
     Error:
@@ -4930,3 +5063,132 @@ components:
           type: integer
           nullable: true
       required: [ok, accountManagerId]
+    CandidateScoreComponent:
+      type: object
+      properties:
+        key:
+          type: string
+          enum: [profile, skills, experience, verifications, applications]
+        label: { type: string }
+        weight: { type: integer, description: "0-100, weight in overall score" }
+        score: { type: integer, description: "0-100 component score" }
+        contribution: { type: integer, description: "weight * score / 100" }
+      required: [key, label, weight, score, contribution]
+
+    CandidateScoreSuggestion:
+      type: object
+      properties:
+        key: { type: string }
+        title: { type: string }
+        description: { type: string }
+        impact: { type: integer, description: "Estimated points if completed" }
+        link: { type: string }
+      required: [key, title, description, impact, link]
+
+    CandidateScoreBreakdown:
+      type: object
+      properties:
+        score: { type: integer }
+        components:
+          type: array
+          items: { $ref: "#/components/schemas/CandidateScoreComponent" }
+        suggestions:
+          type: array
+          items: { $ref: "#/components/schemas/CandidateScoreSuggestion" }
+      required: [score, components, suggestions]
+
+    CandidateWeeklyDigestResponse:
+      type: object
+      properties:
+        digest:
+          allOf:
+            - $ref: "#/components/schemas/CandidateWeeklyDigest"
+          nullable: true
+      required: [digest]
+
+    CandidateWeeklyDigestMatch:
+      type: object
+      properties:
+        jobId: { type: integer }
+        title: { type: string }
+        employerName: { type: string }
+        matchScore: { type: integer }
+      required: [jobId, title, employerName, matchScore]
+
+    CandidateWeeklyDigest:
+      type: object
+      properties:
+        weekStart: { type: string, format: date }
+        profileViews: { type: integer }
+        applicationsSent: { type: integer }
+        interviewsScheduled: { type: integer }
+        newMatches:
+          type: array
+          items: { $ref: "#/components/schemas/CandidateWeeklyDigestMatch" }
+        generatedAt: { type: string, format: date-time }
+      required:
+        - weekStart
+        - profileViews
+        - applicationsSent
+        - interviewsScheduled
+        - newMatches
+        - generatedAt
+
+    ApplicationTimelineMilestone:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [applied, screening, interview, offer, hired, rejected, withdrawn]
+        label: { type: string }
+        reachedAt: { type: string, format: date-time, nullable: true }
+        isReached: { type: boolean }
+        isCurrent: { type: boolean }
+      required: [status, label, reachedAt, isReached, isCurrent]
+
+    ApplicationTimeline:
+      type: object
+      properties:
+        applicationId: { type: integer }
+        currentStatus: { type: string }
+        milestones:
+          type: array
+          items: { $ref: "#/components/schemas/ApplicationTimelineMilestone" }
+        etaDays:
+          type: integer
+          nullable: true
+          description: Median days employers take to move past the current step (null if unknown).
+        etaLabel: { type: string }
+      required: [applicationId, currentStatus, milestones, etaLabel]
+
+    SavedSearch:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        searchText: { type: string, nullable: true }
+        jobType: { type: string, nullable: true }
+        alertsEnabled: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        newMatchCount: { type: integer, description: "Jobs newer than lastSeen still matching the filters." }
+      required: [id, name, searchText, jobType, alertsEnabled, createdAt, newMatchCount]
+
+    CreateSavedSearch:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+        searchText: { type: string, nullable: true }
+        jobType:
+          type: string
+          nullable: true
+          enum: [full_time, part_time, internship, contract, remote]
+        alertsEnabled: { type: boolean, default: true }
+      required: [name]
+
+    UpdateSavedSearch:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+        alertsEnabled: { type: boolean }
+        markSeen: { type: boolean, description: "Reset lastSeenJobId to current max." }
+

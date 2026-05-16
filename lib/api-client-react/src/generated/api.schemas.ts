@@ -2224,6 +2224,138 @@ export interface AssignAccountManagerResponse {
   accountManagerId: number | null;
 }
 
+export type CandidateScoreComponentKey =
+  (typeof CandidateScoreComponentKey)[keyof typeof CandidateScoreComponentKey];
+
+export const CandidateScoreComponentKey = {
+  profile: "profile",
+  skills: "skills",
+  experience: "experience",
+  verifications: "verifications",
+  applications: "applications",
+} as const;
+
+export interface CandidateScoreComponent {
+  key: CandidateScoreComponentKey;
+  label: string;
+  /** 0-100, weight in overall score */
+  weight: number;
+  /** 0-100 component score */
+  score: number;
+  /** weight * score / 100 */
+  contribution: number;
+}
+
+export interface CandidateScoreSuggestion {
+  key: string;
+  title: string;
+  description: string;
+  /** Estimated points if completed */
+  impact: number;
+  link: string;
+}
+
+export interface CandidateScoreBreakdown {
+  score: number;
+  components: CandidateScoreComponent[];
+  suggestions: CandidateScoreSuggestion[];
+}
+
+export interface CandidateWeeklyDigestMatch {
+  jobId: number;
+  title: string;
+  employerName: string;
+  matchScore: number;
+}
+
+export interface CandidateWeeklyDigest {
+  weekStart: string;
+  profileViews: number;
+  applicationsSent: number;
+  interviewsScheduled: number;
+  newMatches: CandidateWeeklyDigestMatch[];
+  generatedAt: string;
+}
+
+export interface CandidateWeeklyDigestResponse {
+  digest: CandidateWeeklyDigest | null;
+}
+
+export type ApplicationTimelineMilestoneStatus =
+  (typeof ApplicationTimelineMilestoneStatus)[keyof typeof ApplicationTimelineMilestoneStatus];
+
+export const ApplicationTimelineMilestoneStatus = {
+  applied: "applied",
+  screening: "screening",
+  interview: "interview",
+  offer: "offer",
+  hired: "hired",
+  rejected: "rejected",
+  withdrawn: "withdrawn",
+} as const;
+
+export interface ApplicationTimelineMilestone {
+  status: ApplicationTimelineMilestoneStatus;
+  label: string;
+  reachedAt: string | null;
+  isReached: boolean;
+  isCurrent: boolean;
+}
+
+export interface ApplicationTimeline {
+  applicationId: number;
+  currentStatus: string;
+  milestones: ApplicationTimelineMilestone[];
+  /** Median days employers take to move past the current step (null if unknown). */
+  etaDays?: number | null;
+  etaLabel: string;
+}
+
+export interface SavedSearch {
+  id: number;
+  name: string;
+  searchText: string | null;
+  jobType: string | null;
+  alertsEnabled: boolean;
+  createdAt: string;
+  /** Jobs newer than lastSeen still matching the filters. */
+  newMatchCount: number;
+}
+
+export type CreateSavedSearchJobType =
+  | (typeof CreateSavedSearchJobType)[keyof typeof CreateSavedSearchJobType]
+  | null;
+
+export const CreateSavedSearchJobType = {
+  full_time: "full_time",
+  part_time: "part_time",
+  internship: "internship",
+  contract: "contract",
+  remote: "remote",
+} as const;
+
+export interface CreateSavedSearch {
+  /**
+   * @minLength 1
+   * @maxLength 80
+   */
+  name: string;
+  searchText?: string | null;
+  jobType?: CreateSavedSearchJobType;
+  alertsEnabled?: boolean;
+}
+
+export interface UpdateSavedSearch {
+  /**
+   * @minLength 1
+   * @maxLength 80
+   */
+  name?: string;
+  alertsEnabled?: boolean;
+  /** Reset lastSeenJobId to current max. */
+  markSeen?: boolean;
+}
+
 export type ListCandidatesParams = {
   search?: string;
   location?: string;

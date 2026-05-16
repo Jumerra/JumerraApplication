@@ -16,10 +16,10 @@ export function InterviewPrepCard({
   const mutation = useAiInterviewPrep();
   const [error, setError] = useState<string | null>(null);
 
-  const onGenerate = () => {
+  const onGenerate = (regenerate = false) => {
     setError(null);
     mutation.mutate(
-      { id: candidateId, data: { jobId } },
+      { id: candidateId, data: { jobId, regenerate } },
       {
         onError: (err: unknown) => {
           setError(
@@ -67,7 +67,7 @@ export function InterviewPrepCard({
         </View>
         {!data ? (
           <Pressable
-            onPress={onGenerate}
+            onPress={() => onGenerate(false)}
             disabled={mutation.isPending}
             style={({ pressed }) => [
               styles.cta,
@@ -107,7 +107,7 @@ export function InterviewPrepCard({
             />
           ))}
           <Pressable
-            onPress={onGenerate}
+            onPress={() => onGenerate(true)}
             disabled={mutation.isPending}
             style={({ pressed }) => [
               {
@@ -124,7 +124,7 @@ export function InterviewPrepCard({
                 fontFamily: "Inter_600SemiBold",
               }}
             >
-              Regenerate
+              {mutation.isPending ? "Thinking…" : "Regenerate"}
             </Text>
           </Pressable>
         </View>

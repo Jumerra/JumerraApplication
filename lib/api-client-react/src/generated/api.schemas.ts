@@ -2080,6 +2080,8 @@ export interface CandidateCvResponse {
 
 export interface AiCoverNoteRequest {
   jobId: number;
+  /** Bypass the cache and produce a fresh draft. Counts against the daily limit. */
+  regenerate?: boolean;
 }
 
 export interface AiCoverNoteResponse {
@@ -2089,6 +2091,8 @@ export interface AiCoverNoteResponse {
 
 export interface AiInterviewPrepRequest {
   jobId: number;
+  /** Bypass the cache and produce a fresh question set. Counts against the daily limit. */
+  regenerate?: boolean;
 }
 
 export type AiInterviewPrepQuestionScaffold = {
@@ -2106,6 +2110,11 @@ export interface AiInterviewPrepQuestion {
 export interface AiInterviewPrepResponse {
   questions: AiInterviewPrepQuestion[];
   fromCache: boolean;
+}
+
+export interface AiCvCritiqueRequest {
+  /** Bypass the cache and produce fresh critique. Counts against the daily limit. */
+  regenerate?: boolean;
 }
 
 export type AiCvCritiqueItemSeverity =

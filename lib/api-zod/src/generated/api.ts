@@ -4081,6 +4081,12 @@ export const AiDraftCoverNoteParams = zod.object({
 
 export const AiDraftCoverNoteBody = zod.object({
   jobId: zod.number(),
+  regenerate: zod
+    .boolean()
+    .optional()
+    .describe(
+      "Bypass the cache and produce a fresh draft. Counts against the daily limit.",
+    ),
 });
 
 export const AiDraftCoverNoteResponse = zod.object({
@@ -4097,6 +4103,12 @@ export const AiInterviewPrepParams = zod.object({
 
 export const AiInterviewPrepBody = zod.object({
   jobId: zod.number(),
+  regenerate: zod
+    .boolean()
+    .optional()
+    .describe(
+      "Bypass the cache and produce a fresh question set. Counts against the daily limit.",
+    ),
 });
 
 export const AiInterviewPrepResponse = zod.object({
@@ -4143,6 +4155,15 @@ export const GetCandidateJobMatchResponse = zod
  */
 export const AiCvCritiqueParams = zod.object({
   id: zod.coerce.number(),
+});
+
+export const AiCvCritiqueBody = zod.object({
+  regenerate: zod
+    .boolean()
+    .optional()
+    .describe(
+      "Bypass the cache and produce fresh critique. Counts against the daily limit.",
+    ),
 });
 
 export const AiCvCritiqueResponse = zod.object({

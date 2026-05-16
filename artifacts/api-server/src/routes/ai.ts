@@ -105,9 +105,11 @@ router.post(
         requirements: job.requirements,
       };
 
+      const regenerate = (req.body ?? {}).regenerate === true;
       const result = await aiCachedJson<{ draft: string }>({
         candidateId,
         kind: "cover_note",
+        regenerate,
         keyParts: ["cover_note_v1", jobId, candidate.skills, candidate.yearsExperience],
         build: () => ({
           system:
@@ -179,6 +181,7 @@ router.post(
         return;
       }
 
+      const regenerate = (req.body ?? {}).regenerate === true;
       const result = await aiCachedJson<{
         questions: {
           question: string;
@@ -187,6 +190,7 @@ router.post(
       }>({
         candidateId,
         kind: "interview_prep",
+        regenerate,
         keyParts: ["interview_prep_v1", jobId, candidate.skills, candidate.yearsExperience],
         build: () => ({
           system:
@@ -225,7 +229,7 @@ Respond with JSON exactly:
           if (!isObj(raw) || !Array.isArray(raw.questions)) {
             throw new AiUnavailableError("AI returned no questions");
           }
-          const questions = raw.questions.slice(0, 8).flatMap((q) => {
+          const questions = raw.questions.slice(0, 5).flatMap((q) => {
             if (!isObj(q) || !isObj(q.scaffold)) return [];
             const question = asStr(q.question).trim();
             if (!question) return [];
@@ -241,8 +245,10 @@ Respond with JSON exactly:
               },
             ];
           });
-          if (questions.length === 0) {
-            throw new AiUnavailableError("AI returned no usable questions");
+          if (questions.length < 5) {
+            throw new AiUnavailableError(
+              `AI returned ${questions.length} usable questions; expected exactly 5`,
+            );
           }
           return { questions };
         },
@@ -359,6 +365,7 @@ router.post(
         })),
       };
 
+      const regenerate = (req.body ?? {}).regenerate === true;
       const result = await aiCachedJson<{
         sections: {
           section: string;
@@ -368,6 +375,7 @@ router.post(
       }>({
         candidateId,
         kind: "cv_critique",
+        regenerate,
         keyParts: ["cv_critique_v2", profileSnapshot],
         build: () => ({
           system:

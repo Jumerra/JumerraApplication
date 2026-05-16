@@ -8,4 +8,6 @@
 
 export interface AiInterviewPrepRequest {
   jobId: number;
+  /** Bypass the cache and produce a fresh question set. Counts against the daily limit. */
+  regenerate?: boolean;
 }

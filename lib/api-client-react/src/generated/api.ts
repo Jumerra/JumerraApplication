@@ -30,6 +30,7 @@ import type {
   AdminUserStatusUpdate,
   AiCoverNoteRequest,
   AiCoverNoteResponse,
+  AiCvCritiqueRequest,
   AiCvCritiqueResponse,
   AiInterviewPrepRequest,
   AiInterviewPrepResponse,
@@ -10722,11 +10723,14 @@ export const getAiCvCritiqueUrl = (id: number) => {
 
 export const aiCvCritique = async (
   id: number,
+  aiCvCritiqueRequest?: AiCvCritiqueRequest,
   options?: RequestInit,
 ): Promise<AiCvCritiqueResponse> => {
   return customFetch<AiCvCritiqueResponse>(getAiCvCritiqueUrl(id), {
     ...options,
     method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(aiCvCritiqueRequest),
   });
 };
 
@@ -10737,14 +10741,14 @@ export const getAiCvCritiqueMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof aiCvCritique>>,
     TError,
-    { id: number },
+    { id: number; data: BodyType<AiCvCritiqueRequest> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof aiCvCritique>>,
   TError,
-  { id: number },
+  { id: number; data: BodyType<AiCvCritiqueRequest> },
   TContext
 > => {
   const mutationKey = ["aiCvCritique"];
@@ -10758,11 +10762,11 @@ export const getAiCvCritiqueMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof aiCvCritique>>,
-    { id: number }
+    { id: number; data: BodyType<AiCvCritiqueRequest> }
   > = (props) => {
-    const { id } = props ?? {};
+    const { id, data } = props ?? {};
 
-    return aiCvCritique(id, requestOptions);
+    return aiCvCritique(id, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -10771,7 +10775,7 @@ export const getAiCvCritiqueMutationOptions = <
 export type AiCvCritiqueMutationResult = NonNullable<
   Awaited<ReturnType<typeof aiCvCritique>>
 >;
-
+export type AiCvCritiqueMutationBody = BodyType<AiCvCritiqueRequest>;
 export type AiCvCritiqueMutationError = ErrorType<void>;
 
 /**
@@ -10784,14 +10788,14 @@ export const useAiCvCritique = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof aiCvCritique>>,
     TError,
-    { id: number },
+    { id: number; data: BodyType<AiCvCritiqueRequest> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof aiCvCritique>>,
   TError,
-  { id: number },
+  { id: number; data: BodyType<AiCvCritiqueRequest> },
   TContext
 > => {
   return useMutation(getAiCvCritiqueMutationOptions(options));

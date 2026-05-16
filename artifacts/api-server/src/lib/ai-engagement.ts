@@ -49,20 +49,30 @@ export async function aiCachedJson<T>(args: {
   keyParts: unknown[];
   build: () => { system: string; user: string };
   parser: (raw: unknown) => T;
+  regenerate?: boolean;
 }): Promise<{ output: T; fromCache: boolean }> {
-  const keyHash = hashKey(args.keyParts);
+  // When the caller asks to regenerate we bust the cache by mixing a
+  // per-call nonce into the key. This produces a brand-new row instead
+  // of overwriting the existing one, so prior generations remain in the
+  // history and quota counts every regeneration.
+  const effectiveKeyParts = args.regenerate
+    ? [...args.keyParts, "regen", Date.now(), Math.random()]
+    : args.keyParts;
+  const keyHash = hashKey(effectiveKeyParts);
 
-  const existing = await db
-    .select()
-    .from(aiRequestCacheTable)
-    .where(
-      and(
-        eq(aiRequestCacheTable.candidateId, args.candidateId),
-        eq(aiRequestCacheTable.kind, args.kind),
-        eq(aiRequestCacheTable.keyHash, keyHash),
-      ),
-    )
-    .limit(1);
+  const existing = args.regenerate
+    ? []
+    : await db
+        .select()
+        .from(aiRequestCacheTable)
+        .where(
+          and(
+            eq(aiRequestCacheTable.candidateId, args.candidateId),
+            eq(aiRequestCacheTable.kind, args.kind),
+            eq(aiRequestCacheTable.keyHash, keyHash),
+          ),
+        )
+        .limit(1);
   // Skip "_pending" reservation rows from previously failed attempts —
   // they exist only to consume quota and don't have usable output.
   if (existing[0] && !isPendingRow(existing[0].output)) {

@@ -14,10 +14,10 @@ export function InterviewPrepPanel({
   const [error, setError] = useState<string | null>(null);
   const mutation = useAiInterviewPrep();
 
-  const onGenerate = () => {
+  const onGenerate = (regenerate = false) => {
     setError(null);
     mutation.mutate(
-      { id: candidateId, data: { jobId } },
+      { id: candidateId, data: { jobId, regenerate } },
       {
         onError: (err: unknown) => {
           setError(err instanceof Error ? err.message : "Couldn't generate prep");
@@ -45,7 +45,7 @@ export function InterviewPrepPanel({
           {!data && (
             <Button
               size="sm"
-              onClick={onGenerate}
+              onClick={() => onGenerate(false)}
               disabled={mutation.isPending}
               data-testid="button-interview-prep"
             >
@@ -67,10 +67,10 @@ export function InterviewPrepPanel({
               <Button
                 size="sm"
                 variant="ghost"
-                onClick={onGenerate}
+                onClick={() => onGenerate(true)}
                 disabled={mutation.isPending}
               >
-                Regenerate
+                {mutation.isPending ? "Thinking..." : "Regenerate"}
               </Button>
             </div>
           </div>

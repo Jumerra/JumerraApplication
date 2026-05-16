@@ -2515,6 +2515,11 @@ paths:
           name: id
           required: true
           schema: { type: integer }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AiCvCritiqueRequest" }
       responses:
         "200":
           description: Section feedback
@@ -4998,6 +5003,7 @@ components:
       type: object
       properties:
         jobId: { type: integer }
+        regenerate: { type: boolean, description: "Bypass the cache and produce a fresh draft. Counts against the daily limit." }
       required: [jobId]
 
     AiCoverNoteResponse:
@@ -5011,6 +5017,7 @@ components:
       type: object
       properties:
         jobId: { type: integer }
+        regenerate: { type: boolean, description: "Bypass the cache and produce a fresh question set. Counts against the daily limit." }
       required: [jobId]
 
     AiInterviewPrepQuestion:
@@ -5035,6 +5042,11 @@ components:
           items: { $ref: "#/components/schemas/AiInterviewPrepQuestion" }
         fromCache: { type: boolean }
       required: [questions, fromCache]
+
+    AiCvCritiqueRequest:
+      type: object
+      properties:
+        regenerate: { type: boolean, description: "Bypass the cache and produce fresh critique. Counts against the daily limit." }
 
     AiCvCritiqueItem:
       type: object

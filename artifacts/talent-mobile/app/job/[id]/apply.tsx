@@ -196,7 +196,7 @@ export default function ApplyScreen() {
                 disabled={draftMutation.isPending}
                 onPress={() => {
                   draftMutation.mutate(
-                    { id: candidateId, data: { jobId } },
+                    { id: candidateId, data: { jobId, regenerate: coverNote.trim().length > 0 } },
                     {
                       onSuccess: (resp) => {
                         setCoverNote(resp.draft.slice(0, MAX_LENGTH));

@@ -31,6 +31,7 @@ export * from "./aiCoverNoteRequest";
 export * from "./aiCoverNoteResponse";
 export * from "./aiCvCritiqueItem";
 export * from "./aiCvCritiqueItemSeverity";
+export * from "./aiCvCritiqueRequest";
 export * from "./aiCvCritiqueResponse";
 export * from "./aiCvCritiqueSection";
 export * from "./aiInterviewPrepQuestion";

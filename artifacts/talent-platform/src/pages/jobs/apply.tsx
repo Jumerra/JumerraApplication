@@ -66,8 +66,9 @@ export default function JobApply() {
 
   const onDraft = () => {
     if (!userId) return;
+    const regenerate = (form.getValues("coverNote") ?? "").trim().length > 0;
     draftMutation.mutate(
-      { id: userId, data: { jobId: Number(jobId) } },
+      { id: userId, data: { jobId: Number(jobId), regenerate } },
       {
         onSuccess: (resp) => {
           form.setValue("coverNote", resp.draft, {

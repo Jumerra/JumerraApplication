@@ -6,8 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface AiCoverNoteRequest {
-  jobId: number;
-  /** Bypass the cache and produce a fresh draft. Counts against the daily limit. */
+export interface AiCvCritiqueRequest {
+  /** Bypass the cache and produce fresh critique. Counts against the daily limit. */
   regenerate?: boolean;
 }

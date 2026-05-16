@@ -25,10 +25,10 @@ export function CvCritiquePanel({ candidateId }: { candidateId: number }) {
   const [error, setError] = useState<string | null>(null);
   const mutation = useAiCvCritique();
 
-  const onGenerate = () => {
+  const onGenerate = (regenerate = false) => {
     setError(null);
     mutation.mutate(
-      { id: candidateId },
+      { id: candidateId, data: { regenerate } },
       {
         onError: (err: unknown) => {
           setError(err instanceof Error ? err.message : "Couldn't generate critique");
@@ -54,7 +54,7 @@ export function CvCritiquePanel({ candidateId }: { candidateId: number }) {
           </div>
           <Button
             size="sm"
-            onClick={onGenerate}
+            onClick={() => onGenerate(Boolean(data))}
             disabled={mutation.isPending}
             data-testid="button-cv-critique"
           >

@@ -17,6 +17,7 @@ import { calculateMatchScore } from "../lib/matching";
 import { requireAuth } from "../middleware/require-auth";
 import { requirePermission } from "../lib/permissions";
 import { sweepExpiredJobTiers } from "./job-tier";
+import { jobMatchesFilters } from "../lib/job-filters";
 
 const router: IRouter = Router();
 
@@ -93,24 +94,10 @@ router.get("/jobs", async (req, res): Promise<void> => {
     .innerJoin(employersTable, eq(jobsTable.employerId, employersTable.id))
     .orderBy(desc(tierRank), desc(jobsTable.featured), desc(jobsTable.postedAt));
 
-  const filters = params.data;
-  const filtered = rows.filter(({ job }) => {
-    if (filters.search) {
-      const q = filters.search.toLowerCase();
-      const blob = `${job.title} ${job.summary} ${job.skills.join(" ")}`.toLowerCase();
-      if (!blob.includes(q)) return false;
-    }
-    if (filters.type && job.type !== filters.type) return false;
-    if (filters.location && !job.location.toLowerCase().includes(filters.location.toLowerCase())) return false;
-    if (filters.remote !== undefined && job.remote !== filters.remote) return false;
-    if (filters.employerId && job.employerId !== filters.employerId) return false;
-    if (filters.featured !== undefined && job.featured !== filters.featured) return false;
-    if (filters.skill) {
-      const skillLower = filters.skill.toLowerCase();
-      if (!job.skills.some((s) => s.toLowerCase() === skillLower)) return false;
-    }
-    return true;
-  });
+  // Delegate the per-row predicate to the shared helper so the
+  // saved-search alert worker (lib/digest-worker.ts) matches with
+  // identical semantics. See lib/job-filters.ts for the contract.
+  const filtered = rows.filter(({ job }) => jobMatchesFilters(job, params.data));
 
   res.json(
     filtered.map(({ job, employer, applicationsCount }) =>

@@ -14,7 +14,7 @@
  * deployment shape.
  */
 
-import { and, desc, eq, gt, gte, ilike, lt, sql } from "drizzle-orm";
+import { and, desc, eq, gt, gte, lt, sql } from "drizzle-orm";
 import {
   db,
   applicationsTable,
@@ -30,6 +30,7 @@ import {
 import { logger } from "./logger";
 import { calculateMatchScore } from "./matching";
 import { sendEngagementEmail } from "./email";
+import { jobMatchesFilters, savedSearchToFilters } from "./job-filters";
 
 /**
  * Returns the most-recently-completed Monday→Sunday window in UTC.
@@ -249,17 +250,26 @@ async function runSavedSearchAlertsForOne(
   // Skip immediately if both channels are off — nothing to do.
   if (!search.emailAlerts && !search.inAppAlerts) return;
 
-  const conds = [gt(jobsTable.id, search.lastSeenJobId)];
-  if (search.jobType) conds.push(eq(jobsTable.type, search.jobType));
-  if (search.searchText && search.searchText.trim()) {
-    conds.push(ilike(jobsTable.title, `%${search.searchText.trim()}%`));
-  }
-  const matches = await db
-    .select({ id: jobsTable.id, title: jobsTable.title })
+  // Pull every job posted since the last alert (`id > lastSeenJobId`)
+  // and apply the shared `/jobs` filter predicate in memory. This is
+  // the same matching contract candidates see when they browse, so an
+  // alert can never fire for a job that wouldn't have appeared in the
+  // saved search's underlying query (and vice versa).
+  //
+  // We cap at 200 to bound work per sweep — saved searches with very
+  // wide filters in a busy install would otherwise scan unbounded
+  // history. Practically, lastSeenJobId is moved forward on every run,
+  // so the steady-state set is small.
+  const candidateJobs = await db
+    .select()
     .from(jobsTable)
-    .where(and(...conds))
+    .where(gt(jobsTable.id, search.lastSeenJobId))
     .orderBy(desc(jobsTable.id))
-    .limit(10);
+    .limit(200);
+
+  const filters = savedSearchToFilters(search);
+  const matched = candidateJobs.filter((j) => jobMatchesFilters(j, filters));
+  const matches = matched.map((j) => ({ id: j.id, title: j.title }));
   if (matches.length === 0) return;
 
   // Push lastSeenJobId forward so we don't re-notify on the next sweep,

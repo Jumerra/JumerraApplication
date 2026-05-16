@@ -1,0 +1,82 @@
+name: Mobile e2e
+
+# Runs the mobile Playwright suite (including the swipe-to-apply
+# regression test) against a live API + Expo web preview on every PR.
+#
+# The Playwright config reads its target URLs from one of these env-var
+# pairs (highest precedence first):
+#   1. E2E_BASE_URL / E2E_API_BASE_URL
+#   2. REPLIT_EXPO_DEV_DOMAIN / REPLIT_DEV_DOMAIN (auto-prefixed with https://)
+#
+# Configure these as GitHub Actions secrets/variables pointing at a
+# running Replit dev preview (or a deployed staging environment) so the
+# session cookie — which is `Secure` — is preserved over HTTPS.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: e2e-mobile-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  swipe-to-apply:
+    name: Swipe-to-apply (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # Targets for the Playwright test. Prefer the explicit
+      # E2E_* overrides if set; otherwise fall back to the Replit
+      # dev-preview env vars. Configure these in
+      # Settings → Secrets and variables → Actions.
+      E2E_BASE_URL: ${{ secrets.E2E_BASE_URL }}
+      E2E_API_BASE_URL: ${{ secrets.E2E_API_BASE_URL }}
+      REPLIT_DEV_DOMAIN: ${{ secrets.REPLIT_DEV_DOMAIN }}
+      REPLIT_EXPO_DEV_DOMAIN: ${{ secrets.REPLIT_EXPO_DEV_DOMAIN }}
+
+    steps:
+      - name: Guard — preview URLs must be configured
+        run: |
+          if [ -z "${E2E_BASE_URL}${REPLIT_EXPO_DEV_DOMAIN}" ]; then
+            echo "::error::Neither E2E_BASE_URL nor REPLIT_EXPO_DEV_DOMAIN is set."
+            echo "Configure the dev-preview URLs as GitHub Actions secrets so the mobile e2e suite can reach a live preview."
+            exit 1
+          fi
+          if [ -z "${E2E_API_BASE_URL}${REPLIT_DEV_DOMAIN}" ]; then
+            echo "::error::Neither E2E_API_BASE_URL nor REPLIT_DEV_DOMAIN is set."
+            echo "Configure the API preview URL as a GitHub Actions secret so the mobile e2e suite can reach the API."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm --filter @workspace/talent-mobile exec playwright install --with-deps chromium
+
+      - name: Run mobile e2e (swipe-to-apply)
+        run: pnpm --filter @workspace/talent-mobile run test:e2e
+
+      - name: Upload Playwright trace on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces-mobile
+          path: artifacts/talent-mobile/test-results/
+          if-no-files-found: ignore
+          retention-days: 7

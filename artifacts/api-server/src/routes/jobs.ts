@@ -168,7 +168,11 @@ router.post(
     .returning();
 
   const [employer] = await db
-    .select({ name: employersTable.name, logoUrl: employersTable.logoUrl })
+    .select({
+      name: employersTable.name,
+      logoUrl: employersTable.logoUrl,
+      fastTrackEnabled: employersTable.fastTrackEnabled,
+    })
     .from(employersTable)
     .where(eq(employersTable.id, created.employerId));
 

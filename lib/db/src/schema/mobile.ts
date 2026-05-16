@@ -59,6 +59,16 @@ export const notificationPrefsTable = pgTable(
     interviewReminder: boolean("interview_reminder").notNull().default(true),
     profileViewed: boolean("profile_viewed").notNull().default(true),
     weeklyDigest: boolean("weekly_digest").notNull().default(true),
+    /**
+     * Per-candidate delivery slot for the weekly digest. The worker's
+     * hourly gate fires only when the candidate's local time matches
+     * (`digestDow`, `digestHour`). `digestTz` is an IANA id; when null
+     * the worker falls back to `candidates.timezone` and then UTC.
+     * Defaults are Mon (1) / 09:00 to preserve the prior behavior.
+     */
+    digestDow: integer("digest_dow").notNull().default(1),
+    digestHour: integer("digest_hour").notNull().default(9),
+    digestTz: text("digest_tz"),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

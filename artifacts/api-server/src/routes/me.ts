@@ -92,7 +92,32 @@ const PREF_DEFAULTS = {
   interviewReminder: true,
   profileViewed: true,
   weeklyDigest: true,
+  digestDow: 1,
+  digestHour: 9,
+  digestTz: null as string | null,
 };
+
+/**
+ * Resolve the candidate's effective digest timezone: explicit pref
+ * `digestTz` wins, otherwise the candidate row's `timezone`, otherwise
+ * UTC. Returned only for display in the prefs UI — the worker performs
+ * the same resolution server-side.
+ */
+async function resolveDigestTz(
+  candidateId: number | null,
+  prefTz: string | null | undefined,
+): Promise<string> {
+  if (prefTz && prefTz.length > 0) return prefTz;
+  if (candidateId != null) {
+    const [c] = await db
+      .select({ timezone: candidatesTable.timezone })
+      .from(candidatesTable)
+      .where(eq(candidatesTable.id, candidateId))
+      .limit(1);
+    if (c?.timezone && c.timezone.length > 0) return c.timezone;
+  }
+  return "UTC";
+}
 
 router.get("/me/notification-prefs", async (req, res) => {
   const me = req.currentUser!;
@@ -101,6 +126,7 @@ router.get("/me/notification-prefs", async (req, res) => {
     .from(notificationPrefsTable)
     .where(eq(notificationPrefsTable.userId, me.id))
     .limit(1);
+  const effectiveTz = await resolveDigestTz(me.candidateId ?? null, row?.digestTz ?? null);
   res.json({
     strongMatch: row?.strongMatch ?? PREF_DEFAULTS.strongMatch,
     applicationStatus:
@@ -109,6 +135,10 @@ router.get("/me/notification-prefs", async (req, res) => {
       row?.interviewReminder ?? PREF_DEFAULTS.interviewReminder,
     profileViewed: row?.profileViewed ?? PREF_DEFAULTS.profileViewed,
     weeklyDigest: row?.weeklyDigest ?? PREF_DEFAULTS.weeklyDigest,
+    digestDow: row?.digestDow ?? PREF_DEFAULTS.digestDow,
+    digestHour: row?.digestHour ?? PREF_DEFAULTS.digestHour,
+    digestTz: row?.digestTz ?? null,
+    effectiveDigestTz: effectiveTz,
   });
 });
 
@@ -118,6 +148,10 @@ const PrefsBody = z.object({
   interviewReminder: z.boolean().optional(),
   profileViewed: z.boolean().optional(),
   weeklyDigest: z.boolean().optional(),
+  digestDow: z.number().int().min(0).max(6).optional(),
+  digestHour: z.number().int().min(0).max(23).optional(),
+  // Empty string clears the override (fall back to candidate.timezone).
+  digestTz: z.string().max(64).nullable().optional(),
 });
 
 router.put("/me/notification-prefs", async (req, res) => {
@@ -136,6 +170,27 @@ router.put("/me/notification-prefs", async (req, res) => {
     .from(notificationPrefsTable)
     .where(eq(notificationPrefsTable.userId, me.id))
     .limit(1);
+
+  // Normalize the optional `digestTz` patch:
+  //   - omitted → keep existing
+  //   - explicit null or empty string → clear the override
+  //   - non-empty string → store as-is (validated against Intl below)
+  let digestTzPatch: string | null | undefined = undefined;
+  if (Object.prototype.hasOwnProperty.call(patch, "digestTz")) {
+    const v = patch.digestTz;
+    if (v == null || v === "") {
+      digestTzPatch = null;
+    } else {
+      try {
+        // Throws RangeError on invalid IANA id.
+        new Intl.DateTimeFormat("en-US", { timeZone: v }).format(new Date());
+        digestTzPatch = v;
+      } catch {
+        res.status(400).json({ error: `Invalid IANA timezone: ${v}` });
+        return;
+      }
+    }
+  }
 
   const merged = {
     strongMatch:
@@ -156,6 +211,12 @@ router.put("/me/notification-prefs", async (req, res) => {
       patch.weeklyDigest ??
       existing?.weeklyDigest ??
       PREF_DEFAULTS.weeklyDigest,
+    digestDow:
+      patch.digestDow ?? existing?.digestDow ?? PREF_DEFAULTS.digestDow,
+    digestHour:
+      patch.digestHour ?? existing?.digestHour ?? PREF_DEFAULTS.digestHour,
+    digestTz:
+      digestTzPatch !== undefined ? digestTzPatch : existing?.digestTz ?? null,
   };
 
   await db
@@ -166,7 +227,8 @@ router.put("/me/notification-prefs", async (req, res) => {
       set: { ...merged, updatedAt: new Date() },
     });
 
-  res.json(merged);
+  const effectiveTz = await resolveDigestTz(me.candidateId ?? null, merged.digestTz);
+  res.json({ ...merged, effectiveDigestTz: effectiveTz });
 });
 
 // --- For You feed --------------------------------------------------------

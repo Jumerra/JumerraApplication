@@ -189,20 +189,27 @@ function fmtDate(d: Date): string {
 }
 
 /**
- * Resolve a candidate's local weekday + hour using their stored IANA
- * timezone. Falls back to UTC when the timezone is missing or invalid.
- * The weekly digest dispatch only runs when this returns
- * `{ weekday: "Mon", hour: 9 }` — i.e. the hourly sweep tick that
- * lands inside the candidate's local Monday-9-AM window.
+ * Resolve a candidate's local weekday-of-week (0=Sun..6=Sat) + hour
+ * using their stored IANA timezone. Falls back to UTC when the
+ * timezone is missing or invalid.
  */
-function localWeekdayAndHour(
+function localDowAndHour(
   timezone: string | null | undefined,
   now: Date = new Date(),
-): { weekday: string; hour: number } {
+): { dow: number; hour: number } {
   const tz = timezone && timezone.length > 0 ? timezone : "UTC";
-  try {
+  const weekdayMap: Record<string, number> = {
+    Sun: 0,
+    Mon: 1,
+    Tue: 2,
+    Wed: 3,
+    Thu: 4,
+    Fri: 5,
+    Sat: 6,
+  };
+  const read = (z: string): { dow: number; hour: number } => {
     const parts = new Intl.DateTimeFormat("en-US", {
-      timeZone: tz,
+      timeZone: z,
       weekday: "short",
       hour: "numeric",
       hour12: false,
@@ -210,39 +217,48 @@ function localWeekdayAndHour(
     const weekday = parts.find((p) => p.type === "weekday")?.value ?? "";
     const hourRaw = parts.find((p) => p.type === "hour")?.value ?? "0";
     // `hour12: false` can emit "24" at midnight in some ICU versions.
-    const hourNum = Number(hourRaw) % 24;
-    return { weekday, hour: hourNum };
+    return { dow: weekdayMap[weekday] ?? 1, hour: Number(hourRaw) % 24 };
+  };
+  try {
+    return read(tz);
   } catch {
     // Bad IANA id — pretend UTC. We tolerate this rather than throw so
     // a single bad row can't take down the whole sweep.
-    const parts = new Intl.DateTimeFormat("en-US", {
-      timeZone: "UTC",
-      weekday: "short",
-      hour: "numeric",
-      hour12: false,
-    }).formatToParts(now);
-    const weekday = parts.find((p) => p.type === "weekday")?.value ?? "";
-    const hourRaw = parts.find((p) => p.type === "hour")?.value ?? "0";
-    return { weekday, hour: Number(hourRaw) % 24 };
+    return read("UTC");
   }
 }
 
 /**
- * Returns true if `now` lands inside the candidate's local Monday
- * 09:00–09:59 window. The hourly sweep tick + the
- * (candidateId, weekStart) unique index together guarantee at most one
- * delivery per candidate per week.
+ * Returns true if `now` lands inside the candidate's chosen local
+ * digest slot (one-hour window starting at `targetHour` on
+ * `targetDow`). The hourly sweep tick + the (candidateId, weekStart)
+ * unique index together guarantee at most one delivery per candidate
+ * per week.
  *
  * `WEEKLY_DIGEST_FORCE=true` short-circuits the gate so deploy-time
  * smoke tests and local development can fire on demand.
+ */
+export function isCandidateLocalDigestSlot(
+  timezone: string | null | undefined,
+  targetDow: number,
+  targetHour: number,
+  now: Date = new Date(),
+): boolean {
+  if (process.env.WEEKLY_DIGEST_FORCE === "true") return true;
+  const { dow, hour } = localDowAndHour(timezone, now);
+  return dow === targetDow && hour === targetHour;
+}
+
+/**
+ * Back-compat shim — preserved for callers/tests that still ask the
+ * fixed "Monday 09:00 in the candidate's tz" question. New code should
+ * use `isCandidateLocalDigestSlot` with the per-candidate slot.
  */
 export function isCandidateLocalMondayNineAM(
   timezone: string | null | undefined,
   now: Date = new Date(),
 ): boolean {
-  if (process.env.WEEKLY_DIGEST_FORCE === "true") return true;
-  const { weekday, hour } = localWeekdayAndHour(timezone, now);
-  return weekday === "Mon" && hour === 9;
+  return isCandidateLocalDigestSlot(timezone, 1, 9, now);
 }
 
 export async function runDigestForCandidate(
@@ -489,32 +505,53 @@ export async function runDigestForCandidate(
 }
 
 export async function runWeeklyDigestSweep(): Promise<void> {
+  // Join candidates → users → notification_prefs so we can read each
+  // candidate's chosen delivery slot (day-of-week + hour + optional tz
+  // override). Defaults (Mon 09:00, candidate.timezone) are applied
+  // below when no prefs row exists.
   const candidates = await db
     .select({
       id: candidatesTable.id,
       timezone: candidatesTable.timezone,
+      digestDow: notificationPrefsTable.digestDow,
+      digestHour: notificationPrefsTable.digestHour,
+      digestTz: notificationPrefsTable.digestTz,
     })
-    .from(candidatesTable);
+    .from(candidatesTable)
+    .leftJoin(usersTable, eq(usersTable.candidateId, candidatesTable.id))
+    .leftJoin(
+      notificationPrefsTable,
+      eq(notificationPrefsTable.userId, usersTable.id),
+    );
   let generated = 0;
   let skippedByTimeWindow = 0;
   const now = new Date();
-  for (const { id, timezone } of candidates) {
+  for (const { id, timezone, digestDow, digestHour, digestTz } of candidates) {
     try {
+      // Effective slot/tz: per-user prefs win, else candidate.timezone,
+      // else UTC. Defaults (Mon, 09:00) preserve the prior behavior
+      // for everyone who hasn't customised their digest yet.
+      const slotDow = digestDow ?? 1;
+      const slotHour = digestHour ?? 9;
+      const effectiveTz =
+        (digestTz && digestTz.length > 0 ? digestTz : null) ?? timezone ?? null;
       // Local-time gate: only deliver during the candidate's local
-      // Monday 09:00 hour. Without a timezone we treat the candidate
-      // as UTC, which still lands on a real Mon 09:00. The hourly
-      // sweep + the (candidateId, weekStart) unique index together
-      // give us at-most-once delivery per candidate per week.
-      if (!isCandidateLocalMondayNineAM(timezone, now)) {
+      // chosen slot. The hourly sweep + the (candidateId, weekStart)
+      // unique index together give us at-most-once delivery per
+      // candidate per week even if the tick drifts.
+      if (!isCandidateLocalDigestSlot(effectiveTz, slotDow, slotHour, now)) {
         skippedByTimeWindow += 1;
         continue;
       }
-      // Compute the digest window in the *candidate's* local
+      // Compute the digest window in the *candidate's* effective
       // timezone so a Tokyo candidate's week and a Honolulu
       // candidate's week each cover Mon→Mon in their own wall
-      // clock, not in UTC.
+      // clock, not in UTC. (The reporting window is always
+      // Mon→Mon regardless of the chosen delivery slot — picking
+      // "Friday 7am" just shifts *when* the digest arrives, not
+      // which week it summarises.)
       const { start, end, localWeekStartDate } = previousCompleteWeekLocal(
-        timezone,
+        effectiveTz,
         now,
       );
       const before = await db

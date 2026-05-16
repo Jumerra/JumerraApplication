@@ -13,6 +13,13 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 
 type Prefs = {
@@ -21,9 +28,36 @@ type Prefs = {
   interviewReminder: boolean;
   profileViewed: boolean;
   weeklyDigest: boolean;
+  digestDow: number;
+  digestHour: number;
+  digestTz: string | null;
+  effectiveDigestTz?: string;
 };
 
-const ROWS: { key: keyof Prefs; title: string; body: string }[] = [
+const DOW_LABELS = [
+  { value: 0, label: "Sunday" },
+  { value: 1, label: "Monday" },
+  { value: 2, label: "Tuesday" },
+  { value: 3, label: "Wednesday" },
+  { value: 4, label: "Thursday" },
+  { value: 5, label: "Friday" },
+  { value: 6, label: "Saturday" },
+];
+
+function formatHour(h: number): string {
+  const suffix = h < 12 ? "AM" : "PM";
+  const display = h % 12 === 0 ? 12 : h % 12;
+  return `${display}:00 ${suffix}`;
+}
+
+type BooleanPrefKey =
+  | "strongMatch"
+  | "applicationStatus"
+  | "interviewReminder"
+  | "profileViewed"
+  | "weeklyDigest";
+
+const ROWS: { key: BooleanPrefKey; title: string; body: string }[] = [
   {
     key: "strongMatch",
     title: "Strong matches",
@@ -71,6 +105,9 @@ export default function NotificationsPage() {
             interviewReminder: true,
             profileViewed: true,
             weeklyDigest: true,
+            digestDow: 1,
+            digestHour: 9,
+            digestTz: null,
           },
         );
       })
@@ -82,17 +119,17 @@ export default function NotificationsPage() {
     };
   }, [sessionUser]);
 
-  async function toggle(key: keyof Prefs, next: boolean) {
+  async function patch<K extends keyof Prefs>(key: K, value: Prefs[K]) {
     if (!prefs) return;
     const previous = prefs;
-    setPrefs({ ...prefs, [key]: next });
+    setPrefs({ ...prefs, [key]: value });
     setSaving(key);
     try {
       const res = await fetch("/api/me/notification-prefs", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ [key]: next }),
+        body: JSON.stringify({ [key]: value }),
       });
       if (!res.ok) throw new Error("save failed");
       const updated = (await res.json()) as Prefs;
@@ -103,6 +140,10 @@ export default function NotificationsPage() {
     } finally {
       setSaving(null);
     }
+  }
+
+  function toggle(key: BooleanPrefKey, next: boolean) {
+    return patch(key, next);
   }
 
   if (isLoading) {
@@ -162,7 +203,7 @@ export default function NotificationsPage() {
                   <p className="text-xs text-muted-foreground mt-1">{row.body}</p>
                 </div>
                 <Switch
-                  checked={prefs[row.key]}
+                  checked={Boolean(prefs[row.key])}
                   onCheckedChange={(v) => toggle(row.key, Boolean(v))}
                   disabled={saving === row.key}
                 />
@@ -171,6 +212,64 @@ export default function NotificationsPage() {
           )}
         </CardContent>
       </Card>
+
+      {prefs && !loading ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Weekly digest delivery</CardTitle>
+            <CardDescription>
+              Pick the day and hour we send your weekly digest. Times are in
+              your local timezone
+              {prefs.effectiveDigestTz ? ` (${prefs.effectiveDigestTz})` : ""}.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-sm">Day</Label>
+              <Select
+                value={String(prefs.digestDow)}
+                onValueChange={(v) => patch("digestDow", Number(v))}
+                disabled={saving === "digestDow" || !prefs.weeklyDigest}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {DOW_LABELS.map((d) => (
+                    <SelectItem key={d.value} value={String(d.value)}>
+                      {d.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm">Time</Label>
+              <Select
+                value={String(prefs.digestHour)}
+                onValueChange={(v) => patch("digestHour", Number(v))}
+                disabled={saving === "digestHour" || !prefs.weeklyDigest}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 24 }, (_, h) => (
+                    <SelectItem key={h} value={String(h)}>
+                      {formatHour(h)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {!prefs.weeklyDigest ? (
+              <p className="sm:col-span-2 text-xs text-muted-foreground">
+                Turn on Weekly digest above to start receiving these.
+              </p>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
 
       <div className="flex items-start gap-2 p-3 rounded-md bg-muted text-muted-foreground text-xs">
         <Info className="w-4 h-4 mt-0.5 shrink-0" />

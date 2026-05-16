@@ -806,6 +806,11 @@ export const ListInstitutionsResponseItem = zod.object({
     .string()
     .nullish()
     .describe("Owning account-manager display name (admin-only field)"),
+  publicLeaderboardEnabled: zod
+    .boolean()
+    .describe(
+      "When false, the public cohort placement leaderboard page returns 404 to anonymous visitors. Default true.",
+    ),
 });
 export const ListInstitutionsResponse = zod.array(ListInstitutionsResponseItem);
 
@@ -876,6 +881,7 @@ export const UpdateMyInstitutionBody = zod
       .string()
       .max(updateMyInstitutionBodyDescriptionMax)
       .optional(),
+    publicLeaderboardEnabled: zod.boolean().optional(),
   })
   .describe("All fields optional. Owner or registrar only.");
 
@@ -910,6 +916,11 @@ export const UpdateMyInstitutionResponse = zod.object({
     .string()
     .nullish()
     .describe("Owning account-manager display name (admin-only field)"),
+  publicLeaderboardEnabled: zod
+    .boolean()
+    .describe(
+      "When false, the public cohort placement leaderboard page returns 404 to anonymous visitors. Default true.",
+    ),
 });
 
 /**
@@ -1261,6 +1272,11 @@ export const GetInstitutionResponse = zod
       .string()
       .nullish()
       .describe("Owning account-manager display name (admin-only field)"),
+    publicLeaderboardEnabled: zod
+      .boolean()
+      .describe(
+        "When false, the public cohort placement leaderboard page returns 404 to anonymous visitors. Default true.",
+      ),
   })
   .and(
     zod.object({
@@ -5866,6 +5882,105 @@ export const GetInstitutionPlacementAnalyticsResponse = zod.object({
     .describe(
       "Number of applications endorsed (co-signed) by this\ninstitution in the current academic year. Counts every\nendorsed application by a student in the caller's scope,\nregardless of hire outcome.\n",
     ),
+});
+
+/**
+ * @summary Public cohort placement leaderboard for an institution. Returns aggregate
+placement stats, top employers, salary bands by role family, and per-cohort
+drill-down rows. Returns 404 if the institution has opted-out of the public
+leaderboard. Salary bands enforce a 3-hire minimum to prevent deanonymisation.
+
+ */
+export const GetInstitutionCohortLeaderboardParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetInstitutionCohortLeaderboardQueryParams = zod.object({
+  year: zod.coerce
+    .number()
+    .optional()
+    .describe(
+      "Optional cohort graduation year filter; if omitted, all cohorts are aggregated.",
+    ),
+  departmentId: zod.coerce
+    .number()
+    .optional()
+    .describe("Optional program\/department filter."),
+});
+
+export const getInstitutionCohortLeaderboardResponseSalaryBandsByRoleFamilyItemHiresMin = 3;
+
+export const GetInstitutionCohortLeaderboardResponse = zod.object({
+  institutionId: zod.number(),
+  institutionName: zod.string(),
+  institutionLogoUrl: zod.string(),
+  institutionLocation: zod.string(),
+  institutionType: zod.string(),
+  totalPlaced: zod
+    .number()
+    .describe("Total verified students hired in the selected scope."),
+  totalTracked: zod
+    .number()
+    .describe("Total verified students in the selected scope."),
+  medianTimeToPlacementDays: zod
+    .number()
+    .describe(
+      "Median days from candidate signup to first hire across the scope.",
+    ),
+  year: zod
+    .number()
+    .nullable()
+    .describe("Selected cohort year, or null when aggregating all cohorts."),
+  departmentId: zod.number().nullable(),
+  cohorts: zod
+    .array(
+      zod.object({
+        year: zod.number(),
+        totalStudents: zod.number(),
+        placedStudents: zod.number(),
+        medianTimeToPlacementDays: zod.number(),
+      }),
+    )
+    .describe(
+      "Per-cohort drill-down rows (one per graduation year). Sorted by year DESC.",
+    ),
+  topEmployers: zod
+    .array(
+      zod.object({
+        employerId: zod.number(),
+        employerName: zod.string(),
+        employerLogoUrl: zod.string(),
+        hires: zod.number(),
+      }),
+    )
+    .describe("Top 5 employers by first-hire count within the scope."),
+  salaryBandsByRoleFamily: zod
+    .array(
+      zod.object({
+        roleFamily: zod.string(),
+        hires: zod
+          .number()
+          .min(
+            getInstitutionCohortLeaderboardResponseSalaryBandsByRoleFamilyItemHiresMin,
+          ),
+        currency: zod.string(),
+        p25: zod.number(),
+        p50: zod.number(),
+        p75: zod.number(),
+      }),
+    )
+    .describe(
+      "Salary bands per role family (job title); only families with at least 3 hires are returned.",
+    ),
+  availableYears: zod
+    .array(zod.number())
+    .describe("Cohort years available for drill-down."),
+  availableDepartments: zod.array(
+    zod.object({
+      id: zod.number(),
+      name: zod.string(),
+    }),
+  ),
 });
 
 /**

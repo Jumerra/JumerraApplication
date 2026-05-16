@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import {
   Card,
   CardContent,
@@ -59,6 +60,8 @@ export default function InstitutionEditPage() {
   const [websiteUrl, setWebsiteUrl] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
   const [description, setDescription] = useState("");
+  const [publicLeaderboardEnabled, setPublicLeaderboardEnabled] =
+    useState(true);
 
   // Sync form state once when the institution loads (and again if it gets
   // refetched). Avoids stomping the user's in-flight edits on every render.
@@ -73,6 +76,7 @@ export default function InstitutionEditPage() {
     setWebsiteUrl(institution.websiteUrl);
     setLogoUrl(institution.logoUrl);
     setDescription(institution.description);
+    setPublicLeaderboardEnabled(institution.publicLeaderboardEnabled);
   }, [institution]);
 
   const update = useUpdateMyInstitution({
@@ -142,6 +146,7 @@ export default function InstitutionEditPage() {
         websiteUrl: websiteUrl.trim(),
         logoUrl: logoUrl.trim(),
         description: description.trim(),
+        publicLeaderboardEnabled,
       },
     });
   }
@@ -253,6 +258,36 @@ export default function InstitutionEditPage() {
                 onChange={(e) => setDescription(e.target.value)}
                 rows={5}
                 maxLength={5000}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle>Public placement leaderboard</CardTitle>
+            <CardDescription>
+              When enabled, anyone can view your cohort placement
+              leaderboard at /institutions/{institutionId}/leaderboard.
+              Turn it off to hide the page from visitors and search
+              engines.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between gap-4">
+              <div className="space-y-0.5">
+                <Label htmlFor="publicLeaderboardEnabled">
+                  Show public leaderboard
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Placement totals, top employers, and salary bands by role
+                  family. Salary bands need at least 3 hires to appear.
+                </p>
+              </div>
+              <Switch
+                id="publicLeaderboardEnabled"
+                checked={publicLeaderboardEnabled}
+                onCheckedChange={setPublicLeaderboardEnabled}
               />
             </div>
           </CardContent>

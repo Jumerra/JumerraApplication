@@ -89,6 +89,7 @@ import type {
   ForgotPasswordRequest,
   GenerateChallenge,
   GenerateCvRequest,
+  GetInstitutionCohortLeaderboardParams,
   GetInstitutionPlacementAnalyticsParams,
   GetSalaryBandParams,
   HealthStatus,
@@ -97,6 +98,7 @@ import type {
   InstitutionAnalyticsResponse,
   InstitutionCohort,
   InstitutionCohortCurve,
+  InstitutionCohortLeaderboard,
   InstitutionDashboard,
   InstitutionDepartment,
   InstitutionDetail,
@@ -14893,6 +14895,135 @@ export function useGetInstitutionPlacementAnalytics<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetInstitutionPlacementAnalyticsQueryOptions(
+    id,
+    params,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Public cohort placement leaderboard for an institution. Returns aggregate
+placement stats, top employers, salary bands by role family, and per-cohort
+drill-down rows. Returns 404 if the institution has opted-out of the public
+leaderboard. Salary bands enforce a 3-hire minimum to prevent deanonymisation.
+
+ */
+export const getGetInstitutionCohortLeaderboardUrl = (
+  id: number,
+  params?: GetInstitutionCohortLeaderboardParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/institutions/${id}/leaderboard?${stringifiedParams}`
+    : `/api/institutions/${id}/leaderboard`;
+};
+
+export const getInstitutionCohortLeaderboard = async (
+  id: number,
+  params?: GetInstitutionCohortLeaderboardParams,
+  options?: RequestInit,
+): Promise<InstitutionCohortLeaderboard> => {
+  return customFetch<InstitutionCohortLeaderboard>(
+    getGetInstitutionCohortLeaderboardUrl(id, params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetInstitutionCohortLeaderboardQueryKey = (
+  id: number,
+  params?: GetInstitutionCohortLeaderboardParams,
+) => {
+  return [
+    `/api/institutions/${id}/leaderboard`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getGetInstitutionCohortLeaderboardQueryOptions = <
+  TData = Awaited<ReturnType<typeof getInstitutionCohortLeaderboard>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  params?: GetInstitutionCohortLeaderboardParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getInstitutionCohortLeaderboard>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetInstitutionCohortLeaderboardQueryKey(id, params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getInstitutionCohortLeaderboard>>
+  > = ({ signal }) =>
+    getInstitutionCohortLeaderboard(id, params, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getInstitutionCohortLeaderboard>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetInstitutionCohortLeaderboardQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getInstitutionCohortLeaderboard>>
+>;
+export type GetInstitutionCohortLeaderboardQueryError = ErrorType<void>;
+
+/**
+ * @summary Public cohort placement leaderboard for an institution. Returns aggregate
+placement stats, top employers, salary bands by role family, and per-cohort
+drill-down rows. Returns 404 if the institution has opted-out of the public
+leaderboard. Salary bands enforce a 3-hire minimum to prevent deanonymisation.
+
+ */
+
+export function useGetInstitutionCohortLeaderboard<
+  TData = Awaited<ReturnType<typeof getInstitutionCohortLeaderboard>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  params?: GetInstitutionCohortLeaderboardParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getInstitutionCohortLeaderboard>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetInstitutionCohortLeaderboardQueryOptions(
     id,
     params,
     options,

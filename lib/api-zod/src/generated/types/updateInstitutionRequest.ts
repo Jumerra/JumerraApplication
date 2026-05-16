@@ -28,4 +28,5 @@ export interface UpdateInstitutionRequest {
   websiteUrl?: string;
   /** @maxLength 5000 */
   description?: string;
+  publicLeaderboardEnabled?: boolean;
 }

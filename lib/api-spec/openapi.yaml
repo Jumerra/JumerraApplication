@@ -3502,6 +3502,39 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/InstitutionPlacementAnalytics" }
 
+  /institutions/{id}/leaderboard:
+    get:
+      operationId: getInstitutionCohortLeaderboard
+      tags: [institutions]
+      summary: |
+        Public cohort placement leaderboard for an institution. Returns aggregate
+        placement stats, top employers, salary bands by role family, and per-cohort
+        drill-down rows. Returns 404 if the institution has opted-out of the public
+        leaderboard. Salary bands enforce a 3-hire minimum to prevent deanonymisation.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+        - in: query
+          name: year
+          required: false
+          description: Optional cohort graduation year filter; if omitted, all cohorts are aggregated.
+          schema: { type: integer }
+        - in: query
+          name: departmentId
+          required: false
+          description: Optional program/department filter.
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Cohort leaderboard
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InstitutionCohortLeaderboard" }
+        "404":
+          description: Institution not found, or its public leaderboard is disabled.
+
   /institutions/{id}/analytics/employers-leaderboard:
     get:
       operationId: getInstitutionEmployersLeaderboard
@@ -4808,6 +4841,9 @@ components:
           type: string
           nullable: true
           description: Owning account-manager display name (admin-only field)
+        publicLeaderboardEnabled:
+          type: boolean
+          description: When false, the public cohort placement leaderboard page returns 404 to anonymous visitors. Default true.
       required:
         - id
         - name
@@ -4818,6 +4854,7 @@ components:
         - studentCount
         - placementRate
         - createdAt
+        - publicLeaderboardEnabled
 
     InstitutionDetail:
       allOf:
@@ -4984,6 +5021,7 @@ components:
         logoUrl: { type: string, maxLength: 1000 }
         websiteUrl: { type: string, maxLength: 1000 }
         description: { type: string, maxLength: 5000 }
+        publicLeaderboardEnabled: { type: boolean }
 
     InstitutionStudent:
       type: object
@@ -6913,6 +6951,83 @@ components:
         - salaryMediansByDepartment
         - placementsLocked
         - endorsementsThisYear
+
+    InstitutionCohortLeaderboard:
+      type: object
+      properties:
+        institutionId: { type: integer }
+        institutionName: { type: string }
+        institutionLogoUrl: { type: string }
+        institutionLocation: { type: string }
+        institutionType: { type: string }
+        totalPlaced: { type: integer, description: Total verified students hired in the selected scope. }
+        totalTracked: { type: integer, description: Total verified students in the selected scope. }
+        medianTimeToPlacementDays:
+          type: integer
+          description: Median days from candidate signup to first hire across the scope.
+        year:
+          type: integer
+          nullable: true
+          description: Selected cohort year, or null when aggregating all cohorts.
+        departmentId:
+          type: integer
+          nullable: true
+        cohorts:
+          type: array
+          description: Per-cohort drill-down rows (one per graduation year). Sorted by year DESC.
+          items:
+            type: object
+            properties:
+              year: { type: integer }
+              totalStudents: { type: integer }
+              placedStudents: { type: integer }
+              medianTimeToPlacementDays: { type: integer }
+            required: [year, totalStudents, placedStudents, medianTimeToPlacementDays]
+        topEmployers:
+          type: array
+          description: Top 5 employers by first-hire count within the scope.
+          items: { $ref: "#/components/schemas/InstitutionTopEmployer" }
+        salaryBandsByRoleFamily:
+          type: array
+          description: Salary bands per role family (job title); only families with at least 3 hires are returned.
+          items:
+            type: object
+            properties:
+              roleFamily: { type: string }
+              hires: { type: integer, minimum: 3 }
+              currency: { type: string }
+              p25: { type: integer }
+              p50: { type: integer }
+              p75: { type: integer }
+            required: [roleFamily, hires, currency, p25, p50, p75]
+        availableYears:
+          type: array
+          description: Cohort years available for drill-down.
+          items: { type: integer }
+        availableDepartments:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: integer }
+              name: { type: string }
+            required: [id, name]
+      required:
+        - institutionId
+        - institutionName
+        - institutionLogoUrl
+        - institutionLocation
+        - institutionType
+        - totalPlaced
+        - totalTracked
+        - medianTimeToPlacementDays
+        - year
+        - departmentId
+        - cohorts
+        - topEmployers
+        - salaryBandsByRoleFamily
+        - availableYears
+        - availableDepartments
 
     InstitutionEmployersLeaderboard:
       type: object

@@ -54,7 +54,7 @@ router.use("/applications", requireAuth);
 // before the global requireAuth gate. All other /institutions/* paths
 // remain authenticated.
 const PUBLIC_INSTITUTION_PATH_RE =
-  /^\/\d+\/analytics\/employers-leaderboard\/?$/;
+  /^\/\d+\/(?:analytics\/employers-leaderboard|leaderboard)\/?$/;
 router.use("/institutions", (req, res, next) => {
   if (req.method === "GET" && PUBLIC_INSTITUTION_PATH_RE.test(req.path)) {
     return next();

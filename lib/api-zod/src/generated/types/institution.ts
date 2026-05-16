@@ -21,4 +21,6 @@ export interface Institution {
   accountManagerId?: number | null;
   /** Owning account-manager display name (admin-only field) */
   accountManagerName?: string | null;
+  /** When false, the public cohort placement leaderboard page returns 404 to anonymous visitors. Default true. */
+  publicLeaderboardEnabled: boolean;
 }

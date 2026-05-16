@@ -4,6 +4,7 @@ import {
   text,
   timestamp,
   integer,
+  boolean,
   index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
@@ -30,6 +31,17 @@ export const institutionsTable = pgTable(
       (): AnyPgColumn => usersTable.id,
       { onDelete: "set null" },
     ),
+    /**
+     * Whether the public cohort placement leaderboard at
+     * `/institutions/:id/leaderboard` is browseable by anonymous
+     * visitors. Defaults to true so institutions opt-in by default
+     * (drives SEO + recruiting visibility). Owners can flip it off
+     * from the institution-edit page; admin staff can flip it from
+     * the admin institution edit screen.
+     */
+    publicLeaderboardEnabled: boolean("public_leaderboard_enabled")
+      .notNull()
+      .default(true),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

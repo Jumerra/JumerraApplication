@@ -190,15 +190,19 @@ function serializeInstitution(
     placementRate,
     createdAt: i.createdAt.toISOString(),
   };
+  const withFlags = {
+    ...base,
+    publicLeaderboardEnabled: i.publicLeaderboardEnabled,
+  };
   // Account-manager attribution is admin-only.
   if (opts.includeManager) {
     return {
-      ...base,
+      ...withFlags,
       accountManagerId: i.accountManagerId,
       accountManagerName: opts.managerName ?? null,
     };
   }
-  return base;
+  return withFlags;
 }
 
 // Note: a global `requireAuth` is mounted on `/institutions` in

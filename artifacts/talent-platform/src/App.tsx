@@ -17,6 +17,7 @@ import EmployersList from "@/pages/employers/index";
 import EmployerDetail from "@/pages/employers/detail";
 import InstitutionsList from "@/pages/institutions/index";
 import InstitutionDetail from "@/pages/institutions/detail";
+import InstitutionLeaderboardPage from "@/pages/institutions/leaderboard";
 import CandidatesList from "@/pages/candidates/index";
 import CandidateDetail from "@/pages/candidates/detail";
 import PublicReferenceFormPage from "@/pages/references/[token]";
@@ -100,6 +101,10 @@ function Router() {
         <Route path="/employers/:id" component={EmployerDetail} />
         
         <Route path="/institutions" component={InstitutionsList} />
+        <Route
+          path="/institutions/:id/leaderboard"
+          component={InstitutionLeaderboardPage}
+        />
         <Route path="/institutions/:id" component={InstitutionDetail} />
         
         <Route path="/open-candidates" component={PublicOpenCandidatesPage} />

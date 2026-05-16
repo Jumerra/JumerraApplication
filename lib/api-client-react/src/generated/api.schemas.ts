@@ -1199,6 +1199,8 @@ export interface Institution {
   accountManagerId?: number | null;
   /** Owning account-manager display name (admin-only field) */
   accountManagerName?: string | null;
+  /** When false, the public cohort placement leaderboard page returns 404 to anonymous visitors. Default true. */
+  publicLeaderboardEnabled: boolean;
 }
 
 export interface InstitutionFaculty {
@@ -1398,6 +1400,7 @@ export interface UpdateInstitutionRequest {
   websiteUrl?: string;
   /** @maxLength 5000 */
   description?: string;
+  publicLeaderboardEnabled?: boolean;
 }
 
 export type InstitutionStudentStatus =
@@ -2978,6 +2981,54 @@ regardless of hire outcome.
   endorsementsThisYear: number;
 }
 
+export type InstitutionCohortLeaderboardCohortsItem = {
+  year: number;
+  totalStudents: number;
+  placedStudents: number;
+  medianTimeToPlacementDays: number;
+};
+
+export type InstitutionCohortLeaderboardSalaryBandsByRoleFamilyItem = {
+  roleFamily: string;
+  /** @minimum 3 */
+  hires: number;
+  currency: string;
+  p25: number;
+  p50: number;
+  p75: number;
+};
+
+export type InstitutionCohortLeaderboardAvailableDepartmentsItem = {
+  id: number;
+  name: string;
+};
+
+export interface InstitutionCohortLeaderboard {
+  institutionId: number;
+  institutionName: string;
+  institutionLogoUrl: string;
+  institutionLocation: string;
+  institutionType: string;
+  /** Total verified students hired in the selected scope. */
+  totalPlaced: number;
+  /** Total verified students in the selected scope. */
+  totalTracked: number;
+  /** Median days from candidate signup to first hire across the scope. */
+  medianTimeToPlacementDays: number;
+  /** Selected cohort year, or null when aggregating all cohorts. */
+  year: number | null;
+  departmentId: number | null;
+  /** Per-cohort drill-down rows (one per graduation year). Sorted by year DESC. */
+  cohorts: InstitutionCohortLeaderboardCohortsItem[];
+  /** Top 5 employers by first-hire count within the scope. */
+  topEmployers: InstitutionTopEmployer[];
+  /** Salary bands per role family (job title); only families with at least 3 hires are returned. */
+  salaryBandsByRoleFamily: InstitutionCohortLeaderboardSalaryBandsByRoleFamilyItem[];
+  /** Cohort years available for drill-down. */
+  availableYears: number[];
+  availableDepartments: InstitutionCohortLeaderboardAvailableDepartmentsItem[];
+}
+
 export interface InstitutionEmployersLeaderboard {
   year: number;
   employers: InstitutionTopEmployer[];
@@ -3400,6 +3451,17 @@ export const AdminGetHiresAnalyticsBucket = {
 
 export type GetInstitutionPlacementAnalyticsParams = {
   facultyId?: number;
+  departmentId?: number;
+};
+
+export type GetInstitutionCohortLeaderboardParams = {
+  /**
+   * Optional cohort graduation year filter; if omitted, all cohorts are aggregated.
+   */
+  year?: number;
+  /**
+   * Optional program/department filter.
+   */
   departmentId?: number;
 };
 

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import {
   applicationEndorsementsTable,
   applicationsTable,
@@ -456,6 +456,377 @@ router.get(
       .slice(0, 10);
 
     res.json({ year: academicYear, employers });
+  },
+);
+
+// ---------------------------------------------------------------------------
+// GET /institutions/:id/leaderboard
+//   PUBLIC. Cohort placement leaderboard for an institution. Returns
+//   aggregate placement stats, top 5 employers, salary bands per role
+//   family (job title) with a 3-hire anti-deanonymisation floor, and
+//   per-cohort drill-down rows. Honors optional ?year= and
+//   ?departmentId= filters.
+//
+//   Returns 404 when the institution does not exist OR when
+//   `publicLeaderboardEnabled` is false, so opt-out behaves like
+//   "doesn't exist" for SEO + linking purposes.
+// ---------------------------------------------------------------------------
+function leaderboardMedian(values: number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0
+    ? Math.round((sorted[mid - 1] + sorted[mid]) / 2)
+    : sorted[mid];
+}
+
+function leaderboardPercentile(sorted: number[], p: number): number {
+  if (sorted.length === 0) return 0;
+  const idx = (sorted.length - 1) * p;
+  const lo = Math.floor(idx);
+  const hi = Math.ceil(idx);
+  if (lo === hi) return sorted[lo]!;
+  const frac = idx - lo;
+  return Math.round(sorted[lo]! + (sorted[hi]! - sorted[lo]!) * frac);
+}
+
+const SALARY_BAND_MIN_HIRES = 3;
+
+router.get(
+  "/institutions/:id/leaderboard",
+  async (req, res): Promise<void> => {
+    const institutionId = Number(req.params.id);
+    if (!Number.isInteger(institutionId) || institutionId <= 0) {
+      res.status(400).json({ error: "Invalid institution id" });
+      return;
+    }
+    const yearRaw = req.query.year;
+    const departmentIdRaw = req.query.departmentId;
+    const year =
+      typeof yearRaw === "string" && yearRaw.length > 0
+        ? Number(yearRaw)
+        : undefined;
+    const departmentId =
+      typeof departmentIdRaw === "string" && departmentIdRaw.length > 0
+        ? Number(departmentIdRaw)
+        : undefined;
+    if (year !== undefined && (!Number.isInteger(year) || year < 1900 || year > 2200)) {
+      res.status(400).json({ error: "Invalid year" });
+      return;
+    }
+    if (departmentId !== undefined && !Number.isInteger(departmentId)) {
+      res.status(400).json({ error: "Invalid departmentId" });
+      return;
+    }
+
+    const [institution] = await db
+      .select()
+      .from(institutionsTable)
+      .where(eq(institutionsTable.id, institutionId))
+      .limit(1);
+    if (!institution || !institution.publicLeaderboardEnabled) {
+      res.status(404).json({ error: "Leaderboard not available" });
+      return;
+    }
+
+    // Available cohorts for the drill-down picker (always returned).
+    const cohortRows = await db
+      .select({
+        id: candidateCohortsTable.id,
+        year: candidateCohortsTable.year,
+      })
+      .from(candidateCohortsTable)
+      .where(eq(candidateCohortsTable.institutionId, institutionId))
+      .orderBy(asc(candidateCohortsTable.year));
+    const availableYears = cohortRows.map((c) => c.year);
+
+    // Available departments for the drill-down picker.
+    const deptRows = await db
+      .select({
+        id: institutionDepartmentsTable.id,
+        name: institutionDepartmentsTable.name,
+      })
+      .from(institutionDepartmentsTable)
+      .where(eq(institutionDepartmentsTable.institutionId, institutionId))
+      .orderBy(asc(institutionDepartmentsTable.name));
+    const availableDepartments = deptRows.map((d) => ({
+      id: d.id,
+      name: d.name,
+    }));
+
+    // Build the verified-student scope; honor department filter if given.
+    const verifiedLinks = await db
+      .select({
+        candidateId: candidateInstitutionsTable.candidateId,
+        departmentId: candidateInstitutionsTable.departmentId,
+      })
+      .from(candidateInstitutionsTable)
+      .where(
+        and(
+          eq(candidateInstitutionsTable.institutionId, institutionId),
+          // verifiedAt IS NOT NULL — placement metrics use verified
+          // students only (same rule as analytics/dashboard).
+          sql`${candidateInstitutionsTable.verifiedAt} IS NOT NULL`,
+        ),
+      );
+
+    let scopedCandidateIds = verifiedLinks
+      .filter((l) =>
+        departmentId === undefined ? true : l.departmentId === departmentId,
+      )
+      .map((l) => l.candidateId);
+
+    // Cohort-year filter: intersect with cohort membership for that year.
+    if (year !== undefined) {
+      const [cohort] = cohortRows.filter((c) => c.year === year);
+      if (!cohort) {
+        scopedCandidateIds = [];
+      } else {
+        const members = await db
+          .select({ candidateId: candidateCohortMembersTable.candidateId })
+          .from(candidateCohortMembersTable)
+          .where(eq(candidateCohortMembersTable.cohortId, cohort.id));
+        const memberSet = new Set(members.map((m) => m.candidateId));
+        scopedCandidateIds = scopedCandidateIds.filter((id) =>
+          memberSet.has(id),
+        );
+      }
+    }
+
+    const baseResponse = {
+      institutionId: institution.id,
+      institutionName: institution.name,
+      institutionLogoUrl: institution.logoUrl,
+      institutionLocation: institution.location,
+      institutionType: institution.type,
+      totalPlaced: 0,
+      totalTracked: scopedCandidateIds.length,
+      medianTimeToPlacementDays: 0,
+      year: year ?? null,
+      departmentId: departmentId ?? null,
+      cohorts: [] as Array<{
+        year: number;
+        totalStudents: number;
+        placedStudents: number;
+        medianTimeToPlacementDays: number;
+      }>,
+      topEmployers: [] as Array<{
+        employerId: number;
+        employerName: string;
+        employerLogoUrl: string;
+        hires: number;
+      }>,
+      salaryBandsByRoleFamily: [] as Array<{
+        roleFamily: string;
+        hires: number;
+        currency: string;
+        p25: number;
+        p50: number;
+        p75: number;
+      }>,
+      availableYears,
+      availableDepartments,
+    };
+
+    if (scopedCandidateIds.length === 0) {
+      res.json(baseResponse);
+      return;
+    }
+
+    // First-hire row per candidate (across all time for the scope; the
+    // year filter has already narrowed candidates by cohort).
+    const hireRows = await db
+      .select({
+        candidateId: applicationsTable.candidateId,
+        hiredAt: applicationsTable.updatedAt,
+        candidateCreatedAt: candidatesTable.createdAt,
+        jobTitle: jobsTable.title,
+        salaryMin: jobsTable.salaryMin,
+        salaryMax: jobsTable.salaryMax,
+        currency: jobsTable.currency,
+        employerId: employersTable.id,
+        employerName: employersTable.name,
+        employerLogoUrl: employersTable.logoUrl,
+      })
+      .from(applicationsTable)
+      .innerJoin(jobsTable, eq(jobsTable.id, applicationsTable.jobId))
+      .innerJoin(employersTable, eq(employersTable.id, jobsTable.employerId))
+      .innerJoin(
+        candidatesTable,
+        eq(candidatesTable.id, applicationsTable.candidateId),
+      )
+      .where(
+        and(
+          eq(applicationsTable.status, "hired"),
+          inArray(applicationsTable.candidateId, scopedCandidateIds),
+        ),
+      );
+
+    type FirstHire = {
+      candidateId: number;
+      hiredAt: Date;
+      candidateCreatedAt: Date;
+      jobTitle: string;
+      salary: number | null;
+      currency: string;
+      employerId: number;
+      employerName: string;
+      employerLogoUrl: string;
+    };
+    const firstHire = new Map<number, FirstHire>();
+    for (const h of hireRows) {
+      const cur = firstHire.get(h.candidateId);
+      if (cur && cur.hiredAt <= h.hiredAt) continue;
+      const salary = jobMidpointSalary({
+        salaryMin: h.salaryMin,
+        salaryMax: h.salaryMax,
+      });
+      firstHire.set(h.candidateId, {
+        candidateId: h.candidateId,
+        hiredAt: h.hiredAt,
+        candidateCreatedAt: h.candidateCreatedAt,
+        jobTitle: h.jobTitle,
+        salary,
+        currency: h.currency,
+        employerId: h.employerId,
+        employerName: h.employerName,
+        employerLogoUrl: h.employerLogoUrl,
+      });
+    }
+
+    const totalPlaced = firstHire.size;
+
+    // Median time-to-placement (days) across all first hires.
+    const ttpDays: number[] = [];
+    for (const f of firstHire.values()) {
+      const ms = f.hiredAt.getTime() - f.candidateCreatedAt.getTime();
+      if (ms > 0) ttpDays.push(Math.round(ms / (1000 * 60 * 60 * 24)));
+    }
+    const medianTimeToPlacementDays = leaderboardMedian(ttpDays);
+
+    // Top 5 employers.
+    const employerCounts = new Map<
+      number,
+      { name: string; logoUrl: string; hires: number }
+    >();
+    for (const f of firstHire.values()) {
+      const e = employerCounts.get(f.employerId) ?? {
+        name: f.employerName,
+        logoUrl: f.employerLogoUrl,
+        hires: 0,
+      };
+      e.hires += 1;
+      employerCounts.set(f.employerId, e);
+    }
+    const topEmployers = Array.from(employerCounts.entries())
+      .map(([id, v]) => ({
+        employerId: id,
+        employerName: v.name,
+        employerLogoUrl: v.logoUrl,
+        hires: v.hires,
+      }))
+      .sort((a, b) => b.hires - a.hires)
+      .slice(0, 5);
+
+    // Salary bands per role family (job title, case-insensitive), with
+    // 3-hire anti-deanonymisation floor. Bucket per (family, currency)
+    // so we never mix currencies in one band.
+    const familyBuckets = new Map<string, number[]>();
+    const familyDisplay = new Map<string, { title: string; currency: string }>();
+    for (const f of firstHire.values()) {
+      if (f.salary == null || f.salary <= 0) continue;
+      const cur = (f.currency ?? "USD").toUpperCase();
+      const norm = f.jobTitle.trim().toLowerCase();
+      if (norm.length === 0) continue;
+      const key = `${norm}::${cur}`;
+      const list = familyBuckets.get(key) ?? [];
+      list.push(f.salary);
+      familyBuckets.set(key, list);
+      if (!familyDisplay.has(key)) {
+        familyDisplay.set(key, { title: f.jobTitle.trim(), currency: cur });
+      }
+    }
+    const salaryBandsByRoleFamily = Array.from(familyBuckets.entries())
+      .filter(([, vals]) => vals.length >= SALARY_BAND_MIN_HIRES)
+      .map(([key, vals]) => {
+        const sorted = vals.slice().sort((a, b) => a - b);
+        const meta = familyDisplay.get(key)!;
+        return {
+          roleFamily: meta.title,
+          hires: sorted.length,
+          currency: meta.currency,
+          p25: leaderboardPercentile(sorted, 0.25),
+          p50: leaderboardPercentile(sorted, 0.5),
+          p75: leaderboardPercentile(sorted, 0.75),
+        };
+      })
+      .sort((a, b) => b.hires - a.hires);
+
+    // Per-cohort drill-down rows. For each cohort year we compute totals
+    // across that cohort's verified members (ignoring the department
+    // filter so the cohort summary reflects the whole class).
+    const cohorts: Array<{
+      year: number;
+      totalStudents: number;
+      placedStudents: number;
+      medianTimeToPlacementDays: number;
+    }> = [];
+    if (cohortRows.length > 0) {
+      const cohortMembers = await db
+        .select({
+          cohortId: candidateCohortMembersTable.cohortId,
+          candidateId: candidateCohortMembersTable.candidateId,
+        })
+        .from(candidateCohortMembersTable)
+        .where(
+          inArray(
+            candidateCohortMembersTable.cohortId,
+            cohortRows.map((c) => c.id),
+          ),
+        );
+      // Cohort drill-down rows must use the SAME scoped candidate set as
+      // the top-level KPIs, otherwise a department filter would show a
+      // full cohort total against a department-filtered placed count
+      // (architect-flagged inconsistency). Build a per-cohort set of
+      // verified members that are also in `scopedCandidateIds`.
+      const scopedSet = new Set(scopedCandidateIds);
+      const membersByCohort = new Map<number, Set<number>>();
+      for (const m of cohortMembers) {
+        if (!scopedSet.has(m.candidateId)) continue;
+        const s = membersByCohort.get(m.cohortId) ?? new Set<number>();
+        s.add(m.candidateId);
+        membersByCohort.set(m.cohortId, s);
+      }
+      for (const c of cohortRows) {
+        const members = membersByCohort.get(c.id) ?? new Set<number>();
+        let placed = 0;
+        const days: number[] = [];
+        for (const cid of members) {
+          const fh = firstHire.get(cid);
+          if (fh) {
+            placed += 1;
+            const ms = fh.hiredAt.getTime() - fh.candidateCreatedAt.getTime();
+            if (ms > 0) days.push(Math.round(ms / (1000 * 60 * 60 * 24)));
+          }
+        }
+        cohorts.push({
+          year: c.year,
+          totalStudents: members.size,
+          placedStudents: placed,
+          medianTimeToPlacementDays: leaderboardMedian(days),
+        });
+      }
+      cohorts.sort((a, b) => b.year - a.year);
+    }
+
+    res.json({
+      ...baseResponse,
+      totalPlaced,
+      medianTimeToPlacementDays,
+      cohorts,
+      topEmployers,
+      salaryBandsByRoleFamily,
+    });
   },
 );
 

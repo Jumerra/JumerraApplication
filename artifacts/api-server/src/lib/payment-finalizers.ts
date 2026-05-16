@@ -8,9 +8,51 @@ import {
   jobsTable,
   institutionSubscriptionsTable,
   employerSubscriptionsTable,
+  paymentsTable,
 } from "@workspace/db";
 import { getUncachableStripeClient } from "../stripeClient";
 import { logger } from "./logger";
+
+/**
+ * Upsert a row into the unified `payments` ledger so admins can query
+ * "all paid payments across all five flows" with a single SELECT.
+ * Called by every finalizer on successful flip. The (provider,
+ * externalRef) pair is the unique key so retries are no-ops.
+ */
+async function recordUnifiedPayment(args: {
+  provider: "stripe" | "paystack";
+  externalRef: string;
+  purposeType:
+    | "boost"
+    | "cv"
+    | "job_tier"
+    | "institution_subscription"
+    | "employer_subscription";
+  purposeId: number;
+  amountSubunits: number;
+  currency: string;
+  status: string;
+}) {
+  await db
+    .insert(paymentsTable)
+    .values({
+      provider: args.provider,
+      externalRef: args.externalRef,
+      purposeType: args.purposeType,
+      purposeId: args.purposeId,
+      amountSubunits: args.amountSubunits,
+      currency: args.currency,
+      status: args.status,
+      finalizedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: [paymentsTable.provider, paymentsTable.externalRef],
+      set: {
+        status: args.status,
+        finalizedAt: new Date(),
+      },
+    });
+}
 
 /**
  * Shared, idempotent finalizers for every paywalled flow. Used by:
@@ -128,6 +170,15 @@ export async function finalizeBoostPayment(
       .set({ boostExpiresAt: expires })
       .where(eq(boostPaymentsTable.id, payment.id));
   });
+  await recordUnifiedPayment({
+    provider: ctx.provider,
+    externalRef: ctx.externalRef,
+    purposeType: "boost",
+    purposeId: payment.id,
+    amountSubunits: payment.amountCents,
+    currency: payment.currency,
+    status: "paid",
+  });
   return { alreadyFinalized: false, paymentId: payment.id };
 }
 
@@ -162,6 +213,15 @@ export async function finalizeCvPayment(
       .update(candidatesTable)
       .set({ aiCvUnlocked: true, aiCvUnlockedAt: new Date() })
       .where(eq(candidatesTable.id, payment.candidateId));
+  });
+  await recordUnifiedPayment({
+    provider: ctx.provider,
+    externalRef: ctx.externalRef,
+    purposeType: "cv",
+    purposeId: payment.id,
+    amountSubunits: payment.amountCents,
+    currency: payment.currency,
+    status: "paid",
   });
   return { alreadyFinalized: false, paymentId: payment.id };
 }
@@ -216,7 +276,111 @@ export async function finalizeJobTierPayment(
       .set({ tierExpiresAt: expires })
       .where(eq(jobTierPaymentsTable.id, payment.id));
   });
+  await recordUnifiedPayment({
+    provider: ctx.provider,
+    externalRef: ctx.externalRef,
+    purposeType: "job_tier",
+    purposeId: payment.id,
+    amountSubunits: payment.amountCents,
+    currency: payment.currency,
+    status: "paid",
+  });
   return { alreadyFinalized: false, paymentId: payment.id };
+}
+
+/**
+ * Apply a Stripe subscription state update (from invoice.paid,
+ * customer.subscription.updated, or customer.subscription.deleted)
+ * to whichever of `institution_subscriptions` or
+ * `employer_subscriptions` owns it. Runs inside a single transaction
+ * so the status flip + period dates are written atomically. Returns
+ * the rowId+table or null when no local row matches (the sub belongs
+ * to a different system or hasn't been persisted yet).
+ */
+export async function applyStripeSubscriptionUpdate(sub: {
+  id: string;
+  status: string;
+  trial_end: number | null;
+  current_period_end?: number;
+  customer: string | { id: string } | null;
+  items?: { data?: Array<{ current_period_end?: number }> };
+}): Promise<{ table: "institution" | "employer"; rowId: number } | null> {
+  const trialEndsAt = sub.trial_end ? new Date(sub.trial_end * 1000) : null;
+  const periodEndUnix =
+    sub.current_period_end ?? sub.items?.data?.[0]?.current_period_end ?? null;
+  const currentPeriodEnd = periodEndUnix ? new Date(periodEndUnix * 1000) : null;
+  const customerId =
+    typeof sub.customer === "string" ? sub.customer : sub.customer?.id ?? null;
+  let mapped: "trialing" | "active" | "canceled" | "expired" | "failed" =
+    "failed";
+  if (sub.status === "trialing") mapped = "trialing";
+  else if (sub.status === "active") mapped = "active";
+  else if (sub.status === "canceled") mapped = "canceled";
+  else if (sub.status === "incomplete_expired" || sub.status === "unpaid")
+    mapped = "expired";
+  else if (sub.status === "past_due" || sub.status === "paused")
+    mapped = "expired";
+  else if (sub.status === "incomplete") return null;
+
+  // Try institution table first.
+  const inst = await db
+    .select({ id: institutionSubscriptionsTable.id })
+    .from(institutionSubscriptionsTable)
+    .where(eq(institutionSubscriptionsTable.stripeSubscriptionId, sub.id))
+    .limit(1);
+  if (inst[0]) {
+    await db
+      .update(institutionSubscriptionsTable)
+      .set({
+        status: mapped,
+        stripeCustomerId: customerId,
+        trialEndsAt,
+        ...(currentPeriodEnd ? { currentPeriodEnd } : {}),
+        updatedAt: new Date(),
+        ...(mapped === "canceled" ? { canceledAt: new Date() } : {}),
+      })
+      .where(eq(institutionSubscriptionsTable.id, inst[0].id));
+    return { table: "institution", rowId: inst[0].id };
+  }
+  const emp = await db
+    .select({ id: employerSubscriptionsTable.id })
+    .from(employerSubscriptionsTable)
+    .where(eq(employerSubscriptionsTable.stripeSubscriptionId, sub.id))
+    .limit(1);
+  if (emp[0]) {
+    await db
+      .update(employerSubscriptionsTable)
+      .set({
+        status: mapped,
+        stripeCustomerId: customerId,
+        trialEndsAt,
+        ...(currentPeriodEnd ? { currentPeriodEnd } : {}),
+        updatedAt: new Date(),
+        ...(mapped === "canceled" ? { canceledAt: new Date() } : {}),
+      })
+      .where(eq(employerSubscriptionsTable.id, emp[0].id));
+    return { table: "employer", rowId: emp[0].id };
+  }
+  return null;
+}
+
+/**
+ * Mark a subscription canceled (terminal). Used by
+ * customer.subscription.deleted which doesn't always carry an items
+ * array.
+ */
+export async function markStripeSubscriptionCanceled(
+  subscriptionId: string,
+): Promise<void> {
+  const now = new Date();
+  await db
+    .update(institutionSubscriptionsTable)
+    .set({ status: "canceled", canceledAt: now, updatedAt: now })
+    .where(eq(institutionSubscriptionsTable.stripeSubscriptionId, subscriptionId));
+  await db
+    .update(employerSubscriptionsTable)
+    .set({ status: "canceled", canceledAt: now, updatedAt: now })
+    .where(eq(employerSubscriptionsTable.stripeSubscriptionId, subscriptionId));
 }
 
 /**
@@ -289,6 +453,15 @@ export async function finalizeInstitutionSubscriptionFromStripe(
       ...(mapped === "canceled" ? { canceledAt: new Date() } : {}),
     })
     .where(eq(institutionSubscriptionsTable.id, row.id));
+  await recordUnifiedPayment({
+    provider: "stripe",
+    externalRef: sessionId,
+    purposeType: "institution_subscription",
+    purposeId: row.id,
+    amountSubunits: row.priceCentsSnapshot,
+    currency: row.currencySnapshot,
+    status: mapped,
+  });
   return { alreadyFinalized: false, paymentId: row.id };
 }
 
@@ -359,6 +532,15 @@ export async function finalizeEmployerSubscriptionFromStripe(
       ...(mapped === "canceled" ? { canceledAt: new Date() } : {}),
     })
     .where(eq(employerSubscriptionsTable.id, row.id));
+  await recordUnifiedPayment({
+    provider: "stripe",
+    externalRef: sessionId,
+    purposeType: "employer_subscription",
+    purposeId: row.id,
+    amountSubunits: row.priceCentsSnapshot,
+    currency: row.currencySnapshot,
+    status: mapped,
+  });
   return { alreadyFinalized: false, paymentId: row.id };
 }
 

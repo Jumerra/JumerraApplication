@@ -5,6 +5,8 @@ import { processWebhookOnce } from "../lib/webhook-idempotency";
 import {
   finalizeFromStripeSessionId,
   finalizeFromPaystackReference,
+  applyStripeSubscriptionUpdate,
+  markStripeSubscriptionCanceled,
 } from "../lib/payment-finalizers";
 import { logger } from "../lib/logger";
 
@@ -79,11 +81,16 @@ router.post("/webhooks/stripe", async (req: Request, res: Response) => {
           event.type === "checkout.session.completed" ||
           event.type === "checkout.session.async_payment_succeeded"
         ) {
-          const session = event.data.object as { id: string; payment_status?: string };
+          const session = event.data.object as {
+            id: string;
+            payment_status?: string;
+          };
           if (session.payment_status && session.payment_status !== "paid") {
             return; // not paid yet — wait for async_payment_succeeded
           }
-          const { flow, result } = await finalizeFromStripeSessionId(session.id);
+          const { flow, result } = await finalizeFromStripeSessionId(
+            session.id,
+          );
           logger.info(
             {
               sessionId: session.id,
@@ -94,23 +101,67 @@ router.post("/webhooks/stripe", async (req: Request, res: Response) => {
             "stripe webhook: finalized",
           );
         } else if (event.type === "checkout.session.async_payment_failed") {
-          // Payment failed — record nothing; the /verify path will mark
-          // the row failed on next inspection. Logging only.
           const session = event.data.object as { id: string };
-          logger.info({ sessionId: session.id }, "stripe webhook: async payment failed");
+          logger.info(
+            { sessionId: session.id },
+            "stripe webhook: async payment failed",
+          );
+        } else if (
+          event.type === "customer.subscription.updated" ||
+          event.type === "customer.subscription.created"
+        ) {
+          const sub = event.data.object as unknown as Parameters<
+            typeof applyStripeSubscriptionUpdate
+          >[0];
+          const r = await applyStripeSubscriptionUpdate(sub);
+          logger.info(
+            { subscriptionId: sub.id, applied: r },
+            "stripe webhook: subscription updated",
+          );
+        } else if (event.type === "customer.subscription.deleted") {
+          const sub = event.data.object as { id: string };
+          await markStripeSubscriptionCanceled(sub.id);
+          logger.info(
+            { subscriptionId: sub.id },
+            "stripe webhook: subscription canceled",
+          );
+        } else if (event.type === "invoice.paid") {
+          // Recurring renewal — Stripe expands the subscription on
+          // the invoice. Use it to bump current_period_end on the
+          // local row. Falls back to a no-op if no local row matches.
+          const invoice = event.data.object as unknown as {
+            subscription?:
+              | string
+              | (Parameters<typeof applyStripeSubscriptionUpdate>[0] & {
+                  id: string;
+                })
+              | null;
+          };
+          const sub =
+            invoice.subscription && typeof invoice.subscription === "object"
+              ? invoice.subscription
+              : null;
+          if (sub && typeof sub === "object" && "id" in sub) {
+            const r = await applyStripeSubscriptionUpdate(sub);
+            logger.info(
+              { subscriptionId: sub.id, applied: r },
+              "stripe webhook: invoice.paid applied",
+            );
+          }
         }
-        // Other event types are intentionally ignored — subscription
-        // lifecycle (invoice.paid, customer.subscription.updated/deleted)
-        // is handled by the existing /verify endpoint plus a future
-        // background reconciler.
+        // Other event types are intentionally ignored.
       },
     });
     res.json({ received: true });
   } catch (err) {
-    logger.error({ err, eventId: event.id }, "stripe webhook processing failed");
-    // Return 200 so Stripe doesn't retry a deterministic failure.
-    // The webhook_events row carries the error for later replay.
-    res.status(200).json({ received: true, error: true });
+    logger.error(
+      { err, eventId: event.id },
+      "stripe webhook processing failed",
+    );
+    // 5xx forces Stripe to retry — critical for not losing payments
+    // on transient downstream failures (DB hiccup, network blip). The
+    // idempotency layer guarantees the retry won't double-apply.
+    res.status(500).json({ received: false, error: "processing_failed" });
   }
 });
 
@@ -178,7 +229,9 @@ router.post("/webhooks/paystack", async (req: Request, res: Response) => {
     res.json({ received: true });
   } catch (err) {
     logger.error({ err, eventId: eid }, "paystack webhook processing failed");
-    res.status(200).json({ received: true, error: true });
+    // Same retry-on-failure semantics as Stripe — Paystack retries 5xx
+    // for ~72h, and our idempotency layer makes the retry safe.
+    res.status(500).json({ received: false, error: "processing_failed" });
   }
 });
 

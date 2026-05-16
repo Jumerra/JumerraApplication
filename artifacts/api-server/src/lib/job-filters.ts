@@ -24,6 +24,14 @@ export interface JobFilters {
   employerId?: number | null;
   featured?: boolean | null;
   skill?: string | null;
+  /**
+   * Fast-Track pledge filter (task #76). Restricts the feed to jobs
+   * owned by employers with `fastTrackEnabled = true`. The match is
+   * resolved at the route layer (it requires the employer row), so
+   * the in-memory `jobMatchesFilters` predicate intentionally ignores
+   * this field — see routes/jobs.ts for the join-based filter.
+   */
+  fastTrackOnly?: boolean | null;
 }
 
 /**

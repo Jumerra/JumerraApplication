@@ -923,6 +923,19 @@ export function startEngagementScheduler(): void {
     }
   };
 
+  // Fast-Track 48hr-response pledge sweep (task #76). Runs on the
+  // same hourly cadence as the digest sweep — the SLA window is 48h
+  // so hourly granularity is well within the tolerance. The sweep is
+  // idempotent so a missed tick simply catches up next time.
+  const fastTrackTick = async () => {
+    try {
+      const { sweepFastTrackBreaches } = await import("./sla");
+      await sweepFastTrackBreaches();
+    } catch (err) {
+      logger.error({ err }, "Fast-Track SLA sweep crashed");
+    }
+  };
+
   // Defer initial sweeps so they don't block boot.
   setTimeout(() => {
     void digestTick();
@@ -946,4 +959,11 @@ export function startEngagementScheduler(): void {
   setInterval(() => {
     void reminderTick();
   }, FIVE_MIN_MS).unref();
+
+  setTimeout(() => {
+    void fastTrackTick();
+  }, 75_000);
+  setInterval(() => {
+    void fastTrackTick();
+  }, ONE_HOUR_MS).unref();
 }

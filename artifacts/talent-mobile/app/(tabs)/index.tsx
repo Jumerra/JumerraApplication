@@ -194,6 +194,7 @@ export default function DiscoverScreen() {
                 salaryMax={item.salaryMax}
                 currency={item.currency}
                 tier={item.tier}
+                fastTrack={item.fastTrack}
                 onPress={() => goToJob(item.jobId)}
               />
             )}
@@ -232,6 +233,7 @@ export default function DiscoverScreen() {
                 salaryMax={job.salaryMax}
                 currency={job.currency}
                 tier={job.tier}
+                fastTrack={job.fastTrack}
                 onPress={() => goToJob(job.id)}
               />
             ))}

@@ -784,6 +784,7 @@ router.get("/candidates/:id/recommendations", async (req, res): Promise<void> =>
         tierExpiresAt: job.tierExpiresAt
           ? job.tierExpiresAt.toISOString()
           : null,
+        fastTrack: Boolean(employer?.fastTrackEnabled),
       };
     })
     .sort((a, b) => b.matchScore - a.matchScore)

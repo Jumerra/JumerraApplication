@@ -1164,6 +1164,8 @@ export interface Job {
   tier: JobTier;
   /** When the current paid tier expires. Null for free jobs. */
   tierExpiresAt: string | null;
+  /** True when the owning employer has the 48-hour Fast-Track pledge enabled. */
+  fastTrack: boolean;
   applicationsCount: number;
   postedAt: string;
 }
@@ -1475,6 +1477,29 @@ export interface CreateInstitution {
   logoUrl: string;
   websiteUrl: string;
   description: string;
+}
+
+export type FastTrackStateUpcomingDeadlinesItem = {
+  applicationId: number;
+  candidateName: string;
+  jobTitle: string;
+  appliedAt: string;
+  deadlineAt: string;
+  hoursRemaining: number;
+};
+
+/**
+ * Fast-Track 48hr-response pledge state for one employer (task
+ */
+export interface FastTrackState {
+  enabled: boolean;
+  enabledAt: string | null;
+  /** When non-null and in the future, the pledge cannot be re-enabled until this time. */
+  revokedUntil: string | null;
+  breachesLast30Days: number;
+  /** Days since the most recent breach. Null when no breach has ever been recorded. */
+  streakDays: number | null;
+  upcomingDeadlines: FastTrackStateUpcomingDeadlinesItem[];
 }
 
 export type JobDetail = Job & {
@@ -1864,6 +1889,8 @@ export interface JobMatch {
   matchBreakdown: MatchBreakdown;
   tier?: JobMatchTier;
   tierExpiresAt?: string | null;
+  /** True when the owning employer has the 48-hour Fast-Track pledge enabled. */
+  fastTrack: boolean;
 }
 
 export type PlatformStatsApplicationsByStatusItem = {
@@ -3274,6 +3301,10 @@ export type ListJobsParams = {
   employerId?: number;
   featured?: boolean;
   skill?: string;
+  /**
+   * When true, restrict to jobs whose employer has the 48-hour Fast-Track pledge enabled.
+   */
+  fastTrackOnly?: boolean;
 };
 
 export type ListJobsType = (typeof ListJobsType)[keyof typeof ListJobsType];
@@ -3285,6 +3316,14 @@ export const ListJobsType = {
   contract: "contract",
   remote: "remote",
 } as const;
+
+export type SetMyEmployerFastTrackBody = {
+  enabled: boolean;
+};
+
+export type SetMyEmployerFastTrack409 = {
+  error?: string;
+};
 
 export type ListApplicationsParams = {
   candidateId?: number;

@@ -21,6 +21,7 @@ type Props = {
   salaryMax?: number | null;
   currency?: string;
   tier?: string | null;
+  fastTrack?: boolean | null;
   onPress: () => void;
 };
 
@@ -35,6 +36,7 @@ export function JobRow({
   salaryMax,
   currency,
   tier,
+  fastTrack,
   onPress,
 }: Props) {
   const colors = useColors();
@@ -88,6 +90,26 @@ export function JobRow({
         <View style={styles.metaRow}>
           <JobTypeBadge type={type} />
           <TierBadge tier={tier} />
+          {fastTrack ? (
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 3,
+                paddingHorizontal: 6,
+                paddingVertical: 2,
+                borderRadius: 999,
+                backgroundColor: "#fef3c7",
+                borderWidth: 1,
+                borderColor: "#fcd34d",
+              }}
+            >
+              <Feather name="zap" size={9} color="#92400e" />
+              <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 9, color: "#92400e" }}>
+                48hr
+              </Text>
+            </View>
+          ) : null}
           {location ? (
             <View style={styles.locRow}>
               <Feather name="map-pin" size={11} color={colors.mutedForeground} />

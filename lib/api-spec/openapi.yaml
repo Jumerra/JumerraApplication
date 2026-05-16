@@ -554,6 +554,10 @@ paths:
         - in: query
           name: skill
           schema: { type: string }
+        - in: query
+          name: fastTrackOnly
+          schema: { type: boolean }
+          description: When true, restrict to jobs whose employer has the 48-hour Fast-Track pledge enabled.
       responses:
         "200":
           description: Jobs
@@ -716,6 +720,45 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ChallengeSubmissionResult" }
+
+  /me/employer/fast-track:
+    get:
+      operationId: getMyEmployerFastTrack
+      tags: [employers]
+      summary: Read the current Fast-Track pledge state for the signed-in employer.
+      responses:
+        "200":
+          description: Current state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FastTrackState" }
+    post:
+      operationId: setMyEmployerFastTrack
+      tags: [employers]
+      summary: Enable or disable the Fast-Track pledge for the signed-in employer.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                enabled: { type: boolean }
+              required: [enabled]
+      responses:
+        "200":
+          description: Updated state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FastTrackState" }
+        "409":
+          description: In cooldown after auto-revocation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { type: string }
 
   /candidates/{id}/recommendations:
     get:
@@ -5241,6 +5284,9 @@ components:
           format: date-time
           nullable: true
           description: When the current paid tier expires. Null for free jobs.
+        fastTrack:
+          type: boolean
+          description: True when the owning employer has the 48-hour Fast-Track pledge enabled.
         applicationsCount: { type: integer }
         postedAt: { type: string, format: date-time }
       required:
@@ -5258,8 +5304,45 @@ components:
         - featured
         - tier
         - tierExpiresAt
+        - fastTrack
         - applicationsCount
         - postedAt
+
+    FastTrackState:
+      type: object
+      description: Fast-Track 48hr-response pledge state for one employer (task #76).
+      properties:
+        enabled: { type: boolean }
+        enabledAt: { type: string, format: date-time, nullable: true }
+        revokedUntil:
+          type: string
+          format: date-time
+          nullable: true
+          description: When non-null and in the future, the pledge cannot be re-enabled until this time.
+        breachesLast30Days: { type: integer }
+        streakDays:
+          type: integer
+          nullable: true
+          description: Days since the most recent breach. Null when no breach has ever been recorded.
+        upcomingDeadlines:
+          type: array
+          items:
+            type: object
+            properties:
+              applicationId: { type: integer }
+              candidateName: { type: string }
+              jobTitle: { type: string }
+              appliedAt: { type: string, format: date-time }
+              deadlineAt: { type: string, format: date-time }
+              hoursRemaining: { type: integer }
+            required: [applicationId, candidateName, jobTitle, appliedAt, deadlineAt, hoursRemaining]
+      required:
+        - enabled
+        - enabledAt
+        - revokedUntil
+        - breachesLast30Days
+        - streakDays
+        - upcomingDeadlines
 
     JobDetail:
       allOf:
@@ -5809,6 +5892,9 @@ components:
           type: string
           enum: [free, promoted, sponsored]
         tierExpiresAt: { type: string, format: date-time, nullable: true }
+        fastTrack:
+          type: boolean
+          description: True when the owning employer has the 48-hour Fast-Track pledge enabled.
       required:
         - jobId
         - title
@@ -5820,6 +5906,7 @@ components:
         - matchScore
         - matchedSkills
         - matchBreakdown
+        - fastTrack
 
     MatchBreakdown:
       type: object

@@ -193,6 +193,7 @@ router.get("/dashboard/employer/:id", async (req, res): Promise<void> => {
       postedAt: j.postedAt.toISOString(),
       tier: (j.tier ?? "free") as "free" | "promoted" | "sponsored",
       tierExpiresAt: j.tierExpiresAt ? j.tierExpiresAt.toISOString() : null,
+      fastTrack: Boolean(employer.fastTrackEnabled),
     }))
     .sort((a, b) => b.applicationsCount - a.applicationsCount)
     .slice(0, 5);
@@ -442,6 +443,7 @@ router.get("/dashboard/candidate/:id", async (req, res): Promise<void> => {
         matchScore: breakdown.score,
         matchedSkills: breakdown.matchedSkills,
         matchBreakdown: breakdown,
+        fastTrack: Boolean(employer.fastTrackEnabled),
       };
     })
     .sort((a, b) => b.matchScore - a.matchScore)

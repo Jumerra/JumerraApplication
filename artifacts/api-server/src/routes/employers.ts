@@ -64,6 +64,9 @@ function serializeJob(j: typeof jobsTable.$inferSelect, employer: typeof employe
     summary: j.summary,
     skills: j.skills,
     featured: j.featured,
+    tier: (j.tier ?? "free") as "free" | "promoted" | "sponsored",
+    tierExpiresAt: j.tierExpiresAt ? j.tierExpiresAt.toISOString() : null,
+    fastTrack: Boolean(employer.fastTrackEnabled),
     applicationsCount,
     postedAt: j.postedAt.toISOString(),
   };

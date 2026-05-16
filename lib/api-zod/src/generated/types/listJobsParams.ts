@@ -15,4 +15,8 @@ export type ListJobsParams = {
   employerId?: number;
   featured?: boolean;
   skill?: string;
+  /**
+   * When true, restrict to jobs whose employer has the 48-hour Fast-Track pledge enabled.
+   */
+  fastTrackOnly?: boolean;
 };

@@ -12,6 +12,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 
 import { toast } from "sonner";
 import { InterviewScheduleDialog } from "@/components/interview-schedule-dialog";
 import { SalaryBand } from "@/components/SalaryBand";
+import { FastTrackPledgeCard } from "@/components/FastTrackPledgeCard";
 
 export default function EmployerDashboard() {
   const { userId } = useAuth();
@@ -192,6 +193,7 @@ export default function EmployerDashboard() {
         </div>
 
         <div className="space-y-6">
+          <FastTrackPledgeCard />
           <Card className="shadow-sm">
             <CardHeader>
               <CardTitle>Active Job Postings</CardTitle>

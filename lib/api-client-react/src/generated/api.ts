@@ -89,6 +89,7 @@ import type {
   EmployerSubscriptionStatus,
   EndorseApplicationRequest,
   Error,
+  FastTrackState,
   ForgotPasswordRequest,
   GenerateChallenge,
   GenerateCvRequest,
@@ -172,6 +173,8 @@ import type {
   SetBackgroundCheckRequest,
   SetEmployerVerifiedRequest,
   SetEmployerVerifiedResponse,
+  SetMyEmployerFastTrack409,
+  SetMyEmployerFastTrackBody,
   SetupPasswordRequest,
   SetupTokenInfo,
   SiteContentResponse,
@@ -3370,6 +3373,170 @@ export const useSubmitJobChallenge = <
   TContext
 > => {
   return useMutation(getSubmitJobChallengeMutationOptions(options));
+};
+
+/**
+ * @summary Read the current Fast-Track pledge state for the signed-in employer.
+ */
+export const getGetMyEmployerFastTrackUrl = () => {
+  return `/api/me/employer/fast-track`;
+};
+
+export const getMyEmployerFastTrack = async (
+  options?: RequestInit,
+): Promise<FastTrackState> => {
+  return customFetch<FastTrackState>(getGetMyEmployerFastTrackUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetMyEmployerFastTrackQueryKey = () => {
+  return [`/api/me/employer/fast-track`] as const;
+};
+
+export const getGetMyEmployerFastTrackQueryOptions = <
+  TData = Awaited<ReturnType<typeof getMyEmployerFastTrack>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getMyEmployerFastTrack>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetMyEmployerFastTrackQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getMyEmployerFastTrack>>
+  > = ({ signal }) => getMyEmployerFastTrack({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getMyEmployerFastTrack>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetMyEmployerFastTrackQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getMyEmployerFastTrack>>
+>;
+export type GetMyEmployerFastTrackQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Read the current Fast-Track pledge state for the signed-in employer.
+ */
+
+export function useGetMyEmployerFastTrack<
+  TData = Awaited<ReturnType<typeof getMyEmployerFastTrack>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getMyEmployerFastTrack>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetMyEmployerFastTrackQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Enable or disable the Fast-Track pledge for the signed-in employer.
+ */
+export const getSetMyEmployerFastTrackUrl = () => {
+  return `/api/me/employer/fast-track`;
+};
+
+export const setMyEmployerFastTrack = async (
+  setMyEmployerFastTrackBody: SetMyEmployerFastTrackBody,
+  options?: RequestInit,
+): Promise<FastTrackState> => {
+  return customFetch<FastTrackState>(getSetMyEmployerFastTrackUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(setMyEmployerFastTrackBody),
+  });
+};
+
+export const getSetMyEmployerFastTrackMutationOptions = <
+  TError = ErrorType<SetMyEmployerFastTrack409>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setMyEmployerFastTrack>>,
+    TError,
+    { data: BodyType<SetMyEmployerFastTrackBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setMyEmployerFastTrack>>,
+  TError,
+  { data: BodyType<SetMyEmployerFastTrackBody> },
+  TContext
+> => {
+  const mutationKey = ["setMyEmployerFastTrack"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setMyEmployerFastTrack>>,
+    { data: BodyType<SetMyEmployerFastTrackBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return setMyEmployerFastTrack(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetMyEmployerFastTrackMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setMyEmployerFastTrack>>
+>;
+export type SetMyEmployerFastTrackMutationBody =
+  BodyType<SetMyEmployerFastTrackBody>;
+export type SetMyEmployerFastTrackMutationError =
+  ErrorType<SetMyEmployerFastTrack409>;
+
+/**
+ * @summary Enable or disable the Fast-Track pledge for the signed-in employer.
+ */
+export const useSetMyEmployerFastTrack = <
+  TError = ErrorType<SetMyEmployerFastTrack409>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setMyEmployerFastTrack>>,
+    TError,
+    { data: BodyType<SetMyEmployerFastTrackBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof setMyEmployerFastTrack>>,
+  TError,
+  { data: BodyType<SetMyEmployerFastTrackBody> },
+  TContext
+> => {
+  return useMutation(getSetMyEmployerFastTrackMutationOptions(options));
 };
 
 /**

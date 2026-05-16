@@ -27,6 +27,8 @@ export interface Job {
   tier: JobTier;
   /** When the current paid tier expires. Null for free jobs. */
   tierExpiresAt: Date | null;
+  /** True when the owning employer has the 48-hour Fast-Track pledge enabled. */
+  fastTrack: boolean;
   applicationsCount: number;
   postedAt: Date;
 }

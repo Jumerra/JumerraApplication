@@ -759,6 +759,11 @@ export const GetEmployerResponse = zod
             .describe(
               "When the current paid tier expires. Null for free jobs.",
             ),
+          fastTrack: zod
+            .boolean()
+            .describe(
+              "True when the owning employer has the 48-hour Fast-Track pledge enabled.",
+            ),
           applicationsCount: zod.number(),
           postedAt: zod.coerce.date(),
         }),
@@ -1463,6 +1468,12 @@ export const ListJobsQueryParams = zod.object({
   employerId: zod.coerce.number().optional(),
   featured: zod.coerce.boolean().optional(),
   skill: zod.coerce.string().optional(),
+  fastTrackOnly: zod.coerce
+    .boolean()
+    .optional()
+    .describe(
+      "When true, restrict to jobs whose employer has the 48-hour Fast-Track pledge enabled.",
+    ),
 });
 
 export const ListJobsResponseItem = zod.object({
@@ -1495,6 +1506,11 @@ export const ListJobsResponseItem = zod.object({
     .date()
     .nullable()
     .describe("When the current paid tier expires. Null for free jobs."),
+  fastTrack: zod
+    .boolean()
+    .describe(
+      "True when the owning employer has the 48-hour Fast-Track pledge enabled.",
+    ),
   applicationsCount: zod.number(),
   postedAt: zod.coerce.date(),
 });
@@ -1579,6 +1595,11 @@ export const GetJobResponse = zod
       .date()
       .nullable()
       .describe("When the current paid tier expires. Null for free jobs."),
+    fastTrack: zod
+      .boolean()
+      .describe(
+        "True when the owning employer has the 48-hour Fast-Track pledge enabled.",
+      ),
     applicationsCount: zod.number(),
     postedAt: zod.coerce.date(),
   })
@@ -1799,6 +1820,76 @@ export const SubmitJobChallengeResponse = zod.object({
 });
 
 /**
+ * @summary Read the current Fast-Track pledge state for the signed-in employer.
+ */
+export const GetMyEmployerFastTrackResponse = zod
+  .object({
+    enabled: zod.boolean(),
+    enabledAt: zod.coerce.date().nullable(),
+    revokedUntil: zod.coerce
+      .date()
+      .nullable()
+      .describe(
+        "When non-null and in the future, the pledge cannot be re-enabled until this time.",
+      ),
+    breachesLast30Days: zod.number(),
+    streakDays: zod
+      .number()
+      .nullable()
+      .describe(
+        "Days since the most recent breach. Null when no breach has ever been recorded.",
+      ),
+    upcomingDeadlines: zod.array(
+      zod.object({
+        applicationId: zod.number(),
+        candidateName: zod.string(),
+        jobTitle: zod.string(),
+        appliedAt: zod.coerce.date(),
+        deadlineAt: zod.coerce.date(),
+        hoursRemaining: zod.number(),
+      }),
+    ),
+  })
+  .describe("Fast-Track 48hr-response pledge state for one employer (task");
+
+/**
+ * @summary Enable or disable the Fast-Track pledge for the signed-in employer.
+ */
+export const SetMyEmployerFastTrackBody = zod.object({
+  enabled: zod.boolean(),
+});
+
+export const SetMyEmployerFastTrackResponse = zod
+  .object({
+    enabled: zod.boolean(),
+    enabledAt: zod.coerce.date().nullable(),
+    revokedUntil: zod.coerce
+      .date()
+      .nullable()
+      .describe(
+        "When non-null and in the future, the pledge cannot be re-enabled until this time.",
+      ),
+    breachesLast30Days: zod.number(),
+    streakDays: zod
+      .number()
+      .nullable()
+      .describe(
+        "Days since the most recent breach. Null when no breach has ever been recorded.",
+      ),
+    upcomingDeadlines: zod.array(
+      zod.object({
+        applicationId: zod.number(),
+        candidateName: zod.string(),
+        jobTitle: zod.string(),
+        appliedAt: zod.coerce.date(),
+        deadlineAt: zod.coerce.date(),
+        hoursRemaining: zod.number(),
+      }),
+    ),
+  })
+  .describe("Fast-Track 48hr-response pledge state for one employer (task");
+
+/**
  * @summary AI-style ranked job recommendations for a candidate
  */
 export const GetCandidateRecommendationsParams = zod.object({
@@ -1840,6 +1931,11 @@ export const GetCandidateRecommendationsResponseItem = zod.object({
     ),
   tier: zod.enum(["free", "promoted", "sponsored"]).optional(),
   tierExpiresAt: zod.coerce.date().nullish(),
+  fastTrack: zod
+    .boolean()
+    .describe(
+      "True when the owning employer has the 48-hour Fast-Track pledge enabled.",
+    ),
 });
 export const GetCandidateRecommendationsResponse = zod.array(
   GetCandidateRecommendationsResponseItem,
@@ -2432,6 +2528,11 @@ export const GetEmployerDashboardResponse = zod.object({
         .date()
         .nullable()
         .describe("When the current paid tier expires. Null for free jobs."),
+      fastTrack: zod
+        .boolean()
+        .describe(
+          "True when the owning employer has the 48-hour Fast-Track pledge enabled.",
+        ),
       applicationsCount: zod.number(),
       postedAt: zod.coerce.date(),
     }),
@@ -2678,6 +2779,11 @@ export const GetCandidateDashboardResponse = zod.object({
         ),
       tier: zod.enum(["free", "promoted", "sponsored"]).optional(),
       tierExpiresAt: zod.coerce.date().nullish(),
+      fastTrack: zod
+        .boolean()
+        .describe(
+          "True when the owning employer has the 48-hour Fast-Track pledge enabled.",
+        ),
     }),
   ),
   recentApplications: zod.array(

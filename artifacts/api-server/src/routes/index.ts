@@ -36,6 +36,7 @@ import salaryInsightsRouter from "./salary-insights";
 import reverseOffersRouter from "./reverse-offers";
 import alumniIntrosRouter from "./alumni-intros";
 import growthPlanRouter from "./growth-plan";
+import fastTrackRouter from "./fast-track";
 import { requireAuth } from "../middleware/require-auth";
 
 const router: IRouter = Router();
@@ -134,6 +135,10 @@ router.use(alumniIntrosRouter);
 // /candidates requireAuth gate (the router has its own per-route
 // requireAuth).
 router.use(growthPlanRouter);
+// Fast-Track pledge: /me/employer/fast-track. Mounts at the same level
+// as growth-plan and meRouter so /me/* doesn't fall into the
+// /candidates requireAuth gate; the router has its own auth gate.
+router.use(fastTrackRouter);
 router.use(candidatesRouter);
 router.use(employersRouter);
 router.use(institutionsRouter);

@@ -24,6 +24,7 @@ type Props = {
   salaryMax?: number | null;
   currency?: string;
   tier?: string | null;
+  fastTrack?: boolean | null;
   onPress: () => void;
 };
 
@@ -39,6 +40,7 @@ export function JobCard({
   salaryMax,
   currency,
   tier,
+  fastTrack,
   onPress,
 }: Props) {
   const colors = useColors();
@@ -87,9 +89,35 @@ export function JobCard({
       >
         {title}
       </Text>
-      {tier && tier !== "free" ? (
-        <View style={{ flexDirection: "row" }}>
-          <TierBadge tier={tier} />
+      {(tier && tier !== "free") || fastTrack ? (
+        <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap" }}>
+          {tier && tier !== "free" ? <TierBadge tier={tier} /> : null}
+          {fastTrack ? (
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 4,
+                paddingHorizontal: 8,
+                paddingVertical: 3,
+                borderRadius: 999,
+                backgroundColor: "#fef3c7",
+                borderWidth: 1,
+                borderColor: "#fcd34d",
+              }}
+            >
+              <Feather name="zap" size={10} color="#92400e" />
+              <Text
+                style={{
+                  fontFamily: "Inter_600SemiBold",
+                  fontSize: 10,
+                  color: "#92400e",
+                }}
+              >
+                48hr Fast-Track
+              </Text>
+            </View>
+          ) : null}
         </View>
       ) : null}
       <Text

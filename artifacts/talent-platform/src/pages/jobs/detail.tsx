@@ -11,7 +11,7 @@ import { Link, useParams } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { MapPin, Building2, Calendar, Banknote, CheckCircle2, UserCircle, Star, Megaphone, Clock } from "lucide-react";
+import { MapPin, Building2, Calendar, Banknote, CheckCircle2, UserCircle, Star, Megaphone, Clock, Zap } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { InterviewPrepPanel } from "@/components/InterviewPrepPanel";
@@ -93,6 +93,14 @@ export default function JobDetail() {
                       className="bg-primary/15 text-primary border-primary/30"
                     >
                       <Megaphone className="w-3 h-3 mr-1" /> Promoted
+                    </Badge>
+                  )}
+                  {job.fastTrack && (
+                    <Badge
+                      data-testid="badge-fast-track"
+                      className="bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-900/40 dark:text-amber-200"
+                    >
+                      <Zap className="w-3 h-3 mr-1" /> 48hr Fast-Track
                     </Badge>
                   )}
                 </div>

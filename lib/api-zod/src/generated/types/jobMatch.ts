@@ -24,4 +24,6 @@ export interface JobMatch {
   matchBreakdown: MatchBreakdown;
   tier?: JobMatchTier;
   tierExpiresAt?: Date | null;
+  /** True when the owning employer has the 48-hour Fast-Track pledge enabled. */
+  fastTrack: boolean;
 }

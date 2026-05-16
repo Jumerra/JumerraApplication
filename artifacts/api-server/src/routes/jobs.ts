@@ -44,7 +44,7 @@ function effectiveTier(j: typeof jobsTable.$inferSelect): {
 
 function serializeJob(
   j: typeof jobsTable.$inferSelect,
-  employer: { name: string; logoUrl: string },
+  employer: { name: string; logoUrl: string; fastTrackEnabled?: boolean | null },
   applicationsCount: number,
 ) {
   const { tier, tierExpiresAt } = effectiveTier(j);
@@ -65,6 +65,10 @@ function serializeJob(
     featured: j.featured,
     tier,
     tierExpiresAt: tierExpiresAt ? tierExpiresAt.toISOString() : null,
+    // Surface the Fast-Track pledge so the candidate-facing UI can
+    // badge the card without an extra round-trip. The full employer
+    // row is always joined in the list query.
+    fastTrack: Boolean(employer.fastTrackEnabled),
     applicationsCount,
     postedAt: j.postedAt.toISOString(),
   };
@@ -101,7 +105,13 @@ router.get("/jobs", async (req, res): Promise<void> => {
   // Delegate the per-row predicate to the shared helper so the
   // saved-search alert worker (lib/digest-worker.ts) matches with
   // identical semantics. See lib/job-filters.ts for the contract.
-  const filtered = rows.filter(({ job }) => jobMatchesFilters(job, params.data));
+  const filtered = rows.filter(({ job, employer }) => {
+    if (!jobMatchesFilters(job, params.data)) return false;
+    // `fastTrackOnly` is resolved here (not in the in-memory predicate)
+    // because it depends on the joined employer row.
+    if (params.data.fastTrackOnly && !employer.fastTrackEnabled) return false;
+    return true;
+  });
 
   res.json(
     filtered.map(({ job, employer, applicationsCount }) =>

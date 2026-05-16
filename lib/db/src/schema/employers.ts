@@ -46,6 +46,26 @@ export const employersTable = pgTable(
       "legacy_subscription_migrated_at",
       { withTimezone: true },
     ),
+    /**
+     * Fast-Track Pledge (task #76). When true, every job this employer
+     * posts displays a "Fast-Track: 48hr response" badge and candidates
+     * can filter the job board to show only these roles. The nightly
+     * SLA sweep auto-revokes (`fastTrackEnabled = false`,
+     * `fastTrackRevokedUntil = +30d`) if the employer breaks the SLA
+     * twice within a 30-day rolling window.
+     */
+    fastTrackEnabled: boolean("fast_track_enabled").notNull().default(false),
+    fastTrackEnabledAt: timestamp("fast_track_enabled_at", {
+      withTimezone: true,
+    }),
+    /**
+     * Set by the sweep on auto-revoke. While `now() < revokedUntil` the
+     * employer cannot re-enable the pledge from the dashboard. Null
+     * means "no active revocation".
+     */
+    fastTrackRevokedUntil: timestamp("fast_track_revoked_until", {
+      withTimezone: true,
+    }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

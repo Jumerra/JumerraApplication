@@ -5,7 +5,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, MapPin, Briefcase, Star, Megaphone } from "lucide-react";
+import { Search, MapPin, Briefcase, Star, Megaphone, Zap } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { SavedSearchesCard } from "@/components/saved-searches-card";
@@ -13,12 +15,14 @@ import { SavedSearchesCard } from "@/components/saved-searches-card";
 export default function JobsList() {
   const [search, setSearch] = useState("");
   const [type, setType] = useState<any>(undefined);
+  const [fastTrackOnly, setFastTrackOnly] = useState(false);
   const { role, userId } = useAuth();
   const candidateId = role === "candidate" ? (userId ?? 0) : 0;
 
   const { data: jobs, isLoading } = useListJobs({ 
     search: search || undefined,
-    type: type !== "all" ? type : undefined
+    type: type !== "all" ? type : undefined,
+    fastTrackOnly: fastTrackOnly || undefined,
   });
 
   return (
@@ -53,6 +57,21 @@ export default function JobsList() {
               <SelectItem value="contract">Contract</SelectItem>
             </SelectContent>
           </Select>
+        </div>
+        <div className="mt-3 flex items-center gap-2">
+          <Switch
+            id="fast-track-only"
+            checked={fastTrackOnly}
+            onCheckedChange={setFastTrackOnly}
+            data-testid="switch-fast-track-only"
+          />
+          <Label
+            htmlFor="fast-track-only"
+            className="text-sm flex items-center gap-1.5 cursor-pointer"
+          >
+            <Zap className="w-3.5 h-3.5 text-amber-500" />
+            48-hour Fast-Track employers only
+          </Label>
         </div>
       </Card>
 
@@ -105,6 +124,14 @@ export default function JobsList() {
                             className="bg-primary/15 text-primary border-primary/30 hover:bg-primary/20"
                           >
                             <Megaphone className="w-3 h-3 mr-1" /> Promoted
+                          </Badge>
+                        )}
+                        {job.fastTrack && (
+                          <Badge
+                            data-testid={`badge-fast-track-${job.id}`}
+                            className="bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-900/40 dark:text-amber-200 hover:bg-amber-100"
+                          >
+                            <Zap className="w-3 h-3 mr-1" /> 48hr Fast-Track
                           </Badge>
                         )}
                       </div>

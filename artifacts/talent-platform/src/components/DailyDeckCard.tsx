@@ -66,7 +66,16 @@ export function DailyDeckCard() {
   const [history, setHistory] = useState<
     { item: DeckItem; action: "shortlist" | "dismiss" }[]
   >([]);
-  const [selectedPoolId, setSelectedPoolId] = useState<string>("default");
+  const poolPrefKey =
+    employerId > 0 ? `jumerra:dailyDeck:poolId:${employerId}` : null;
+  const [selectedPoolId, setSelectedPoolId] = useState<string>(() => {
+    if (typeof window === "undefined" || !poolPrefKey) return "default";
+    try {
+      return window.localStorage.getItem(poolPrefKey) ?? "default";
+    } catch {
+      return "default";
+    }
+  });
 
   const { data: pools } = useListTalentPools(employerId, {
     query: {
@@ -74,6 +83,47 @@ export function DailyDeckCard() {
       queryKey: getListTalentPoolsQueryKey(employerId),
     },
   });
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !poolPrefKey) return;
+    try {
+      const stored = window.localStorage.getItem(poolPrefKey) ?? "default";
+      if (stored !== selectedPoolId) setSelectedPoolId(stored);
+    } catch {
+      // ignore
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [poolPrefKey]);
+
+  useEffect(() => {
+    if (selectedPoolId === "default") return;
+    if (!pools) return;
+    const stillExists = pools.some((p) => String(p.id) === selectedPoolId);
+    if (!stillExists) {
+      setSelectedPoolId("default");
+      if (typeof window !== "undefined" && poolPrefKey) {
+        try {
+          window.localStorage.removeItem(poolPrefKey);
+        } catch {
+          // ignore
+        }
+      }
+    }
+  }, [pools, selectedPoolId, poolPrefKey]);
+
+  const handlePoolChange = (next: string) => {
+    setSelectedPoolId(next);
+    if (typeof window === "undefined" || !poolPrefKey) return;
+    try {
+      if (next === "default") {
+        window.localStorage.removeItem(poolPrefKey);
+      } else {
+        window.localStorage.setItem(poolPrefKey, next);
+      }
+    } catch {
+      // ignore
+    }
+  };
   const selectedPoolName =
     selectedPoolId === "default"
       ? "Daily picks"
@@ -207,7 +257,7 @@ export function DailyDeckCard() {
           <div className="flex flex-col items-end gap-1 shrink-0">
             <Select
               value={selectedPoolId}
-              onValueChange={setSelectedPoolId}
+              onValueChange={handlePoolChange}
             >
               <SelectTrigger
                 className="h-8 w-[180px] text-xs"

@@ -1927,7 +1927,7 @@ router.post(
     }
     const [row] = await db
       .update(candidatesTable)
-      .set({ deletedAt: null })
+      .set({ deletedAt: null, deletedBy: null })
       .where(eq(candidatesTable.id, id))
       .returning({ id: candidatesTable.id });
     if (!row) {
@@ -1963,7 +1963,7 @@ router.post(
         // deletedAt; we only undo what THIS restore should undo.
         await tx
           .update(jobsTable)
-          .set({ deletedAt: null })
+          .set({ deletedAt: null, deletedBy: null })
           .where(
             and(
               eq(jobsTable.employerId, id),
@@ -1972,7 +1972,7 @@ router.post(
           );
         await tx
           .update(employersTable)
-          .set({ deletedAt: null })
+          .set({ deletedAt: null, deletedBy: null })
           .where(eq(employersTable.id, id));
         return true;
       });
@@ -1999,7 +1999,7 @@ router.post(
     }
     const [row] = await db
       .update(institutionsTable)
-      .set({ deletedAt: null })
+      .set({ deletedAt: null, deletedBy: null })
       .where(eq(institutionsTable.id, id))
       .returning({ id: institutionsTable.id });
     if (!row) {
@@ -2058,7 +2058,7 @@ router.post(
     }
     const [row] = await db
       .update(jobsTable)
-      .set({ deletedAt: null })
+      .set({ deletedAt: null, deletedBy: null })
       .where(eq(jobsTable.id, id))
       .returning({ id: jobsTable.id });
     if (!row) {

@@ -86,8 +86,8 @@ function TrashList({
             <div className="flex-1 min-w-0">
               <h3 className="font-semibold truncate">{item.label}</h3>
               <p className="text-sm text-muted-foreground truncate">
-                {item.secondary ? `${item.secondary} · ` : ""}deleted{" "}
-                {formatWhen(item.deletedAt)} by {deleter}
+                {item.secondary ? `${item.secondary} · ` : ""}deleted by{" "}
+                {deleter} on {formatWhen(item.deletedAt)}
               </p>
             </div>
             <Button

@@ -36,7 +36,9 @@ import {
 import {
   ackKey,
   defaultAcksPath,
+  findExpiringAcks,
   loadActiveAcks,
+  type ExpiringAck,
   type RegressionAck,
 } from "./lib/regression-acks.js";
 
@@ -47,6 +49,7 @@ interface Args {
   acksPath: string;
   includeArchive: boolean;
   json: boolean;
+  expiringWindowDays: number;
 }
 
 interface Regression {
@@ -73,6 +76,7 @@ function parseArgs(rawArgv: string[]): Args {
     acksPath: defaultAcksPath(),
     includeArchive: true,
     json: false,
+    expiringWindowDays: 7,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -98,10 +102,19 @@ function parseArgs(rawArgv: string[]): Args {
       args.includeArchive = true;
     } else if (a === "--json") {
       args.json = true;
+    } else if (a === "--expiring-window") {
+      const n = Number(argv[++i]);
+      if (!Number.isFinite(n) || n < 0) {
+        throw new Error(
+          `--expiring-window expects a non-negative number, got ${argv[i]}`,
+        );
+      }
+      args.expiringWindowDays = n;
     } else if (a === "--help" || a === "-h") {
       process.stdout.write(
         "Usage: regression-report [--fails 2] [--streak 10] " +
-          "[--history PATH] [--acks PATH] [--no-archive] [--json]\n",
+          "[--history PATH] [--acks PATH] [--no-archive] [--json] " +
+          "[--expiring-window 7]\n",
       );
       process.exit(0);
     } else {
@@ -207,6 +220,7 @@ function detectRegression(
 function renderText(
   regressions: Regression[],
   acked: AckedRegression[],
+  expiring: ExpiringAck[],
   args: Args,
 ): string {
   const lines: string[] = [];
@@ -221,6 +235,9 @@ function renderText(
       lines.push("");
       lines.push(`_${acked.length} regression${acked.length === 1 ? " is" : "s are"} currently acked and suppressed (see below)._`);
       appendAckedTable(lines, acked);
+    }
+    if (expiring.length > 0) {
+      appendExpiringTable(lines, expiring, args.expiringWindowDays);
     }
     return lines.join("\n");
   }
@@ -239,7 +256,39 @@ function renderText(
   if (acked.length > 0) {
     appendAckedTable(lines, acked);
   }
+  if (expiring.length > 0) {
+    appendExpiringTable(lines, expiring, args.expiringWindowDays);
+  }
   return lines.join("\n");
+}
+
+function appendExpiringTable(
+  lines: string[],
+  expiring: ExpiringAck[],
+  windowDays: number,
+): string[] {
+  lines.push("");
+  lines.push(
+    `## Expiring acks (next ${windowDays} day${windowDays === 1 ? "" : "s"}) — ${expiring.length}`,
+  );
+  lines.push(
+    "_Extend or close these before they auto-expire and the journey starts re-alerting._",
+  );
+  lines.push("| Journey | File | Expires (UTC) | Days left | Reason |");
+  lines.push("| --- | --- | --- | --- | --- |");
+  for (const e of expiring) {
+    const reason = (e.ack.reason ?? "").replace(/\|/g, "\\|");
+    const daysLabel =
+      e.remainingDays === 0
+        ? "today"
+        : e.remainingDays === 1
+          ? "1 day"
+          : `${e.remainingDays} days`;
+    lines.push(
+      `| ${e.ack.journey} | ${e.ack.file} | ${e.ack.until ?? ""} | ${daysLabel} | ${reason} |`,
+    );
+  }
+  return lines;
 }
 
 function appendAckedTable(lines: string[], acked: AckedRegression[]): void {
@@ -276,6 +325,8 @@ function main(): void {
     }
   }
 
+  const expiring = findExpiringAcks(args.acksPath, args.expiringWindowDays);
+
   if (args.json) {
     process.stdout.write(
       `${JSON.stringify(
@@ -288,6 +339,9 @@ function main(): void {
           regressions,
           totalAcked: acked.length,
           acked,
+          expiringWindowDays: args.expiringWindowDays,
+          totalExpiring: expiring.length,
+          expiring,
         },
         null,
         2,
@@ -296,7 +350,7 @@ function main(): void {
     return;
   }
 
-  process.stdout.write(`${renderText(regressions, acked, args)}\n`);
+  process.stdout.write(`${renderText(regressions, acked, expiring, args)}\n`);
 }
 
 main();

@@ -43,6 +43,18 @@ interface Regression {
   lastReason?: string;
 }
 
+interface AckMeta {
+  file: string;
+  journey: string;
+  until?: string;
+  reason?: string;
+}
+
+interface ExpiringAckEntry {
+  ack: AckMeta;
+  remainingDays: number;
+}
+
 interface ReportPayload {
   criteria: { fails: number; streak: number };
   historyPath: string;
@@ -54,7 +66,12 @@ interface ReportPayload {
   // but they're intentionally NOT used to decide whether to notify —
   // the whole point of an ack is "stop pinging me about this one".
   totalAcked?: number;
-  acked?: Array<Regression & { ack: { file: string; journey: string; until?: string; reason?: string } }>;
+  acked?: Array<Regression & { ack: AckMeta }>;
+  // Acks whose `until` falls in the configured window. Used only when
+  // the caller opts in with --expiring-digest.
+  expiringWindowDays?: number;
+  totalExpiring?: number;
+  expiring?: ExpiringAckEntry[];
 }
 
 function runReport(forwardedArgs: string[]): ReportPayload | null {
@@ -244,28 +261,212 @@ function escapeHtml(s: string): string {
     .replace(/'/g, "&#39;");
 }
 
+function summariseExpiringForSlack(payload: ReportPayload): {
+  text: string;
+  blocks: unknown[];
+} {
+  const expiring = payload.expiring ?? [];
+  const window = payload.expiringWindowDays ?? 7;
+  const headline =
+    expiring.length === 1
+      ? `:hourglass_flowing_sand: 1 regression ack expires in the next ${window} day${window === 1 ? "" : "s"}`
+      : `:hourglass_flowing_sand: ${expiring.length} regression acks expire in the next ${window} day${window === 1 ? "" : "s"}`;
+  const lines = expiring.slice(0, 20).map((e) => {
+    const days =
+      e.remainingDays === 0
+        ? "today"
+        : e.remainingDays === 1
+          ? "tomorrow"
+          : `in ${e.remainingDays} days`;
+    const reason = e.ack.reason ? ` — ${e.ack.reason}` : "";
+    return `• *${e.ack.journey}* (\`${e.ack.file}\`) — expires ${e.ack.until ?? "?"} (${days})${reason}`;
+  });
+  if (expiring.length > 20) {
+    lines.push(`…and ${expiring.length - 20} more`);
+  }
+  const text = `${headline}\n${lines.join("\n")}`;
+  const blocks = [
+    {
+      type: "header",
+      text: { type: "plain_text", text: headline.replace(/:[^:]+:\s*/, "") },
+    },
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text:
+          "Extend or close these before they auto-expire and the journey starts re-alerting.\n\n" +
+          lines.join("\n"),
+      },
+    },
+  ];
+  return { text, blocks };
+}
+
+function summariseExpiringForEmail(payload: ReportPayload): {
+  subject: string;
+  html: string;
+  text: string;
+} {
+  const expiring = payload.expiring ?? [];
+  const window = payload.expiringWindowDays ?? 7;
+  const n = expiring.length;
+  const subject =
+    n === 1
+      ? `[Jumerra e2e] 1 regression ack expiring soon`
+      : `[Jumerra e2e] ${n} regression acks expiring in next ${window} day${window === 1 ? "" : "s"}`;
+  const rows = expiring
+    .map((e) => {
+      const daysLabel =
+        e.remainingDays === 0
+          ? "today"
+          : e.remainingDays === 1
+            ? "1 day"
+            : `${e.remainingDays} days`;
+      return `<tr><td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;"><strong>${escapeHtml(e.ack.journey)}</strong><br/><span style="color:#64748b;font-size:12px;">${escapeHtml(e.ack.file)}</span></td><td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;">${escapeHtml(e.ack.until ?? "")}</td><td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;text-align:right;">${daysLabel}</td><td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;">${escapeHtml(e.ack.reason ?? "")}</td></tr>`;
+    })
+    .join("");
+  const html = `<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#0f172a;">
+<h2 style="color:#0d9488;margin-bottom:4px;">${escapeHtml(subject)}</h2>
+<p style="color:#475569;margin-top:0;">Extend or close these before they auto-expire and the underlying journey starts re-alerting.</p>
+<table style="border-collapse:collapse;width:100%;font-size:14px;">
+<thead><tr style="background:#f1f5f9;text-align:left;"><th style="padding:6px 10px;">Journey</th><th style="padding:6px 10px;">Expires (UTC)</th><th style="padding:6px 10px;text-align:right;">Days left</th><th style="padding:6px 10px;">Reason</th></tr></thead>
+<tbody>${rows}</tbody>
+</table>
+</div>`;
+  const textLines = [
+    subject,
+    "",
+    ...expiring.map(
+      (e) =>
+        `- ${e.ack.journey} (${e.ack.file}) expires ${e.ack.until ?? "?"} (${e.remainingDays} day${e.remainingDays === 1 ? "" : "s"} left)${e.ack.reason ? `  reason=${e.ack.reason}` : ""}`,
+    ),
+  ];
+  return { subject, html, text: textLines.join("\n") };
+}
+
+async function postSlackExpiring(payload: ReportPayload): Promise<void> {
+  const url = process.env.SLACK_REGRESSION_WEBHOOK_URL;
+  if (!url) return;
+  const body = summariseExpiringForSlack(payload);
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      process.stderr.write(
+        `regression-notify: Slack expiring-digest webhook returned ${res.status}: ${txt}\n`,
+      );
+    }
+  } catch (err) {
+    process.stderr.write(
+      `regression-notify: Slack expiring-digest post threw: ${(err as Error).message}\n`,
+    );
+  }
+}
+
+async function sendEmailExpiring(payload: ReportPayload): Promise<void> {
+  const to = process.env.REGRESSION_ALERT_EMAIL;
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!to) return;
+  if (!apiKey) {
+    process.stderr.write(
+      "regression-notify: REGRESSION_ALERT_EMAIL set but RESEND_API_KEY missing — skipping expiring-digest email.\n",
+    );
+    return;
+  }
+  const recipients = to
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (recipients.length === 0) return;
+  const from =
+    process.env.EMAIL_DEFAULT_FROM ?? "Jumerra <onboarding@resend.dev>";
+  const { subject, html, text } = summariseExpiringForEmail(payload);
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({ from, to: recipients, subject, html, text }),
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      process.stderr.write(
+        `regression-notify: Resend (expiring-digest) returned ${res.status}: ${body}\n`,
+      );
+    }
+  } catch (err) {
+    process.stderr.write(
+      `regression-notify: Resend (expiring-digest) post threw: ${(err as Error).message}\n`,
+    );
+  }
+}
+
 async function main(): Promise<void> {
-  const forwarded = process.argv.slice(2).filter((a) => a !== "--");
+  // Pull our own flags off the argv before forwarding the rest to
+  // regression-report. We don't accept `--expiring-window` directly —
+  // it's a regression-report flag and gets forwarded transparently —
+  // but `--expiring-digest` is notify-only (controls whether we
+  // dispatch the digest channel).
+  const all = process.argv.slice(2).filter((a) => a !== "--");
+  let expiringDigest = false;
+  const forwarded: string[] = [];
+  for (const a of all) {
+    if (a === "--expiring-digest") {
+      expiringDigest = true;
+    } else {
+      forwarded.push(a);
+    }
+  }
   const payload = runReport(forwarded);
   if (!payload) return;
+
+  const hasSlack = !!process.env.SLACK_REGRESSION_WEBHOOK_URL;
+  const hasEmail = !!process.env.REGRESSION_ALERT_EMAIL;
+  const expiringCount = payload.totalExpiring ?? 0;
+
   if (payload.totalRegressions === 0) {
     process.stdout.write(
       "regression-notify: no regressions detected — nothing to send.\n",
     );
+    if (expiringDigest && expiringCount > 0) {
+      process.stdout.write(
+        `regression-notify: ${expiringCount} ack${expiringCount === 1 ? "" : "s"} expiring in the next ${payload.expiringWindowDays ?? 7} day${(payload.expiringWindowDays ?? 7) === 1 ? "" : "s"} — dispatching digest.\n`,
+      );
+      if (!hasSlack && !hasEmail) {
+        process.stdout.write(
+          "regression-notify: no notification channels configured (set SLACK_REGRESSION_WEBHOOK_URL and/or REGRESSION_ALERT_EMAIL).\n",
+        );
+        return;
+      }
+      await Promise.all([postSlackExpiring(payload), sendEmailExpiring(payload)]);
+    }
     return;
   }
+
   process.stdout.write(
     `regression-notify: ${payload.totalRegressions} regression${payload.totalRegressions === 1 ? "" : "s"} detected — dispatching notifications.\n`,
   );
-  const hasSlack = !!process.env.SLACK_REGRESSION_WEBHOOK_URL;
-  const hasEmail = !!process.env.REGRESSION_ALERT_EMAIL;
   if (!hasSlack && !hasEmail) {
     process.stdout.write(
       "regression-notify: no notification channels configured (set SLACK_REGRESSION_WEBHOOK_URL and/or REGRESSION_ALERT_EMAIL).\n",
     );
     return;
   }
-  await Promise.all([postSlack(payload), sendEmail(payload)]);
+  const tasks: Promise<void>[] = [postSlack(payload), sendEmail(payload)];
+  if (expiringDigest && expiringCount > 0) {
+    process.stdout.write(
+      `regression-notify: also dispatching digest for ${expiringCount} expiring ack${expiringCount === 1 ? "" : "s"}.\n`,
+    );
+    tasks.push(postSlackExpiring(payload), sendEmailExpiring(payload));
+  }
+  await Promise.all(tasks);
 }
 
 main().catch((err) => {

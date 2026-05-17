@@ -55,6 +55,43 @@ export function isExpired(ack: RegressionAck, today: string = todayUtcIsoDate())
   return ack.until < today;
 }
 
+export interface ExpiringAck {
+  ack: RegressionAck;
+  /** Whole days from `today` (inclusive) until `until` (inclusive). 0 = expires today. */
+  remainingDays: number;
+}
+
+/**
+ * Return active acks whose `until` date falls inside `[today, today+windowDays]`.
+ * Acks without an `until` (never-expire) are skipped — they can't surprise
+ * anyone by re-alerting. Already-expired acks are also skipped (they're
+ * filtered out by `loadActiveAcks` upstream anyway).
+ *
+ * Result is sorted soonest-first so renderers don't need to re-sort.
+ */
+export function findExpiringAcks(
+  file: string,
+  windowDays: number,
+  today: string = todayUtcIsoDate(),
+): ExpiringAck[] {
+  if (!Number.isFinite(windowDays) || windowDays < 0) return [];
+  const { acks } = readAcksRaw(file);
+  const todayMs = Date.parse(`${today}T00:00:00Z`);
+  if (Number.isNaN(todayMs)) return [];
+  const out: ExpiringAck[] = [];
+  for (const a of acks) {
+    if (!a.until) continue;
+    if (isExpired(a, today)) continue;
+    if (!isValidIsoDate(a.until)) continue;
+    const untilMs = Date.parse(`${a.until}T00:00:00Z`);
+    const remainingDays = Math.round((untilMs - todayMs) / 86_400_000);
+    if (remainingDays > windowDays) continue;
+    out.push({ ack: a, remainingDays });
+  }
+  out.sort((a, b) => a.remainingDays - b.remainingDays);
+  return out;
+}
+
 export function readAcksRaw(file: string): RegressionAcksFile {
   if (!fs.existsSync(file)) return { acks: [] };
   let parsed: unknown;

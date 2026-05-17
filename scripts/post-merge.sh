@@ -171,7 +171,18 @@ echo ""
 echo "→ Regression report (full history)"
 pnpm --filter @workspace/scripts run regression-report -- --history "$CANONICAL_HISTORY" \
   || echo "  (regression-report failed to render — non-fatal)"
-pnpm --filter @workspace/scripts run regression-notify -- --history "$CANONICAL_HISTORY" \
+# `--expiring-digest` is a low-key heads-up about acks that auto-expire
+# soon. We only want it once a week so it doesn't ride along with every
+# merge — Monday UTC is the convention. Operators who want a different
+# cadence can override REGRESSION_EXPIRING_DIGEST=1 (always on) /
+# =0 (always off).
+EXPIRING_FLAG=""
+case "${REGRESSION_EXPIRING_DIGEST:-auto}" in
+  1|true|yes|on) EXPIRING_FLAG="--expiring-digest" ;;
+  0|false|no|off) EXPIRING_FLAG="" ;;
+  *) [ "$(date -u +%u)" = "1" ] && EXPIRING_FLAG="--expiring-digest" ;;
+esac
+pnpm --filter @workspace/scripts run regression-notify -- --history "$CANONICAL_HISTORY" $EXPIRING_FLAG \
   || echo "  (regression-notify failed — non-fatal)"
 
 # Prune old runs, keeping only the most recent MAX_RUNS subfolders.

@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Link } from "wouter";
 import {
   useListEmployers,
+  useGetEmployer,
+  getGetEmployerQueryKey,
   useAdminDeleteEmployer,
   useAdminSetEmployerVerified,
   getListEmployersQueryKey,
@@ -23,6 +25,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
+import { useFocusId, useFocusRow } from "@/hooks/use-focus-row";
 import { AdminAccountActions } from "@/components/admin-account-actions";
 import { AccountManagerSelect } from "@/components/account-manager-select";
 import { useAuth } from "@/lib/auth";
@@ -47,6 +50,16 @@ export default function AdminEmployersPage() {
   const { data: employers, isLoading } = useListEmployers({
     search: search || undefined,
     ...(mineOnly && isAccountManager ? { mine: "1" as const } : {}),
+  });
+  const focusId = useFocusId();
+  const focusedEmployer = useGetEmployer(focusId ?? 0, {
+    query: {
+      enabled: !!focusId,
+      queryKey: getGetEmployerQueryKey(focusId ?? 0),
+    },
+  });
+  const { notVisibleButExists, rowProps } = useFocusRow(employers, {
+    existsById: !!focusedEmployer.data,
   });
   const deleteEmployer = useAdminDeleteEmployer();
   const setVerified = useAdminSetEmployerVerified();
@@ -135,6 +148,30 @@ export default function AdminEmployersPage() {
               </Button>
             </div>
           )}
+          {notVisibleButExists && (() => {
+            const hasFilters = !!search || (mineOnly && isAccountManager);
+            return (
+              <div className="flex items-center justify-between gap-3 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
+                <span className="text-muted-foreground">
+                  {hasFilters
+                    ? "The employer you're looking for is hidden by your current filters."
+                    : "The employer you're looking for isn't on the currently loaded page. Try searching by name to bring them into view."}
+                </span>
+                {hasFilters && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setSearch("");
+                      if (isAccountManager) setMineOnly(false);
+                    }}
+                  >
+                    Clear filters
+                  </Button>
+                )}
+              </div>
+            );
+          })()}
         </CardHeader>
         <CardContent className="p-0">
           {isLoading ? (
@@ -145,10 +182,14 @@ export default function AdminEmployersPage() {
             </div>
           ) : (
             <div className="divide-y">
-              {employers.map((e) => (
+              {employers.map((e) => {
+                const fp = rowProps(e.id);
+                return (
                 <div
                   key={e.id}
-                  className="flex items-center gap-4 px-6 py-4 hover:bg-muted/40 transition-colors"
+                  ref={fp.ref}
+                  data-focused={fp["data-focused"]}
+                  className={`flex items-center gap-4 px-6 py-4 hover:bg-muted/40 transition-colors ${fp.className}`}
                 >
                   <img
                     src={e.logoUrl}
@@ -251,7 +292,8 @@ export default function AdminEmployersPage() {
                     </AlertDialog>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>

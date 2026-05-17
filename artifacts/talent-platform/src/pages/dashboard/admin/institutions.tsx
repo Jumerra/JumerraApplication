@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Link } from "wouter";
 import {
   useListInstitutions,
+  useGetInstitution,
+  getGetInstitutionQueryKey,
   useAdminDeleteInstitution,
   getListInstitutionsQueryKey,
 } from "@workspace/api-client-react";
@@ -22,6 +24,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
+import { useFocusId, useFocusRow } from "@/hooks/use-focus-row";
 import { AdminAccountActions } from "@/components/admin-account-actions";
 import { AccountManagerSelect } from "@/components/account-manager-select";
 import { useAuth } from "@/lib/auth";
@@ -55,6 +58,17 @@ export default function AdminInstitutionsPage() {
       i.type.toLowerCase().includes(q) ||
       i.location.toLowerCase().includes(q)
     );
+  });
+
+  const focusId = useFocusId();
+  const focusedInstitution = useGetInstitution(focusId ?? 0, {
+    query: {
+      enabled: !!focusId,
+      queryKey: getGetInstitutionQueryKey(focusId ?? 0),
+    },
+  });
+  const { notVisibleButExists, rowProps } = useFocusRow(filtered, {
+    existsById: !!focusedInstitution.data,
   });
 
   async function handleDelete(id: number, name: string) {
@@ -120,6 +134,30 @@ export default function AdminInstitutionsPage() {
               </Button>
             </div>
           )}
+          {notVisibleButExists && (() => {
+            const hasFilters = !!search || (mineOnly && isAccountManager);
+            return (
+              <div className="flex items-center justify-between gap-3 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
+                <span className="text-muted-foreground">
+                  {hasFilters
+                    ? "The institution you're looking for is hidden by your current filters."
+                    : "The institution you're looking for isn't on the currently loaded page. Try searching by name to bring it into view."}
+                </span>
+                {hasFilters && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setSearch("");
+                      if (isAccountManager) setMineOnly(false);
+                    }}
+                  >
+                    Clear filters
+                  </Button>
+                )}
+              </div>
+            );
+          })()}
         </CardHeader>
         <CardContent className="p-0">
           {isLoading ? (
@@ -130,10 +168,14 @@ export default function AdminInstitutionsPage() {
             </div>
           ) : (
             <div className="divide-y">
-              {filtered.map((i) => (
+              {filtered.map((i) => {
+                const fp = rowProps(i.id);
+                return (
                 <div
                   key={i.id}
-                  className="flex items-center gap-4 px-6 py-4 hover:bg-muted/40 transition-colors"
+                  ref={fp.ref}
+                  data-focused={fp["data-focused"]}
+                  className={`flex items-center gap-4 px-6 py-4 hover:bg-muted/40 transition-colors ${fp.className}`}
                 >
                   <img
                     src={i.logoUrl}
@@ -210,7 +252,8 @@ export default function AdminInstitutionsPage() {
                     </AlertDialog>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>

@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Link } from "wouter";
 import {
   useListCandidates,
+  useGetCandidate,
+  getGetCandidateQueryKey,
   useAdminDeleteCandidate,
   useAdminSetBackgroundCheck,
   getListCandidatesQueryKey,
@@ -30,6 +32,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
+import { useFocusId, useFocusRow } from "@/hooks/use-focus-row";
 import { AdminAccountActions } from "@/components/admin-account-actions";
 import { Search, Trash2, ExternalLink, Users, Star } from "lucide-react";
 
@@ -37,6 +40,16 @@ export default function AdminCandidatesPage() {
   const [search, setSearch] = useState("");
   const { data: candidates, isLoading } = useListCandidates({
     search: search || undefined,
+  });
+  const focusId = useFocusId();
+  const focusedCandidate = useGetCandidate(focusId ?? 0, {
+    query: {
+      enabled: !!focusId,
+      queryKey: getGetCandidateQueryKey(focusId ?? 0),
+    },
+  });
+  const { notVisibleButExists, rowProps } = useFocusRow(candidates, {
+    existsById: !!focusedCandidate.data,
   });
   const deleteCandidate = useAdminDeleteCandidate();
   const setBg = useAdminSetBackgroundCheck();
@@ -100,7 +113,7 @@ export default function AdminCandidatesPage() {
       </div>
 
       <Card>
-        <CardHeader className="pb-4">
+        <CardHeader className="pb-4 space-y-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
@@ -110,6 +123,24 @@ export default function AdminCandidatesPage() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
+          {notVisibleButExists && (
+            <div className="flex items-center justify-between gap-3 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
+              <span className="text-muted-foreground">
+                {search
+                  ? "The candidate you're looking for is hidden by your current search."
+                  : "The candidate you're looking for isn't on the currently loaded page. Try searching by name to bring them into view."}
+              </span>
+              {search && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setSearch("")}
+                >
+                  Clear search
+                </Button>
+              )}
+            </div>
+          )}
         </CardHeader>
         <CardContent className="p-0">
           {isLoading ? (
@@ -120,10 +151,14 @@ export default function AdminCandidatesPage() {
             </div>
           ) : (
             <div className="divide-y">
-              {candidates.map((c) => (
+              {candidates.map((c) => {
+                const fp = rowProps(c.id);
+                return (
                 <div
                   key={c.id}
-                  className="flex items-center gap-4 px-6 py-4 hover:bg-muted/40 transition-colors"
+                  ref={fp.ref}
+                  data-focused={fp["data-focused"]}
+                  className={`flex items-center gap-4 px-6 py-4 hover:bg-muted/40 transition-colors ${fp.className}`}
                 >
                   <img
                     src={c.avatarUrl}
@@ -213,7 +248,8 @@ export default function AdminCandidatesPage() {
                     </AlertDialog>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>

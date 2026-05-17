@@ -153,7 +153,14 @@ async function serializeApplication(
     .innerJoin(jobsTable, eq(jobsTable.id, applicationsTable.jobId))
     .innerJoin(candidatesTable, eq(candidatesTable.id, applicationsTable.candidateId))
     .innerJoin(employersTable, eq(employersTable.id, jobsTable.employerId))
-    .where(eq(applicationsTable.id, applicationId));
+    .where(
+      and(
+        eq(applicationsTable.id, applicationId),
+        notDeleted(jobsTable.deletedAt),
+        notDeleted(candidatesTable.deletedAt),
+        notDeleted(employersTable.deletedAt),
+      ),
+    );
 
   if (!row) return null;
   const mock = await findLatestFinalisedMockInterview(
@@ -649,8 +656,29 @@ router.post("/applications", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  const [job] = await db.select().from(jobsTable).where(eq(jobsTable.id, parsed.data.jobId));
-  const [candidate] = await db.select().from(candidatesTable).where(eq(candidatesTable.id, parsed.data.candidateId));
+  // Reject applies against soft-deleted jobs or candidates — a deleted
+  // job must not accept new pipeline entries, and a deleted candidate
+  // must not be able to keep applying. The notDeleted() guards are
+  // ANDed into the SELECTs so a missing-or-deleted row yields the same
+  // 404 (no enumeration distinction).
+  const [job] = await db
+    .select()
+    .from(jobsTable)
+    .where(
+      and(
+        eq(jobsTable.id, parsed.data.jobId),
+        notDeleted(jobsTable.deletedAt),
+      ),
+    );
+  const [candidate] = await db
+    .select()
+    .from(candidatesTable)
+    .where(
+      and(
+        eq(candidatesTable.id, parsed.data.candidateId),
+        notDeleted(candidatesTable.deletedAt),
+      ),
+    );
 
   if (!job || !candidate) {
     res.status(404).json({ error: "Job or candidate not found" });

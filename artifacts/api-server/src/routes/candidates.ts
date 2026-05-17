@@ -364,7 +364,12 @@ router.get("/candidates/:id", async (req, res): Promise<void> => {
   const [candidate] = await db
     .select()
     .from(candidatesTable)
-    .where(eq(candidatesTable.id, params.data.id));
+    .where(
+      and(
+        eq(candidatesTable.id, params.data.id),
+        notDeleted(candidatesTable.deletedAt),
+      ),
+    );
 
   if (!candidate) {
     res.status(404).json({ error: "Candidate not found" });

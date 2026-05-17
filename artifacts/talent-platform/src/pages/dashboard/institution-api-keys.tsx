@@ -28,8 +28,7 @@ import {
   getListInstitutionApiKeysQueryKey,
   type InstitutionApiKeyCreated,
 } from "@workspace/api-client-react";
-import { useQuery, useQueryClient, skipToken } from "@tanstack/react-query";
-import { listInstitutionApiKeys } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 
 /**
  * Owner-only Pro feature for managing SIS API keys. The plaintext
@@ -56,17 +55,9 @@ export default function InstitutionApiKeysPage() {
 
   const enabled = !!institutionId && isOwner;
 
-  // Use TanStack Query directly with the generated queryKey + fetcher.
-  // The Orval-generated `useListInstitutionApiKeys` requires `queryKey`
-  // when overriding `query` (TanStack v5 typing), but a thin
-  // `useQuery({ queryKey, queryFn })` call is fully typed without
-  // escape hatches and is the canonical pattern for conditionally-
-  // enabled queries here. The generated mutation hooks are still used
-  // for create/revoke below.
   const listQueryKey = getListInstitutionApiKeysQueryKey(institutionId ?? 0);
-  const listQuery = useQuery({
-    queryKey: listQueryKey,
-    queryFn: enabled ? () => listInstitutionApiKeys(institutionId!) : skipToken,
+  const listQuery = useListInstitutionApiKeys(institutionId ?? 0, {
+    query: { enabled, queryKey: listQueryKey },
   });
 
   const createMutation = useCreateInstitutionApiKey({

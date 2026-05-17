@@ -32,6 +32,10 @@ const PROD_RECOMMENDED: RequiredVar[] = [
     key: "DEFAULT_OBJECT_STORAGE_BUCKET_ID",
     reason: "object storage (avatars, CVs)",
   },
+  {
+    key: "TRASH_RETENTION_DAYS",
+    reason: "trash auto-purge window in days (default 30)",
+  },
 ];
 
 export function validateEnv(): void {

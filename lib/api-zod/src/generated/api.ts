@@ -4321,6 +4321,27 @@ export const AdminListAccountManagersResponse = zod.object({
 });
 
 /**
+ * Returns the server-side trash retention window in days. The trash
+auto-purge worker hard-deletes soft-deleted rows whose `deleted_at`
+is older than this many days. Configured via `TRASH_RETENTION_DAYS`.
+
+ * @summary Trash retention settings (admin only)
+ */
+
+export const AdminGetTrashSettingsResponse = zod
+  .object({
+    retentionDays: zod
+      .number()
+      .min(1)
+      .describe(
+        "Days a soft-deleted row remains restorable before auto-purge.",
+      ),
+  })
+  .describe(
+    "Server-side trash retention configuration. The auto-purge worker\nhard-deletes soft-deleted rows whose `deleted_at` is older than\n`retentionDays`. Configured via the `TRASH_RETENTION_DAYS` env var.\n",
+  );
+
+/**
  * @summary List soft-deleted candidates available for restore (admin only)
  */
 export const AdminListTrashCandidatesResponseItem = zod

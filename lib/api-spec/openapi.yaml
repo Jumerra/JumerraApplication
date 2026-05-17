@@ -2113,6 +2113,23 @@ paths:
               schema: { $ref: "#/components/schemas/AdminAccountManagersResponse" }
         "403": { description: Admin only }
 
+  /admin/trash/settings:
+    get:
+      operationId: adminGetTrashSettings
+      tags: [admin]
+      summary: Trash retention settings (admin only)
+      description: |
+        Returns the server-side trash retention window in days. The trash
+        auto-purge worker hard-deletes soft-deleted rows whose `deleted_at`
+        is older than this many days. Configured via `TRASH_RETENTION_DAYS`.
+      responses:
+        "200":
+          description: Retention settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TrashSettings" }
+        "403": { description: Admin only }
+
   /admin/trash/candidates:
     get:
       operationId: adminListTrashCandidates
@@ -5029,6 +5046,19 @@ components:
           nullable: true
           description: Full name of the soft-deleter, resolved from `users`. Null when `deletedBy` is null or the user record was hard-removed.
       required: [id, label, deletedAt]
+
+    TrashSettings:
+      type: object
+      description: |
+        Server-side trash retention configuration. The auto-purge worker
+        hard-deletes soft-deleted rows whose `deleted_at` is older than
+        `retentionDays`. Configured via the `TRASH_RETENTION_DAYS` env var.
+      properties:
+        retentionDays:
+          type: integer
+          minimum: 1
+          description: Days a soft-deleted row remains restorable before auto-purge.
+      required: [retentionDays]
 
     SetEmployerVerifiedRequest:
       type: object

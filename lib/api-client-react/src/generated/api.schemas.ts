@@ -444,6 +444,20 @@ export interface TrashItem {
   deletedByName?: string | null;
 }
 
+/**
+ * Server-side trash retention configuration. The auto-purge worker
+hard-deletes soft-deleted rows whose `deleted_at` is older than
+`retentionDays`. Configured via the `TRASH_RETENTION_DAYS` env var.
+
+ */
+export interface TrashSettings {
+  /**
+   * Days a soft-deleted row remains restorable before auto-purge.
+   * @minimum 1
+   */
+  retentionDays: number;
+}
+
 export interface SetEmployerVerifiedRequest {
   verified: boolean;
 }

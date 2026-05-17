@@ -32,7 +32,7 @@ import {
   adminRolePermissionsTable,
 } from "@workspace/db";
 import type { User } from "@workspace/db";
-import { requireAdmin } from "../middleware/require-auth";
+import { requireAdmin, requireAuth } from "../middleware/require-auth";
 import { requirePermission, seedSystemRolesFor } from "../lib/permissions";
 import { createSetupToken, findUserByEmail } from "../lib/auth";
 import {
@@ -44,6 +44,8 @@ import {
   PERMISSIONS,
   PERMISSION_KEYS,
   isSuperAdminUser,
+  getUserPermissions,
+  isImplicitAllUser,
 } from "../lib/permissions";
 
 const router: Router = Router();
@@ -1843,6 +1845,33 @@ function shapeTrash(rows: TrashRow[]) {
     deletedByName: r.deletedByName,
   }));
 }
+
+router.get(
+  "/admin/trash/settings",
+  // Any admin who can see *any* trash tab should see the accurate
+  // retention window — gating on a single *:manage perm would leave
+  // employer-only or institution-only admins falling back to the
+  // hardcoded 30-day default in the UI. We accept the request if the
+  // caller has any of the four trash-related manage perms.
+  requireAuth,
+  async (req, res) => {
+    const user = req.currentUser!;
+    const perms = await getUserPermissions(user);
+    const allowed =
+      isImplicitAllUser(user) ||
+      perms.has("candidates:manage") ||
+      perms.has("employers:manage") ||
+      perms.has("institutions:manage");
+    if (!allowed) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const { getTrashRetentionDays } = await import(
+      "../lib/trash-purge-worker"
+    );
+    res.json({ retentionDays: getTrashRetentionDays() });
+  },
+);
 
 router.get("/admin/trash/candidates", requirePermission("candidates:manage"), async (_req, res) => {
   const rows = await db

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  useAdminGetTrashSettings,
   useAdminListTrashCandidates,
   useAdminListTrashEmployers,
   useAdminListTrashInstitutions,
@@ -11,6 +12,7 @@ import {
   getAdminListTrashCandidatesQueryKey,
   getAdminListTrashEmployersQueryKey,
   getAdminListTrashInstitutionsQueryKey,
+  getAdminGetTrashSettingsQueryKey,
   getAdminListTrashJobsQueryKey,
   type TrashItem,
 } from "@workspace/api-client-react";
@@ -201,6 +203,18 @@ export default function AdminTrashPage() {
   // hidden tab. If the admin has no trash permissions at all (which
   // shouldn't be reachable — the nav item is also gated), fall back to
   // candidates and show an empty state.
+  // Server-side purge window. Pulled live from the API so the displayed
+  // value reflects whatever `TRASH_RETENTION_DAYS` is configured to in
+  // this environment (default 30). Falls back to 30 while loading or if
+  // the request fails so the note never renders an empty number.
+  const trashSettings = useAdminGetTrashSettings({
+    query: {
+      queryKey: getAdminGetTrashSettingsQueryKey(),
+      enabled: canCandidates || canEmployers || canInstitutions || canJobs,
+    },
+  });
+  const retentionDays = trashSettings.data?.retentionDays ?? 30;
+
   const defaultTab: EntityKind = canCandidates
     ? "candidates"
     : canEmployers
@@ -224,6 +238,11 @@ export default function AdminTrashPage() {
             Restoring clears the deletion timestamp and brings the record
             back into product views. Restoring an employer also brings back
             any jobs that were cascade-deleted at the same moment.
+          </p>
+          <p className="text-xs text-muted-foreground mt-2">
+            Auto-purges after {retentionDays} days — rows older than that
+            are hard-deleted by a scheduled job and can no longer be
+            restored.
           </p>
         </div>
         <Badge variant="secondary" className="text-sm">

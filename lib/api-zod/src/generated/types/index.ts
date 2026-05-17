@@ -351,6 +351,7 @@ export * from "./talentPool";
 export * from "./talentPoolDetail";
 export * from "./talentPoolMember";
 export * from "./trashItem";
+export * from "./trashSettings";
 export * from "./updateApplication";
 export * from "./updateApplicationStatus";
 export * from "./updateBoostSettingsRequest";

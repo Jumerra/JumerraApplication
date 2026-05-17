@@ -210,6 +210,7 @@ import type {
   TalentPool,
   TalentPoolDetail,
   TrashItem,
+  TrashSettings,
   UpdateApplication,
   UpdateBoostSettingsRequest,
   UpdateCandidate,
@@ -9020,6 +9021,85 @@ export function useAdminListAccountManagers<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getAdminListAccountManagersQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Returns the server-side trash retention window in days. The trash
+auto-purge worker hard-deletes soft-deleted rows whose `deleted_at`
+is older than this many days. Configured via `TRASH_RETENTION_DAYS`.
+
+ * @summary Trash retention settings (admin only)
+ */
+export const getAdminGetTrashSettingsUrl = () => {
+  return `/api/admin/trash/settings`;
+};
+
+export const adminGetTrashSettings = async (
+  options?: RequestInit,
+): Promise<TrashSettings> => {
+  return customFetch<TrashSettings>(getAdminGetTrashSettingsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getAdminGetTrashSettingsQueryKey = () => {
+  return [`/api/admin/trash/settings`] as const;
+};
+
+export const getAdminGetTrashSettingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminGetTrashSettings>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof adminGetTrashSettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getAdminGetTrashSettingsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof adminGetTrashSettings>>
+  > = ({ signal }) => adminGetTrashSettings({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminGetTrashSettings>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type AdminGetTrashSettingsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminGetTrashSettings>>
+>;
+export type AdminGetTrashSettingsQueryError = ErrorType<void>;
+
+/**
+ * @summary Trash retention settings (admin only)
+ */
+
+export function useAdminGetTrashSettings<
+  TData = Awaited<ReturnType<typeof adminGetTrashSettings>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof adminGetTrashSettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getAdminGetTrashSettingsQueryOptions(options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

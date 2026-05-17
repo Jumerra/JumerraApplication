@@ -4749,6 +4749,86 @@ export const AdminGetHiresAnalyticsResponse = zod.object({
 });
 
 /**
+ * @summary Platform revenue totals grouped by currency, category, and provider (admin payments:view)
+ */
+export const AdminGetRevenueSummaryQueryParams = zod.object({
+  from: zod
+    .date()
+    .optional()
+    .describe("ISO datetime inclusive lower bound on payments.finalized_at"),
+  to: zod
+    .date()
+    .optional()
+    .describe("ISO datetime inclusive upper bound on payments.finalized_at"),
+});
+
+export const AdminGetRevenueSummaryResponse = zod.object({
+  currencies: zod.array(
+    zod.object({
+      currency: zod.string(),
+      grossSubunits: zod.number(),
+      transactions: zod.number(),
+      byCategory: zod.object({
+        candidate: zod.object({
+          grossSubunits: zod.number(),
+          transactions: zod.number(),
+        }),
+        institution: zod.object({
+          grossSubunits: zod.number(),
+          transactions: zod.number(),
+        }),
+        employer: zod.object({
+          grossSubunits: zod.number(),
+          transactions: zod.number(),
+        }),
+        other: zod.object({
+          grossSubunits: zod.number(),
+          transactions: zod.number(),
+        }),
+      }),
+      byProvider: zod.object({
+        stripe: zod.object({
+          grossSubunits: zod.number(),
+          transactions: zod.number(),
+        }),
+        paystack: zod.object({
+          grossSubunits: zod.number(),
+          transactions: zod.number(),
+        }),
+      }),
+    }),
+  ),
+});
+
+/**
+ * @summary Time-bucketed revenue points for the dashboard line chart (admin payments:view)
+ */
+export const adminGetRevenueTimeseriesQueryBucketDefault = `day`;
+
+export const AdminGetRevenueTimeseriesQueryParams = zod.object({
+  from: zod.date().optional(),
+  to: zod.date().optional(),
+  bucket: zod
+    .enum(["day", "week", "month"])
+    .default(adminGetRevenueTimeseriesQueryBucketDefault),
+});
+
+export const AdminGetRevenueTimeseriesResponse = zod.object({
+  bucket: zod.enum(["day", "week", "month"]),
+  from: zod.coerce.date(),
+  to: zod.coerce.date(),
+  points: zod.array(
+    zod.object({
+      bucketStart: zod.coerce.date(),
+      currency: zod.string(),
+      category: zod.enum(["candidate", "institution", "employer", "other"]),
+      grossSubunits: zod.number(),
+      transactions: zod.number(),
+    }),
+  ),
+});
+
+/**
  * @summary Public site content for the home page (admin-editable)
  */
 export const GetSiteContentResponse = zod.object({

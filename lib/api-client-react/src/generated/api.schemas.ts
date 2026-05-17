@@ -575,6 +575,69 @@ export interface HiresAnalyticsResponse {
   points: HiresAnalyticsPoint[];
 }
 
+export interface RevenueBucketTotal {
+  grossSubunits: number;
+  transactions: number;
+}
+
+export interface RevenueByCategory {
+  candidate: RevenueBucketTotal;
+  institution: RevenueBucketTotal;
+  employer: RevenueBucketTotal;
+  other: RevenueBucketTotal;
+}
+
+export interface RevenueByProvider {
+  stripe: RevenueBucketTotal;
+  paystack: RevenueBucketTotal;
+}
+
+export interface RevenueCurrencyRollup {
+  currency: string;
+  grossSubunits: number;
+  transactions: number;
+  byCategory: RevenueByCategory;
+  byProvider: RevenueByProvider;
+}
+
+export interface AdminRevenueSummaryResponse {
+  currencies: RevenueCurrencyRollup[];
+}
+
+export type RevenueTimeseriesPointCategory =
+  (typeof RevenueTimeseriesPointCategory)[keyof typeof RevenueTimeseriesPointCategory];
+
+export const RevenueTimeseriesPointCategory = {
+  candidate: "candidate",
+  institution: "institution",
+  employer: "employer",
+  other: "other",
+} as const;
+
+export interface RevenueTimeseriesPoint {
+  bucketStart: string;
+  currency: string;
+  category: RevenueTimeseriesPointCategory;
+  grossSubunits: number;
+  transactions: number;
+}
+
+export type AdminRevenueTimeseriesResponseBucket =
+  (typeof AdminRevenueTimeseriesResponseBucket)[keyof typeof AdminRevenueTimeseriesResponseBucket];
+
+export const AdminRevenueTimeseriesResponseBucket = {
+  day: "day",
+  week: "week",
+  month: "month",
+} as const;
+
+export interface AdminRevenueTimeseriesResponse {
+  bucket: AdminRevenueTimeseriesResponseBucket;
+  from: string;
+  to: string;
+  points: RevenueTimeseriesPoint[];
+}
+
 export type AdminAccountRole =
   (typeof AdminAccountRole)[keyof typeof AdminAccountRole];
 
@@ -3909,6 +3972,32 @@ export const AdminGetHiresAnalyticsBucket = {
   week: "week",
   month: "month",
   year: "year",
+} as const;
+
+export type AdminGetRevenueSummaryParams = {
+  /**
+   * ISO datetime inclusive lower bound on payments.finalized_at
+   */
+  from?: string;
+  /**
+   * ISO datetime inclusive upper bound on payments.finalized_at
+   */
+  to?: string;
+};
+
+export type AdminGetRevenueTimeseriesParams = {
+  from?: string;
+  to?: string;
+  bucket?: AdminGetRevenueTimeseriesBucket;
+};
+
+export type AdminGetRevenueTimeseriesBucket =
+  (typeof AdminGetRevenueTimeseriesBucket)[keyof typeof AdminGetRevenueTimeseriesBucket];
+
+export const AdminGetRevenueTimeseriesBucket = {
+  day: "day",
+  week: "week",
+  month: "month",
 } as const;
 
 export type GetInstitutionPlacementAnalyticsParams = {

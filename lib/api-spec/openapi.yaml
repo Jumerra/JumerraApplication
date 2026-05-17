@@ -2461,6 +2461,59 @@ paths:
               schema: { $ref: "#/components/schemas/HiresAnalyticsResponse" }
         "403": { description: Admin only }
 
+  /admin/revenue/summary:
+    get:
+      operationId: adminGetRevenueSummary
+      tags: [admin]
+      summary: Platform revenue totals grouped by currency, category, and provider (admin payments:view)
+      parameters:
+        - name: from
+          in: query
+          required: false
+          description: ISO datetime inclusive lower bound on payments.finalized_at
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          required: false
+          description: ISO datetime inclusive upper bound on payments.finalized_at
+          schema: { type: string, format: date-time }
+      responses:
+        "200":
+          description: Per-currency revenue rollup
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminRevenueSummaryResponse" }
+        "403": { description: Missing payments:view permission }
+
+  /admin/revenue/timeseries:
+    get:
+      operationId: adminGetRevenueTimeseries
+      tags: [admin]
+      summary: Time-bucketed revenue points for the dashboard line chart (admin payments:view)
+      parameters:
+        - name: from
+          in: query
+          required: false
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          required: false
+          schema: { type: string, format: date-time }
+        - name: bucket
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [day, week, month]
+            default: day
+      responses:
+        "200":
+          description: Time-series revenue points
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminRevenueTimeseriesResponse" }
+        "403": { description: Missing payments:view permission }
+
   /site-content:
     get:
       operationId: getSiteContent
@@ -4831,6 +4884,72 @@ components:
           type: array
           items: { $ref: "#/components/schemas/HiresAnalyticsPoint" }
       required: [bucket, from, to, total, points]
+
+    RevenueBucketTotal:
+      type: object
+      properties:
+        grossSubunits: { type: integer }
+        transactions: { type: integer }
+      required: [grossSubunits, transactions]
+
+    RevenueByCategory:
+      type: object
+      properties:
+        candidate: { $ref: "#/components/schemas/RevenueBucketTotal" }
+        institution: { $ref: "#/components/schemas/RevenueBucketTotal" }
+        employer: { $ref: "#/components/schemas/RevenueBucketTotal" }
+        other: { $ref: "#/components/schemas/RevenueBucketTotal" }
+      required: [candidate, institution, employer, other]
+
+    RevenueByProvider:
+      type: object
+      properties:
+        stripe: { $ref: "#/components/schemas/RevenueBucketTotal" }
+        paystack: { $ref: "#/components/schemas/RevenueBucketTotal" }
+      required: [stripe, paystack]
+
+    RevenueCurrencyRollup:
+      type: object
+      properties:
+        currency: { type: string }
+        grossSubunits: { type: integer }
+        transactions: { type: integer }
+        byCategory: { $ref: "#/components/schemas/RevenueByCategory" }
+        byProvider: { $ref: "#/components/schemas/RevenueByProvider" }
+      required: [currency, grossSubunits, transactions, byCategory, byProvider]
+
+    AdminRevenueSummaryResponse:
+      type: object
+      properties:
+        currencies:
+          type: array
+          items: { $ref: "#/components/schemas/RevenueCurrencyRollup" }
+      required: [currencies]
+
+    RevenueTimeseriesPoint:
+      type: object
+      properties:
+        bucketStart: { type: string, format: date-time }
+        currency: { type: string }
+        category:
+          type: string
+          enum: [candidate, institution, employer, other]
+        grossSubunits: { type: integer }
+        transactions: { type: integer }
+      required: [bucketStart, currency, category, grossSubunits, transactions]
+
+    AdminRevenueTimeseriesResponse:
+      type: object
+      properties:
+        bucket:
+          type: string
+          enum: [day, week, month]
+        from: { type: string, format: date-time }
+        to: { type: string, format: date-time }
+        points:
+          type: array
+          items: { $ref: "#/components/schemas/RevenueTimeseriesPoint" }
+      required: [bucket, from, to, points]
 
     AdminAccount:
       type: object

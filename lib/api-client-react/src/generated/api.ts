@@ -26,10 +26,14 @@ import type {
   AdminAccountsResponse,
   AdminApplicationListResponse,
   AdminGetHiresAnalyticsParams,
+  AdminGetRevenueSummaryParams,
+  AdminGetRevenueTimeseriesParams,
   AdminListAccountsParams,
   AdminListApplicationsParams,
   AdminListWhatsappLogsParams,
   AdminResetUserPassword200,
+  AdminRevenueSummaryResponse,
+  AdminRevenueTimeseriesResponse,
   AdminSetUserStatus200,
   AdminUserStatusUpdate,
   AdminWhatsappLogsResponse,
@@ -10437,6 +10441,218 @@ export function useAdminGetHiresAnalytics<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getAdminGetHiresAnalyticsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Platform revenue totals grouped by currency, category, and provider (admin payments:view)
+ */
+export const getAdminGetRevenueSummaryUrl = (
+  params?: AdminGetRevenueSummaryParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/admin/revenue/summary?${stringifiedParams}`
+    : `/api/admin/revenue/summary`;
+};
+
+export const adminGetRevenueSummary = async (
+  params?: AdminGetRevenueSummaryParams,
+  options?: RequestInit,
+): Promise<AdminRevenueSummaryResponse> => {
+  return customFetch<AdminRevenueSummaryResponse>(
+    getAdminGetRevenueSummaryUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getAdminGetRevenueSummaryQueryKey = (
+  params?: AdminGetRevenueSummaryParams,
+) => {
+  return [`/api/admin/revenue/summary`, ...(params ? [params] : [])] as const;
+};
+
+export const getAdminGetRevenueSummaryQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminGetRevenueSummary>>,
+  TError = ErrorType<void>,
+>(
+  params?: AdminGetRevenueSummaryParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof adminGetRevenueSummary>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getAdminGetRevenueSummaryQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof adminGetRevenueSummary>>
+  > = ({ signal }) =>
+    adminGetRevenueSummary(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminGetRevenueSummary>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type AdminGetRevenueSummaryQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminGetRevenueSummary>>
+>;
+export type AdminGetRevenueSummaryQueryError = ErrorType<void>;
+
+/**
+ * @summary Platform revenue totals grouped by currency, category, and provider (admin payments:view)
+ */
+
+export function useAdminGetRevenueSummary<
+  TData = Awaited<ReturnType<typeof adminGetRevenueSummary>>,
+  TError = ErrorType<void>,
+>(
+  params?: AdminGetRevenueSummaryParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof adminGetRevenueSummary>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getAdminGetRevenueSummaryQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Time-bucketed revenue points for the dashboard line chart (admin payments:view)
+ */
+export const getAdminGetRevenueTimeseriesUrl = (
+  params?: AdminGetRevenueTimeseriesParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/admin/revenue/timeseries?${stringifiedParams}`
+    : `/api/admin/revenue/timeseries`;
+};
+
+export const adminGetRevenueTimeseries = async (
+  params?: AdminGetRevenueTimeseriesParams,
+  options?: RequestInit,
+): Promise<AdminRevenueTimeseriesResponse> => {
+  return customFetch<AdminRevenueTimeseriesResponse>(
+    getAdminGetRevenueTimeseriesUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getAdminGetRevenueTimeseriesQueryKey = (
+  params?: AdminGetRevenueTimeseriesParams,
+) => {
+  return [
+    `/api/admin/revenue/timeseries`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getAdminGetRevenueTimeseriesQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminGetRevenueTimeseries>>,
+  TError = ErrorType<void>,
+>(
+  params?: AdminGetRevenueTimeseriesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof adminGetRevenueTimeseries>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getAdminGetRevenueTimeseriesQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof adminGetRevenueTimeseries>>
+  > = ({ signal }) =>
+    adminGetRevenueTimeseries(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminGetRevenueTimeseries>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type AdminGetRevenueTimeseriesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminGetRevenueTimeseries>>
+>;
+export type AdminGetRevenueTimeseriesQueryError = ErrorType<void>;
+
+/**
+ * @summary Time-bucketed revenue points for the dashboard line chart (admin payments:view)
+ */
+
+export function useAdminGetRevenueTimeseries<
+  TData = Awaited<ReturnType<typeof adminGetRevenueTimeseries>>,
+  TError = ErrorType<void>,
+>(
+  params?: AdminGetRevenueTimeseriesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof adminGetRevenueTimeseries>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getAdminGetRevenueTimeseriesQueryOptions(
+    params,
+    options,
+  );
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

@@ -105,6 +105,13 @@ export const ADMIN_PERMISSIONS: ReadonlyArray<PermissionDef> = [
     description: "Update home-page copy and images.",
   },
   {
+    key: "payments:view",
+    label: "View platform revenue",
+    category: "Insights",
+    description:
+      "See total revenue across candidate, institution, and employer services with time-series charts.",
+  },
+  {
     key: "staff:view",
     label: "View team",
     category: "Admin team",
@@ -299,8 +306,9 @@ export const SYSTEM_ROLES: ReadonlyArray<SystemRoleSpec> = [
   {
     scope: "admin",
     name: "finance",
-    description: "Tracks revenue-relevant activity (hires, partner performance).",
-    permissions: ["hires:view", "partner-analytics:view"],
+    description:
+      "Tracks revenue-relevant activity (platform revenue, hires, partner performance).",
+    permissions: ["payments:view", "hires:view", "partner-analytics:view"],
   },
   {
     scope: "admin",

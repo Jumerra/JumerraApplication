@@ -36,6 +36,7 @@ import {
   FileText,
   Crown,
   Handshake,
+  TrendingUp,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { SidebarLogoutButton } from "@/components/sidebar-logout";
@@ -88,6 +89,12 @@ const ADMIN_NAV: AdminNavGroup[] = [
   {
     label: "Insights",
     items: [
+      {
+        href: "/dashboard/admin/revenue",
+        label: "Platform revenue",
+        icon: TrendingUp,
+        permission: "payments:view",
+      },
       { href: "/dashboard/admin/hires", label: "Hires analytics", icon: Trophy, permission: "hires:view" },
       {
         href: "/dashboard/admin/partner-analytics",

@@ -64,6 +64,7 @@ import AdminInstitutionsPage from "@/pages/dashboard/admin/institutions";
 import AdminApplicationsPage from "@/pages/dashboard/admin/applications";
 import AdminHiresPage from "@/pages/dashboard/admin/hires";
 import AdminPartnerAnalyticsPage from "@/pages/dashboard/admin/partner-analytics";
+import AdminRevenuePage from "@/pages/dashboard/admin/revenue";
 import AdminRolesPage from "@/pages/dashboard/admin/roles";
 import OrgRolesPage from "@/pages/dashboard/org-roles";
 import StaffPage from "@/pages/dashboard/staff";
@@ -177,6 +178,9 @@ function Router() {
         </Route>
         <Route path="/dashboard/admin/partner-analytics">
           <AdminLayout><AdminPartnerAnalyticsPage /></AdminLayout>
+        </Route>
+        <Route path="/dashboard/admin/revenue">
+          <AdminLayout><AdminRevenuePage /></AdminLayout>
         </Route>
         <Route path="/dashboard/admin/registrations">
           <AdminLayout><AdminRegistrationsPage /></AdminLayout>

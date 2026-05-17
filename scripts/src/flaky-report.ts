@@ -225,6 +225,14 @@ function renderMarkdown(
   lines.push(`Flaky (not quarantined): **${flaky.length}**`);
   lines.push("");
 
+  // A quarantined journey is a "candidate to unquarantine" if it ran
+  // at least once in the window AND every executed run passed (no
+  // failures, no timeouts). Skipped/interrupted runs don't count
+  // either way — they're excluded from `executed` already.
+  const readyToUnquarantine = quarantined.filter(
+    (s) => s.executed > 0 && s.failures === 0,
+  );
+
   lines.push("## Quarantined journeys");
   if (quarantined.length === 0) {
     lines.push("_None — quarantine list is empty._");
@@ -244,6 +252,30 @@ function renderMarkdown(
       );
       lines.push(
         `| ${s.journey} | ${since} | ${fmtPassRate(s)} | ${reason} |`,
+      );
+    }
+  }
+  lines.push("");
+
+  lines.push("## Candidates to unquarantine");
+  if (readyToUnquarantine.length === 0) {
+    lines.push(
+      "_None — no quarantined journey has a perfect pass rate in the window._",
+    );
+  } else {
+    lines.push(
+      `These quarantined journeys passed every executed run in the last ${days} day(s). Consider removing their \`test.info().annotations.push({ type: "quarantine", ... })\` call.`,
+    );
+    lines.push("");
+    lines.push("| Journey | File | Quarantined for | Pass rate |");
+    lines.push("| --- | --- | --- | --- |");
+    for (const s of readyToUnquarantine) {
+      const since =
+        s.quarantinedDays !== undefined
+          ? `${s.quarantinedDays} day(s)`
+          : "current run";
+      lines.push(
+        `| ${s.journey} | ${s.file} | ${since} | ${fmtPassRate(s)} |`,
       );
     }
   }
@@ -275,8 +307,20 @@ function main(): void {
   const stats = computeStats(runs, windowMs, now);
 
   if (args.json) {
+    const readyToUnquarantine = stats
+      .filter((s) => s.lastQuarantined && s.executed > 0 && s.failures === 0)
+      .map((s) => ({ journey: s.journey, file: s.file }));
     process.stdout.write(
-      `${JSON.stringify({ windowDays: args.days, totalRuns, journeys: stats }, null, 2)}\n`,
+      `${JSON.stringify(
+        {
+          windowDays: args.days,
+          totalRuns,
+          journeys: stats,
+          readyToUnquarantine,
+        },
+        null,
+        2,
+      )}\n`,
     );
     return;
   }

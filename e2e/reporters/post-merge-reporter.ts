@@ -75,6 +75,83 @@ function isQuarantined(test: TestCase, result: TestResult): string | undefined {
   return hit ? (hit.description ?? "(no reason given)") : undefined;
 }
 
+/**
+ * Drop runs older than the retention window from the JSONL history.
+ * Default 90 days, overridable via E2E_HISTORY_RETENTION_DAYS. A
+ * value of 0 (or non-finite) disables pruning entirely.
+ *
+ * Writes to a tmp file in the same directory and renames over the
+ * original so a crash mid-write can't truncate the history. Lines
+ * that don't parse, or that have no usable finishedAt timestamp, are
+ * kept — better to keep junk than to silently drop history.
+ */
+function pruneHistory(file: string, nowMs: number): void {
+  const days = Number(process.env.E2E_HISTORY_RETENTION_DAYS ?? "90");
+  if (!Number.isFinite(days) || days <= 0) return;
+  if (!fs.existsSync(file)) return;
+
+  // Concurrency: pruning is a read-modify-write on the whole file, so
+  // two reporters racing could each read a copy that misses the
+  // other's append and then rename their stale copy over the file,
+  // dropping the just-appended row. Guard with an exclusive-create
+  // lock file. If we can't take the lock, another reporter is already
+  // pruning — skip this run; the next one will catch up. Stale locks
+  // (>5 min, e.g. from a crashed process) are forcibly cleared.
+  const lock = `${file}.prune.lock`;
+  const STALE_MS = 5 * 60 * 1000;
+  try {
+    const st = fs.statSync(lock);
+    if (nowMs - st.mtimeMs > STALE_MS) fs.unlinkSync(lock);
+  } catch {
+    // no existing lock — normal path
+  }
+  let lockFd: number;
+  try {
+    lockFd = fs.openSync(lock, "wx");
+  } catch {
+    return; // another reporter holds the lock; let it handle pruning
+  }
+
+  try {
+    const cutoff = nowMs - days * 24 * 60 * 60 * 1000;
+    const raw = fs.readFileSync(file, "utf8");
+    const lines = raw.split("\n");
+    const kept: string[] = [];
+    let dropped = 0;
+    for (const line of lines) {
+      if (!line) continue;
+      let keep = true;
+      try {
+        const parsed = JSON.parse(line) as { finishedAt?: string };
+        if (parsed && typeof parsed.finishedAt === "string") {
+          const ts = Date.parse(parsed.finishedAt);
+          if (Number.isFinite(ts) && ts < cutoff) keep = false;
+        }
+      } catch {
+        // unparseable — keep it
+      }
+      if (keep) kept.push(line);
+      else dropped += 1;
+    }
+    if (dropped > 0) {
+      const tmp = `${file}.tmp-${process.pid}`;
+      fs.writeFileSync(tmp, kept.length > 0 ? `${kept.join("\n")}\n` : "");
+      fs.renameSync(tmp, file);
+    }
+  } finally {
+    try {
+      fs.closeSync(lockFd);
+    } catch {
+      // ignore
+    }
+    try {
+      fs.unlinkSync(lock);
+    } catch {
+      // ignore
+    }
+  }
+}
+
 function renderRecord(f: FailureRecord): string {
   const head = `- [${f.status}${f.attempts > 1 ? ` after ${f.attempts} attempts` : ""}] ${f.journey}`;
   const where = `  file: ${f.file}`;
@@ -179,6 +256,14 @@ export default class PostMergeReporter implements Reporter {
     // pass rate. JSONL (not a single rewritten JSON) keeps appends
     // atomic-ish even when two runs race, and is trivial to truncate
     // with `tail -n`.
+    //
+    // Retention: the file would otherwise grow forever (one row per
+    // test per run, hundreds of tests per day). After appending the
+    // new run we rewrite the file dropping any run older than
+    // E2E_HISTORY_RETENTION_DAYS (default 90). The flaky summariser
+    // only walks back to find the current quarantine streak, so as
+    // long as the window comfortably exceeds a realistic streak we
+    // produce identical reports for the last 7 days.
     if (this.history.length > 0) {
       const finishedAt = Date.now();
       const run: HistoryRunRecord = {
@@ -194,6 +279,11 @@ export default class PostMergeReporter implements Reporter {
         fs.appendFileSync(HISTORY_FILE, `${JSON.stringify(run)}\n`);
       } catch {
         // ignore — best-effort persistence
+      }
+      try {
+        pruneHistory(HISTORY_FILE, finishedAt);
+      } catch {
+        // ignore — pruning is best-effort, never fail the run
       }
     }
 

@@ -9,6 +9,7 @@
     "seed-challenge-templates": "tsx ./src/seed-challenge-templates.ts",
     "loadtest": "tsx ./src/loadtest.ts",
     "flaky-report": "tsx ./src/flaky-report.ts",
+    "unquarantine": "tsx ./src/unquarantine.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {

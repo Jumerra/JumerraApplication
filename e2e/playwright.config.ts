@@ -10,7 +10,7 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   retries: 0,
-  reporter: process.env.CI ? "list" : "list",
+  reporter: [["list"], ["./reporters/post-merge-reporter.ts"]],
   use: {
     baseURL: API_URL,
     extraHTTPHeaders: { "x-e2e": "1" },

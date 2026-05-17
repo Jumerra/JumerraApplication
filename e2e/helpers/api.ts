@@ -10,8 +10,9 @@ export async function ok<T = unknown>(
 ): Promise<T> {
   if (!res.ok()) {
     const body = await res.text();
+    const rid = res.headers()["x-request-id"];
     throw new Error(
-      `${label} failed: ${res.status()} ${res.statusText()} — ${body.slice(0, 500)}`,
+      `${label} failed: ${res.status()} ${res.statusText()}${rid ? ` (x-request-id=${rid})` : ""} — ${body.slice(0, 500)}`,
     );
   }
   const ct = res.headers()["content-type"] ?? "";

@@ -174,6 +174,14 @@ function computeStats(
   return [...byJourney.values()];
 }
 
+function detailCommandFor(journey: string): string {
+  // Keep flag names in sync with `journey-history.ts`. Escape embedded
+  // double quotes so the command stays copy-pasteable for journeys
+  // whose titles contain quotes.
+  const escaped = journey.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  return `pnpm --filter @workspace/scripts run journey-history -- --journey "${escaped}" --days 365`;
+}
+
 function fmtPassRate(s: JourneyStats): string {
   // Use executed runs (pass + fail + timedOut) as the denominator so a
   // journey that was skipped or interrupted in some runs isn't given
@@ -220,9 +228,9 @@ function renderMarkdown(
     lines.push("_None — quarantine list is empty._");
   } else {
     lines.push(
-      "| Journey | Quarantined for | Pass rate | Reason |",
+      "| Journey | Quarantined for | Pass rate | Reason | Details |",
     );
-    lines.push("| --- | --- | --- | --- |");
+    lines.push("| --- | --- | --- | --- | --- |");
     for (const s of quarantined) {
       const since =
         s.quarantinedDays !== undefined
@@ -232,8 +240,9 @@ function renderMarkdown(
         /\|/g,
         "\\|",
       );
+      const detail = `\`${detailCommandFor(s.journey).replace(/\|/g, "\\|")}\``;
       lines.push(
-        `| ${s.journey} | ${since} | ${fmtPassRate(s)} | ${reason} |`,
+        `| ${s.journey} | ${since} | ${fmtPassRate(s)} | ${reason} | ${detail} |`,
       );
     }
   }
@@ -249,15 +258,16 @@ function renderMarkdown(
       `These quarantined journeys passed every executed run in the last ${days} day(s). Consider removing their \`test.info().annotations.push({ type: "quarantine", ... })\` call.`,
     );
     lines.push("");
-    lines.push("| Journey | File | Quarantined for | Pass rate |");
-    lines.push("| --- | --- | --- | --- |");
+    lines.push("| Journey | File | Quarantined for | Pass rate | Details |");
+    lines.push("| --- | --- | --- | --- | --- |");
     for (const s of readyToUnquarantine) {
       const since =
         s.quarantinedDays !== undefined
           ? `${s.quarantinedDays} day(s)`
           : "current run";
+      const detail = `\`${detailCommandFor(s.journey).replace(/\|/g, "\\|")}\``;
       lines.push(
-        `| ${s.journey} | ${s.file} | ${since} | ${fmtPassRate(s)} |`,
+        `| ${s.journey} | ${s.file} | ${since} | ${fmtPassRate(s)} | ${detail} |`,
       );
     }
   }
@@ -267,10 +277,13 @@ function renderMarkdown(
   if (flaky.length === 0) {
     lines.push("_None — every non-quarantined journey was consistent._");
   } else {
-    lines.push("| Journey | Pass rate | Failures |");
-    lines.push("| --- | --- | --- |");
+    lines.push("| Journey | Pass rate | Failures | Details |");
+    lines.push("| --- | --- | --- | --- |");
     for (const s of flaky) {
-      lines.push(`| ${s.journey} | ${fmtPassRate(s)} | ${s.failures} |`);
+      const detail = `\`${detailCommandFor(s.journey).replace(/\|/g, "\\|")}\``;
+      lines.push(
+        `| ${s.journey} | ${fmtPassRate(s)} | ${s.failures} | ${detail} |`,
+      );
     }
   }
   lines.push("");
@@ -289,15 +302,23 @@ function main(): void {
   const stats = computeStats(runs, windowMs, now);
 
   if (args.json) {
+    const journeysWithCommand = stats.map((s) => ({
+      ...s,
+      detailCommand: detailCommandFor(s.journey),
+    }));
     const readyToUnquarantine = stats
       .filter((s) => s.lastQuarantined && s.executed > 0 && s.failures === 0)
-      .map((s) => ({ journey: s.journey, file: s.file }));
+      .map((s) => ({
+        journey: s.journey,
+        file: s.file,
+        detailCommand: detailCommandFor(s.journey),
+      }));
     process.stdout.write(
       `${JSON.stringify(
         {
           windowDays: args.days,
           totalRuns,
-          journeys: stats,
+          journeys: journeysWithCommand,
           readyToUnquarantine,
         },
         null,

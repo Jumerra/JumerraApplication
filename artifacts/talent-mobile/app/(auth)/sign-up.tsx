@@ -129,8 +129,9 @@ export default function SignUpScreen() {
       <ScrollView
         contentContainerStyle={{
           flexGrow: 1,
-          paddingTop: insets.top + 48,
-          paddingBottom: insets.bottom + 32,
+          justifyContent: "center",
+          paddingTop: insets.top + 24,
+          paddingBottom: insets.bottom + 24,
           paddingHorizontal: 24,
           gap: 24,
         }}

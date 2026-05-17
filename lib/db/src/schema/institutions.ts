@@ -59,6 +59,8 @@ export const institutionsTable = pgTable(
       .defaultNow(),
     // Soft-delete marker. Null = active. See lib/soft-delete.ts.
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    // User id of the admin who soft-deleted this row (audit trail).
+    deletedBy: integer("deleted_by"),
   },
   (t) => ({
     institutionAccountManagerIdx: index(

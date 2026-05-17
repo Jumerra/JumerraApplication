@@ -22,6 +22,13 @@
       "when": 1778999249467,
       "tag": "0002_bent_secret_warriors",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1778999707075,
+      "tag": "0003_dapper_kingpin",
+      "breakpoints": true
     }
   ]
 }

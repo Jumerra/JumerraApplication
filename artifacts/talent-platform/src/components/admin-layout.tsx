@@ -37,6 +37,7 @@ import {
   Crown,
   Handshake,
   TrendingUp,
+  Trash2,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { SidebarLogoutButton } from "@/components/sidebar-logout";
@@ -124,6 +125,7 @@ const ADMIN_NAV: AdminNavGroup[] = [
       { href: "/dashboard/admin/job-tier-settings", label: "Job Tiers (Promote/Sponsor)", icon: Briefcase },
       { href: "/dashboard/admin/staff", label: "Admin team", icon: UsersRound, permission: "staff:view" },
       { href: "/dashboard/admin/roles", label: "Roles & permissions", icon: ShieldCheck, superAdminOnly: true },
+      { href: "/dashboard/admin/trash", label: "Trash", icon: Trash2, permission: "candidates:manage" },
     ],
   },
 ];

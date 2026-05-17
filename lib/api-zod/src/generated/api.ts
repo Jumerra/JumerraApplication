@@ -4321,6 +4321,213 @@ export const AdminListAccountManagersResponse = zod.object({
 });
 
 /**
+ * @summary List soft-deleted candidates available for restore (admin only)
+ */
+export const AdminListTrashCandidatesResponseItem = zod
+  .object({
+    id: zod.number(),
+    label: zod
+      .string()
+      .describe(
+        "Human-readable name (candidate fullName, employer\/institution name, job title).",
+      ),
+    secondary: zod
+      .string()
+      .nullish()
+      .describe(
+        "Optional secondary line (e.g. candidate email, employer industry, institution location, job's owning employer).",
+      ),
+    deletedAt: zod.coerce.date().describe("When the row was soft-deleted."),
+    deletedBy: zod
+      .number()
+      .nullish()
+      .describe(
+        "User id of the admin who performed the soft-delete. Null for rows deleted before audit logging was added, or via cascade where the actor is unknown.",
+      ),
+    deletedByName: zod
+      .string()
+      .nullish()
+      .describe(
+        "Full name of the soft-deleter, resolved from `users`. Null when `deletedBy` is null or the user record was hard-removed.",
+      ),
+  })
+  .describe(
+    "Minimal representation of a soft-deleted row shown in the admin\nTrash console. Returned by `\/admin\/trash\/{candidates|employers|institutions|jobs}`.\n",
+  );
+export const AdminListTrashCandidatesResponse = zod.array(
+  AdminListTrashCandidatesResponseItem,
+);
+
+/**
+ * @summary List soft-deleted employers available for restore (admin only)
+ */
+export const AdminListTrashEmployersResponseItem = zod
+  .object({
+    id: zod.number(),
+    label: zod
+      .string()
+      .describe(
+        "Human-readable name (candidate fullName, employer\/institution name, job title).",
+      ),
+    secondary: zod
+      .string()
+      .nullish()
+      .describe(
+        "Optional secondary line (e.g. candidate email, employer industry, institution location, job's owning employer).",
+      ),
+    deletedAt: zod.coerce.date().describe("When the row was soft-deleted."),
+    deletedBy: zod
+      .number()
+      .nullish()
+      .describe(
+        "User id of the admin who performed the soft-delete. Null for rows deleted before audit logging was added, or via cascade where the actor is unknown.",
+      ),
+    deletedByName: zod
+      .string()
+      .nullish()
+      .describe(
+        "Full name of the soft-deleter, resolved from `users`. Null when `deletedBy` is null or the user record was hard-removed.",
+      ),
+  })
+  .describe(
+    "Minimal representation of a soft-deleted row shown in the admin\nTrash console. Returned by `\/admin\/trash\/{candidates|employers|institutions|jobs}`.\n",
+  );
+export const AdminListTrashEmployersResponse = zod.array(
+  AdminListTrashEmployersResponseItem,
+);
+
+/**
+ * @summary List soft-deleted institutions available for restore (admin only)
+ */
+export const AdminListTrashInstitutionsResponseItem = zod
+  .object({
+    id: zod.number(),
+    label: zod
+      .string()
+      .describe(
+        "Human-readable name (candidate fullName, employer\/institution name, job title).",
+      ),
+    secondary: zod
+      .string()
+      .nullish()
+      .describe(
+        "Optional secondary line (e.g. candidate email, employer industry, institution location, job's owning employer).",
+      ),
+    deletedAt: zod.coerce.date().describe("When the row was soft-deleted."),
+    deletedBy: zod
+      .number()
+      .nullish()
+      .describe(
+        "User id of the admin who performed the soft-delete. Null for rows deleted before audit logging was added, or via cascade where the actor is unknown.",
+      ),
+    deletedByName: zod
+      .string()
+      .nullish()
+      .describe(
+        "Full name of the soft-deleter, resolved from `users`. Null when `deletedBy` is null or the user record was hard-removed.",
+      ),
+  })
+  .describe(
+    "Minimal representation of a soft-deleted row shown in the admin\nTrash console. Returned by `\/admin\/trash\/{candidates|employers|institutions|jobs}`.\n",
+  );
+export const AdminListTrashInstitutionsResponse = zod.array(
+  AdminListTrashInstitutionsResponseItem,
+);
+
+/**
+ * @summary List soft-deleted jobs available for restore (admin only)
+ */
+export const AdminListTrashJobsResponseItem = zod
+  .object({
+    id: zod.number(),
+    label: zod
+      .string()
+      .describe(
+        "Human-readable name (candidate fullName, employer\/institution name, job title).",
+      ),
+    secondary: zod
+      .string()
+      .nullish()
+      .describe(
+        "Optional secondary line (e.g. candidate email, employer industry, institution location, job's owning employer).",
+      ),
+    deletedAt: zod.coerce.date().describe("When the row was soft-deleted."),
+    deletedBy: zod
+      .number()
+      .nullish()
+      .describe(
+        "User id of the admin who performed the soft-delete. Null for rows deleted before audit logging was added, or via cascade where the actor is unknown.",
+      ),
+    deletedByName: zod
+      .string()
+      .nullish()
+      .describe(
+        "Full name of the soft-deleter, resolved from `users`. Null when `deletedBy` is null or the user record was hard-removed.",
+      ),
+  })
+  .describe(
+    "Minimal representation of a soft-deleted row shown in the admin\nTrash console. Returned by `\/admin\/trash\/{candidates|employers|institutions|jobs}`.\n",
+  );
+export const AdminListTrashJobsResponse = zod.array(
+  AdminListTrashJobsResponseItem,
+);
+
+/**
+ * @summary Soft-delete a single job (admin only)
+ */
+export const AdminDeleteJobParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AdminDeleteJobResponse = zod.object({
+  ok: zod.boolean(),
+});
+
+/**
+ * @summary Clear deleted_at on a soft-deleted job (admin only)
+ */
+export const AdminRestoreJobParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AdminRestoreJobResponse = zod.object({
+  ok: zod.boolean(),
+});
+
+/**
+ * @summary Clear deleted_at on a soft-deleted candidate (admin only)
+ */
+export const AdminRestoreCandidateParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AdminRestoreCandidateResponse = zod.object({
+  ok: zod.boolean(),
+});
+
+/**
+ * @summary Clear deleted_at on a soft-deleted employer and its cascade-deleted jobs (admin only)
+ */
+export const AdminRestoreEmployerParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AdminRestoreEmployerResponse = zod.object({
+  ok: zod.boolean(),
+});
+
+/**
+ * @summary Clear deleted_at on a soft-deleted institution (admin only)
+ */
+export const AdminRestoreInstitutionParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AdminRestoreInstitutionResponse = zod.object({
+  ok: zod.boolean(),
+});
+
+/**
  * @summary List recent WhatsApp delivery attempts (admin only, requires staff:view)
  */
 export const adminListWhatsappLogsQueryLimitMax = 200;

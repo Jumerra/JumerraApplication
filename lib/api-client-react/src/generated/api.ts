@@ -209,6 +209,7 @@ import type {
   SubmitReferenceRequest,
   TalentPool,
   TalentPoolDetail,
+  TrashItem,
   UpdateApplication,
   UpdateBoostSettingsRequest,
   UpdateCandidate,
@@ -9026,6 +9027,729 @@ export function useAdminListAccountManagers<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary List soft-deleted candidates available for restore (admin only)
+ */
+export const getAdminListTrashCandidatesUrl = () => {
+  return `/api/admin/trash/candidates`;
+};
+
+export const adminListTrashCandidates = async (
+  options?: RequestInit,
+): Promise<TrashItem[]> => {
+  return customFetch<TrashItem[]>(getAdminListTrashCandidatesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getAdminListTrashCandidatesQueryKey = () => {
+  return [`/api/admin/trash/candidates`] as const;
+};
+
+export const getAdminListTrashCandidatesQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminListTrashCandidates>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof adminListTrashCandidates>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getAdminListTrashCandidatesQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof adminListTrashCandidates>>
+  > = ({ signal }) => adminListTrashCandidates({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminListTrashCandidates>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type AdminListTrashCandidatesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminListTrashCandidates>>
+>;
+export type AdminListTrashCandidatesQueryError = ErrorType<void>;
+
+/**
+ * @summary List soft-deleted candidates available for restore (admin only)
+ */
+
+export function useAdminListTrashCandidates<
+  TData = Awaited<ReturnType<typeof adminListTrashCandidates>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof adminListTrashCandidates>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getAdminListTrashCandidatesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List soft-deleted employers available for restore (admin only)
+ */
+export const getAdminListTrashEmployersUrl = () => {
+  return `/api/admin/trash/employers`;
+};
+
+export const adminListTrashEmployers = async (
+  options?: RequestInit,
+): Promise<TrashItem[]> => {
+  return customFetch<TrashItem[]>(getAdminListTrashEmployersUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getAdminListTrashEmployersQueryKey = () => {
+  return [`/api/admin/trash/employers`] as const;
+};
+
+export const getAdminListTrashEmployersQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminListTrashEmployers>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof adminListTrashEmployers>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getAdminListTrashEmployersQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof adminListTrashEmployers>>
+  > = ({ signal }) => adminListTrashEmployers({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminListTrashEmployers>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type AdminListTrashEmployersQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminListTrashEmployers>>
+>;
+export type AdminListTrashEmployersQueryError = ErrorType<void>;
+
+/**
+ * @summary List soft-deleted employers available for restore (admin only)
+ */
+
+export function useAdminListTrashEmployers<
+  TData = Awaited<ReturnType<typeof adminListTrashEmployers>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof adminListTrashEmployers>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getAdminListTrashEmployersQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List soft-deleted institutions available for restore (admin only)
+ */
+export const getAdminListTrashInstitutionsUrl = () => {
+  return `/api/admin/trash/institutions`;
+};
+
+export const adminListTrashInstitutions = async (
+  options?: RequestInit,
+): Promise<TrashItem[]> => {
+  return customFetch<TrashItem[]>(getAdminListTrashInstitutionsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getAdminListTrashInstitutionsQueryKey = () => {
+  return [`/api/admin/trash/institutions`] as const;
+};
+
+export const getAdminListTrashInstitutionsQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminListTrashInstitutions>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof adminListTrashInstitutions>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getAdminListTrashInstitutionsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof adminListTrashInstitutions>>
+  > = ({ signal }) => adminListTrashInstitutions({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminListTrashInstitutions>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type AdminListTrashInstitutionsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminListTrashInstitutions>>
+>;
+export type AdminListTrashInstitutionsQueryError = ErrorType<void>;
+
+/**
+ * @summary List soft-deleted institutions available for restore (admin only)
+ */
+
+export function useAdminListTrashInstitutions<
+  TData = Awaited<ReturnType<typeof adminListTrashInstitutions>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof adminListTrashInstitutions>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getAdminListTrashInstitutionsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List soft-deleted jobs available for restore (admin only)
+ */
+export const getAdminListTrashJobsUrl = () => {
+  return `/api/admin/trash/jobs`;
+};
+
+export const adminListTrashJobs = async (
+  options?: RequestInit,
+): Promise<TrashItem[]> => {
+  return customFetch<TrashItem[]>(getAdminListTrashJobsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getAdminListTrashJobsQueryKey = () => {
+  return [`/api/admin/trash/jobs`] as const;
+};
+
+export const getAdminListTrashJobsQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminListTrashJobs>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof adminListTrashJobs>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getAdminListTrashJobsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof adminListTrashJobs>>
+  > = ({ signal }) => adminListTrashJobs({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminListTrashJobs>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type AdminListTrashJobsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminListTrashJobs>>
+>;
+export type AdminListTrashJobsQueryError = ErrorType<void>;
+
+/**
+ * @summary List soft-deleted jobs available for restore (admin only)
+ */
+
+export function useAdminListTrashJobs<
+  TData = Awaited<ReturnType<typeof adminListTrashJobs>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof adminListTrashJobs>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getAdminListTrashJobsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Soft-delete a single job (admin only)
+ */
+export const getAdminDeleteJobUrl = (id: number) => {
+  return `/api/admin/jobs/${id}`;
+};
+
+export const adminDeleteJob = async (
+  id: number,
+  options?: RequestInit,
+): Promise<OkResponse> => {
+  return customFetch<OkResponse>(getAdminDeleteJobUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getAdminDeleteJobMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminDeleteJob>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminDeleteJob>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["adminDeleteJob"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminDeleteJob>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return adminDeleteJob(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminDeleteJobMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminDeleteJob>>
+>;
+
+export type AdminDeleteJobMutationError = ErrorType<void>;
+
+/**
+ * @summary Soft-delete a single job (admin only)
+ */
+export const useAdminDeleteJob = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminDeleteJob>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof adminDeleteJob>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getAdminDeleteJobMutationOptions(options));
+};
+
+/**
+ * @summary Clear deleted_at on a soft-deleted job (admin only)
+ */
+export const getAdminRestoreJobUrl = (id: number) => {
+  return `/api/admin/trash/jobs/${id}/restore`;
+};
+
+export const adminRestoreJob = async (
+  id: number,
+  options?: RequestInit,
+): Promise<OkResponse> => {
+  return customFetch<OkResponse>(getAdminRestoreJobUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getAdminRestoreJobMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminRestoreJob>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminRestoreJob>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["adminRestoreJob"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminRestoreJob>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return adminRestoreJob(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminRestoreJobMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminRestoreJob>>
+>;
+
+export type AdminRestoreJobMutationError = ErrorType<void>;
+
+/**
+ * @summary Clear deleted_at on a soft-deleted job (admin only)
+ */
+export const useAdminRestoreJob = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminRestoreJob>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof adminRestoreJob>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getAdminRestoreJobMutationOptions(options));
+};
+
+/**
+ * @summary Clear deleted_at on a soft-deleted candidate (admin only)
+ */
+export const getAdminRestoreCandidateUrl = (id: number) => {
+  return `/api/admin/trash/candidates/${id}/restore`;
+};
+
+export const adminRestoreCandidate = async (
+  id: number,
+  options?: RequestInit,
+): Promise<OkResponse> => {
+  return customFetch<OkResponse>(getAdminRestoreCandidateUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getAdminRestoreCandidateMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminRestoreCandidate>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminRestoreCandidate>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["adminRestoreCandidate"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminRestoreCandidate>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return adminRestoreCandidate(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminRestoreCandidateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminRestoreCandidate>>
+>;
+
+export type AdminRestoreCandidateMutationError = ErrorType<void>;
+
+/**
+ * @summary Clear deleted_at on a soft-deleted candidate (admin only)
+ */
+export const useAdminRestoreCandidate = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminRestoreCandidate>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof adminRestoreCandidate>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getAdminRestoreCandidateMutationOptions(options));
+};
+
+/**
+ * @summary Clear deleted_at on a soft-deleted employer and its cascade-deleted jobs (admin only)
+ */
+export const getAdminRestoreEmployerUrl = (id: number) => {
+  return `/api/admin/trash/employers/${id}/restore`;
+};
+
+export const adminRestoreEmployer = async (
+  id: number,
+  options?: RequestInit,
+): Promise<OkResponse> => {
+  return customFetch<OkResponse>(getAdminRestoreEmployerUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getAdminRestoreEmployerMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminRestoreEmployer>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminRestoreEmployer>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["adminRestoreEmployer"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminRestoreEmployer>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return adminRestoreEmployer(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminRestoreEmployerMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminRestoreEmployer>>
+>;
+
+export type AdminRestoreEmployerMutationError = ErrorType<void>;
+
+/**
+ * @summary Clear deleted_at on a soft-deleted employer and its cascade-deleted jobs (admin only)
+ */
+export const useAdminRestoreEmployer = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminRestoreEmployer>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof adminRestoreEmployer>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getAdminRestoreEmployerMutationOptions(options));
+};
+
+/**
+ * @summary Clear deleted_at on a soft-deleted institution (admin only)
+ */
+export const getAdminRestoreInstitutionUrl = (id: number) => {
+  return `/api/admin/trash/institutions/${id}/restore`;
+};
+
+export const adminRestoreInstitution = async (
+  id: number,
+  options?: RequestInit,
+): Promise<OkResponse> => {
+  return customFetch<OkResponse>(getAdminRestoreInstitutionUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getAdminRestoreInstitutionMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminRestoreInstitution>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminRestoreInstitution>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["adminRestoreInstitution"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminRestoreInstitution>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return adminRestoreInstitution(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminRestoreInstitutionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminRestoreInstitution>>
+>;
+
+export type AdminRestoreInstitutionMutationError = ErrorType<void>;
+
+/**
+ * @summary Clear deleted_at on a soft-deleted institution (admin only)
+ */
+export const useAdminRestoreInstitution = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminRestoreInstitution>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof adminRestoreInstitution>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getAdminRestoreInstitutionMutationOptions(options));
+};
 
 /**
  * @summary List recent WhatsApp delivery attempts (admin only, requires staff:view)

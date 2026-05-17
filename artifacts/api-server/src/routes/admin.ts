@@ -489,7 +489,7 @@ router.delete("/admin/candidates/:id", requirePermission("candidates:manage"), a
     }
     await db
       .update(candidatesTable)
-      .set({ deletedAt: new Date() })
+      .set({ deletedAt: new Date(), deletedBy: req.currentUser?.id ?? null })
       .where(eq(candidatesTable.id, id));
     res.json({ ok: true });
   } catch (err) {
@@ -522,13 +522,14 @@ router.delete("/admin/employers/:id", requirePermission("employers:manage"), asy
       if (!existing) return false;
       if (existing.deletedAt) return "already";
       const now = new Date();
+      const actor = req.currentUser?.id ?? null;
       await tx
         .update(jobsTable)
-        .set({ deletedAt: now })
+        .set({ deletedAt: now, deletedBy: actor })
         .where(and(eq(jobsTable.employerId, id), isNull(jobsTable.deletedAt)));
       await tx
         .update(employersTable)
-        .set({ deletedAt: now })
+        .set({ deletedAt: now, deletedBy: actor })
         .where(eq(employersTable.id, id));
       return true;
     });
@@ -791,7 +792,7 @@ router.delete("/admin/institutions/:id", requirePermission("institutions:manage"
     }
     await db
       .update(institutionsTable)
-      .set({ deletedAt: new Date() })
+      .set({ deletedAt: new Date(), deletedBy: req.currentUser?.id ?? null })
       .where(eq(institutionsTable.id, id));
     res.json({ ok: true });
   } catch (err) {
@@ -1818,31 +1819,101 @@ function maskName(n: string | null): string | null {
  * be small (manual admin actions only). If that ever stops being
  * true, cursor-paginate using the existing `lib/pagination` helpers.
  */
+type TrashRow = {
+  id: number;
+  label: string;
+  secondary: string | null;
+  deletedAt: Date | null;
+  deletedBy: number | null;
+  deletedByName: string | null;
+};
+
+function shapeTrash(rows: TrashRow[]) {
+  return rows.map((r) => ({
+    id: r.id,
+    label: r.label,
+    secondary: r.secondary,
+    deletedAt: r.deletedAt!.toISOString(),
+    deletedBy: r.deletedBy,
+    deletedByName: r.deletedByName,
+  }));
+}
+
 router.get("/admin/trash/candidates", requirePermission("candidates:manage"), async (_req, res) => {
   const rows = await db
-    .select()
+    .select({
+      id: candidatesTable.id,
+      label: candidatesTable.fullName,
+      secondary: candidatesTable.email,
+      deletedAt: candidatesTable.deletedAt,
+      deletedBy: candidatesTable.deletedBy,
+      deletedByName: usersTable.fullName,
+    })
     .from(candidatesTable)
+    .leftJoin(usersTable, eq(usersTable.id, candidatesTable.deletedBy))
     .where(isNotNull(candidatesTable.deletedAt))
     .orderBy(desc(candidatesTable.deletedAt));
-  res.json(rows);
+  res.json(shapeTrash(rows));
 });
 
 router.get("/admin/trash/employers", requirePermission("employers:manage"), async (_req, res) => {
   const rows = await db
-    .select()
+    .select({
+      id: employersTable.id,
+      label: employersTable.name,
+      secondary: employersTable.industry,
+      deletedAt: employersTable.deletedAt,
+      deletedBy: employersTable.deletedBy,
+      deletedByName: usersTable.fullName,
+    })
     .from(employersTable)
+    .leftJoin(usersTable, eq(usersTable.id, employersTable.deletedBy))
     .where(isNotNull(employersTable.deletedAt))
     .orderBy(desc(employersTable.deletedAt));
-  res.json(rows);
+  res.json(shapeTrash(rows));
 });
 
 router.get("/admin/trash/institutions", requirePermission("institutions:manage"), async (_req, res) => {
   const rows = await db
-    .select()
+    .select({
+      id: institutionsTable.id,
+      label: institutionsTable.name,
+      secondary: institutionsTable.location,
+      deletedAt: institutionsTable.deletedAt,
+      deletedBy: institutionsTable.deletedBy,
+      deletedByName: usersTable.fullName,
+    })
     .from(institutionsTable)
+    .leftJoin(usersTable, eq(usersTable.id, institutionsTable.deletedBy))
     .where(isNotNull(institutionsTable.deletedAt))
     .orderBy(desc(institutionsTable.deletedAt));
-  res.json(rows);
+  res.json(shapeTrash(rows));
+});
+
+/**
+ * Jobs trash. Jobs land here either via direct admin soft-delete
+ * (DELETE /admin/jobs/:id) or via the employer cascade soft-delete
+ * (see DELETE /admin/employers/:id). The `secondary` field shows the
+ * owning employer's name (or "(employer deleted)" when the employer
+ * is also soft-deleted) so admins can disambiguate identically-titled
+ * roles across companies.
+ */
+router.get("/admin/trash/jobs", requirePermission("employers:manage"), async (_req, res) => {
+  const rows = await db
+    .select({
+      id: jobsTable.id,
+      label: jobsTable.title,
+      secondary: employersTable.name,
+      deletedAt: jobsTable.deletedAt,
+      deletedBy: jobsTable.deletedBy,
+      deletedByName: usersTable.fullName,
+    })
+    .from(jobsTable)
+    .leftJoin(employersTable, eq(employersTable.id, jobsTable.employerId))
+    .leftJoin(usersTable, eq(usersTable.id, jobsTable.deletedBy))
+    .where(isNotNull(jobsTable.deletedAt))
+    .orderBy(desc(jobsTable.deletedAt));
+  res.json(shapeTrash(rows));
 });
 
 router.post(
@@ -1933,6 +2004,65 @@ router.post(
       .returning({ id: institutionsTable.id });
     if (!row) {
       res.status(404).json({ error: "Institution not found" });
+      return;
+    }
+    res.json({ ok: true });
+  },
+);
+
+/**
+ * DELETE /api/admin/jobs/:id
+ *
+ * Soft-delete a single job. Idempotent. Distinct from the employer
+ * cascade soft-delete: this only touches one row and leaves the
+ * employer alone. Restoring is via POST /admin/trash/jobs/:id/restore.
+ */
+router.delete("/admin/jobs/:id", requirePermission("employers:manage"), async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  try {
+    const [existing] = await db
+      .select({ id: jobsTable.id, deletedAt: jobsTable.deletedAt })
+      .from(jobsTable)
+      .where(eq(jobsTable.id, id));
+    if (!existing) {
+      res.status(404).json({ error: "Job not found" });
+      return;
+    }
+    if (existing.deletedAt) {
+      res.json({ ok: true, alreadyDeleted: true });
+      return;
+    }
+    await db
+      .update(jobsTable)
+      .set({ deletedAt: new Date(), deletedBy: req.currentUser?.id ?? null })
+      .where(eq(jobsTable.id, id));
+    res.json({ ok: true });
+  } catch (err) {
+    req.log.error({ err, id }, "soft-delete job failed");
+    res.status(500).json({ error: "Delete failed" });
+  }
+});
+
+router.post(
+  "/admin/trash/jobs/:id/restore",
+  requirePermission("employers:manage"),
+  async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    const [row] = await db
+      .update(jobsTable)
+      .set({ deletedAt: null })
+      .where(eq(jobsTable.id, id))
+      .returning({ id: jobsTable.id });
+    if (!row) {
+      res.status(404).json({ error: "Job not found" });
       return;
     }
     res.json({ ok: true });

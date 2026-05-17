@@ -63,6 +63,10 @@ export const jobsTable = pgTable(
       .defaultNow(),
     // Soft-delete marker. Null = active. See lib/soft-delete.ts.
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    // User id of the admin who soft-deleted this row (audit trail).
+    // For cascade-deletes from an employer soft-delete, this is the
+    // admin who deleted the parent employer.
+    deletedBy: integer("deleted_by"),
   },
   (t) => ({
     jobsTierIdx: index("jobs_tier_idx").on(t.tier, t.tierExpiresAt),

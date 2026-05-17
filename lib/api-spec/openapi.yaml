@@ -2113,6 +2113,166 @@ paths:
               schema: { $ref: "#/components/schemas/AdminAccountManagersResponse" }
         "403": { description: Admin only }
 
+  /admin/trash/candidates:
+    get:
+      operationId: adminListTrashCandidates
+      tags: [admin]
+      summary: List soft-deleted candidates available for restore (admin only)
+      responses:
+        "200":
+          description: Trashed candidates, most recently deleted first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/TrashItem" }
+        "403": { description: Admin only }
+
+  /admin/trash/employers:
+    get:
+      operationId: adminListTrashEmployers
+      tags: [admin]
+      summary: List soft-deleted employers available for restore (admin only)
+      responses:
+        "200":
+          description: Trashed employers, most recently deleted first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/TrashItem" }
+        "403": { description: Admin only }
+
+  /admin/trash/institutions:
+    get:
+      operationId: adminListTrashInstitutions
+      tags: [admin]
+      summary: List soft-deleted institutions available for restore (admin only)
+      responses:
+        "200":
+          description: Trashed institutions, most recently deleted first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/TrashItem" }
+        "403": { description: Admin only }
+
+  /admin/trash/jobs:
+    get:
+      operationId: adminListTrashJobs
+      tags: [admin]
+      summary: List soft-deleted jobs available for restore (admin only)
+      responses:
+        "200":
+          description: Trashed jobs, most recently deleted first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/TrashItem" }
+        "403": { description: Admin only }
+
+  /admin/jobs/{id}:
+    delete:
+      operationId: adminDeleteJob
+      tags: [admin]
+      summary: Soft-delete a single job (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Deleted (or already deleted)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
+        "400": { description: Invalid id }
+        "403": { description: Admin only }
+        "404": { description: Job not found }
+
+  /admin/trash/jobs/{id}/restore:
+    post:
+      operationId: adminRestoreJob
+      tags: [admin]
+      summary: Clear deleted_at on a soft-deleted job (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Restored
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
+        "400": { description: Invalid id }
+        "403": { description: Admin only }
+        "404": { description: Job not found }
+
+  /admin/trash/candidates/{id}/restore:
+    post:
+      operationId: adminRestoreCandidate
+      tags: [admin]
+      summary: Clear deleted_at on a soft-deleted candidate (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Restored
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
+        "400": { description: Invalid id }
+        "403": { description: Admin only }
+        "404": { description: Candidate not found }
+
+  /admin/trash/employers/{id}/restore:
+    post:
+      operationId: adminRestoreEmployer
+      tags: [admin]
+      summary: Clear deleted_at on a soft-deleted employer and its cascade-deleted jobs (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Restored
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
+        "400": { description: Invalid id }
+        "403": { description: Admin only }
+        "404": { description: Employer not found }
+
+  /admin/trash/institutions/{id}/restore:
+    post:
+      operationId: adminRestoreInstitution
+      tags: [admin]
+      summary: Clear deleted_at on a soft-deleted institution (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Restored
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
+        "400": { description: Invalid id }
+        "403": { description: Admin only }
+        "404": { description: Institution not found }
+
   /admin/whatsapp-logs:
     get:
       operationId: adminListWhatsappLogs
@@ -4841,6 +5001,34 @@ components:
       properties:
         ok: { type: boolean }
       required: [ok]
+
+    TrashItem:
+      type: object
+      description: |
+        Minimal representation of a soft-deleted row shown in the admin
+        Trash console. Returned by `/admin/trash/{candidates|employers|institutions|jobs}`.
+      properties:
+        id: { type: integer }
+        label:
+          type: string
+          description: Human-readable name (candidate fullName, employer/institution name, job title).
+        secondary:
+          type: string
+          nullable: true
+          description: Optional secondary line (e.g. candidate email, employer industry, institution location, job's owning employer).
+        deletedAt:
+          type: string
+          format: date-time
+          description: When the row was soft-deleted.
+        deletedBy:
+          type: integer
+          nullable: true
+          description: User id of the admin who performed the soft-delete. Null for rows deleted before audit logging was added, or via cascade where the actor is unknown.
+        deletedByName:
+          type: string
+          nullable: true
+          description: Full name of the soft-deleter, resolved from `users`. Null when `deletedBy` is null or the user record was hard-removed.
+      required: [id, label, deletedAt]
 
     SetEmployerVerifiedRequest:
       type: object

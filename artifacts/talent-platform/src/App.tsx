@@ -87,6 +87,7 @@ import CandidateMentorsPage from "@/pages/dashboard/candidate-mentors";
 import CandidateMentorRequestsPage from "@/pages/dashboard/candidate-mentor-requests";
 import CandidateIntroRequestsPage from "@/pages/dashboard/candidate-intro-requests";
 import AdminNetworkPage from "@/pages/dashboard/admin/network";
+import AdminTrashPage from "@/pages/dashboard/admin/trash";
 
 const queryClient = new QueryClient();
 
@@ -193,6 +194,9 @@ function Router() {
         </Route>
         <Route path="/dashboard/admin/network">
           <AdminLayout><AdminNetworkPage /></AdminLayout>
+        </Route>
+        <Route path="/dashboard/admin/trash">
+          <AdminLayout><AdminTrashPage /></AdminLayout>
         </Route>
         <Route path="/dashboard/admin/partners">
           <AdminLayout><AdminPartnersPage /></AdminLayout>

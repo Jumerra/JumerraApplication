@@ -85,6 +85,9 @@ export const candidatesTable = pgTable("candidates", {
   // the historical workflow data stays intact. Restoring is a matter
   // of clearing the column — see lib/soft-delete.ts on the server.
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  // User id of the admin who soft-deleted this row (audit trail).
+  // Nullable: rows deleted before this column existed, or active rows.
+  deletedBy: integer("deleted_by"),
 });
 
 export type Candidate = typeof candidatesTable.$inferSelect;

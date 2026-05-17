@@ -425,6 +425,25 @@ export interface OkResponse {
   ok: boolean;
 }
 
+/**
+ * Minimal representation of a soft-deleted row shown in the admin
+Trash console. Returned by `/admin/trash/{candidates|employers|institutions|jobs}`.
+
+ */
+export interface TrashItem {
+  id: number;
+  /** Human-readable name (candidate fullName, employer/institution name, job title). */
+  label: string;
+  /** Optional secondary line (e.g. candidate email, employer industry, institution location, job's owning employer). */
+  secondary?: string | null;
+  /** When the row was soft-deleted. */
+  deletedAt: string;
+  /** User id of the admin who performed the soft-delete. Null for rows deleted before audit logging was added, or via cascade where the actor is unknown. */
+  deletedBy?: number | null;
+  /** Full name of the soft-deleter, resolved from `users`. Null when `deletedBy` is null or the user record was hard-removed. */
+  deletedByName?: string | null;
+}
+
 export interface SetEmployerVerifiedRequest {
   verified: boolean;
 }

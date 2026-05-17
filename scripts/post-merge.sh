@@ -15,13 +15,30 @@ pnpm --filter @workspace/db migrate
 # per-run RUN_TAG (see e2e/helpers/env.ts) that globalTeardown
 # LIKE-deletes — so wall-clock stays close to max(unit, e2e) instead
 # of unit + e2e.
-LOG_DIR=".local/post-merge-logs"
+LOG_ROOT=".local/post-merge-logs"
+mkdir -p "$LOG_ROOT"
+
+# Each run writes into its own timestamped subfolder so a brand-new
+# merge can't wipe the previous failure summary before the user has
+# had a chance to read it. The `latest` symlink always points at the
+# most recent run; older runs beyond MAX_RUNS are pruned at the end.
+RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)-$$"
+LOG_DIR="$LOG_ROOT/$RUN_ID"
 mkdir -p "$LOG_DIR"
+MAX_RUNS=5
+
+# Re-point `latest` atomically. `ln -snf` replaces an existing symlink
+# in one syscall; the fallback writes a plain pointer file for systems
+# where symlink creation isn't permitted (unlikely on Replit but cheap
+# to handle).
+if ! ln -snf "$RUN_ID" "$LOG_ROOT/latest" 2>/dev/null; then
+  printf '%s\n' "$RUN_ID" >"$LOG_ROOT/latest.txt"
+fi
+
 UNIT_LOG="$LOG_DIR/unit-tests.log"
 E2E_LOG="$LOG_DIR/e2e.log"
 E2E_FAILURES="$LOG_DIR/e2e-failures.txt"
 E2E_QUARANTINED="$LOG_DIR/e2e-quarantined.txt"
-rm -f "$UNIT_LOG" "$E2E_LOG" "$E2E_FAILURES" "$E2E_QUARANTINED"
 
 if [ -z "$DATABASE_URL" ]; then
   echo "✗ DATABASE_URL is required for post-merge automation (e2e suite needs a scratch Postgres)."
@@ -59,6 +76,7 @@ if [ "$E2E_DB_ALLOWED" != "1" ]; then
 fi
 
 echo "→ Running api-server unit tests and Playwright e2e suite in parallel"
+echo "  run id  : $RUN_ID"
 echo "  unit log: $UNIT_LOG"
 echo "  e2e  log: $E2E_LOG"
 
@@ -115,6 +133,20 @@ if [ -s "$LOG_DIR/e2e-history.jsonl" ]; then
     || echo "  (flaky-report failed to render — non-fatal)"
 fi
 
+# Prune old runs, keeping only the most recent MAX_RUNS subfolders.
+# Run subfolders are named with a sortable ISO-8601 UTC prefix, so a
+# reverse-sorted listing puts the newest first. Anything past the
+# first MAX_RUNS entries is removed. Non-directory entries in
+# LOG_ROOT (e.g. the `latest` symlink, `latest.txt`) are skipped.
+if [ -d "$LOG_ROOT" ]; then
+  find "$LOG_ROOT" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null \
+    | sort -r \
+    | awk -v keep="$MAX_RUNS" 'NR>keep' \
+    | while IFS= read -r old; do
+        rm -rf "$LOG_ROOT/$old"
+      done
+fi
+
 if [ "$UNIT_STATUS" -ne 0 ] || [ "$E2E_HARD_FAIL" -ne 0 ]; then
   # Emit a compact, structured summary at the VERY END of stdout so it
   # lands in the agent's tail-into-context window (only the last ~10
@@ -127,7 +159,7 @@ if [ "$UNIT_STATUS" -ne 0 ] || [ "$E2E_HARD_FAIL" -ne 0 ]; then
   # disk) and NOT the suite-status + log-path lines, which the user
   # needs to know where to look.
   echo ""
-  echo "POST-MERGE FAILED — summary:"
+  echo "POST-MERGE FAILED — summary (run $RUN_ID):"
   if [ "$E2E_HARD_FAIL" -ne 0 ] && [ -s "$E2E_FAILURES" ]; then
     TOTAL_FAILS=$(wc -l <"$E2E_FAILURES" | tr -d ' ')
     echo "Top failing journeys (of $TOTAL_FAILS, with request-id where surfaced):"
@@ -149,4 +181,4 @@ if [ "$UNIT_STATUS" -ne 0 ] || [ "$E2E_HARD_FAIL" -ne 0 ]; then
   exit 1
 fi
 
-echo "✓ Post-merge checks passed"
+echo "✓ Post-merge checks passed (run $RUN_ID)"

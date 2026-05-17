@@ -537,6 +537,51 @@ ${groupsHtml}`,
   });
 }
 
+// ---------- Operational alerts (admin) ----------
+
+export interface SendTrashPurgeFailureEmailArgs {
+  to: string;
+  errorMessage: string;
+  errorStack: string | null;
+  occurredAt: string;
+  logger: Logger;
+}
+
+export async function sendTrashPurgeFailureEmail(
+  args: SendTrashPurgeFailureEmailArgs,
+): Promise<SendResult> {
+  args.logger.info(
+    { kind: "trash_purge_failure", occurredAt: args.occurredAt },
+    "trash purge failure alert dispatch",
+  );
+  const subject = `[Jumerra] Trash purge sweep failed`;
+  const stackBlock = args.errorStack
+    ? `<pre style="background:#0f172a;color:#f1f5f9;padding:12px 16px;border-radius:8px;overflow:auto;font-size:12px;">${escapeHtml(
+        args.errorStack,
+      )}</pre>`
+    : "";
+  const html = renderEmailHtml({
+    heading: "Trash purge sweep failed",
+    body: `<p>The nightly trash purge worker threw an exception at <strong>${escapeHtml(
+      args.occurredAt,
+    )}</strong>.</p>
+<p>Soft-deleted candidates, employers, and institutions will continue to accumulate until the next successful sweep. Investigate the API server logs for the request id; a repeat failure within 24 hours will not re-alert.</p>
+<p><strong>Error:</strong> ${escapeHtml(args.errorMessage)}</p>${stackBlock}`,
+    footer: `You're receiving this because your address is configured as TRASH_PURGE_ALERT_EMAIL.`,
+  });
+  const text = `Trash purge sweep failed at ${args.occurredAt}.\n\nError: ${args.errorMessage}\n${
+    args.errorStack ? `\n${args.errorStack}\n` : ""
+  }`;
+  return dispatch({
+    to: args.to,
+    subject,
+    html,
+    text,
+    tags: [{ name: "category", value: "ops.trash-purge-failure" }],
+    logger: args.logger,
+  });
+}
+
 // ---------- Helpers ----------
 
 /** Convenience helper to derive an absolute origin from an Express request. */

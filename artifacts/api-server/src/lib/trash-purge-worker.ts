@@ -36,6 +36,7 @@ import {
 import { logger } from "./logger";
 import {
   sendTrashPurgeWarningEmail,
+  sendTrashPurgeFailureEmail,
   originForBackground,
   type TrashPurgeWarningGroup,
 } from "./email";
@@ -381,6 +382,66 @@ export async function runTrashPurgeWarningsSweep(): Promise<WarningSweepResult> 
 const ONE_DAY = ONE_DAY_MS;
 let started = false;
 
+// Module-scoped rate-limit timestamp for failure alerts. Resend's free
+// tier and humans alike will quickly stop reading a flood of identical
+// "purge failed" emails if the underlying error is persistent (e.g. a
+// migration mismatch). We cap to one alert per 24h so a wedged worker
+// can't generate dozens of duplicate emails per day; once a human
+// resolves the underlying issue, a process restart resets the clock
+// (the in-memory timestamp is intentionally not persisted — alerts
+// after a restart are a useful "still broken" signal).
+let lastFailureAlertAt = 0;
+const FAILURE_ALERT_COOLDOWN_MS = ONE_DAY_MS;
+
+/** Exposed for tests so they can reset the cooldown between cases. */
+export function _resetTrashPurgeFailureAlertState(): void {
+  lastFailureAlertAt = 0;
+}
+
+/**
+ * Send an admin alert when the purge sweep throws. No-op when:
+ *  - `TRASH_PURGE_ALERT_EMAIL` is unset (no recipient configured), or
+ *  - we already sent an alert within the cooldown window, or
+ *  - `RESEND_API_KEY` is unset (the dispatcher itself short-circuits
+ *    in that case — see `lib/email.ts`).
+ *
+ * Returns `true` if a dispatch was attempted (rate-limit accounting
+ * happens whenever a dispatch is attempted, even if the dispatcher
+ * itself short-circuits, so a missing API key doesn't burn the slot).
+ */
+export async function notifyTrashPurgeFailure(err: unknown): Promise<boolean> {
+  const to = process.env["TRASH_PURGE_ALERT_EMAIL"]?.trim();
+  if (!to) return false;
+  const now = Date.now();
+  if (now - lastFailureAlertAt < FAILURE_ALERT_COOLDOWN_MS) {
+    logger.debug(
+      { sinceLastAlertMs: now - lastFailureAlertAt },
+      "trash-purge: failure alert suppressed by 24h cooldown",
+    );
+    return false;
+  }
+  lastFailureAlertAt = now;
+  const errorMessage =
+    err instanceof Error ? err.message : String(err ?? "unknown error");
+  const errorStack = err instanceof Error ? err.stack ?? null : null;
+  try {
+    await sendTrashPurgeFailureEmail({
+      to,
+      errorMessage,
+      errorStack,
+      occurredAt: new Date(now).toISOString(),
+      logger,
+    });
+  } catch (sendErr) {
+    // Never let the alerter itself crash the scheduler tick.
+    logger.warn(
+      { err: sendErr },
+      "trash-purge: failed to send failure alert email",
+    );
+  }
+  return true;
+}
+
 export function startTrashPurgeScheduler(): void {
   if (started) return;
   started = true;
@@ -399,6 +460,7 @@ export function startTrashPurgeScheduler(): void {
       await runTrashPurgeSweep();
     } catch (err) {
       logger.error({ err }, "Trash purge sweep crashed");
+      await notifyTrashPurgeFailure(err);
     }
   };
 

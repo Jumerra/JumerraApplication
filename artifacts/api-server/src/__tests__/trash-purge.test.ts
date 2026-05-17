@@ -104,8 +104,14 @@ vi.mock("../lib/logger", () => ({
 
 // Keep the warnings sweep from doing any real work — the email + permission
 // helpers are exercised in their own suites.
+const sendTrashPurgeFailureEmailMock = vi.fn(async () => ({
+  sent: true as const,
+  provider: "resend",
+  id: "fake-id",
+}));
 vi.mock("../lib/email", () => ({
   sendTrashPurgeWarningEmail: vi.fn(async () => ({ sent: false, reason: "stub" })),
+  sendTrashPurgeFailureEmail: sendTrashPurgeFailureEmailMock,
   originForBackground: () => "https://example.test",
 }));
 
@@ -118,11 +124,14 @@ const {
   getTrashRetentionDays,
   getTrashPurgeWarningLeadDays,
   runTrashPurgeSweep,
+  notifyTrashPurgeFailure,
+  _resetTrashPurgeFailureAlertState,
 } = await import("../lib/trash-purge-worker");
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const originalRetention = process.env.TRASH_RETENTION_DAYS;
 const originalLead = process.env.TRASH_PURGE_WARNING_LEAD_DAYS;
+const originalAlertEmail = process.env.TRASH_PURGE_ALERT_EMAIL;
 
 afterEach(() => {
   if (originalRetention === undefined) {
@@ -135,6 +144,13 @@ afterEach(() => {
   } else {
     process.env.TRASH_PURGE_WARNING_LEAD_DAYS = originalLead;
   }
+  if (originalAlertEmail === undefined) {
+    delete process.env.TRASH_PURGE_ALERT_EMAIL;
+  } else {
+    process.env.TRASH_PURGE_ALERT_EMAIL = originalAlertEmail;
+  }
+  sendTrashPurgeFailureEmailMock.mockClear();
+  _resetTrashPurgeFailureAlertState();
 });
 
 describe("getTrashRetentionDays", () => {
@@ -250,6 +266,49 @@ describe("runTrashPurgeSweep", () => {
       expect(t).toBeGreaterThanOrEqual(expectedMin);
       expect(t).toBeLessThanOrEqual(expectedMax);
     }
+  });
+
+  it("is a no-op when TRASH_PURGE_ALERT_EMAIL is unset", async () => {
+    delete process.env.TRASH_PURGE_ALERT_EMAIL;
+    const sent = await notifyTrashPurgeFailure(new Error("boom"));
+    expect(sent).toBe(false);
+    expect(sendTrashPurgeFailureEmailMock).not.toHaveBeenCalled();
+  });
+
+  it("sends a failure email when TRASH_PURGE_ALERT_EMAIL is set", async () => {
+    process.env.TRASH_PURGE_ALERT_EMAIL = "ops@example.com";
+    const sent = await notifyTrashPurgeFailure(new Error("db gone"));
+    expect(sent).toBe(true);
+    expect(sendTrashPurgeFailureEmailMock).toHaveBeenCalledTimes(1);
+    const arg = sendTrashPurgeFailureEmailMock.mock.calls[0]![0]!;
+    expect(arg.to).toBe("ops@example.com");
+    expect(arg.errorMessage).toBe("db gone");
+    expect(typeof arg.errorStack).toBe("string");
+    expect(typeof arg.occurredAt).toBe("string");
+  });
+
+  it("rate-limits repeat failures to one alert per 24h", async () => {
+    process.env.TRASH_PURGE_ALERT_EMAIL = "ops@example.com";
+    await notifyTrashPurgeFailure(new Error("first"));
+    await notifyTrashPurgeFailure(new Error("second"));
+    await notifyTrashPurgeFailure(new Error("third"));
+    expect(sendTrashPurgeFailureEmailMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("stringifies non-Error throwables and reports a null stack", async () => {
+    process.env.TRASH_PURGE_ALERT_EMAIL = "ops@example.com";
+    await notifyTrashPurgeFailure("plain string failure");
+    const arg = sendTrashPurgeFailureEmailMock.mock.calls[0]![0]!;
+    expect(arg.errorMessage).toBe("plain string failure");
+    expect(arg.errorStack).toBeNull();
+  });
+
+  it("swallows dispatcher exceptions so the scheduler tick isn't crashed", async () => {
+    process.env.TRASH_PURGE_ALERT_EMAIL = "ops@example.com";
+    sendTrashPurgeFailureEmailMock.mockImplementationOnce(async () => {
+      throw new Error("smtp blew up");
+    });
+    await expect(notifyTrashPurgeFailure(new Error("boom"))).resolves.toBe(true);
   });
 
   it("does nothing when every soft-deleted row is still inside the retention window", async () => {

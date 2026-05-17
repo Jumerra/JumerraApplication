@@ -11,6 +11,7 @@
     "flaky-report": "tsx ./src/flaky-report.ts",
     "journey-history": "tsx ./src/journey-history.ts",
     "regression-report": "tsx ./src/regression-report.ts",
+    "regression-notify": "tsx ./src/regression-notify.ts",
     "unquarantine": "tsx ./src/unquarantine.ts",
     "test": "vitest run",
     "test:watch": "vitest",

@@ -139,6 +139,38 @@ if [ -s "$LOG_DIR/e2e-history.jsonl" ]; then
     || echo "  (flaky-report failed to render — non-fatal)"
 fi
 
+# Regression report + notifier. The report walks the FULL history
+# archive (not just this run) and surfaces journeys whose long pass
+# streak just broke — i.e. silently-rotting tests that the 7-day
+# flaky-report cannot see because they aren't flapping. If any
+# regressions are found, regression-notify posts to Slack (when
+# SLACK_REGRESSION_WEBHOOK_URL is set) and/or emails the team (when
+# REGRESSION_ALERT_EMAIL + RESEND_API_KEY are set). Best-effort:
+# never blocks the merge on a reporting/notification glitch.
+#
+# History wiring: the Playwright reporter writes its per-run JSONL row
+# into `$LOG_DIR/e2e-history.jsonl` (the timestamped subfolder created
+# at the top of this script), and the run-subfolder pruner below
+# eventually rm -rf's that folder. We therefore append the just-written
+# per-run row onto a canonical repo-root JSONL at
+# `.local/post-merge-logs/e2e-history.jsonl` BEFORE invoking the
+# regression tools, so that (a) regression detection sees today's
+# result and (b) the cross-merge history survives subfolder pruning.
+# The append is a single `cat >>` of the per-run file (which itself
+# contains exactly one line — one run = one row), so duplicates are
+# not possible.
+CANONICAL_HISTORY="$PWD/.local/post-merge-logs/e2e-history.jsonl"
+if [ -s "$LOG_DIR/e2e-history.jsonl" ]; then
+  mkdir -p "$(dirname "$CANONICAL_HISTORY")"
+  cat "$LOG_DIR/e2e-history.jsonl" >> "$CANONICAL_HISTORY"
+fi
+echo ""
+echo "→ Regression report (full history)"
+pnpm --filter @workspace/scripts run regression-report -- --history "$CANONICAL_HISTORY" \
+  || echo "  (regression-report failed to render — non-fatal)"
+pnpm --filter @workspace/scripts run regression-notify -- --history "$CANONICAL_HISTORY" \
+  || echo "  (regression-notify failed — non-fatal)"
+
 # Prune old runs, keeping only the most recent MAX_RUNS subfolders.
 # Run subfolders are named with a sortable ISO-8601 UTC prefix, so a
 # reverse-sorted listing puts the newest first. Anything past the

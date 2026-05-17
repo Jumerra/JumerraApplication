@@ -45,11 +45,11 @@ if [ "$E2E_DB_ALLOWED" != "1" ]; then
       echo "  if you've confirmed this URL is safe."
       exit 1
       ;;
-    *test*|*staging*|*dev*|*scratch*|*ephemeral*|*neon*|*replit*|*localhost*|*127.0.0.1*)
+    *test*|*staging*|*dev*|*scratch*|*ephemeral*|*neon*|*replit*|*helium*|*localhost*|*127.0.0.1*)
       : # recognised non-prod marker, proceed
       ;;
     *)
-      echo "✗ DATABASE_URL has no recognised non-prod marker (test/staging/dev/scratch/ephemeral/neon/replit/localhost)."
+      echo "✗ DATABASE_URL has no recognised non-prod marker (test/staging/dev/scratch/ephemeral/neon/replit/helium/localhost)."
       echo "  Refusing to run the e2e suite against an unknown database."
       echo "  Set E2E_DB_ALLOWED=1 to override after confirming it is non-production."
       exit 1

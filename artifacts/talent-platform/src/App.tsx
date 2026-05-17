@@ -2,7 +2,7 @@ import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AuthProvider } from "@/lib/auth";
+import { AuthProvider, useAuth } from "@/lib/auth";
 import { Layout } from "@/components/layout";
 import { ThemeProvider } from "@/components/theme-provider";
 import NotFound from "@/pages/not-found";
@@ -71,6 +71,7 @@ import OrgRolesPage from "@/pages/dashboard/org-roles";
 import StaffPage from "@/pages/dashboard/staff";
 import { AdminLayout } from "@/components/admin-layout";
 import { InstitutionLayout } from "@/components/institution-layout";
+import { CandidateLayout } from "@/components/candidate-layout";
 import { EmployerLayout } from "@/components/employer-layout";
 import LoginPage from "@/pages/auth/login";
 import SignupPage from "@/pages/auth/signup";
@@ -91,6 +92,16 @@ import AdminNetworkPage from "@/pages/dashboard/admin/network";
 import AdminTrashPage from "@/pages/dashboard/admin/trash";
 
 const queryClient = new QueryClient();
+
+function CandidateShell({ children }: { children: React.ReactNode }) {
+  const { sessionUser, role } = useAuth();
+  const isCandidate =
+    sessionUser?.role === "candidate" || role === "candidate";
+  if (isCandidate) {
+    return <CandidateLayout>{children}</CandidateLayout>;
+  }
+  return <>{children}</>;
+}
 
 function Router() {
   return (
@@ -120,10 +131,18 @@ function Router() {
         <Route path="/candidates/:id" component={CandidateDetail} />
         <Route path="/references/:token" component={PublicReferenceFormPage} />
         
-        <Route path="/dashboard/candidate" component={CandidateDashboard} />
-        <Route path="/dashboard/candidate/mentors" component={CandidateMentorsPage} />
-        <Route path="/dashboard/candidate/mentor-requests" component={CandidateMentorRequestsPage} />
-        <Route path="/dashboard/candidate/intro-requests" component={CandidateIntroRequestsPage} />
+        <Route path="/dashboard/candidate">
+          <CandidateLayout><CandidateDashboard /></CandidateLayout>
+        </Route>
+        <Route path="/dashboard/candidate/mentors">
+          <CandidateLayout><CandidateMentorsPage /></CandidateLayout>
+        </Route>
+        <Route path="/dashboard/candidate/mentor-requests">
+          <CandidateLayout><CandidateMentorRequestsPage /></CandidateLayout>
+        </Route>
+        <Route path="/dashboard/candidate/intro-requests">
+          <CandidateLayout><CandidateIntroRequestsPage /></CandidateLayout>
+        </Route>
         <Route path="/account/applications/:id" component={ApplicationDetailPage} />
         <Route path="/jobs/:jobId/mock-interview" component={MockInterviewPage} />
         <Route path="/interviews/:id" component={InterviewInvitePage} />
@@ -249,7 +268,6 @@ function Router() {
         <Route path="/dashboard/employer/open-candidates">
           <EmployerLayout><EmployerOpenCandidatesPage /></EmployerLayout>
         </Route>
-        <Route path="/account/offers" component={OffersInboxPage} />
         <Route path="/dashboard/employer/talent-pools/:poolId">
           <EmployerLayout><TalentPoolDetailPage /></EmployerLayout>
         </Route>
@@ -276,10 +294,21 @@ function Router() {
         <Route path="/signup" component={SignupPage} />
         <Route path="/setup-password" component={SetupPasswordPage} />
         <Route path="/forgot-password" component={ForgotPasswordPage} />
-        <Route path="/account/profile" component={ProfilePage} />
-        <Route path="/account/password" component={ChangePasswordPage} />
-        <Route path="/account/profile-views" component={ProfileViewsPage} />
-        <Route path="/account/notifications" component={NotificationsPage} />
+        <Route path="/account/profile">
+          <CandidateShell><ProfilePage /></CandidateShell>
+        </Route>
+        <Route path="/account/password">
+          <CandidateShell><ChangePasswordPage /></CandidateShell>
+        </Route>
+        <Route path="/account/profile-views">
+          <CandidateShell><ProfileViewsPage /></CandidateShell>
+        </Route>
+        <Route path="/account/notifications">
+          <CandidateShell><NotificationsPage /></CandidateShell>
+        </Route>
+        <Route path="/account/offers">
+          <CandidateShell><OffersInboxPage /></CandidateShell>
+        </Route>
         
         <Route component={NotFound} />
       </Switch>

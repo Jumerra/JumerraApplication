@@ -1,8 +1,12 @@
 import { Router } from "express";
 import { db, paymentsTable } from "@workspace/db";
-import { and, gte, lte, inArray, sql } from "drizzle-orm";
+import { and, gte, lte, inArray, sql, eq, desc } from "drizzle-orm";
 import { requireAdmin } from "../middleware/require-auth";
 import { requirePermission } from "../lib/permissions";
+import {
+  finalizeFromStripeSessionId,
+  finalizeFromPaystackReference,
+} from "../lib/payment-finalizers";
 
 const router: Router = Router();
 
@@ -216,6 +220,108 @@ router.get(
         grossSubunits: Number(r.grossSubunits),
         transactions: Number(r.transactions),
       })),
+    });
+  },
+);
+
+/**
+ * GET /admin/payments
+ *
+ * Lists individual rows from the unified `payments` ledger so the
+ * admin payments console can reconcile a Stripe vs Paystack
+ * transaction by hand. Supports `provider`, `status`, `purposeType`
+ * filters; limit is server-capped at 100 to keep the console
+ * responsive even on busy tenants.
+ */
+router.get(
+  "/admin/payments",
+  requireAdmin,
+  requirePermission("payments:view"),
+  async (req, res) => {
+    const conds = [];
+    const { provider, status, purposeType } = req.query as Record<
+      string,
+      unknown
+    >;
+    if (typeof provider === "string" && provider.length > 0) {
+      conds.push(eq(paymentsTable.provider, provider));
+    }
+    if (typeof status === "string" && status.length > 0) {
+      conds.push(eq(paymentsTable.status, status));
+    }
+    if (typeof purposeType === "string" && purposeType.length > 0) {
+      conds.push(eq(paymentsTable.purposeType, purposeType));
+    }
+    const rawLimit = Number((req.query as { limit?: unknown }).limit);
+    const limit =
+      Number.isFinite(rawLimit) && rawLimit > 0
+        ? Math.min(rawLimit, 100)
+        : 50;
+
+    const rows = await db
+      .select()
+      .from(paymentsTable)
+      .where(conds.length > 0 ? and(...conds) : undefined)
+      .orderBy(desc(paymentsTable.id))
+      .limit(limit);
+
+    res.json({
+      payments: rows.map((r) => ({
+        id: r.id,
+        provider: r.provider,
+        externalRef: r.externalRef,
+        purposeType: r.purposeType,
+        purposeId: r.purposeId,
+        amountSubunits: r.amountSubunits,
+        currency: r.currency,
+        status: r.status,
+        createdAt: r.createdAt.toISOString(),
+        finalizedAt: r.finalizedAt ? r.finalizedAt.toISOString() : null,
+      })),
+    });
+  },
+);
+
+/**
+ * POST /admin/payments/:id/refinalize
+ *
+ * Manually re-runs the finalizer for a single payment ledger row.
+ * This is the reconciliation lever finance uses when a webhook was
+ * never received (provider outage, signature mismatch, etc.) — it's
+ * idempotent because the underlying flow finalizers no-op when the
+ * per-flow row is already `paid`/`active`. Routes by the row's own
+ * `provider` so it works for both Stripe and Paystack.
+ */
+router.post(
+  "/admin/payments/:id/refinalize",
+  requireAdmin,
+  requirePermission("payments:view"),
+  async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id) || id <= 0) {
+      res.status(400).json({ error: "Invalid payment id" });
+      return;
+    }
+    const [row] = await db
+      .select()
+      .from(paymentsTable)
+      .where(eq(paymentsTable.id, id))
+      .limit(1);
+    if (!row) {
+      res.status(404).json({ error: "Payment not found" });
+      return;
+    }
+    const dispatch =
+      row.provider === "paystack"
+        ? finalizeFromPaystackReference(row.externalRef)
+        : finalizeFromStripeSessionId(row.externalRef);
+    const { flow, result } = await dispatch;
+    res.json({
+      provider: row.provider,
+      externalRef: row.externalRef,
+      flow,
+      alreadyFinalized: result?.alreadyFinalized ?? false,
+      reconciled: result != null && !result.notFound,
     });
   },
 );

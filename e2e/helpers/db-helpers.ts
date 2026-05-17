@@ -12,6 +12,11 @@ import {
   candidatesTable,
   candidateInstitutionsTable,
   boostPaymentsTable,
+  cvPaymentsTable,
+  paymentsTable,
+  adminRolesTable,
+  adminRolePermissionsTable,
+  institutionSubscriptionsTable,
 } from "@workspace/db";
 
 export { db, pool };
@@ -100,4 +105,80 @@ export async function insertPendingBoostPayment(args: {
     })
     .returning();
   return row;
+}
+
+export async function insertPendingCvPayment(args: {
+  candidateId: number;
+  externalRef: string;
+  provider: "stripe" | "paystack";
+  amount: number;
+  currency: string;
+  paystackReference?: string;
+}) {
+  const [row] = await db
+    .insert(cvPaymentsTable)
+    .values({
+      candidateId: args.candidateId,
+      stripeSessionId: args.externalRef,
+      provider: args.provider,
+      paystackReference: args.paystackReference ?? null,
+      amountCents: args.amount,
+      currency: args.currency,
+      status: "pending",
+    })
+    .returning();
+  return row;
+}
+
+export async function getPaymentLedgerRow(
+  provider: "stripe" | "paystack",
+  externalRef: string,
+) {
+  const rows = await db
+    .select()
+    .from(paymentsTable)
+    .where(
+      and(
+        eq(paymentsTable.provider, provider),
+        eq(paymentsTable.externalRef, externalRef),
+      ),
+    )
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function makeInstitutionPremium(institutionId: number) {
+  const future = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+  await db.insert(institutionSubscriptionsTable).values({
+    institutionId,
+    stripeCheckoutSessionId: `e2e_premium_${institutionId}_${Date.now()}`,
+    provider: "stripe",
+    status: "active",
+    priceCentsSnapshot: 150000,
+    currencySnapshot: "ngn",
+    intervalDaysSnapshot: 30,
+    trialDaysSnapshot: 0,
+    currentPeriodEnd: future,
+    startedAt: new Date(),
+  });
+}
+
+export async function setUserAssignedDepartment(
+  userId: number,
+  departmentId: number | null,
+) {
+  await db
+    .update(usersTable)
+    .set({ assignedDepartmentId: departmentId })
+    .where(eq(usersTable.id, userId));
+}
+
+export async function setUserAssignedFaculty(
+  userId: number,
+  facultyId: number | null,
+) {
+  await db
+    .update(usersTable)
+    .set({ assignedFacultyId: facultyId })
+    .where(eq(usersTable.id, userId));
 }

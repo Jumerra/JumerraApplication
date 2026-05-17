@@ -25,16 +25,24 @@
  * have been cleaned earlier, the schema-level cascade handles them.
  */
 
-import { and, isNotNull, lt } from "drizzle-orm";
+import { and, eq, gte, isNotNull, lt } from "drizzle-orm";
 import {
   db,
   candidatesTable,
   employersTable,
   institutionsTable,
+  usersTable,
 } from "@workspace/db";
 import { logger } from "./logger";
+import {
+  sendTrashPurgeWarningEmail,
+  originForBackground,
+  type TrashPurgeWarningGroup,
+} from "./email";
+import { getUserPermissions, isImplicitAllUser } from "./permissions";
 
 const DEFAULT_RETENTION_DAYS = 30;
+const DEFAULT_WARNING_LEAD_DAYS = 3;
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
@@ -60,6 +68,40 @@ export function getTrashRetentionDays(): number {
   }
   if (n < 1) return 1;
   return Math.floor(n);
+}
+
+/**
+ * Resolve the warning lead time in days (how many days before the
+ * scheduled hard-delete admins receive the heads-up email). Reads
+ * `TRASH_PURGE_WARNING_LEAD_DAYS` if set; falls back to a 3-day
+ * default. Fail-safe parsing matches `getTrashRetentionDays`: a
+ * non-numeric or empty value reverts to the default, values < 1 are
+ * clamped to 1. Additionally, a lead-time >= the retention window is
+ * clamped to `retention - 1` so the sweep window stays non-empty
+ * (otherwise the same row would be both warned-on and purged on the
+ * same tick).
+ */
+export function getTrashPurgeWarningLeadDays(retentionDays?: number): number {
+  const retention = retentionDays ?? getTrashRetentionDays();
+  const raw = process.env["TRASH_PURGE_WARNING_LEAD_DAYS"];
+  let lead = DEFAULT_WARNING_LEAD_DAYS;
+  if (raw !== undefined && raw.trim() !== "") {
+    const n = Number(raw);
+    if (!Number.isFinite(n)) {
+      logger.warn(
+        { raw },
+        "TRASH_PURGE_WARNING_LEAD_DAYS is not a number — falling back to default 3 days",
+      );
+    } else {
+      lead = Math.max(1, Math.floor(n));
+    }
+  }
+  // Keep the [retention-lead, retention-lead+1) sweep window strictly
+  // before the purge cutoff. If lead >= retention the window would
+  // sit in the future (no rows yet old enough to match) or overlap
+  // the purge tick itself.
+  if (lead >= retention) lead = Math.max(1, retention - 1);
+  return lead;
 }
 
 interface PurgeResult {
@@ -125,6 +167,217 @@ export async function runTrashPurgeSweep(): Promise<PurgeResult> {
   return result;
 }
 
+interface WarningItem {
+  id: number;
+  label: string;
+  secondary: string | null;
+  /** ISO timestamp the row will be hard-deleted. */
+  purgeOn: string;
+}
+
+interface WarningSweepResult {
+  candidates: WarningItem[];
+  employers: WarningItem[];
+  institutions: WarningItem[];
+  /** Number of admin recipients that received the heads-up. */
+  recipients: number;
+  windowStart: string;
+  windowEnd: string;
+  leadDays: number;
+}
+
+/**
+ * Find soft-deleted rows that will be hard-deleted on the next
+ * `runTrashPurgeSweep()` tick ~`leadDays` from now, and email each
+ * admin who could still restore them a single roll-up. Window is
+ * `[retention - leadDays, retention - leadDays + 1)` days ago — a
+ * one-day slice so each row receives **at most one** warning across
+ * the lifetime of the trash row. Designed to be safe to run from
+ * the same daily timer as the purge sweep itself.
+ */
+export async function runTrashPurgeWarningsSweep(): Promise<WarningSweepResult> {
+  const retentionDays = getTrashRetentionDays();
+  const leadDays = getTrashPurgeWarningLeadDays(retentionDays);
+  const now = Date.now();
+  // Rows whose deleted_at is at least (retention - lead) days old will
+  // be purged within `lead` days. The +1 day upper bound on the
+  // deleted_at window is what makes this a "one notification per row"
+  // sweep when the timer ticks once per day.
+  const windowEnd = new Date(now - (retentionDays - leadDays) * ONE_DAY_MS);
+  const windowStart = new Date(
+    now - (retentionDays - leadDays + 1) * ONE_DAY_MS,
+  );
+
+  const candidateRows = await db
+    .select({
+      id: candidatesTable.id,
+      label: candidatesTable.fullName,
+      secondary: candidatesTable.email,
+      deletedAt: candidatesTable.deletedAt,
+    })
+    .from(candidatesTable)
+    .where(
+      and(
+        isNotNull(candidatesTable.deletedAt),
+        gte(candidatesTable.deletedAt, windowStart),
+        lt(candidatesTable.deletedAt, windowEnd),
+      ),
+    );
+
+  const employerRows = await db
+    .select({
+      id: employersTable.id,
+      label: employersTable.name,
+      secondary: employersTable.industry,
+      deletedAt: employersTable.deletedAt,
+    })
+    .from(employersTable)
+    .where(
+      and(
+        isNotNull(employersTable.deletedAt),
+        gte(employersTable.deletedAt, windowStart),
+        lt(employersTable.deletedAt, windowEnd),
+      ),
+    );
+
+  const institutionRows = await db
+    .select({
+      id: institutionsTable.id,
+      label: institutionsTable.name,
+      secondary: institutionsTable.location,
+      deletedAt: institutionsTable.deletedAt,
+    })
+    .from(institutionsTable)
+    .where(
+      and(
+        isNotNull(institutionsTable.deletedAt),
+        gte(institutionsTable.deletedAt, windowStart),
+        lt(institutionsTable.deletedAt, windowEnd),
+      ),
+    );
+
+  const toWarningItem = (r: {
+    id: number;
+    label: string | null;
+    secondary: string | null;
+    deletedAt: Date | null;
+  }): WarningItem => ({
+    id: r.id,
+    label: r.label ?? `#${r.id}`,
+    secondary: r.secondary,
+    purgeOn: new Date(
+      (r.deletedAt?.getTime() ?? now) + retentionDays * ONE_DAY_MS,
+    ).toISOString(),
+  });
+
+  const result: WarningSweepResult = {
+    candidates: candidateRows.map(toWarningItem),
+    employers: employerRows.map(toWarningItem),
+    institutions: institutionRows.map(toWarningItem),
+    recipients: 0,
+    windowStart: windowStart.toISOString(),
+    windowEnd: windowEnd.toISOString(),
+    leadDays,
+  };
+
+  const total =
+    result.candidates.length +
+    result.employers.length +
+    result.institutions.length;
+  if (total === 0) {
+    logger.debug(
+      { leadDays, retentionDays },
+      "trash-purge-warnings: nothing maturing in this window",
+    );
+    return result;
+  }
+
+  // Find admin accounts that could still restore the listed rows.
+  // We pull all active admins (small population) and filter by their
+  // computed permission set so a finance/support admin without any
+  // *:manage perm doesn't get pinged about something they can't act on.
+  const adminUsers = await db
+    .select({
+      id: usersTable.id,
+      email: usersTable.email,
+      fullName: usersTable.fullName,
+      role: usersTable.role,
+      status: usersTable.status,
+      orgRole: usersTable.orgRole,
+      candidateId: usersTable.candidateId,
+      employerId: usersTable.employerId,
+      institutionId: usersTable.institutionId,
+      assignedDepartmentId: usersTable.assignedDepartmentId,
+      assignedFacultyId: usersTable.assignedFacultyId,
+      passwordHash: usersTable.passwordHash,
+    })
+    .from(usersTable)
+    .where(and(eq(usersTable.role, "admin"), eq(usersTable.status, "active")));
+
+  const dashboardUrl = `${originForBackground()}/dashboard/admin/trash`;
+  let recipients = 0;
+
+  for (const u of adminUsers) {
+    // `getUserPermissions` accepts the User row shape; the few columns
+    // we don't select default to null on `User`, but the helper only
+    // touches role/orgRole/employerId/institutionId so the cast is safe.
+    const implicit = isImplicitAllUser(u as never);
+    const perms = implicit ? null : await getUserPermissions(u as never);
+
+    const groups: TrashPurgeWarningGroup[] = [];
+    if (
+      result.candidates.length > 0 &&
+      (implicit || perms?.has("candidates:manage"))
+    ) {
+      groups.push({ label: "Candidates", items: result.candidates });
+    }
+    if (
+      result.employers.length > 0 &&
+      (implicit || perms?.has("employers:manage"))
+    ) {
+      groups.push({ label: "Employers", items: result.employers });
+    }
+    if (
+      result.institutions.length > 0 &&
+      (implicit || perms?.has("institutions:manage"))
+    ) {
+      groups.push({ label: "Institutions", items: result.institutions });
+    }
+
+    if (groups.length === 0) continue;
+
+    recipients += 1;
+    const send = await sendTrashPurgeWarningEmail({
+      to: u.email,
+      recipientName: u.fullName,
+      leadDays,
+      groups,
+      dashboardUrl,
+      logger,
+    });
+    if (!send.sent) {
+      logger.warn(
+        { userId: u.id, reason: send.reason },
+        "trash-purge-warnings: heads-up email not delivered",
+      );
+    }
+  }
+
+  result.recipients = recipients;
+  logger.info(
+    {
+      candidates: result.candidates.length,
+      employers: result.employers.length,
+      institutions: result.institutions.length,
+      recipients,
+      leadDays,
+      retentionDays,
+    },
+    "trash-purge-warnings: heads-up sweep complete",
+  );
+  return result;
+}
+
 const ONE_DAY = ONE_DAY_MS;
 let started = false;
 
@@ -133,6 +386,15 @@ export function startTrashPurgeScheduler(): void {
   started = true;
 
   const tick = async () => {
+    try {
+      // Warn first so admins see the heads-up before the same tick
+      // ever hard-deletes anything (in practice the warning window
+      // sits `leadDays` ahead of the purge cutoff so the two never
+      // act on the same row anyway).
+      await runTrashPurgeWarningsSweep();
+    } catch (err) {
+      logger.error({ err }, "Trash purge warning sweep crashed");
+    }
     try {
       await runTrashPurgeSweep();
     } catch (err) {

@@ -45,8 +45,39 @@ vi.mock("@workspace/db", () => {
         },
       };
     },
+    // The warnings sweep uses .select().from().where() on the same tables
+    // plus a usersTable join. The mock returns empty arrays so the sweep
+    // is a no-op — exercising the lead-days helper is enough here; the
+    // permission-filtered fan-out is tested implicitly via the helper's
+    // window math.
+    select() {
+      return {
+        from() {
+          return {
+            where() {
+              return Promise.resolve([]);
+            },
+          };
+        },
+      };
+    },
   };
-  return { db, candidatesTable, employersTable, institutionsTable };
+  // usersTable is only referenced for column shape — empty stub is fine.
+  const usersTable = {
+    id: { __col: "users.id" },
+    email: { __col: "users.email" },
+    fullName: { __col: "users.fullName" },
+    role: { __col: "users.role" },
+    status: { __col: "users.status" },
+    orgRole: { __col: "users.orgRole" },
+    candidateId: { __col: "users.candidateId" },
+    employerId: { __col: "users.employerId" },
+    institutionId: { __col: "users.institutionId" },
+    assignedDepartmentId: { __col: "users.assignedDepartmentId" },
+    assignedFacultyId: { __col: "users.assignedFacultyId" },
+    passwordHash: { __col: "users.passwordHash" },
+  };
+  return { db, candidatesTable, employersTable, institutionsTable, usersTable };
 });
 
 vi.mock("drizzle-orm", () => ({
@@ -56,6 +87,8 @@ vi.mock("drizzle-orm", () => ({
       | undefined;
     return { type: "and", parts, cutoff: ltPart?.cutoff };
   },
+  eq: (col: unknown, val: unknown) => ({ type: "eq", col, val }),
+  gte: (col: unknown, val: Date) => ({ type: "gte", col, val }),
   isNotNull: (col: unknown) => ({ type: "isNotNull", col }),
   lt: (col: unknown, val: Date) => ({ type: "lt", col, cutoff: val }),
 }));
@@ -69,18 +102,38 @@ vi.mock("../lib/logger", () => ({
   },
 }));
 
-const { getTrashRetentionDays, runTrashPurgeSweep } = await import(
-  "../lib/trash-purge-worker"
-);
+// Keep the warnings sweep from doing any real work — the email + permission
+// helpers are exercised in their own suites.
+vi.mock("../lib/email", () => ({
+  sendTrashPurgeWarningEmail: vi.fn(async () => ({ sent: false, reason: "stub" })),
+  originForBackground: () => "https://example.test",
+}));
+
+vi.mock("../lib/permissions", () => ({
+  getUserPermissions: vi.fn(async () => new Set<string>()),
+  isImplicitAllUser: vi.fn(() => false),
+}));
+
+const {
+  getTrashRetentionDays,
+  getTrashPurgeWarningLeadDays,
+  runTrashPurgeSweep,
+} = await import("../lib/trash-purge-worker");
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const originalRetention = process.env.TRASH_RETENTION_DAYS;
+const originalLead = process.env.TRASH_PURGE_WARNING_LEAD_DAYS;
 
 afterEach(() => {
   if (originalRetention === undefined) {
     delete process.env.TRASH_RETENTION_DAYS;
   } else {
     process.env.TRASH_RETENTION_DAYS = originalRetention;
+  }
+  if (originalLead === undefined) {
+    delete process.env.TRASH_PURGE_WARNING_LEAD_DAYS;
+  } else {
+    process.env.TRASH_PURGE_WARNING_LEAD_DAYS = originalLead;
   }
 });
 
@@ -214,5 +267,53 @@ describe("runTrashPurgeSweep", () => {
     expect(candidatesState.rows).toHaveLength(1);
     expect(employersState.rows).toHaveLength(1);
     expect(institutionsState.rows).toHaveLength(1);
+  });
+});
+
+describe("getTrashPurgeWarningLeadDays", () => {
+  it("defaults to 3 when the env var is unset", () => {
+    delete process.env.TRASH_PURGE_WARNING_LEAD_DAYS;
+    expect(getTrashPurgeWarningLeadDays(30)).toBe(3);
+  });
+
+  it("defaults to 3 for empty or whitespace", () => {
+    process.env.TRASH_PURGE_WARNING_LEAD_DAYS = "";
+    expect(getTrashPurgeWarningLeadDays(30)).toBe(3);
+    process.env.TRASH_PURGE_WARNING_LEAD_DAYS = "   ";
+    expect(getTrashPurgeWarningLeadDays(30)).toBe(3);
+  });
+
+  it("uses a valid positive override", () => {
+    process.env.TRASH_PURGE_WARNING_LEAD_DAYS = "7";
+    expect(getTrashPurgeWarningLeadDays(30)).toBe(7);
+  });
+
+  it("floors decimals and clamps below 1 up to 1", () => {
+    process.env.TRASH_PURGE_WARNING_LEAD_DAYS = "2.9";
+    expect(getTrashPurgeWarningLeadDays(30)).toBe(2);
+    process.env.TRASH_PURGE_WARNING_LEAD_DAYS = "0";
+    expect(getTrashPurgeWarningLeadDays(30)).toBe(1);
+    process.env.TRASH_PURGE_WARNING_LEAD_DAYS = "-5";
+    expect(getTrashPurgeWarningLeadDays(30)).toBe(1);
+  });
+
+  it("fails safe to 3 for non-numeric strings", () => {
+    process.env.TRASH_PURGE_WARNING_LEAD_DAYS = "3d";
+    expect(getTrashPurgeWarningLeadDays(30)).toBe(3);
+  });
+
+  it("clamps lead >= retention down to retention - 1", () => {
+    // A lead of 30 with a retention of 30 would put the warning window
+    // at "rows deleted between -1 and 0 days ago" which can never match.
+    // Clamp keeps the warning meaningful for short retention windows.
+    process.env.TRASH_PURGE_WARNING_LEAD_DAYS = "30";
+    expect(getTrashPurgeWarningLeadDays(30)).toBe(29);
+    process.env.TRASH_PURGE_WARNING_LEAD_DAYS = "100";
+    expect(getTrashPurgeWarningLeadDays(5)).toBe(4);
+  });
+
+  it("clamps to 1 when retention is 1 (degenerate but safe)", () => {
+    process.env.TRASH_PURGE_WARNING_LEAD_DAYS = "3";
+    expect(getTrashPurgeWarningLeadDays(1)).toBe(1);
   });
 });

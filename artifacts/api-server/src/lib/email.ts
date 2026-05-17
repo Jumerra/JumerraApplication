@@ -21,7 +21,8 @@ export type EmailKind =
   | "setup"
   | "reset"
   | "weekly_digest"
-  | "saved_search_alert";
+  | "saved_search_alert"
+  | "trash_purge_warning";
 
 export type SendResult =
   | { sent: true; provider: string; id: string | null }
@@ -440,6 +441,98 @@ export async function sendRegistrationDecisionEmail(
       { name: "category", value: `registration.${args.decision}` },
       { name: "role", value: args.role },
     ],
+    logger: args.logger,
+  });
+}
+
+// ---------- Trash purge pre-warning ----------
+
+export interface TrashPurgeWarningGroup {
+  /** Human-readable category label e.g. "Candidates". */
+  label: string;
+  items: { id: number; label: string; secondary: string | null; purgeOn: string }[];
+}
+
+export interface SendTrashPurgeWarningEmailArgs {
+  to: string;
+  recipientName: string;
+  leadDays: number;
+  groups: TrashPurgeWarningGroup[];
+  dashboardUrl: string;
+  logger: Logger;
+}
+
+export async function sendTrashPurgeWarningEmail(
+  args: SendTrashPurgeWarningEmailArgs,
+): Promise<SendResult> {
+  const total = args.groups.reduce((n, g) => n + g.items.length, 0);
+  args.logger.info(
+    { kind: "trash_purge_warning", leadDays: args.leadDays, total },
+    "trash purge warning email dispatch",
+  );
+  const subject =
+    total === 1
+      ? `1 trash item will be permanently deleted in ${args.leadDays} day${
+          args.leadDays === 1 ? "" : "s"
+        }`
+      : `${total} trash items will be permanently deleted in ${args.leadDays} day${
+          args.leadDays === 1 ? "" : "s"
+        }`;
+
+  const groupsHtml = args.groups
+    .filter((g) => g.items.length > 0)
+    .map((g) => {
+      const rows = g.items
+        .map(
+          (it) =>
+            `<li style="margin:4px 0;"><strong>${escapeHtml(it.label)}</strong>${
+              it.secondary ? ` — <span style="color:#64748b;">${escapeHtml(it.secondary)}</span>` : ""
+            } <span style="color:#64748b;">(purges ${escapeHtml(
+              new Date(it.purgeOn).toLocaleDateString(),
+            )})</span></li>`,
+        )
+        .join("");
+      return `<p style="margin:16px 0 4px 0;font-weight:600;">${escapeHtml(
+        g.label,
+      )} (${g.items.length})</p><ul style="margin:0;padding-left:20px;">${rows}</ul>`;
+    })
+    .join("");
+
+  const html = renderEmailHtml({
+    heading: "Trash items scheduled for permanent deletion",
+    body: `<p>Hi ${escapeHtml(args.recipientName)},</p>
+<p>The following items in the Jumerra admin trash will be permanently deleted in <strong>${
+      args.leadDays
+    } day${args.leadDays === 1 ? "" : "s"}</strong>. If any should be kept, restore them before the purge runs.</p>
+${groupsHtml}`,
+    cta: { href: args.dashboardUrl, label: "Open trash dashboard" },
+    footer: `You're receiving this because you have permission to manage the listed item types.`,
+  });
+
+  const textLines: string[] = [
+    `Hi ${args.recipientName},`,
+    "",
+    `${total} trash item${total === 1 ? "" : "s"} will be permanently deleted in ${
+      args.leadDays
+    } day${args.leadDays === 1 ? "" : "s"}.`,
+  ];
+  for (const g of args.groups) {
+    if (g.items.length === 0) continue;
+    textLines.push("", `${g.label} (${g.items.length}):`);
+    for (const it of g.items) {
+      textLines.push(
+        `  - ${it.label}${it.secondary ? ` — ${it.secondary}` : ""} (purges ${new Date(it.purgeOn).toLocaleDateString()})`,
+      );
+    }
+  }
+  textLines.push("", `Open: ${args.dashboardUrl}`);
+
+  return dispatch({
+    to: args.to,
+    subject,
+    html,
+    text: textLines.join("\n"),
+    tags: [{ name: "category", value: "trash.purge_warning" }],
     logger: args.logger,
   });
 }

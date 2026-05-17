@@ -118,8 +118,11 @@ router.get("/jobs", async (req, res): Promise<void> => {
   // it already loaded, so this is route-local only.
   const conditions: Array<ReturnType<typeof eq> | ReturnType<typeof notDeleted>> = [
     eq(jobsTable.visibility, "public"),
-    // Hide soft-deleted jobs from public listings.
+    // Hide soft-deleted jobs (and any belonging to a soft-deleted
+    // employer — the admin-delete cascade already stamps sibling jobs,
+    // but this is a belt-and-braces guard if the cascade is ever bypassed).
     notDeleted(jobsTable.deletedAt),
+    notDeleted(employersTable.deletedAt),
   ];
   if (filters.search) {
     const q = `%${filters.search}%`;
@@ -227,6 +230,23 @@ router.post(
 
   if (!employerId) {
     res.status(403).json({ error: "No employer account linked to this user" });
+    return;
+  }
+
+  // Reject job creation against a soft-deleted employer. The admin
+  // trash flow can restore an employer; until then they can't post.
+  const [activeEmployer] = await db
+    .select({ id: employersTable.id })
+    .from(employersTable)
+    .where(
+      and(
+        eq(employersTable.id, employerId),
+        notDeleted(employersTable.deletedAt),
+      ),
+    )
+    .limit(1);
+  if (!activeEmployer) {
+    res.status(404).json({ error: "Employer not found" });
     return;
   }
 
@@ -403,7 +423,15 @@ router.get("/jobs/:id/matches", requireAuth, async (req, res): Promise<void> => 
     return;
   }
 
-  const [job] = await db.select().from(jobsTable).where(eq(jobsTable.id, params.data.id));
+  const [job] = await db
+    .select()
+    .from(jobsTable)
+    .where(
+      and(
+        eq(jobsTable.id, params.data.id),
+        notDeleted(jobsTable.deletedAt),
+      ),
+    );
   if (!job) {
     res.status(404).json({ error: "Job not found" });
     return;
@@ -421,7 +449,10 @@ router.get("/jobs/:id/matches", requireAuth, async (req, res): Promise<void> => 
     return;
   }
 
-  const candidates = await db.select().from(candidatesTable);
+  const candidates = await db
+    .select()
+    .from(candidatesTable)
+    .where(notDeleted(candidatesTable.deletedAt));
 
   // Memo match scores by (skills, years, talent) so duplicate candidate
   // profiles (or matching candidates ranked against multiple jobs) skip

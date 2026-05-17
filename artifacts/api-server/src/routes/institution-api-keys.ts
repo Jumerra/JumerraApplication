@@ -12,6 +12,7 @@ import {
 } from "@workspace/db";
 import { requireAuth } from "../middleware/require-auth";
 import { isInstitutionPremium } from "./institution-subscription";
+import { notDeleted } from "../lib/soft-delete";
 
 const router: IRouter = Router();
 
@@ -269,6 +270,8 @@ router.get(
             candidateInstitutionsTable.institutionId,
             keyRow.institutionId,
           ),
+          // Soft-deleted candidates must never appear in the SIS export.
+          notDeleted(candidatesTable.deletedAt),
         ),
       );
 

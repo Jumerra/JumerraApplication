@@ -130,7 +130,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </nav>
           </div>
           <div className="flex items-center gap-3">
-            {!sessionUser && (
+            {!sessionUser && import.meta.env.DEV && (
               <div className="flex items-center gap-2">
                 <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider hidden sm:inline-block">
                   View as

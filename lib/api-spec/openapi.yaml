@@ -2691,6 +2691,84 @@ paths:
               schema: { $ref: "#/components/schemas/AdminRevenueTimeseriesResponse" }
         "403": { description: Missing payments:view permission }
 
+  /admin/payments:
+    get:
+      operationId: adminListPayments
+      tags: [admin]
+      summary: List rows from the unified payments ledger (admin payments:view)
+      parameters:
+        - name: provider
+          in: query
+          required: false
+          schema: { type: string, enum: [stripe, paystack] }
+        - name: status
+          in: query
+          required: false
+          description: Ledger row status (paid, pending, failed, active, trialing, etc.)
+          schema: { type: string }
+        - name: purposeType
+          in: query
+          required: false
+          description: Underlying flow type (boost, cv, job_tier, institution_subscription, employer_subscription)
+          schema: { type: string }
+        - name: category
+          in: query
+          required: false
+          description: Business-facing category — server expands to purposeType IN (...)
+          schema: { type: string, enum: [candidate, institution, employer] }
+        - name: currency
+          in: query
+          required: false
+          description: ISO 4217 currency code (case-insensitive; stored lowercase)
+          schema: { type: string }
+        - name: from
+          in: query
+          required: false
+          description: ISO datetime inclusive lower bound on payments.finalized_at
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          required: false
+          description: ISO datetime inclusive upper bound on payments.finalized_at
+          schema: { type: string, format: date-time }
+        - name: limit
+          in: query
+          required: false
+          description: Page size (default 50, capped at 100)
+          schema: { type: integer, minimum: 1, maximum: 100 }
+        - name: offset
+          in: query
+          required: false
+          description: Page offset for simple pagination (capped at 100000)
+          schema: { type: integer, minimum: 0 }
+      responses:
+        "200":
+          description: One page of ledger rows ordered by id desc
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminPaymentsListResponse" }
+        "403": { description: Missing payments:view permission }
+
+  /admin/payments/{id}/refinalize:
+    post:
+      operationId: adminRefinalizePayment
+      tags: [admin]
+      summary: Idempotently re-run the finalizer for a single ledger row (admin payments:view)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Re-finalize outcome
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminRefinalizePaymentResponse" }
+        "400": { description: Invalid payment id }
+        "403": { description: Missing payments:view permission }
+        "404": { description: Payment not found }
+
   /site-content:
     get:
       operationId: getSiteContent
@@ -5186,6 +5264,54 @@ components:
           type: array
           items: { $ref: "#/components/schemas/RevenueTimeseriesPoint" }
       required: [bucket, from, to, points]
+
+    AdminPaymentLedgerRow:
+      type: object
+      properties:
+        id: { type: integer }
+        provider:
+          type: string
+          enum: [stripe, paystack]
+        externalRef: { type: string }
+        purposeType: { type: string }
+        purposeId: { type: integer, nullable: true }
+        amountSubunits: { type: integer }
+        currency: { type: string }
+        status: { type: string }
+        createdAt: { type: string, format: date-time }
+        finalizedAt: { type: string, format: date-time, nullable: true }
+      required:
+        - id
+        - provider
+        - externalRef
+        - purposeType
+        - amountSubunits
+        - currency
+        - status
+        - createdAt
+
+    AdminPaymentsListResponse:
+      type: object
+      properties:
+        payments:
+          type: array
+          items: { $ref: "#/components/schemas/AdminPaymentLedgerRow" }
+      required: [payments]
+
+    AdminRefinalizePaymentResponse:
+      type: object
+      properties:
+        provider:
+          type: string
+          enum: [stripe, paystack]
+        externalRef: { type: string }
+        flow:
+          type: string
+          nullable: true
+          description: Which flow finalizer handled it (boost, cv, job_tier, institution_subscription, employer_subscription) or null if no dispatcher matched
+        alreadyFinalized: { type: boolean }
+        reconciled: { type: boolean }
+      required: [provider, externalRef, alreadyFinalized, reconciled]
 
     AdminAccount:
       type: object

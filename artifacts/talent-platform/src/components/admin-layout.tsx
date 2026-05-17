@@ -38,6 +38,7 @@ import {
   Handshake,
   TrendingUp,
   Trash2,
+  CreditCard,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { SidebarLogoutButton } from "@/components/sidebar-logout";
@@ -94,6 +95,12 @@ const ADMIN_NAV: AdminNavGroup[] = [
         href: "/dashboard/admin/revenue",
         label: "Platform revenue",
         icon: TrendingUp,
+        permission: "payments:view",
+      },
+      {
+        href: "/dashboard/admin/payments",
+        label: "Payments",
+        icon: CreditCard,
         permission: "payments:view",
       },
       { href: "/dashboard/admin/hires", label: "Hires analytics", icon: Trophy, permission: "hires:view" },

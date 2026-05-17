@@ -30,7 +30,10 @@ import type {
   AdminGetRevenueTimeseriesParams,
   AdminListAccountsParams,
   AdminListApplicationsParams,
+  AdminListPaymentsParams,
   AdminListWhatsappLogsParams,
+  AdminPaymentsListResponse,
+  AdminRefinalizePaymentResponse,
   AdminResetUserPassword200,
   AdminRevenueSummaryResponse,
   AdminRevenueTimeseriesResponse,
@@ -11464,6 +11467,193 @@ export function useAdminGetRevenueTimeseries<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary List rows from the unified payments ledger (admin payments:view)
+ */
+export const getAdminListPaymentsUrl = (params?: AdminListPaymentsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/admin/payments?${stringifiedParams}`
+    : `/api/admin/payments`;
+};
+
+export const adminListPayments = async (
+  params?: AdminListPaymentsParams,
+  options?: RequestInit,
+): Promise<AdminPaymentsListResponse> => {
+  return customFetch<AdminPaymentsListResponse>(
+    getAdminListPaymentsUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getAdminListPaymentsQueryKey = (
+  params?: AdminListPaymentsParams,
+) => {
+  return [`/api/admin/payments`, ...(params ? [params] : [])] as const;
+};
+
+export const getAdminListPaymentsQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminListPayments>>,
+  TError = ErrorType<void>,
+>(
+  params?: AdminListPaymentsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof adminListPayments>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getAdminListPaymentsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof adminListPayments>>
+  > = ({ signal }) => adminListPayments(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminListPayments>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type AdminListPaymentsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminListPayments>>
+>;
+export type AdminListPaymentsQueryError = ErrorType<void>;
+
+/**
+ * @summary List rows from the unified payments ledger (admin payments:view)
+ */
+
+export function useAdminListPayments<
+  TData = Awaited<ReturnType<typeof adminListPayments>>,
+  TError = ErrorType<void>,
+>(
+  params?: AdminListPaymentsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof adminListPayments>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getAdminListPaymentsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Idempotently re-run the finalizer for a single ledger row (admin payments:view)
+ */
+export const getAdminRefinalizePaymentUrl = (id: number) => {
+  return `/api/admin/payments/${id}/refinalize`;
+};
+
+export const adminRefinalizePayment = async (
+  id: number,
+  options?: RequestInit,
+): Promise<AdminRefinalizePaymentResponse> => {
+  return customFetch<AdminRefinalizePaymentResponse>(
+    getAdminRefinalizePaymentUrl(id),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
+};
+
+export const getAdminRefinalizePaymentMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminRefinalizePayment>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminRefinalizePayment>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["adminRefinalizePayment"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminRefinalizePayment>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return adminRefinalizePayment(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminRefinalizePaymentMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminRefinalizePayment>>
+>;
+
+export type AdminRefinalizePaymentMutationError = ErrorType<void>;
+
+/**
+ * @summary Idempotently re-run the finalizer for a single ledger row (admin payments:view)
+ */
+export const useAdminRefinalizePayment = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminRefinalizePayment>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof adminRefinalizePayment>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getAdminRefinalizePaymentMutationOptions(options));
+};
 
 /**
  * @summary Public site content for the home page (admin-editable)

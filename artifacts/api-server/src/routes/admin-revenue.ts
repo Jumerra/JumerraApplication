@@ -233,16 +233,20 @@ router.get(
  * filters; limit is server-capped at 100 to keep the console
  * responsive even on busy tenants.
  */
+const CATEGORY_PURPOSE_TYPES: Record<string, string[]> = {
+  candidate: ["boost", "cv"],
+  institution: ["institution_subscription"],
+  employer: ["job_tier", "employer_subscription"],
+};
+
 router.get(
   "/admin/payments",
   requireAdmin,
   requirePermission("payments:view"),
   async (req, res) => {
     const conds = [];
-    const { provider, status, purposeType } = req.query as Record<
-      string,
-      unknown
-    >;
+    const { provider, status, purposeType, currency, category } =
+      req.query as Record<string, unknown>;
     if (typeof provider === "string" && provider.length > 0) {
       conds.push(eq(paymentsTable.provider, provider));
     }
@@ -252,18 +256,40 @@ router.get(
     if (typeof purposeType === "string" && purposeType.length > 0) {
       conds.push(eq(paymentsTable.purposeType, purposeType));
     }
+    if (typeof currency === "string" && currency.length > 0) {
+      conds.push(eq(paymentsTable.currency, currency.toLowerCase()));
+    }
+    if (
+      typeof category === "string" &&
+      category.length > 0 &&
+      CATEGORY_PURPOSE_TYPES[category]
+    ) {
+      conds.push(
+        inArray(paymentsTable.purposeType, CATEGORY_PURPOSE_TYPES[category]),
+      );
+    }
+    const { from, to } = parseDateRange(req);
+    if (from) conds.push(gte(paymentsTable.finalizedAt, from));
+    if (to) conds.push(lte(paymentsTable.finalizedAt, to));
+
     const rawLimit = Number((req.query as { limit?: unknown }).limit);
     const limit =
       Number.isFinite(rawLimit) && rawLimit > 0
         ? Math.min(rawLimit, 100)
         : 50;
+    const rawOffset = Number((req.query as { offset?: unknown }).offset);
+    const offset =
+      Number.isFinite(rawOffset) && rawOffset > 0
+        ? Math.min(rawOffset, 100_000)
+        : 0;
 
     const rows = await db
       .select()
       .from(paymentsTable)
       .where(conds.length > 0 ? and(...conds) : undefined)
       .orderBy(desc(paymentsTable.id))
-      .limit(limit);
+      .limit(limit)
+      .offset(offset);
 
     res.json({
       payments: rows.map((r) => ({

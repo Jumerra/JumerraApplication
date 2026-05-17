@@ -5089,6 +5089,95 @@ export const AdminGetRevenueTimeseriesResponse = zod.object({
 });
 
 /**
+ * @summary List rows from the unified payments ledger (admin payments:view)
+ */
+export const adminListPaymentsQueryLimitMax = 100;
+
+export const adminListPaymentsQueryOffsetMin = 0;
+
+export const AdminListPaymentsQueryParams = zod.object({
+  provider: zod.enum(["stripe", "paystack"]).optional(),
+  status: zod.coerce
+    .string()
+    .optional()
+    .describe(
+      "Ledger row status (paid, pending, failed, active, trialing, etc.)",
+    ),
+  purposeType: zod.coerce
+    .string()
+    .optional()
+    .describe(
+      "Underlying flow type (boost, cv, job_tier, institution_subscription, employer_subscription)",
+    ),
+  category: zod
+    .enum(["candidate", "institution", "employer"])
+    .optional()
+    .describe(
+      "Business-facing category — server expands to purposeType IN (...)",
+    ),
+  currency: zod.coerce
+    .string()
+    .optional()
+    .describe("ISO 4217 currency code (case-insensitive; stored lowercase)"),
+  from: zod
+    .date()
+    .optional()
+    .describe("ISO datetime inclusive lower bound on payments.finalized_at"),
+  to: zod
+    .date()
+    .optional()
+    .describe("ISO datetime inclusive upper bound on payments.finalized_at"),
+  limit: zod.coerce
+    .number()
+    .min(1)
+    .max(adminListPaymentsQueryLimitMax)
+    .optional()
+    .describe("Page size (default 50, capped at 100)"),
+  offset: zod.coerce
+    .number()
+    .min(adminListPaymentsQueryOffsetMin)
+    .optional()
+    .describe("Page offset for simple pagination (capped at 100000)"),
+});
+
+export const AdminListPaymentsResponse = zod.object({
+  payments: zod.array(
+    zod.object({
+      id: zod.number(),
+      provider: zod.enum(["stripe", "paystack"]),
+      externalRef: zod.string(),
+      purposeType: zod.string(),
+      purposeId: zod.number().nullish(),
+      amountSubunits: zod.number(),
+      currency: zod.string(),
+      status: zod.string(),
+      createdAt: zod.coerce.date(),
+      finalizedAt: zod.coerce.date().nullish(),
+    }),
+  ),
+});
+
+/**
+ * @summary Idempotently re-run the finalizer for a single ledger row (admin payments:view)
+ */
+export const AdminRefinalizePaymentParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AdminRefinalizePaymentResponse = zod.object({
+  provider: zod.enum(["stripe", "paystack"]),
+  externalRef: zod.string(),
+  flow: zod
+    .string()
+    .nullish()
+    .describe(
+      "Which flow finalizer handled it (boost, cv, job_tier, institution_subscription, employer_subscription) or null if no dispatcher matched",
+    ),
+  alreadyFinalized: zod.boolean(),
+  reconciled: zod.boolean(),
+});
+
+/**
  * @summary Public site content for the home page (admin-editable)
  */
 export const GetSiteContentResponse = zod.object({

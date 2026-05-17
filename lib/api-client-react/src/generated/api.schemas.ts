@@ -688,6 +688,48 @@ export interface AdminRevenueTimeseriesResponse {
   points: RevenueTimeseriesPoint[];
 }
 
+export type AdminPaymentLedgerRowProvider =
+  (typeof AdminPaymentLedgerRowProvider)[keyof typeof AdminPaymentLedgerRowProvider];
+
+export const AdminPaymentLedgerRowProvider = {
+  stripe: "stripe",
+  paystack: "paystack",
+} as const;
+
+export interface AdminPaymentLedgerRow {
+  id: number;
+  provider: AdminPaymentLedgerRowProvider;
+  externalRef: string;
+  purposeType: string;
+  purposeId?: number | null;
+  amountSubunits: number;
+  currency: string;
+  status: string;
+  createdAt: string;
+  finalizedAt?: string | null;
+}
+
+export interface AdminPaymentsListResponse {
+  payments: AdminPaymentLedgerRow[];
+}
+
+export type AdminRefinalizePaymentResponseProvider =
+  (typeof AdminRefinalizePaymentResponseProvider)[keyof typeof AdminRefinalizePaymentResponseProvider];
+
+export const AdminRefinalizePaymentResponseProvider = {
+  stripe: "stripe",
+  paystack: "paystack",
+} as const;
+
+export interface AdminRefinalizePaymentResponse {
+  provider: AdminRefinalizePaymentResponseProvider;
+  externalRef: string;
+  /** Which flow finalizer handled it (boost, cv, job_tier, institution_subscription, employer_subscription) or null if no dispatcher matched */
+  flow?: string | null;
+  alreadyFinalized: boolean;
+  reconciled: boolean;
+}
+
 export type AdminAccountRole =
   (typeof AdminAccountRole)[keyof typeof AdminAccountRole];
 
@@ -4048,6 +4090,62 @@ export const AdminGetRevenueTimeseriesBucket = {
   day: "day",
   week: "week",
   month: "month",
+} as const;
+
+export type AdminListPaymentsParams = {
+  provider?: AdminListPaymentsProvider;
+  /**
+   * Ledger row status (paid, pending, failed, active, trialing, etc.)
+   */
+  status?: string;
+  /**
+   * Underlying flow type (boost, cv, job_tier, institution_subscription, employer_subscription)
+   */
+  purposeType?: string;
+  /**
+   * Business-facing category — server expands to purposeType IN (...)
+   */
+  category?: AdminListPaymentsCategory;
+  /**
+   * ISO 4217 currency code (case-insensitive; stored lowercase)
+   */
+  currency?: string;
+  /**
+   * ISO datetime inclusive lower bound on payments.finalized_at
+   */
+  from?: string;
+  /**
+   * ISO datetime inclusive upper bound on payments.finalized_at
+   */
+  to?: string;
+  /**
+   * Page size (default 50, capped at 100)
+   * @minimum 1
+   * @maximum 100
+   */
+  limit?: number;
+  /**
+   * Page offset for simple pagination (capped at 100000)
+   * @minimum 0
+   */
+  offset?: number;
+};
+
+export type AdminListPaymentsProvider =
+  (typeof AdminListPaymentsProvider)[keyof typeof AdminListPaymentsProvider];
+
+export const AdminListPaymentsProvider = {
+  stripe: "stripe",
+  paystack: "paystack",
+} as const;
+
+export type AdminListPaymentsCategory =
+  (typeof AdminListPaymentsCategory)[keyof typeof AdminListPaymentsCategory];
+
+export const AdminListPaymentsCategory = {
+  candidate: "candidate",
+  institution: "institution",
+  employer: "employer",
 } as const;
 
 export type GetInstitutionPlacementAnalyticsParams = {

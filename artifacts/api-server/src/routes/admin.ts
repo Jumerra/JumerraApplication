@@ -33,7 +33,7 @@ import {
 } from "@workspace/db";
 import type { User } from "@workspace/db";
 import { requireAdmin } from "../middleware/require-auth";
-import { requirePermission } from "../lib/permissions";
+import { requirePermission, seedSystemRolesFor } from "../lib/permissions";
 import { createSetupToken, findUserByEmail } from "../lib/auth";
 import {
   sendAuthLinkEmail,
@@ -186,6 +186,7 @@ router.post("/admin/registrations/:id/approve", requirePermission("registrations
           })
           .returning();
         updates.employerId = e.id;
+        await seedSystemRolesFor({ scope: "employer", employerId: e.id }, tx);
       } else {
         updates.orgRole = "owner";
         const instName = (data.institutionName as string) ?? user.fullName;
@@ -203,6 +204,10 @@ router.post("/admin/registrations/:id/approve", requirePermission("registrations
           })
           .returning();
         updates.institutionId = i.id;
+        await seedSystemRolesFor(
+          { scope: "institution", institutionId: i.id },
+          tx,
+        );
       }
 
       await tx.update(usersTable).set(updates).where(eq(usersTable.id, user.id));

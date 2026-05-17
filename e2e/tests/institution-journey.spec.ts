@@ -6,7 +6,6 @@ import {
   findUserByEmail,
   findLatestSetupTokenForUser,
   getAffiliation,
-  ensureInstitutionRoles,
 } from "../helpers/db-helpers";
 
 /**
@@ -75,11 +74,6 @@ test("institution registers, gets approved, invites staff, verifies a candidate"
   };
   const institutionId = ownerMe.user.institutionId;
   expect(institutionId).toBeGreaterThan(0);
-
-  // Boot-time role seeder doesn't see institutions created post-boot;
-  // mirror the seed for this institution so /staff/invite accepts the
-  // orgRole below.
-  await ensureInstitutionRoles(institutionId);
 
   const invite = (await ok(
     await ownerCtx.post("/api/staff/invite", {

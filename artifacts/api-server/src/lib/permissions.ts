@@ -564,6 +564,7 @@ export async function seedSystemRolesFor(
     | { scope: "admin" }
     | { scope: "employer"; employerId: number }
     | { scope: "institution"; institutionId: number },
+  executor: Pick<typeof db, "select" | "insert" | "update"> = db,
 ): Promise<void> {
   const systemRoles = SYSTEM_ROLES.filter((r) => r.scope === target.scope);
   for (const role of systemRoles) {
@@ -576,13 +577,13 @@ export async function seedSystemRolesFor(
     } else if (target.scope === "institution") {
       filters.push(eq(adminRolesTable.institutionId, target.institutionId));
     }
-    const existing = await db
+    const existing = await executor
       .select()
       .from(adminRolesTable)
       .where(and(...filters))
       .limit(1);
     if (existing.length === 0) {
-      const [created] = await db
+      const [created] = await executor
         .insert(adminRolesTable)
         .values({
           scope: role.scope,
@@ -595,7 +596,7 @@ export async function seedSystemRolesFor(
         })
         .returning();
       if (role.permissions.length > 0) {
-        await db.insert(adminRolePermissionsTable).values(
+        await executor.insert(adminRolePermissionsTable).values(
           role.permissions.map((permission) => ({
             roleId: created.id,
             permission,
@@ -603,7 +604,7 @@ export async function seedSystemRolesFor(
         );
       }
     } else if (!existing[0].isSystem) {
-      await db
+      await executor
         .update(adminRolesTable)
         .set({ isSystem: true })
         .where(eq(adminRolesTable.id, existing[0].id));

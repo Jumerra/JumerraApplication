@@ -1,5 +1,16 @@
 import { Router } from "express";
-import { db, paymentsTable } from "@workspace/db";
+import {
+  db,
+  paymentsTable,
+  boostPaymentsTable,
+  cvPaymentsTable,
+  jobTierPaymentsTable,
+  institutionSubscriptionsTable,
+  employerSubscriptionsTable,
+  candidatesTable,
+  employersTable,
+  institutionsTable,
+} from "@workspace/db";
 import { and, gte, lte, inArray, sql, eq, desc } from "drizzle-orm";
 import { requireAdmin } from "../middleware/require-auth";
 import { requirePermission } from "../lib/permissions";
@@ -283,6 +294,15 @@ router.get(
         ? Math.min(rawOffset, 100_000)
         : 0;
 
+    // The polymorphic `payments.purpose_id` points at one of five
+    // per-flow tables, which in turn point at one of three customer
+    // tables (candidates / employers / institutions). Resolving the
+    // customer name in a single round trip would require a 5-way
+    // CASE-driven join graph that drizzle's typed builder isn't
+    // great at expressing; instead we fetch the page first, then
+    // batch-resolve each per-flow table once with a single IN-list
+    // query. The page is capped at 100 so this is at most 5 small
+    // round-trips regardless of payment volume.
     const rows = await db
       .select()
       .from(paymentsTable)
@@ -291,19 +311,28 @@ router.get(
       .limit(limit)
       .offset(offset);
 
+    const customers = await resolveCustomers(rows);
+
     res.json({
-      payments: rows.map((r) => ({
-        id: r.id,
-        provider: r.provider,
-        externalRef: r.externalRef,
-        purposeType: r.purposeType,
-        purposeId: r.purposeId,
-        amountSubunits: r.amountSubunits,
-        currency: r.currency,
-        status: r.status,
-        createdAt: r.createdAt.toISOString(),
-        finalizedAt: r.finalizedAt ? r.finalizedAt.toISOString() : null,
-      })),
+      payments: rows.map((r) => {
+        const c = customers.get(`${r.purposeType}:${r.purposeId}`) ?? null;
+        return {
+          id: r.id,
+          provider: r.provider,
+          externalRef: r.externalRef,
+          purposeType: r.purposeType,
+          purposeId: r.purposeId,
+          amountSubunits: r.amountSubunits,
+          currency: r.currency,
+          status: r.status,
+          createdAt: r.createdAt.toISOString(),
+          finalizedAt: r.finalizedAt ? r.finalizedAt.toISOString() : null,
+          customerType: c?.type ?? null,
+          customerId: c?.id ?? null,
+          customerName: c?.name ?? null,
+          customerDeepLink: c?.deepLink ?? null,
+        };
+      }),
     });
   },
 );
@@ -443,6 +472,227 @@ router.get(
     res.end();
   },
 );
+
+/**
+ * Resolve the customer (candidate / employer / institution) behind a
+ * batch of `payments` rows. Returns a map keyed by
+ * `${purposeType}:${purposeId}` so callers can render the resolved
+ * customer next to the raw ledger row.
+ *
+ * Strategy: bucket purpose_ids by their per-flow table, fire one
+ * query per bucket to look up the customer id, then one query per
+ * customer table to resolve names. At most 5 + 3 round-trips for a
+ * page of up to 100 ledger rows.
+ */
+type ResolvedCustomer = {
+  type: "candidate" | "employer" | "institution";
+  id: number;
+  name: string;
+  deepLink: string;
+};
+
+async function resolveCustomers(
+  rows: Array<{ purposeType: string; purposeId: number | null }>,
+): Promise<Map<string, ResolvedCustomer>> {
+  const boostIds = new Set<number>();
+  const cvIds = new Set<number>();
+  const jobTierIds = new Set<number>();
+  const instSubIds = new Set<number>();
+  const empSubIds = new Set<number>();
+  for (const r of rows) {
+    if (r.purposeId == null) continue;
+    switch (r.purposeType) {
+      case "boost":
+        boostIds.add(r.purposeId);
+        break;
+      case "cv":
+        cvIds.add(r.purposeId);
+        break;
+      case "job_tier":
+        jobTierIds.add(r.purposeId);
+        break;
+      case "institution_subscription":
+        instSubIds.add(r.purposeId);
+        break;
+      case "employer_subscription":
+        empSubIds.add(r.purposeId);
+        break;
+    }
+  }
+
+  // purposeId -> customerId per flow
+  const boostMap = new Map<number, number>();
+  const cvMap = new Map<number, number>();
+  const jobTierMap = new Map<number, number>();
+  const instSubMap = new Map<number, number>();
+  const empSubMap = new Map<number, number>();
+
+  await Promise.all([
+    boostIds.size > 0
+      ? db
+          .select({
+            id: boostPaymentsTable.id,
+            candidateId: boostPaymentsTable.candidateId,
+          })
+          .from(boostPaymentsTable)
+          .where(inArray(boostPaymentsTable.id, Array.from(boostIds)))
+          .then((rs) => rs.forEach((r) => boostMap.set(r.id, r.candidateId)))
+      : Promise.resolve(),
+    cvIds.size > 0
+      ? db
+          .select({
+            id: cvPaymentsTable.id,
+            candidateId: cvPaymentsTable.candidateId,
+          })
+          .from(cvPaymentsTable)
+          .where(inArray(cvPaymentsTable.id, Array.from(cvIds)))
+          .then((rs) => rs.forEach((r) => cvMap.set(r.id, r.candidateId)))
+      : Promise.resolve(),
+    jobTierIds.size > 0
+      ? db
+          .select({
+            id: jobTierPaymentsTable.id,
+            employerId: jobTierPaymentsTable.employerId,
+          })
+          .from(jobTierPaymentsTable)
+          .where(inArray(jobTierPaymentsTable.id, Array.from(jobTierIds)))
+          .then((rs) => rs.forEach((r) => jobTierMap.set(r.id, r.employerId)))
+      : Promise.resolve(),
+    instSubIds.size > 0
+      ? db
+          .select({
+            id: institutionSubscriptionsTable.id,
+            institutionId: institutionSubscriptionsTable.institutionId,
+          })
+          .from(institutionSubscriptionsTable)
+          .where(
+            inArray(institutionSubscriptionsTable.id, Array.from(instSubIds)),
+          )
+          .then((rs) =>
+            rs.forEach((r) => instSubMap.set(r.id, r.institutionId)),
+          )
+      : Promise.resolve(),
+    empSubIds.size > 0
+      ? db
+          .select({
+            id: employerSubscriptionsTable.id,
+            employerId: employerSubscriptionsTable.employerId,
+          })
+          .from(employerSubscriptionsTable)
+          .where(
+            inArray(employerSubscriptionsTable.id, Array.from(empSubIds)),
+          )
+          .then((rs) => rs.forEach((r) => empSubMap.set(r.id, r.employerId)))
+      : Promise.resolve(),
+  ]);
+
+  const candidateIds = new Set<number>();
+  for (const v of boostMap.values()) candidateIds.add(v);
+  for (const v of cvMap.values()) candidateIds.add(v);
+  const employerIds = new Set<number>();
+  for (const v of jobTierMap.values()) employerIds.add(v);
+  for (const v of empSubMap.values()) employerIds.add(v);
+  const institutionIds = new Set<number>();
+  for (const v of instSubMap.values()) institutionIds.add(v);
+
+  const candidateNames = new Map<number, string>();
+  const employerNames = new Map<number, string>();
+  const institutionNames = new Map<number, string>();
+
+  await Promise.all([
+    candidateIds.size > 0
+      ? db
+          .select({
+            id: candidatesTable.id,
+            fullName: candidatesTable.fullName,
+          })
+          .from(candidatesTable)
+          .where(inArray(candidatesTable.id, Array.from(candidateIds)))
+          .then((rs) =>
+            rs.forEach((r) => candidateNames.set(r.id, r.fullName)),
+          )
+      : Promise.resolve(),
+    employerIds.size > 0
+      ? db
+          .select({ id: employersTable.id, name: employersTable.name })
+          .from(employersTable)
+          .where(inArray(employersTable.id, Array.from(employerIds)))
+          .then((rs) => rs.forEach((r) => employerNames.set(r.id, r.name)))
+      : Promise.resolve(),
+    institutionIds.size > 0
+      ? db
+          .select({ id: institutionsTable.id, name: institutionsTable.name })
+          .from(institutionsTable)
+          .where(inArray(institutionsTable.id, Array.from(institutionIds)))
+          .then((rs) =>
+            rs.forEach((r) => institutionNames.set(r.id, r.name)),
+          )
+      : Promise.resolve(),
+  ]);
+
+  const out = new Map<string, ResolvedCustomer>();
+  // These detail pages exist as public profile/record routes on the
+  // web app and are the most precise "jump to this customer" target
+  // we have today. Each is one row → one URL, so support can land
+  // directly on the record without searching.
+  const candidateLink = (id: number) => `/candidates/${id}`;
+  const employerLink = (id: number) => `/employers/${id}`;
+  const institutionLink = (id: number) => `/institutions/${id}`;
+
+  for (const r of rows) {
+    if (r.purposeId == null) continue;
+    const key = `${r.purposeType}:${r.purposeId}`;
+    let candidateId: number | undefined;
+    let employerId: number | undefined;
+    let institutionId: number | undefined;
+    switch (r.purposeType) {
+      case "boost":
+        candidateId = boostMap.get(r.purposeId);
+        break;
+      case "cv":
+        candidateId = cvMap.get(r.purposeId);
+        break;
+      case "job_tier":
+        employerId = jobTierMap.get(r.purposeId);
+        break;
+      case "institution_subscription":
+        institutionId = instSubMap.get(r.purposeId);
+        break;
+      case "employer_subscription":
+        employerId = empSubMap.get(r.purposeId);
+        break;
+    }
+    if (candidateId != null) {
+      const name = candidateNames.get(candidateId);
+      if (name)
+        out.set(key, {
+          type: "candidate",
+          id: candidateId,
+          name,
+          deepLink: candidateLink(candidateId),
+        });
+    } else if (employerId != null) {
+      const name = employerNames.get(employerId);
+      if (name)
+        out.set(key, {
+          type: "employer",
+          id: employerId,
+          name,
+          deepLink: employerLink(employerId),
+        });
+    } else if (institutionId != null) {
+      const name = institutionNames.get(institutionId);
+      if (name)
+        out.set(key, {
+          type: "institution",
+          id: institutionId,
+          name,
+          deepLink: institutionLink(institutionId),
+        });
+    }
+  }
+  return out;
+}
 
 /**
  * POST /admin/payments/:id/refinalize

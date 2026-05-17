@@ -31,6 +31,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { CreditCard, RotateCcw, Loader2, Download } from "lucide-react";
+import { Link } from "wouter";
 import { toast } from "sonner";
 
 const PAGE_SIZE = 50;
@@ -370,6 +371,7 @@ export default function AdminPaymentsPage() {
                   <TableHead>ID</TableHead>
                   <TableHead>Provider</TableHead>
                   <TableHead>Flow</TableHead>
+                  <TableHead>Customer</TableHead>
                   <TableHead>External ref</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
                   <TableHead>Status</TableHead>
@@ -381,7 +383,7 @@ export default function AdminPaymentsPage() {
                 {isLoading ? (
                   <TableRow>
                     <TableCell
-                      colSpan={8}
+                      colSpan={9}
                       className="text-center text-muted-foreground py-12"
                     >
                       Loading payments…
@@ -390,7 +392,7 @@ export default function AdminPaymentsPage() {
                 ) : payments.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={8}
+                      colSpan={9}
                       className="text-center text-muted-foreground py-12"
                     >
                       No payments match these filters.
@@ -412,6 +414,34 @@ export default function AdminPaymentsPage() {
                       </TableCell>
                       <TableCell className="text-xs">
                         {p.purposeType}
+                      </TableCell>
+                      <TableCell
+                        className="text-xs max-w-[220px]"
+                        data-testid={`cell-customer-${p.id}`}
+                      >
+                        {p.customerName && p.customerDeepLink ? (
+                          <Link
+                            href={p.customerDeepLink}
+                            className="text-primary hover:underline truncate block"
+                            title={`${p.customerName} (${p.customerType})`}
+                            data-testid={`link-customer-${p.id}`}
+                          >
+                            {p.customerName}
+                          </Link>
+                        ) : (
+                          <span
+                            className="text-muted-foreground"
+                            title={
+                              p.purposeId != null
+                                ? `${p.purposeType} #${p.purposeId}`
+                                : undefined
+                            }
+                          >
+                            {p.purposeId != null
+                              ? `${p.purposeType} #${p.purposeId}`
+                              : "—"}
+                          </span>
+                        )}
                       </TableCell>
                       <TableCell
                         className="font-mono text-xs max-w-[280px] truncate"

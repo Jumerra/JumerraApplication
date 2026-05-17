@@ -5153,6 +5153,30 @@ export const AdminListPaymentsResponse = zod.object({
       status: zod.string(),
       createdAt: zod.coerce.date(),
       finalizedAt: zod.coerce.date().nullish(),
+      customerType: zod
+        .enum(["candidate", "employer", "institution"])
+        .nullish()
+        .describe(
+          "Resolved customer category for this ledger row, or null if the underlying per-flow row or its customer could not be resolved (deleted account, etc.).",
+        ),
+      customerId: zod
+        .number()
+        .nullish()
+        .describe(
+          "Resolved customer primary key (candidates.id \/ employers.id \/ institutions.id).",
+        ),
+      customerName: zod
+        .string()
+        .nullish()
+        .describe(
+          "Display name of the resolved customer (full_name for candidates, name for employers\/institutions).",
+        ),
+      customerDeepLink: zod
+        .string()
+        .nullish()
+        .describe(
+          "Web app path to jump to the customer's detail page (e.g. \/candidates\/:id, \/employers\/:id, \/institutions\/:id).",
+        ),
     }),
   ),
 });

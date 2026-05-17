@@ -5329,6 +5329,23 @@ components:
         status: { type: string }
         createdAt: { type: string, format: date-time }
         finalizedAt: { type: string, format: date-time, nullable: true }
+        customerType:
+          type: string
+          nullable: true
+          enum: [candidate, employer, institution]
+          description: Resolved customer category for this ledger row, or null if the underlying per-flow row or its customer could not be resolved (deleted account, etc.).
+        customerId:
+          type: integer
+          nullable: true
+          description: Resolved customer primary key (candidates.id / employers.id / institutions.id).
+        customerName:
+          type: string
+          nullable: true
+          description: Display name of the resolved customer (full_name for candidates, name for employers/institutions).
+        customerDeepLink:
+          type: string
+          nullable: true
+          description: Web app path to jump to the customer's detail page (e.g. /candidates/:id, /employers/:id, /institutions/:id).
       required:
         - id
         - provider

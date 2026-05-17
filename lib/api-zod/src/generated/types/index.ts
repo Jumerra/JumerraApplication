@@ -37,6 +37,7 @@ export * from "./adminListPaymentsParams";
 export * from "./adminListPaymentsProvider";
 export * from "./adminListWhatsappLogsParams";
 export * from "./adminPaymentLedgerRow";
+export * from "./adminPaymentLedgerRowCustomerType";
 export * from "./adminPaymentLedgerRowProvider";
 export * from "./adminPaymentsListResponse";
 export * from "./adminRefinalizePaymentResponse";

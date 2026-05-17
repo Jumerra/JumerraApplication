@@ -5,6 +5,7 @@
  * Talent Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { AdminPaymentLedgerRowCustomerType } from "./adminPaymentLedgerRowCustomerType";
 import type { AdminPaymentLedgerRowProvider } from "./adminPaymentLedgerRowProvider";
 
 export interface AdminPaymentLedgerRow {
@@ -18,4 +19,12 @@ export interface AdminPaymentLedgerRow {
   status: string;
   createdAt: Date;
   finalizedAt?: Date | null;
+  /** Resolved customer category for this ledger row, or null if the underlying per-flow row or its customer could not be resolved (deleted account, etc.). */
+  customerType?: AdminPaymentLedgerRowCustomerType;
+  /** Resolved customer primary key (candidates.id / employers.id / institutions.id). */
+  customerId?: number | null;
+  /** Display name of the resolved customer (full_name for candidates, name for employers/institutions). */
+  customerName?: string | null;
+  /** Web app path to jump to the customer's detail page (e.g. /candidates/:id, /employers/:id, /institutions/:id). */
+  customerDeepLink?: string | null;
 }

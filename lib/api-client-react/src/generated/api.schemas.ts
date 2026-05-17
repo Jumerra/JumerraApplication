@@ -696,6 +696,19 @@ export const AdminPaymentLedgerRowProvider = {
   paystack: "paystack",
 } as const;
 
+/**
+ * Resolved customer category for this ledger row, or null if the underlying per-flow row or its customer could not be resolved (deleted account, etc.).
+ */
+export type AdminPaymentLedgerRowCustomerType =
+  | (typeof AdminPaymentLedgerRowCustomerType)[keyof typeof AdminPaymentLedgerRowCustomerType]
+  | null;
+
+export const AdminPaymentLedgerRowCustomerType = {
+  candidate: "candidate",
+  employer: "employer",
+  institution: "institution",
+} as const;
+
 export interface AdminPaymentLedgerRow {
   id: number;
   provider: AdminPaymentLedgerRowProvider;
@@ -707,6 +720,14 @@ export interface AdminPaymentLedgerRow {
   status: string;
   createdAt: string;
   finalizedAt?: string | null;
+  /** Resolved customer category for this ledger row, or null if the underlying per-flow row or its customer could not be resolved (deleted account, etc.). */
+  customerType?: AdminPaymentLedgerRowCustomerType;
+  /** Resolved customer primary key (candidates.id / employers.id / institutions.id). */
+  customerId?: number | null;
+  /** Display name of the resolved customer (full_name for candidates, name for employers/institutions). */
+  customerName?: string | null;
+  /** Web app path to jump to the customer's detail page (e.g. /candidates/:id, /employers/:id, /institutions/:id). */
+  customerDeepLink?: string | null;
 }
 
 export interface AdminPaymentsListResponse {

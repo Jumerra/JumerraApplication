@@ -1,0 +1,108 @@
+name: Unquarantine stable e2e journeys
+
+# Weekly job that strips quarantine annotations from any e2e test the
+# flaky-report says is now stable, and opens a draft PR with the diff so
+# the quarantine list visibly shrinks on its own.
+#
+# Companion to `pnpm --filter @workspace/scripts run unquarantine` — the
+# script already exits 0 cleanly when there is nothing to do, so this
+# job no-ops on weeks where no journey is ready to come out.
+
+on:
+  schedule:
+    # Mondays 09:00 UTC — fresh diff to look at at the start of the week.
+    - cron: "0 9 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: unquarantine
+  cancel-in-progress: false
+
+jobs:
+  unquarantine:
+    name: Strip stale quarantine tags
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run unquarantine
+        id: unquarantine
+        run: |
+          set -o pipefail
+          pnpm --filter @workspace/scripts run -s unquarantine | tee /tmp/unquarantine.log
+          {
+            echo 'summary<<EOF'
+            cat /tmp/unquarantine.log
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Detect changes
+        id: diff
+        run: |
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No quarantine tags removed — nothing to PR."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open draft PR
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SUMMARY: ${{ steps.unquarantine.outputs.summary }}
+        run: |
+          set -euo pipefail
+          BRANCH="bot/unquarantine-$(date -u +%Y%m%d)"
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add -A
+          git commit -m "chore(e2e): unquarantine stable journeys"
+          git push --force-with-lease origin "$BRANCH"
+
+          # If a draft PR for this branch already exists (re-run on the
+          # same day), update its branch rather than failing the job.
+          if gh pr view "$BRANCH" --json number >/dev/null 2>&1; then
+            echo "PR for $BRANCH already exists — branch updated."
+            exit 0
+          fi
+
+          BODY=$(cat <<'EOF'
+          This PR was opened automatically by the weekly `unquarantine` job.
+
+          The flaky-journey health report identified these previously quarantined e2e tests as stable, and `scripts/src/unquarantine.ts` stripped their quarantine annotations.
+
+          <details>
+          <summary>Script output</summary>
+
+          ```
+          EOF
+          )
+          BODY="$BODY"$'\n'"$SUMMARY"$'\n'"\`\`\`"$'\n\n'"</details>"
+
+          gh pr create \
+            --draft \
+            --base main \
+            --head "$BRANCH" \
+            --title "chore(e2e): unquarantine stable journeys" \
+            --body "$BODY"

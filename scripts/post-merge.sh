@@ -76,10 +76,13 @@ if [ "$E2E_DB_ALLOWED" != "1" ]; then
 fi
 
 # Ensure Playwright's Chromium build is present — the admin-payments
-# UI spec drives a real browser. `install --with-deps` is a no-op when
-# the binaries are already on disk; first run on a fresh machine pulls
-# ~120 MiB which is acceptable post-merge overhead.
-pnpm --filter @workspace/e2e exec playwright install chromium >/dev/null 2>&1 || true
+# UI spec drives a real browser. Delegates to scripts/e2e-setup.sh,
+# the single source of truth for browser+lib setup (also wired into
+# the e2e package's `pretest` hook so a fresh clone works). Best
+# effort: a transient download blip shouldn't fail the whole post-
+# merge run; if Chromium is genuinely missing the e2e suite will fail
+# loudly a few lines down and the operator gets a clear signal.
+bash "$(dirname "$0")/e2e-setup.sh" >/dev/null 2>&1 || true
 
 echo "→ Running api-server unit tests and Playwright e2e suite in parallel"
 echo "  run id  : $RUN_ID"

@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "pretest": "bash ../scripts/e2e-setup.sh",
     "test": "playwright test",
     "test:headed": "playwright test --headed",
     "test:unit": "vitest run",

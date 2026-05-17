@@ -109,6 +109,19 @@ describe("post-merge-reporter archive + prune", () => {
       archiveDroppedLines(archiveDir, []);
       expect(fs.existsSync(archiveDir)).toBe(false);
     });
+
+    it("evicts 'unknown' archive last because 'u' sorts after digits in ASCII", () => {
+      process.env.E2E_ARCHIVE_RETENTION_MONTHS = "2";
+      archiveDroppedLines(archiveDir, ["not-json{"]);
+      archiveDroppedLines(archiveDir, [makeRow("2025-01-10T10:00:00.000Z")]);
+      archiveDroppedLines(archiveDir, [makeRow("2025-02-10T10:00:00.000Z")]);
+      archiveDroppedLines(archiveDir, [makeRow("2025-03-10T10:00:00.000Z")]);
+      const remaining = fs.readdirSync(archiveDir).sort();
+      expect(remaining).toEqual([
+        "e2e-history-2025-03.jsonl",
+        "e2e-history-unknown.jsonl",
+      ]);
+    });
   });
 
   describe("pruneHistory", () => {

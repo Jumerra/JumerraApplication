@@ -125,8 +125,11 @@ export function archiveDroppedLines(
 
   // Cap the number of monthly archive files. YYYY-MM sorts
   // lexicographically the same as chronologically, so the lowest names
-  // are the oldest. "unknown" sorts before any real year, so it gets
-  // pruned first — acceptable since unparseable lines have no date.
+  // are the oldest and get pruned first. "unknown" starts with 'u',
+  // which sorts AFTER any digit in ASCII, so e2e-history-unknown.jsonl
+  // is evicted LAST — accept that unparseable lines persist longer than
+  // dated ones (they're rare and we'd rather keep them around for
+  // debugging than drop them ahead of real data).
   const months = Number(process.env.E2E_ARCHIVE_RETENTION_MONTHS ?? "12");
   if (Number.isFinite(months) && months > 0) {
     const files = fs

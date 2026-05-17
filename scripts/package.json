@@ -13,6 +13,7 @@
     "regression-report": "tsx ./src/regression-report.ts",
     "regression-notify": "tsx ./src/regression-notify.ts",
     "post-merge-failure-notify": "tsx ./src/post-merge-failure-notify.ts",
+    "regression-ack": "tsx ./src/regression-ack.ts",
     "unquarantine": "tsx ./src/unquarantine.ts",
     "test": "vitest run",
     "test:watch": "vitest",

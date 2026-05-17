@@ -17,6 +17,11 @@
  *   --fails N      consecutive failing runs at the tail (default 2)
  *   --streak M     min length of the clean pass streak (default 10)
  *   --history PATH override the JSONL location
+ *   --acks PATH    override the regression-acks.json location (acked
+ *                  journeys are filtered out of `regressions` by
+ *                  regression-report and surfaced separately under
+ *                  `acked` / `totalAcked` in the JSON payload, so the
+ *                  notifier never fires for them)
  *
  * Best-effort: never exits non-zero on a notification failure (the
  * post-merge pipeline calls us with `|| true`, but we belt-and-brace it
@@ -41,9 +46,15 @@ interface Regression {
 interface ReportPayload {
   criteria: { fails: number; streak: number };
   historyPath: string;
+  acksPath?: string;
   includeArchive: boolean;
   totalRegressions: number;
   regressions: Regression[];
+  // Acked regressions are kept in the payload so they're not invisible,
+  // but they're intentionally NOT used to decide whether to notify —
+  // the whole point of an ack is "stop pinging me about this one".
+  totalAcked?: number;
+  acked?: Array<Regression & { ack: { file: string; journey: string; until?: string; reason?: string } }>;
 }
 
 function runReport(forwardedArgs: string[]): ReportPayload | null {

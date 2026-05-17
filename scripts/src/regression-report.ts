@@ -33,11 +33,18 @@ import {
   type HistoryRunRecord,
   type HistoryTestRecord,
 } from "./lib/e2e-history.js";
+import {
+  ackKey,
+  defaultAcksPath,
+  loadActiveAcks,
+  type RegressionAck,
+} from "./lib/regression-acks.js";
 
 interface Args {
   fails: number;
   streak: number;
   historyPath: string;
+  acksPath: string;
   includeArchive: boolean;
   json: boolean;
 }
@@ -53,12 +60,17 @@ interface Regression {
   lastReason?: string;
 }
 
+interface AckedRegression extends Regression {
+  ack: RegressionAck;
+}
+
 function parseArgs(rawArgv: string[]): Args {
   const argv = rawArgv.filter((a) => a !== "--");
   const args: Args = {
     fails: 2,
     streak: 10,
     historyPath: defaultHistoryPath(),
+    acksPath: defaultAcksPath(),
     includeArchive: true,
     json: false,
   };
@@ -78,6 +90,8 @@ function parseArgs(rawArgv: string[]): Args {
       args.streak = n;
     } else if (a === "--history") {
       args.historyPath = path.resolve(argv[++i] ?? "");
+    } else if (a === "--acks") {
+      args.acksPath = path.resolve(argv[++i] ?? "");
     } else if (a === "--no-archive") {
       args.includeArchive = false;
     } else if (a === "--include-archive") {
@@ -87,7 +101,7 @@ function parseArgs(rawArgv: string[]): Args {
     } else if (a === "--help" || a === "-h") {
       process.stdout.write(
         "Usage: regression-report [--fails 2] [--streak 10] " +
-          "[--history PATH] [--no-archive] [--json]\n",
+          "[--history PATH] [--acks PATH] [--no-archive] [--json]\n",
       );
       process.exit(0);
     } else {
@@ -190,7 +204,11 @@ function detectRegression(
   };
 }
 
-function renderText(regressions: Regression[], args: Args): string {
+function renderText(
+  regressions: Regression[],
+  acked: AckedRegression[],
+  args: Args,
+): string {
   const lines: string[] = [];
   lines.push("# Regression report");
   lines.push(
@@ -199,6 +217,11 @@ function renderText(regressions: Regression[], args: Args): string {
   lines.push("");
   if (regressions.length === 0) {
     lines.push("_No regressions detected — every previously-stable journey is still passing._");
+    if (acked.length > 0) {
+      lines.push("");
+      lines.push(`_${acked.length} regression${acked.length === 1 ? " is" : "s are"} currently acked and suppressed (see below)._`);
+      appendAckedTable(lines, acked);
+    }
     return lines.join("\n");
   }
   // Most recent break first so the on-call sees today's incidents at the top.
@@ -213,7 +236,25 @@ function renderText(regressions: Regression[], args: Args): string {
       `| ${r.brokeAt} | ${r.journey} | ${r.file} | ${r.streakLength} | ${r.failingRuns} | ${r.lastStatus} | ${reason} |`,
     );
   }
+  if (acked.length > 0) {
+    appendAckedTable(lines, acked);
+  }
   return lines.join("\n");
+}
+
+function appendAckedTable(lines: string[], acked: AckedRegression[]): void {
+  lines.push("");
+  lines.push(`## Acked (suppressed) — ${acked.length}`);
+  lines.push("| Broke at (UTC) | Journey | File | Acked until | Ack reason |");
+  lines.push("| --- | --- | --- | --- | --- |");
+  const sorted = [...acked].sort((a, b) => b.brokeAt.localeCompare(a.brokeAt));
+  for (const r of sorted) {
+    const until = r.ack.until ?? "(no expiry)";
+    const reason = (r.ack.reason ?? "").replace(/\|/g, "\\|");
+    lines.push(
+      `| ${r.brokeAt} | ${r.journey} | ${r.file} | ${until} | ${reason} |`,
+    );
+  }
 }
 
 function main(): void {
@@ -221,10 +262,18 @@ function main(): void {
   const runs = readHistory(args.historyPath, args.includeArchive);
   const appearances = collectAppearances(runs);
 
+  const acks = loadActiveAcks(args.acksPath);
   const regressions: Regression[] = [];
+  const acked: AckedRegression[] = [];
   for (const entries of appearances.values()) {
     const r = detectRegression(entries, args.fails, args.streak);
-    if (r) regressions.push(r);
+    if (!r) continue;
+    const ack = acks.get(ackKey(r.file, r.journey));
+    if (ack) {
+      acked.push({ ...r, ack });
+    } else {
+      regressions.push(r);
+    }
   }
 
   if (args.json) {
@@ -233,9 +282,12 @@ function main(): void {
         {
           criteria: { fails: args.fails, streak: args.streak },
           historyPath: args.historyPath,
+          acksPath: args.acksPath,
           includeArchive: args.includeArchive,
           totalRegressions: regressions.length,
           regressions,
+          totalAcked: acked.length,
+          acked,
         },
         null,
         2,
@@ -244,7 +296,7 @@ function main(): void {
     return;
   }
 
-  process.stdout.write(`${renderText(regressions, args)}\n`);
+  process.stdout.write(`${renderText(regressions, acked, args)}\n`);
 }
 
 main();

@@ -76,6 +76,73 @@ function isQuarantined(test: TestCase, result: TestResult): string | undefined {
 }
 
 /**
+ * Append dropped lines to a rolling monthly archive file before they
+ * leave the live history. Lines are bucketed by the YYYY-MM of their
+ * `finishedAt` so each archive file holds a single calendar month.
+ *
+ * After writing the archive entries, the archive directory itself is
+ * capped at E2E_ARCHIVE_RETENTION_MONTHS (default 12) — oldest files
+ * (by their YYYY-MM filename, which sorts correctly) are deleted so
+ * the archive can't reintroduce the unbounded-growth problem the
+ * live-file prune was added to solve.
+ */
+function archiveDroppedLines(archiveDir: string, droppedLines: string[]): void {
+  if (droppedLines.length === 0) return;
+
+  const byMonth = new Map<string, string[]>();
+  for (const line of droppedLines) {
+    let key = "unknown";
+    try {
+      const parsed = JSON.parse(line) as { finishedAt?: string };
+      if (parsed && typeof parsed.finishedAt === "string") {
+        const ts = Date.parse(parsed.finishedAt);
+        if (Number.isFinite(ts)) {
+          const d = new Date(ts);
+          const yyyy = d.getUTCFullYear().toString().padStart(4, "0");
+          const mm = (d.getUTCMonth() + 1).toString().padStart(2, "0");
+          key = `${yyyy}-${mm}`;
+        }
+      }
+    } catch {
+      // unparseable lines are bucketed into "unknown" so they aren't lost
+    }
+    let bucket = byMonth.get(key);
+    if (!bucket) {
+      bucket = [];
+      byMonth.set(key, bucket);
+    }
+    bucket.push(line);
+  }
+
+  fs.mkdirSync(archiveDir, { recursive: true });
+  for (const [month, lines] of byMonth) {
+    const target = path.join(archiveDir, `e2e-history-${month}.jsonl`);
+    fs.appendFileSync(target, `${lines.join("\n")}\n`);
+  }
+
+  // Cap the number of monthly archive files. YYYY-MM sorts
+  // lexicographically the same as chronologically, so the lowest names
+  // are the oldest. "unknown" sorts before any real year, so it gets
+  // pruned first — acceptable since unparseable lines have no date.
+  const months = Number(process.env.E2E_ARCHIVE_RETENTION_MONTHS ?? "12");
+  if (Number.isFinite(months) && months > 0) {
+    const files = fs
+      .readdirSync(archiveDir)
+      .filter((n) => /^e2e-history-.+\.jsonl$/.test(n))
+      .sort();
+    while (files.length > months) {
+      const drop = files.shift();
+      if (!drop) break;
+      try {
+        fs.unlinkSync(path.join(archiveDir, drop));
+      } catch {
+        // best-effort
+      }
+    }
+  }
+}
+
+/**
  * Drop runs older than the retention window from the JSONL history.
  * Default 90 days, overridable via E2E_HISTORY_RETENTION_DAYS. A
  * value of 0 (or non-finite) disables pruning entirely.
@@ -84,6 +151,11 @@ function isQuarantined(test: TestCase, result: TestResult): string | undefined {
  * original so a crash mid-write can't truncate the history. Lines
  * that don't parse, or that have no usable finishedAt timestamp, are
  * kept — better to keep junk than to silently drop history.
+ *
+ * Dropped lines are appended to a monthly archive under
+ * `<dir>/archive/e2e-history-YYYY-MM.jsonl` before the live file is
+ * rewritten so we keep a long-term audit trail. See
+ * `archiveDroppedLines` for the archive cap.
  */
 function pruneHistory(file: string, nowMs: number): void {
   const days = Number(process.env.E2E_HISTORY_RETENTION_DAYS ?? "90");
@@ -117,7 +189,7 @@ function pruneHistory(file: string, nowMs: number): void {
     const raw = fs.readFileSync(file, "utf8");
     const lines = raw.split("\n");
     const kept: string[] = [];
-    let dropped = 0;
+    const droppedLines: string[] = [];
     for (const line of lines) {
       if (!line) continue;
       let keep = true;
@@ -131,9 +203,28 @@ function pruneHistory(file: string, nowMs: number): void {
         // unparseable — keep it
       }
       if (keep) kept.push(line);
-      else dropped += 1;
+      else droppedLines.push(line);
     }
-    if (dropped > 0) {
+    if (droppedLines.length > 0) {
+      // Archive first — if the rewrite below crashes, we'd rather have
+      // duplicate rows in the archive than no record of them at all.
+      // If archiving fails (disk full, permissions, …), SKIP the prune
+      // entirely so we never drop data we couldn't save. The next run
+      // will retry; the live file growing one more day is the lesser
+      // evil compared to losing the audit trail.
+      try {
+        archiveDroppedLines(
+          path.join(path.dirname(file), "archive"),
+          droppedLines,
+        );
+      } catch (err) {
+        process.stderr.write(
+          `[post-merge-reporter] archive write failed; skipping history prune to preserve audit trail: ${
+            err instanceof Error ? err.message : String(err)
+          }\n`,
+        );
+        return;
+      }
       const tmp = `${file}.tmp-${process.pid}`;
       fs.writeFileSync(tmp, kept.length > 0 ? `${kept.join("\n")}\n` : "");
       fs.renameSync(tmp, file);

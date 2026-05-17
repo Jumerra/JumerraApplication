@@ -14,10 +14,18 @@
  *
  *   pnpm --filter @workspace/scripts run flaky-report
  *
+ * For long-window queries that reach further back than the live
+ * history retention (default 90 days), pass `--include-archive` to
+ * also read every `archive/e2e-history-YYYY-MM.jsonl` file next to
+ * the live history. Archive files are written by the post-merge
+ * reporter just before it prunes the live file, so the combined view
+ * covers the full audit trail (capped at 12 months by default).
+ *
  * Flags:
- *   --days N        window size in days (default 7)
- *   --history PATH  override the JSONL location
- *   --json          emit the structured summary instead of markdown
+ *   --days N             window size in days (default 7)
+ *   --history PATH       override the JSONL location
+ *   --include-archive    also read sibling archive/ JSONL files
+ *   --json               emit the structured summary instead of markdown
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -60,6 +68,7 @@ interface JourneyStats {
 interface Args {
   days: number;
   historyPath: string;
+  includeArchive: boolean;
   json: boolean;
 }
 
@@ -70,6 +79,7 @@ function parseArgs(argv: string[]): Args {
       process.cwd(),
       ".local/post-merge-logs/e2e-history.jsonl",
     ),
+    includeArchive: false,
     json: false,
   };
   for (let i = 0; i < argv.length; i++) {
@@ -82,11 +92,13 @@ function parseArgs(argv: string[]): Args {
       args.days = n;
     } else if (a === "--history") {
       args.historyPath = path.resolve(argv[++i] ?? "");
+    } else if (a === "--include-archive") {
+      args.includeArchive = true;
     } else if (a === "--json") {
       args.json = true;
     } else if (a === "--help" || a === "-h") {
       process.stdout.write(
-        "Usage: flaky-report [--days 7] [--history PATH] [--json]\n",
+        "Usage: flaky-report [--days 7] [--history PATH] [--include-archive] [--json]\n",
       );
       process.exit(0);
     } else {
@@ -96,22 +108,48 @@ function parseArgs(argv: string[]): Args {
   return args;
 }
 
-function readHistory(file: string): HistoryRunRecord[] {
-  if (!fs.existsSync(file)) return [];
+function readJsonlFile(file: string, into: HistoryRunRecord[]): void {
+  if (!fs.existsSync(file)) return;
   const raw = fs.readFileSync(file, "utf8");
-  const runs: HistoryRunRecord[] = [];
   for (const line of raw.split("\n")) {
     const trimmed = line.trim();
     if (!trimmed) continue;
     try {
-      runs.push(JSON.parse(trimmed) as HistoryRunRecord);
+      into.push(JSON.parse(trimmed) as HistoryRunRecord);
     } catch {
       // skip malformed lines — better to surface a partial report than crash
     }
   }
+}
+
+function readHistory(file: string, includeArchive: boolean): HistoryRunRecord[] {
+  const runs: HistoryRunRecord[] = [];
+  readJsonlFile(file, runs);
+  if (includeArchive) {
+    const archiveDir = path.join(path.dirname(file), "archive");
+    if (fs.existsSync(archiveDir)) {
+      const files = fs
+        .readdirSync(archiveDir)
+        .filter((n) => /^e2e-history-.+\.jsonl$/.test(n))
+        .sort();
+      for (const name of files) {
+        readJsonlFile(path.join(archiveDir, name), runs);
+      }
+    }
+  }
   // Oldest -> newest so quarantine-streak math reads naturally.
-  runs.sort((a, b) => a.finishedAt.localeCompare(b.finishedAt));
-  return runs;
+  // De-dupe by runId in case the live file and an archive overlap
+  // (e.g. archived just before prune, then prune crashed).
+  const seen = new Set<string>();
+  const deduped: HistoryRunRecord[] = [];
+  for (const r of runs) {
+    const key = `${r.runId}\u0000${r.finishedAt}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(r);
+  }
+  deduped.sort((a, b) => a.finishedAt.localeCompare(b.finishedAt));
+  return deduped;
 }
 
 function computeStats(
@@ -298,7 +336,7 @@ function renderMarkdown(
 
 function main(): void {
   const args = parseArgs(process.argv.slice(2));
-  const runs = readHistory(args.historyPath);
+  const runs = readHistory(args.historyPath, args.includeArchive);
   const now = Date.now();
   const windowMs = args.days * 24 * 60 * 60 * 1000;
   const totalRuns = runs.filter(

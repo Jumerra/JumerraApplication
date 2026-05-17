@@ -1,13 +1,19 @@
 /**
- * Payment-rail selection. Africa-first: native African currencies are
- * routed through Paystack (which has local card acquiring, instant
- * settlement, USSD/bank-transfer fallbacks, and ~3-4% fees vs Stripe's
- * 4-7% for cross-border African cards). Everything else falls through
- * to Stripe so global USD/EUR/GBP customers get the rail they expect.
+ * Payment-rail selection. The platform is Ghana/Africa-first and Stripe
+ * is intentionally disabled at the routing layer because Stripe does
+ * not support Ghana-based merchants — every checkout is sent to
+ * Paystack regardless of currency or any override the caller passes.
  *
- * `PAYSTACK_NATIVE` is intentionally narrow — only the currencies
- * Paystack actually settles in. Adding a currency here without Paystack
- * supporting it would cause silent checkout failures.
+ * The "stripe" branch is retained as a type for historical payment
+ * rows (existing `boost_payments`, `cv_payments`, etc. with
+ * `provider='stripe'` from before the Ghana switch) so reads of old
+ * data keep working, but no new checkout will ever be routed through
+ * it. To re-enable Stripe in the future, restore the
+ * currency/override branching that lived here previously.
+ *
+ * `PAYSTACK_NATIVE` is kept as a hint for UIs that want to pre-select
+ * the most-local currency for a buyer — it is no longer used for
+ * routing.
  */
 
 export type PaymentRail = "stripe" | "paystack";
@@ -19,29 +25,16 @@ export function isPaystackCurrency(currency: string): boolean {
 }
 
 /**
- * Decide which rail handles a checkout for a given currency.
+ * Always returns "paystack". See file header for why.
  *
- * `override`: explicit caller choice (e.g. an admin force-route, or a
- *   customer-facing rail picker). Respected verbatim when valid.
- *
- * If Paystack is not configured at all (no `PAYSTACK_SECRET_KEY`),
- * everything falls back to Stripe so the platform never serves a
- * broken checkout button just because a secret is missing.
+ * `opts.currency` and `opts.override` are accepted for backwards
+ * compatibility with existing callers but are intentionally ignored.
  */
-export function selectPaymentRail(opts: {
+export function selectPaymentRail(_opts: {
   currency: string;
   override?: PaymentRail | null;
 }): PaymentRail {
-  if (opts.override === "stripe" || opts.override === "paystack") {
-    if (opts.override === "paystack" && !isPaystackConfigured()) {
-      return "stripe";
-    }
-    return opts.override;
-  }
-  if (isPaystackCurrency(opts.currency) && isPaystackConfigured()) {
-    return "paystack";
-  }
-  return "stripe";
+  return "paystack";
 }
 
 export function isPaystackConfigured(): boolean {

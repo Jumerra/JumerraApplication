@@ -29,38 +29,33 @@ describe("isPaystackCurrency", () => {
   });
 });
 
-describe("selectPaymentRail", () => {
-  it("routes African currencies to Paystack when configured", () => {
+describe("selectPaymentRail (Ghana-first: Stripe disabled)", () => {
+  it("always returns paystack for African currencies", () => {
     process.env.PAYSTACK_SECRET_KEY = "sk_test_xxx";
+    expect(selectPaymentRail({ currency: "GHS" })).toBe("paystack");
     expect(selectPaymentRail({ currency: "NGN" })).toBe("paystack");
-    expect(selectPaymentRail({ currency: "ghs" })).toBe("paystack");
+    expect(selectPaymentRail({ currency: "kes" })).toBe("paystack");
   });
 
-  it("falls back to Stripe when Paystack is not configured", () => {
-    delete process.env.PAYSTACK_SECRET_KEY;
-    expect(selectPaymentRail({ currency: "NGN" })).toBe("stripe");
-  });
-
-  it("routes non-African currencies to Stripe even when Paystack is up", () => {
+  it("always returns paystack for non-African currencies too", () => {
     process.env.PAYSTACK_SECRET_KEY = "sk_test_xxx";
-    expect(selectPaymentRail({ currency: "USD" })).toBe("stripe");
-    expect(selectPaymentRail({ currency: "EUR" })).toBe("stripe");
+    expect(selectPaymentRail({ currency: "USD" })).toBe("paystack");
+    expect(selectPaymentRail({ currency: "EUR" })).toBe("paystack");
+    expect(selectPaymentRail({ currency: "GBP" })).toBe("paystack");
   });
 
-  it("honors an explicit override", () => {
+  it("ignores any stripe override", () => {
     process.env.PAYSTACK_SECRET_KEY = "sk_test_xxx";
     expect(
-      selectPaymentRail({ currency: "USD", override: "paystack" }),
+      selectPaymentRail({ currency: "USD", override: "stripe" }),
     ).toBe("paystack");
     expect(
-      selectPaymentRail({ currency: "NGN", override: "stripe" }),
-    ).toBe("stripe");
+      selectPaymentRail({ currency: "GHS", override: "stripe" }),
+    ).toBe("paystack");
   });
 
-  it("downgrades a paystack override to stripe when paystack is not configured", () => {
+  it("still returns paystack even if the secret is missing (configuration error surfaces at checkout)", () => {
     delete process.env.PAYSTACK_SECRET_KEY;
-    expect(
-      selectPaymentRail({ currency: "USD", override: "paystack" }),
-    ).toBe("stripe");
+    expect(selectPaymentRail({ currency: "GHS" })).toBe("paystack");
   });
 });

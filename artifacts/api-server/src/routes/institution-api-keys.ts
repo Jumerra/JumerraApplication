@@ -189,8 +189,13 @@ router.delete(
  * institution that minted the key. No session/cookie auth — this is
  * for server-to-server integrations.
  */
+// NOTE: the parent router is mounted at `/api` in app.ts, so the path
+// here is relative to that mount — declaring it as `/v1/...` (not
+// `/api/v1/...`) is what makes the final URL `/api/v1/institutions/students`.
+// Earlier this was double-prefixed which is why Orval generated a
+// `/api/api/v1/...` client URL.
 router.get(
-  "/api/v1/institutions/students",
+  "/v1/institutions/students",
   async (req, res): Promise<void> => {
     const auth = req.header("authorization") ?? "";
     const match = /^Bearer\s+(\S+)$/.exec(auth);

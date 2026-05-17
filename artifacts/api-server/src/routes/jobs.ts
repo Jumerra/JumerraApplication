@@ -345,7 +345,13 @@ router.get("/jobs/:id", attachUser, async (req, res): Promise<void> => {
     })
     .from(jobsTable)
     .innerJoin(employersTable, eq(jobsTable.employerId, employersTable.id))
-    .where(eq(jobsTable.id, params.data.id));
+    .where(
+      and(
+        eq(jobsTable.id, params.data.id),
+        notDeleted(jobsTable.deletedAt),
+        notDeleted(employersTable.deletedAt),
+      ),
+    );
 
   if (!row) {
     res.status(404).json({ error: "Job not found" });

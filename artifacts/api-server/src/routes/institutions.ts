@@ -267,9 +267,12 @@ router.get("/institutions", async (req, res): Promise<void> => {
     .select()
     .from(institutionsTable)
     .where(
-      filterByManager !== null
-        ? eq(institutionsTable.accountManagerId, filterByManager)
-        : undefined,
+      and(
+        notDeleted(institutionsTable.deletedAt),
+        filterByManager !== null
+          ? eq(institutionsTable.accountManagerId, filterByManager)
+          : undefined,
+      ),
     )
     .orderBy(institutionsTable.name);
 
@@ -403,13 +406,23 @@ router.get(
       [institution] = await db
         .select()
         .from(institutionsTable)
-        .where(eq(institutionsTable.id, Number(slugOrId)))
+        .where(
+          and(
+            eq(institutionsTable.id, Number(slugOrId)),
+            notDeleted(institutionsTable.deletedAt),
+          ),
+        )
         .limit(1);
     } else {
       [institution] = await db
         .select()
         .from(institutionsTable)
-        .where(eq(institutionsTable.slug, slugOrId))
+        .where(
+          and(
+            eq(institutionsTable.slug, slugOrId),
+            notDeleted(institutionsTable.deletedAt),
+          ),
+        )
         .limit(1);
     }
     if (!institution) {
@@ -438,7 +451,12 @@ router.get("/institutions/:id", async (req, res): Promise<void> => {
   const [institution] = await db
     .select()
     .from(institutionsTable)
-    .where(eq(institutionsTable.id, params.data.id));
+    .where(
+      and(
+        eq(institutionsTable.id, params.data.id),
+        notDeleted(institutionsTable.deletedAt),
+      ),
+    );
 
   if (!institution) {
     res.status(404).json({ error: "Institution not found" });
@@ -461,6 +479,8 @@ router.get("/institutions/:id", async (req, res): Promise<void> => {
             and(
               inArray(applicationsTable.candidateId, studentIdsForEmployers),
               eq(applicationsTable.status, "hired"),
+              notDeleted(jobsTable.deletedAt),
+              notDeleted(employersTable.deletedAt),
             ),
           );
 

@@ -4324,7 +4324,7 @@ paths:
         "403": { description: Owners only }
         "404": { description: Key not found or already revoked }
 
-  /api/v1/institutions/students:
+  /v1/institutions/students:
     get:
       operationId: sisListStudents
       tags: [institution-api-keys]

@@ -25,9 +25,11 @@ import {
   useListInstitutionApiKeys,
   useCreateInstitutionApiKey,
   useRevokeInstitutionApiKey,
+  getListInstitutionApiKeysQueryKey,
   type InstitutionApiKeyCreated,
 } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, skipToken } from "@tanstack/react-query";
+import { listInstitutionApiKeys } from "@workspace/api-client-react";
 
 /**
  * Owner-only Pro feature for managing SIS API keys. The plaintext
@@ -54,16 +56,17 @@ export default function InstitutionApiKeysPage() {
 
   const enabled = !!institutionId && isOwner;
 
-  const listQuery = useListInstitutionApiKeys(institutionId ?? 0, {
-    // Orval's generated useQuery wrapper fills in the queryKey itself
-    // but its `query` option still types as the raw UseQueryOptions
-    // (which marks queryKey required under TanStack Query v5). Cast
-    // through unknown so we can pass only the runtime gate.
-    query: { enabled } as unknown as Parameters<
-      typeof useListInstitutionApiKeys
-    >[1] extends { query?: infer Q }
-      ? Q
-      : never,
+  // Use TanStack Query directly with the generated queryKey + fetcher.
+  // The Orval-generated `useListInstitutionApiKeys` requires `queryKey`
+  // when overriding `query` (TanStack v5 typing), but a thin
+  // `useQuery({ queryKey, queryFn })` call is fully typed without
+  // escape hatches and is the canonical pattern for conditionally-
+  // enabled queries here. The generated mutation hooks are still used
+  // for create/revoke below.
+  const listQueryKey = getListInstitutionApiKeysQueryKey(institutionId ?? 0);
+  const listQuery = useQuery({
+    queryKey: listQueryKey,
+    queryFn: enabled ? () => listInstitutionApiKeys(institutionId!) : skipToken,
   });
 
   const createMutation = useCreateInstitutionApiKey({
@@ -71,7 +74,7 @@ export default function InstitutionApiKeysPage() {
       onSuccess: async (data) => {
         setJustCreated(data);
         setLabel("");
-        await queryClient.invalidateQueries({ queryKey: listQuery.queryKey });
+        await queryClient.invalidateQueries({ queryKey: listQueryKey });
       },
       onError: (err: unknown) => {
         const status =
@@ -91,7 +94,7 @@ export default function InstitutionApiKeysPage() {
     mutation: {
       onSuccess: async () => {
         toast.success("Key revoked");
-        await queryClient.invalidateQueries({ queryKey: listQuery.queryKey });
+        await queryClient.invalidateQueries({ queryKey: listQueryKey });
       },
       onError: () => toast.error("Failed to revoke"),
     },

@@ -17840,7 +17840,7 @@ verified roster for the institution that minted the key.
 
  */
 export const getSisListStudentsUrl = () => {
-  return `/api/api/v1/institutions/students`;
+  return `/api/v1/institutions/students`;
 };
 
 export const sisListStudents = async (
@@ -17853,7 +17853,7 @@ export const sisListStudents = async (
 };
 
 export const getSisListStudentsQueryKey = () => {
-  return [`/api/api/v1/institutions/students`] as const;
+  return [`/api/v1/institutions/students`] as const;
 };
 
 export const getSisListStudentsQueryOptions = <

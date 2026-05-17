@@ -13,6 +13,7 @@ import {
   GetEmployerParams,
 } from "@workspace/api-zod";
 import { requireAdmin, attachUser } from "../middleware/require-auth";
+import { notDeleted } from "../lib/soft-delete";
 
 const router: IRouter = Router();
 
@@ -99,9 +100,12 @@ router.get("/employers", attachUser, async (req, res): Promise<void> => {
     .from(employersTable)
     .leftJoin(jobsTable, eq(jobsTable.employerId, employersTable.id))
     .where(
-      filterByManager !== null
-        ? eq(employersTable.accountManagerId, filterByManager)
-        : undefined,
+      and(
+        notDeleted(employersTable.deletedAt),
+        filterByManager !== null
+          ? eq(employersTable.accountManagerId, filterByManager)
+          : undefined,
+      ),
     )
     .groupBy(employersTable.id)
     .orderBy(desc(employersTable.verified), employersTable.name);
@@ -165,7 +169,12 @@ router.get("/employers/:id", async (req, res): Promise<void> => {
   const [employer] = await db
     .select()
     .from(employersTable)
-    .where(eq(employersTable.id, params.data.id));
+    .where(
+      and(
+        eq(employersTable.id, params.data.id),
+        notDeleted(employersTable.deletedAt),
+      ),
+    );
 
   if (!employer) {
     res.status(404).json({ error: "Employer not found" });
@@ -175,7 +184,12 @@ router.get("/employers/:id", async (req, res): Promise<void> => {
   const jobs = await db
     .select()
     .from(jobsTable)
-    .where(eq(jobsTable.employerId, params.data.id))
+    .where(
+      and(
+        eq(jobsTable.employerId, params.data.id),
+        notDeleted(jobsTable.deletedAt),
+      ),
+    )
     .orderBy(desc(jobsTable.postedAt));
 
   const counts = await db

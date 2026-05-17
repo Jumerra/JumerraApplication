@@ -66,6 +66,7 @@ jobs:
           fi
 
       - name: Open draft PR
+        id: pr
         if: steps.diff.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -84,6 +85,8 @@ jobs:
           # same day), update its branch rather than failing the job.
           if gh pr view "$BRANCH" --json number >/dev/null 2>&1; then
             echo "PR for $BRANCH already exists — branch updated."
+            PR_URL=$(gh pr view "$BRANCH" --json url -q .url)
+            echo "pr_url=$PR_URL" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -100,9 +103,34 @@ jobs:
           )
           BODY="$BODY"$'\n'"$SUMMARY"$'\n'"\`\`\`"$'\n\n'"</details>"
 
-          gh pr create \
+          PR_URL=$(gh pr create \
             --draft \
             --base main \
             --head "$BRANCH" \
             --title "chore(e2e): unquarantine stable journeys" \
-            --body "$BODY"
+            --body "$BODY")
+          echo "pr_url=$PR_URL" >> "$GITHUB_OUTPUT"
+
+      # Ping chat so the team knows a draft PR is waiting for review. The
+      # webhook URL is optional — if the secret isn't set we just skip.
+      # Supports both Slack (incoming webhook) and Discord (append
+      # `/slack` to a Discord webhook URL so it accepts the same payload
+      # shape; this job uses the minimal `{text}` body that both honor).
+      - name: Notify chat
+        if: steps.diff.outputs.changed == 'true' && steps.pr.outputs.pr_url != ''
+        env:
+          WEBHOOK_URL: ${{ secrets.UNQUARANTINE_CHAT_WEBHOOK_URL }}
+          PR_URL: ${{ steps.pr.outputs.pr_url }}
+          SUMMARY: ${{ steps.unquarantine.outputs.summary }}
+        run: |
+          set -euo pipefail
+          if [ -z "${WEBHOOK_URL:-}" ]; then
+            echo "UNQUARANTINE_CHAT_WEBHOOK_URL not set — skipping chat notification."
+            exit 0
+          fi
+          TEXT=":broom: Weekly unquarantine opened a draft PR: ${PR_URL}"$'\n'"\`\`\`"$'\n'"${SUMMARY}"$'\n'"\`\`\`"
+          PAYLOAD=$(jq -n --arg t "$TEXT" '{text:$t}')
+          curl -sS -X POST -H 'Content-Type: application/json' \
+            --data "$PAYLOAD" \
+            "$WEBHOOK_URL" \
+            || echo "Chat notification failed — continuing."

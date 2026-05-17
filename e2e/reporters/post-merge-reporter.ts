@@ -86,7 +86,10 @@ function isQuarantined(test: TestCase, result: TestResult): string | undefined {
  * the archive can't reintroduce the unbounded-growth problem the
  * live-file prune was added to solve.
  */
-function archiveDroppedLines(archiveDir: string, droppedLines: string[]): void {
+export function archiveDroppedLines(
+  archiveDir: string,
+  droppedLines: string[],
+): void {
   if (droppedLines.length === 0) return;
 
   const byMonth = new Map<string, string[]>();
@@ -157,7 +160,7 @@ function archiveDroppedLines(archiveDir: string, droppedLines: string[]): void {
  * rewritten so we keep a long-term audit trail. See
  * `archiveDroppedLines` for the archive cap.
  */
-function pruneHistory(file: string, nowMs: number): void {
+export function pruneHistory(file: string, nowMs: number): void {
   const days = Number(process.env.E2E_HISTORY_RETENTION_DAYS ?? "90");
   if (!Number.isFinite(days) || days <= 0) return;
   if (!fs.existsSync(file)) return;

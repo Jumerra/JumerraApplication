@@ -25,6 +25,7 @@ import type {
   AdminAccountManagersResponse,
   AdminAccountsResponse,
   AdminApplicationListResponse,
+  AdminExportPaymentsCsvParams,
   AdminGetHiresAnalyticsParams,
   AdminGetRevenueSummaryParams,
   AdminGetRevenueTimeseriesParams,
@@ -11560,6 +11561,113 @@ export function useAdminListPayments<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getAdminListPaymentsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Same filter surface as `GET /admin/payments`, but returns a
+`text/csv` body with a `Content-Disposition: attachment` header
+so the browser downloads it as `payments-YYYYMMDD.csv`. Capped
+server-side at 10,000 rows — narrow with from/to for larger
+windows. Each row carries the amount both in subunits and
+formatted with the currency.
+
+ * @summary Stream the filtered payments ledger as CSV (admin payments:view)
+ */
+export const getAdminExportPaymentsCsvUrl = (
+  params?: AdminExportPaymentsCsvParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/admin/payments.csv?${stringifiedParams}`
+    : `/api/admin/payments.csv`;
+};
+
+export const adminExportPaymentsCsv = async (
+  params?: AdminExportPaymentsCsvParams,
+  options?: RequestInit,
+): Promise<string> => {
+  return customFetch<string>(getAdminExportPaymentsCsvUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getAdminExportPaymentsCsvQueryKey = (
+  params?: AdminExportPaymentsCsvParams,
+) => {
+  return [`/api/admin/payments.csv`, ...(params ? [params] : [])] as const;
+};
+
+export const getAdminExportPaymentsCsvQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminExportPaymentsCsv>>,
+  TError = ErrorType<void>,
+>(
+  params?: AdminExportPaymentsCsvParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof adminExportPaymentsCsv>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getAdminExportPaymentsCsvQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof adminExportPaymentsCsv>>
+  > = ({ signal }) =>
+    adminExportPaymentsCsv(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminExportPaymentsCsv>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type AdminExportPaymentsCsvQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminExportPaymentsCsv>>
+>;
+export type AdminExportPaymentsCsvQueryError = ErrorType<void>;
+
+/**
+ * @summary Stream the filtered payments ledger as CSV (admin payments:view)
+ */
+
+export function useAdminExportPaymentsCsv<
+  TData = Awaited<ReturnType<typeof adminExportPaymentsCsv>>,
+  TError = ErrorType<void>,
+>(
+  params?: AdminExportPaymentsCsvParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof adminExportPaymentsCsv>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getAdminExportPaymentsCsvQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

@@ -4148,6 +4148,33 @@ export const AdminListPaymentsCategory = {
   employer: "employer",
 } as const;
 
+export type AdminExportPaymentsCsvParams = {
+  provider?: AdminExportPaymentsCsvProvider;
+  status?: string;
+  purposeType?: string;
+  category?: AdminExportPaymentsCsvCategory;
+  currency?: string;
+  from?: string;
+  to?: string;
+};
+
+export type AdminExportPaymentsCsvProvider =
+  (typeof AdminExportPaymentsCsvProvider)[keyof typeof AdminExportPaymentsCsvProvider];
+
+export const AdminExportPaymentsCsvProvider = {
+  stripe: "stripe",
+  paystack: "paystack",
+} as const;
+
+export type AdminExportPaymentsCsvCategory =
+  (typeof AdminExportPaymentsCsvCategory)[keyof typeof AdminExportPaymentsCsvCategory];
+
+export const AdminExportPaymentsCsvCategory = {
+  candidate: "candidate",
+  institution: "institution",
+  employer: "employer",
+} as const;
+
 export type GetInstitutionPlacementAnalyticsParams = {
   facultyId?: number;
   departmentId?: number;

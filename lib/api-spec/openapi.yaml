@@ -2749,6 +2749,55 @@ paths:
               schema: { $ref: "#/components/schemas/AdminPaymentsListResponse" }
         "403": { description: Missing payments:view permission }
 
+  /admin/payments.csv:
+    get:
+      operationId: adminExportPaymentsCsv
+      tags: [admin]
+      summary: Stream the filtered payments ledger as CSV (admin payments:view)
+      description: |
+        Same filter surface as `GET /admin/payments`, but returns a
+        `text/csv` body with a `Content-Disposition: attachment` header
+        so the browser downloads it as `payments-YYYYMMDD.csv`. Capped
+        server-side at 10,000 rows — narrow with from/to for larger
+        windows. Each row carries the amount both in subunits and
+        formatted with the currency.
+      parameters:
+        - name: provider
+          in: query
+          required: false
+          schema: { type: string, enum: [stripe, paystack] }
+        - name: status
+          in: query
+          required: false
+          schema: { type: string }
+        - name: purposeType
+          in: query
+          required: false
+          schema: { type: string }
+        - name: category
+          in: query
+          required: false
+          schema: { type: string, enum: [candidate, institution, employer] }
+        - name: currency
+          in: query
+          required: false
+          schema: { type: string }
+        - name: from
+          in: query
+          required: false
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          required: false
+          schema: { type: string, format: date-time }
+      responses:
+        "200":
+          description: CSV stream
+          content:
+            text/csv:
+              schema: { type: string }
+        "403": { description: Missing payments:view permission }
+
   /admin/payments/{id}/refinalize:
     post:
       operationId: adminRefinalizePayment

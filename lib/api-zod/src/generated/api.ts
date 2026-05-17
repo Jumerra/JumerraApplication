@@ -5158,6 +5158,26 @@ export const AdminListPaymentsResponse = zod.object({
 });
 
 /**
+ * Same filter surface as `GET /admin/payments`, but returns a
+`text/csv` body with a `Content-Disposition: attachment` header
+so the browser downloads it as `payments-YYYYMMDD.csv`. Capped
+server-side at 10,000 rows — narrow with from/to for larger
+windows. Each row carries the amount both in subunits and
+formatted with the currency.
+
+ * @summary Stream the filtered payments ledger as CSV (admin payments:view)
+ */
+export const AdminExportPaymentsCsvQueryParams = zod.object({
+  provider: zod.enum(["stripe", "paystack"]).optional(),
+  status: zod.coerce.string().optional(),
+  purposeType: zod.coerce.string().optional(),
+  category: zod.enum(["candidate", "institution", "employer"]).optional(),
+  currency: zod.coerce.string().optional(),
+  from: zod.date().optional(),
+  to: zod.date().optional(),
+});
+
+/**
  * @summary Idempotently re-run the finalizer for a single ledger row (admin payments:view)
  */
 export const AdminRefinalizePaymentParams = zod.object({

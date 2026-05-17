@@ -30,7 +30,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { CreditCard, RotateCcw, Loader2 } from "lucide-react";
+import { CreditCard, RotateCcw, Loader2, Download } from "lucide-react";
 import { toast } from "sonner";
 
 const PAGE_SIZE = 50;
@@ -100,6 +100,7 @@ export default function AdminPaymentsPage() {
   const [to, setTo] = useState("");
   const [page, setPage] = useState(0);
   const [refinalizingId, setRefinalizingId] = useState<number | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
   const [lastOutcome, setLastOutcome] = useState<
     (AdminRefinalizePaymentResponse & { paymentId: number }) | null
   >(null);
@@ -154,6 +155,50 @@ export default function AdminPaymentsPage() {
       toast.error("Re-finalize failed", { description: msg });
     } finally {
       setRefinalizingId(null);
+    }
+  }
+
+  function buildFilterQuery(): string {
+    const qs = new URLSearchParams();
+    if (category !== "all") qs.set("category", category);
+    if (provider !== "all") qs.set("provider", provider);
+    if (status !== "all") qs.set("status", status);
+    if (currency.trim().length > 0)
+      qs.set("currency", currency.trim().toLowerCase());
+    const fromIso = from ? toIsoOrUndef(from) : undefined;
+    const toIso = to ? toIsoOrUndef(to, true) : undefined;
+    if (fromIso) qs.set("from", fromIso);
+    if (toIso) qs.set("to", toIso);
+    return qs.toString();
+  }
+
+  async function handleExportCsv() {
+    setIsExporting(true);
+    try {
+      const qs = buildFilterQuery();
+      const url = `/api/admin/payments.csv${qs ? `?${qs}` : ""}`;
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) {
+        throw new Error(`Export failed (${res.status})`);
+      }
+      const blob = await res.blob();
+      const disposition = res.headers.get("Content-Disposition") ?? "";
+      const match = disposition.match(/filename="?([^";]+)"?/i);
+      const filename = match?.[1] ?? "payments.csv";
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(objectUrl);
+      toast.success("CSV downloaded", { description: filename });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      toast.error("CSV export failed", { description: msg });
+    } finally {
+      setIsExporting(false);
     }
   }
 
@@ -278,6 +323,20 @@ export default function AdminPaymentsPage() {
                 <Loader2 className="w-4 h-4 mr-1 animate-spin" />
               ) : null}
               Refresh
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportCsv}
+              disabled={isExporting}
+              data-testid="button-export-csv"
+            >
+              {isExporting ? (
+                <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+              ) : (
+                <Download className="w-4 h-4 mr-1" />
+              )}
+              Download CSV
             </Button>
           </div>
         </CardContent>

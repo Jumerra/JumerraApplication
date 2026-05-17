@@ -309,6 +309,142 @@ router.get(
 );
 
 /**
+ * GET /admin/payments.csv
+ *
+ * Streams the same filtered view as `GET /admin/payments` but as a
+ * CSV download so finance can reconcile a month's payments against
+ * Stripe/Paystack statements in a spreadsheet. Server-capped at
+ * 10k rows — anything larger should be narrowed by from/to first.
+ *
+ * Each row carries the amount twice:
+ *   - `amount_subunits` — integer cents/kobo (safe for re-aggregation)
+ *   - `amount_major`    — currency-aware decimal string formatted with
+ *                         Intl.NumberFormat (matches what the console
+ *                         shows in the Amount column)
+ */
+const CSV_EXPORT_CAP = 10_000;
+
+function csvEscape(value: string | number | null | undefined): string {
+  if (value === null || value === undefined) return "";
+  const s = String(value);
+  if (/[",\r\n]/.test(s)) {
+    return `"${s.replace(/"/g, '""')}"`;
+  }
+  return s;
+}
+
+function categoryOf(purposeType: string): string {
+  if (purposeType === "boost" || purposeType === "cv") return "candidate";
+  if (purposeType === "institution_subscription") return "institution";
+  if (purposeType === "job_tier" || purposeType === "employer_subscription")
+    return "employer";
+  return "other";
+}
+
+function formatMajor(subunits: number, currency: string): string {
+  const major = subunits / 100;
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: currency.toUpperCase(),
+      maximumFractionDigits: 2,
+    }).format(major);
+  } catch {
+    return `${currency.toUpperCase()} ${major.toFixed(2)}`;
+  }
+}
+
+router.get(
+  "/admin/payments.csv",
+  requireAdmin,
+  requirePermission("payments:view"),
+  async (req, res) => {
+    const conds = [];
+    const { provider, status, purposeType, currency, category } =
+      req.query as Record<string, unknown>;
+    if (typeof provider === "string" && provider.length > 0) {
+      conds.push(eq(paymentsTable.provider, provider));
+    }
+    if (typeof status === "string" && status.length > 0) {
+      conds.push(eq(paymentsTable.status, status));
+    }
+    if (typeof purposeType === "string" && purposeType.length > 0) {
+      conds.push(eq(paymentsTable.purposeType, purposeType));
+    }
+    if (typeof currency === "string" && currency.length > 0) {
+      conds.push(eq(paymentsTable.currency, currency.toLowerCase()));
+    }
+    if (
+      typeof category === "string" &&
+      category.length > 0 &&
+      CATEGORY_PURPOSE_TYPES[category]
+    ) {
+      conds.push(
+        inArray(paymentsTable.purposeType, CATEGORY_PURPOSE_TYPES[category]),
+      );
+    }
+    const { from, to } = parseDateRange(req);
+    if (from) conds.push(gte(paymentsTable.finalizedAt, from));
+    if (to) conds.push(lte(paymentsTable.finalizedAt, to));
+
+    const rows = await db
+      .select()
+      .from(paymentsTable)
+      .where(conds.length > 0 ? and(...conds) : undefined)
+      .orderBy(desc(paymentsTable.id))
+      .limit(CSV_EXPORT_CAP);
+
+    const today = new Date();
+    const yyyymmdd =
+      today.getUTCFullYear().toString().padStart(4, "0") +
+      (today.getUTCMonth() + 1).toString().padStart(2, "0") +
+      today.getUTCDate().toString().padStart(2, "0");
+
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="payments-${yyyymmdd}.csv"`,
+    );
+    res.setHeader("Cache-Control", "no-store");
+
+    const header = [
+      "id",
+      "provider",
+      "external_ref",
+      "purpose_type",
+      "category",
+      "purpose_id",
+      "amount_subunits",
+      "amount_major",
+      "currency",
+      "status",
+      "created_at",
+      "finalized_at",
+    ].join(",");
+    res.write(header + "\r\n");
+
+    for (const r of rows) {
+      const line = [
+        r.id,
+        csvEscape(r.provider),
+        csvEscape(r.externalRef),
+        csvEscape(r.purposeType),
+        csvEscape(categoryOf(r.purposeType)),
+        csvEscape(r.purposeId),
+        r.amountSubunits,
+        csvEscape(formatMajor(r.amountSubunits, r.currency)),
+        csvEscape(r.currency),
+        csvEscape(r.status),
+        r.createdAt.toISOString(),
+        r.finalizedAt ? r.finalizedAt.toISOString() : "",
+      ].join(",");
+      res.write(line + "\r\n");
+    }
+    res.end();
+  },
+);
+
+/**
  * POST /admin/payments/:id/refinalize
  *
  * Manually re-runs the finalizer for a single payment ledger row.

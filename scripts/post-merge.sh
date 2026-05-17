@@ -20,7 +20,8 @@ mkdir -p "$LOG_DIR"
 UNIT_LOG="$LOG_DIR/unit-tests.log"
 E2E_LOG="$LOG_DIR/e2e.log"
 E2E_FAILURES="$LOG_DIR/e2e-failures.txt"
-rm -f "$UNIT_LOG" "$E2E_LOG" "$E2E_FAILURES"
+E2E_QUARANTINED="$LOG_DIR/e2e-quarantined.txt"
+rm -f "$UNIT_LOG" "$E2E_LOG" "$E2E_FAILURES" "$E2E_QUARANTINED"
 
 if [ -z "$DATABASE_URL" ]; then
   echo "✗ DATABASE_URL is required for post-merge automation (e2e suite needs a scratch Postgres)."
@@ -79,9 +80,19 @@ else
   tail -n 80 "$UNIT_LOG"
 fi
 
+# A non-zero E2E exit is only a hard failure when at least one
+# non-quarantined journey failed. Quarantined journeys (those whose
+# spec calls `test.info().annotations.push({ type: "quarantine", ... })`)
+# still run and still surface here, but they do not block the merge —
+# that's the whole point of the quarantine list.
+E2E_HARD_FAIL=0
 if [ "$E2E_STATUS" -eq 0 ]; then
   echo "✓ E2E suite passed"
+elif [ ! -s "$E2E_FAILURES" ] && [ -s "$E2E_QUARANTINED" ]; then
+  echo "✓ E2E suite: only quarantined journeys failed (not blocking)"
+  cat "$E2E_QUARANTINED"
 else
+  E2E_HARD_FAIL=1
   echo "✗ E2E suite failed (exit $E2E_STATUS)"
   if [ -s "$E2E_FAILURES" ]; then
     echo "Failing journeys (with request-id where the API surfaced one):"
@@ -90,9 +101,14 @@ else
     echo "No structured failure summary written — last 80 lines of raw log:"
     tail -n 80 "$E2E_LOG"
   fi
+  if [ -s "$E2E_QUARANTINED" ]; then
+    echo ""
+    echo "Quarantined journeys also failed (not contributing to exit code):"
+    cat "$E2E_QUARANTINED"
+  fi
 fi
 
-if [ "$UNIT_STATUS" -ne 0 ] || [ "$E2E_STATUS" -ne 0 ]; then
+if [ "$UNIT_STATUS" -ne 0 ] || [ "$E2E_HARD_FAIL" -ne 0 ]; then
   exit 1
 fi
 

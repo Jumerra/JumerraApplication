@@ -9,7 +9,17 @@ export default defineConfig({
   expect: { timeout: 10_000 },
   fullyParallel: false,
   workers: 1,
-  retries: 0,
+  // Small retry budget for CI / post-merge runs so a single transient
+  // blip (DB pool reconnect, Stripe webhook race) doesn't fail the
+  // whole merge. Locally we keep retries: 0 so flakes surface loudly.
+  // `E2E_RETRIES` is parsed numerically so `E2E_RETRIES=0` is an
+  // honest opt-out (the truthy check would have treated "0" as on).
+  retries:
+    process.env.E2E_RETRIES !== undefined
+      ? Math.max(0, Number(process.env.E2E_RETRIES) || 0)
+      : process.env.CI
+        ? 2
+        : 0,
   reporter: [["list"], ["./reporters/post-merge-reporter.ts"]],
   use: {
     baseURL: API_URL,

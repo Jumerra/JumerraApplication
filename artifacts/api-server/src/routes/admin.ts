@@ -496,7 +496,7 @@ router.delete("/admin/candidates/:id", requirePermission("candidates:manage"), a
     }
     await db
       .update(candidatesTable)
-      .set({ deletedAt: new Date(), deletedBy: req.currentUser?.id ?? null })
+      .set({ deletedAt: new Date() })
       .where(eq(candidatesTable.id, id));
     res.json({ ok: true });
   } catch (err) {
@@ -529,14 +529,13 @@ router.delete("/admin/employers/:id", requirePermission("employers:manage"), asy
       if (!existing) return false;
       if (existing.deletedAt) return "already";
       const now = new Date();
-      const actor = req.currentUser?.id ?? null;
       await tx
         .update(jobsTable)
-        .set({ deletedAt: now, deletedBy: actor })
+        .set({ deletedAt: now })
         .where(and(eq(jobsTable.employerId, id), isNull(jobsTable.deletedAt)));
       await tx
         .update(employersTable)
-        .set({ deletedAt: now, deletedBy: actor })
+        .set({ deletedAt: now })
         .where(eq(employersTable.id, id));
       return true;
     });
@@ -799,7 +798,7 @@ router.delete("/admin/institutions/:id", requirePermission("institutions:manage"
     }
     await db
       .update(institutionsTable)
-      .set({ deletedAt: new Date(), deletedBy: req.currentUser?.id ?? null })
+      .set({ deletedAt: new Date() })
       .where(eq(institutionsTable.id, id));
     res.json({ ok: true });
   } catch (err) {
@@ -1831,8 +1830,6 @@ type TrashRow = {
   label: string;
   secondary: string | null;
   deletedAt: Date | null;
-  deletedBy: number | null;
-  deletedByName: string | null;
 };
 
 function shapeTrash(rows: TrashRow[]) {
@@ -1841,8 +1838,6 @@ function shapeTrash(rows: TrashRow[]) {
     label: r.label,
     secondary: r.secondary,
     deletedAt: r.deletedAt!.toISOString(),
-    deletedBy: r.deletedBy,
-    deletedByName: r.deletedByName,
   }));
 }
 
@@ -1884,11 +1879,8 @@ router.get("/admin/trash/candidates", requirePermission("candidates:manage"), as
       label: candidatesTable.fullName,
       secondary: candidatesTable.email,
       deletedAt: candidatesTable.deletedAt,
-      deletedBy: candidatesTable.deletedBy,
-      deletedByName: usersTable.fullName,
     })
     .from(candidatesTable)
-    .leftJoin(usersTable, eq(usersTable.id, candidatesTable.deletedBy))
     .where(isNotNull(candidatesTable.deletedAt))
     .orderBy(desc(candidatesTable.deletedAt));
   res.json(shapeTrash(rows));
@@ -1901,11 +1893,8 @@ router.get("/admin/trash/employers", requirePermission("employers:manage"), asyn
       label: employersTable.name,
       secondary: employersTable.industry,
       deletedAt: employersTable.deletedAt,
-      deletedBy: employersTable.deletedBy,
-      deletedByName: usersTable.fullName,
     })
     .from(employersTable)
-    .leftJoin(usersTable, eq(usersTable.id, employersTable.deletedBy))
     .where(isNotNull(employersTable.deletedAt))
     .orderBy(desc(employersTable.deletedAt));
   res.json(shapeTrash(rows));
@@ -1918,11 +1907,8 @@ router.get("/admin/trash/institutions", requirePermission("institutions:manage")
       label: institutionsTable.name,
       secondary: institutionsTable.location,
       deletedAt: institutionsTable.deletedAt,
-      deletedBy: institutionsTable.deletedBy,
-      deletedByName: usersTable.fullName,
     })
     .from(institutionsTable)
-    .leftJoin(usersTable, eq(usersTable.id, institutionsTable.deletedBy))
     .where(isNotNull(institutionsTable.deletedAt))
     .orderBy(desc(institutionsTable.deletedAt));
   res.json(shapeTrash(rows));
@@ -1943,12 +1929,9 @@ router.get("/admin/trash/jobs", requirePermission("employers:manage"), async (_r
       label: jobsTable.title,
       secondary: employersTable.name,
       deletedAt: jobsTable.deletedAt,
-      deletedBy: jobsTable.deletedBy,
-      deletedByName: usersTable.fullName,
     })
     .from(jobsTable)
     .leftJoin(employersTable, eq(employersTable.id, jobsTable.employerId))
-    .leftJoin(usersTable, eq(usersTable.id, jobsTable.deletedBy))
     .where(isNotNull(jobsTable.deletedAt))
     .orderBy(desc(jobsTable.deletedAt));
   res.json(shapeTrash(rows));
@@ -1965,7 +1948,7 @@ router.post(
     }
     const [row] = await db
       .update(candidatesTable)
-      .set({ deletedAt: null, deletedBy: null })
+      .set({ deletedAt: null })
       .where(eq(candidatesTable.id, id))
       .returning({ id: candidatesTable.id });
     if (!row) {
@@ -2001,7 +1984,7 @@ router.post(
         // deletedAt; we only undo what THIS restore should undo.
         await tx
           .update(jobsTable)
-          .set({ deletedAt: null, deletedBy: null })
+          .set({ deletedAt: null })
           .where(
             and(
               eq(jobsTable.employerId, id),
@@ -2010,7 +1993,7 @@ router.post(
           );
         await tx
           .update(employersTable)
-          .set({ deletedAt: null, deletedBy: null })
+          .set({ deletedAt: null })
           .where(eq(employersTable.id, id));
         return true;
       });
@@ -2037,7 +2020,7 @@ router.post(
     }
     const [row] = await db
       .update(institutionsTable)
-      .set({ deletedAt: null, deletedBy: null })
+      .set({ deletedAt: null })
       .where(eq(institutionsTable.id, id))
       .returning({ id: institutionsTable.id });
     if (!row) {
@@ -2076,7 +2059,7 @@ router.delete("/admin/jobs/:id", requirePermission("employers:manage"), async (r
     }
     await db
       .update(jobsTable)
-      .set({ deletedAt: new Date(), deletedBy: req.currentUser?.id ?? null })
+      .set({ deletedAt: new Date() })
       .where(eq(jobsTable.id, id));
     res.json({ ok: true });
   } catch (err) {
@@ -2096,7 +2079,7 @@ router.post(
     }
     const [row] = await db
       .update(jobsTable)
-      .set({ deletedAt: null, deletedBy: null })
+      .set({ deletedAt: null })
       .where(eq(jobsTable.id, id))
       .returning({ id: jobsTable.id });
     if (!row) {

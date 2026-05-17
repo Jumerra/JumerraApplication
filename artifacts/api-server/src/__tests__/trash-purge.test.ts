@@ -104,11 +104,14 @@ vi.mock("../lib/logger", () => ({
 
 // Keep the warnings sweep from doing any real work — the email + permission
 // helpers are exercised in their own suites.
-const sendTrashPurgeFailureEmailMock = vi.fn(async () => ({
-  sent: true as const,
-  provider: "resend",
-  id: "fake-id",
-}));
+import type { SendTrashPurgeFailureEmailArgs } from "../lib/email";
+const sendTrashPurgeFailureEmailMock = vi.fn(
+  async (_args: SendTrashPurgeFailureEmailArgs) => ({
+    sent: true as const,
+    provider: "resend",
+    id: "fake-id",
+  }),
+);
 vi.mock("../lib/email", () => ({
   sendTrashPurgeWarningEmail: vi.fn(async () => ({ sent: false, reason: "stub" })),
   sendTrashPurgeFailureEmail: sendTrashPurgeFailureEmailMock,

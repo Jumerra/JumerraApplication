@@ -30,7 +30,7 @@ interface Args {
   reportPath: string | null;
 }
 
-function parseArgs(argv: string[]): Args {
+export function parseArgs(argv: string[]): Args {
   const args: Args = { dryRun: false, reportPath: null };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -118,10 +118,123 @@ function findTestStart(content: string, title: string): number {
   return -1;
 }
 
-/** Walk forward from `start` to the matching closing brace of the
- *  test body callback. Returns the offset of that closing `}` or -1. */
+/** Scan forward from the opening quote of the test title and return
+ *  the offset of the `{` that opens the test body callback. Skips
+ *  strings, comments, and the arg-list parens so that destructured
+ *  argument braces like `({ page })` are not mistaken for the body. */
+function findCallbackBodyOpen(content: string, start: number): number {
+  let inStr: string | null = null;
+  let esc = false;
+  let inLineComment = false;
+  let inBlockComment = false;
+  let parenDepth = 0;
+  let sawArrow = false;
+  // Skip the opening quote of the title itself.
+  const titleQuote = content[start];
+  let i = start + 1;
+  // Walk past the title string.
+  for (; i < content.length; i++) {
+    const c = content[i];
+    if (esc) {
+      esc = false;
+      continue;
+    }
+    if (c === "\\") {
+      esc = true;
+      continue;
+    }
+    if (c === titleQuote) {
+      i++;
+      break;
+    }
+  }
+  for (; i < content.length; i++) {
+    const c = content[i];
+    const next = content[i + 1];
+    if (inLineComment) {
+      if (c === "\n") inLineComment = false;
+      continue;
+    }
+    if (inBlockComment) {
+      if (c === "*" && next === "/") {
+        inBlockComment = false;
+        i++;
+      }
+      continue;
+    }
+    if (inStr) {
+      if (esc) {
+        esc = false;
+        continue;
+      }
+      if (c === "\\") {
+        esc = true;
+        continue;
+      }
+      if (c === inStr) inStr = null;
+      continue;
+    }
+    if (c === "/" && next === "/") {
+      inLineComment = true;
+      i++;
+      continue;
+    }
+    if (c === "/" && next === "*") {
+      inBlockComment = true;
+      i++;
+      continue;
+    }
+    if (c === '"' || c === "'" || c === "`") {
+      inStr = c;
+      continue;
+    }
+    if (c === "(") {
+      parenDepth++;
+      continue;
+    }
+    if (c === ")") {
+      parenDepth--;
+      continue;
+    }
+    if (c === "=" && next === ">") {
+      sawArrow = true;
+      i++;
+      continue;
+    }
+    if (c === "{" && parenDepth === 0 && sawArrow) {
+      return i;
+    }
+    // function-expression callback: `function () { ... }` or
+    // `async function () { ... }` — the `{` we want is at parenDepth 0
+    // immediately after the arg-list, with no arrow seen.
+    if (c === "{" && parenDepth === 0 && !sawArrow) {
+      // Look back over whitespace for a `)` — that means we just
+      // finished a function-expression arg list and this `{` is the
+      // body. Anything else (e.g. an object literal passed as an
+      // earlier arg) would still be inside the outer `test(...)`
+      // call's parens, so parenDepth would be > 0.
+      let j = i - 1;
+      while (j >= 0 && /\s/.test(content[j])) j--;
+      if (content[j] === ")") return i;
+    }
+  }
+  return -1;
+}
+
+/** Walk forward from `start` (the opening quote of the test title) and
+ *  return the offset of the closing `}` of the test body callback,
+ *  or -1 if not found.
+ *
+ *  We can't just take the first `{` after the title: real Playwright
+ *  tests are `test("...", async ({ page }) => { ... })`, and that
+ *  destructured-argument `{` is the first one we'd see. The body `{`
+ *  is always the one that comes immediately after the arrow `=>` (for
+ *  arrow callbacks) or after `function ()` (for function-expression
+ *  callbacks). So we scan forward, skipping over strings/comments and
+ *  any nested parens (which include the arg list), and look for that
+ *  marker before starting brace counting. */
 function findTestBodyEnd(content: string, start: number): number {
-  const openIdx = content.indexOf("{", start);
+  const openIdx = findCallbackBodyOpen(content, start);
   if (openIdx === -1) return -1;
   let depth = 0;
   let inStr: string | null = null;
@@ -197,7 +310,10 @@ function stripQuarantineAnnotation(body: string): {
 
 type Outcome = "removed" | "noop" | "missing-test" | "missing-file";
 
-function processCandidate(
+export { leafTitle, findTestStart, findTestBodyEnd, stripQuarantineAnnotation };
+export type { Candidate, Outcome };
+
+export function processCandidate(
   c: Candidate,
   dryRun: boolean,
 ): { outcome: Outcome; diffPreview?: string } {
@@ -230,7 +346,7 @@ function processCandidate(
   return { outcome: "removed", diffPreview: removed };
 }
 
-function main(): void {
+export function main(): void {
   const args = parseArgs(process.argv.slice(2));
   const candidates = loadCandidates(args.reportPath);
   if (candidates.length === 0) {
@@ -272,4 +388,8 @@ function main(): void {
   );
 }
 
-main();
+const invokedDirectly =
+  process.argv[1] && import.meta.url === `file://${path.resolve(process.argv[1])}`;
+if (invokedDirectly) {
+  main();
+}

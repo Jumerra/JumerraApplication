@@ -93,14 +93,8 @@ elif [ ! -s "$E2E_FAILURES" ] && [ -s "$E2E_QUARANTINED" ]; then
   cat "$E2E_QUARANTINED"
 else
   E2E_HARD_FAIL=1
-  echo "✗ E2E suite failed (exit $E2E_STATUS)"
-  if [ -s "$E2E_FAILURES" ]; then
-    echo "Failing journeys (with request-id where the API surfaced one):"
-    cat "$E2E_FAILURES"
-  else
-    echo "No structured failure summary written — last 80 lines of raw log:"
-    tail -n 80 "$E2E_LOG"
-  fi
+  echo "✗ E2E suite failed (exit $E2E_STATUS) — last 80 lines of raw log:"
+  tail -n 80 "$E2E_LOG"
   if [ -s "$E2E_QUARANTINED" ]; then
     echo ""
     echo "Quarantined journeys also failed (not contributing to exit code):"
@@ -109,6 +103,36 @@ else
 fi
 
 if [ "$UNIT_STATUS" -ne 0 ] || [ "$E2E_HARD_FAIL" -ne 0 ]; then
+  # Emit a compact, structured summary at the VERY END of stdout so it
+  # lands in the agent's tail-into-context window (only the last ~10
+  # lines of post-merge stdout surface to the Replit chat as a
+  # notification). Without this, the 80-line raw-log tails above push
+  # the structured failure list past the window and the chat user only
+  # sees that "something failed" with no journey/request-id detail.
+  # The Replit notification tail is small (~10 lines). Order these so
+  # that if anything gets clipped, it's the journey detail (still on
+  # disk) and NOT the suite-status + log-path lines, which the user
+  # needs to know where to look.
+  echo ""
+  echo "POST-MERGE FAILED — summary:"
+  if [ "$E2E_HARD_FAIL" -ne 0 ] && [ -s "$E2E_FAILURES" ]; then
+    TOTAL_FAILS=$(wc -l <"$E2E_FAILURES" | tr -d ' ')
+    echo "Top failing journeys (of $TOTAL_FAILS, with request-id where surfaced):"
+    # Cap at 5 lines so the summary block fits the ~10-line tail
+    # window even when both suites fail.
+    head -n 5 "$E2E_FAILURES"
+    if [ "$TOTAL_FAILS" -gt 5 ]; then
+      echo "  …and $((TOTAL_FAILS - 5)) more"
+    fi
+  fi
+  # Print the suite-status + log-path lines LAST so they're the most
+  # likely to survive tail-window truncation in the chat notification.
+  if [ "$UNIT_STATUS" -ne 0 ]; then
+    echo "✗ unit tests failed (exit $UNIT_STATUS) — full log: $UNIT_LOG"
+  fi
+  if [ "$E2E_STATUS" -ne 0 ]; then
+    echo "✗ e2e suite failed (exit $E2E_STATUS) — full log: $E2E_LOG ; journeys: $E2E_FAILURES"
+  fi
   exit 1
 fi
 

@@ -5,12 +5,34 @@ import {
   institutionSubscriptionSettingsTable,
   institutionSubscriptionsTable,
   institutionsTable,
+  usersTable,
 } from "@workspace/db";
 import {
   requireAuth,
   requireAdmin,
 } from "../middleware/require-auth";
 import { getUncachableStripeClient } from "../stripeClient";
+import { selectPaymentRail, type PaymentRail } from "../lib/payment-rail";
+import {
+  paystackInitializeTransaction,
+  paystackVerifyTransaction,
+} from "../paystackClient";
+import { finalizeInstitutionSubscriptionFromPaystack } from "../lib/payment-finalizers";
+
+/**
+ * Strip Stripe's `{CHECKOUT_SESSION_ID}` placeholder from a success URL
+ * before handing it to Paystack as a callback. Paystack appends its own
+ * `?reference=...&trxref=...`, and the return page accepts both shapes.
+ */
+function sanitizePaystackCallbackUrl(raw: string): string {
+  try {
+    const u = new URL(raw);
+    u.searchParams.delete("session_id");
+    return u.toString().replace(/\?$/, "");
+  } catch {
+    return raw;
+  }
+}
 
 const router: Router = Router();
 
@@ -465,6 +487,95 @@ router.post(
         return;
       }
 
+      // Africa-first rail selection. NGN/GHS/ZAR/KES go to Paystack
+      // when configured (local acquiring, lower fees, USSD/bank-transfer
+      // fallbacks). Everything else, and any case where Paystack isn't
+      // configured, falls through to Stripe. Caller can override via
+      // body.rail. The default seeded currency is `ngn`, so out-of-the-box
+      // institution subscriptions route through Paystack.
+      const railOverride =
+        typeof (body as { rail?: unknown }).rail === "string"
+          ? ((body as { rail: string }).rail as PaymentRail)
+          : null;
+      const rail = selectPaymentRail({
+        currency: settings.currency,
+        override: railOverride,
+      });
+
+      if (rail === "paystack") {
+        // Paystack doesn't model recurring subscriptions via our thin
+        // client (the Plan API is intentionally not wired yet). We
+        // model an institution subscription as a one-shot charge that
+        // covers `intervalDays`; renewal is a future explicit checkout.
+        // The webhook + finalizer flip the row to `active` and stamp
+        // `currentPeriodEnd = now + intervalDays`.
+        const u = await db
+          .select({ email: usersTable.email })
+          .from(usersTable)
+          .where(
+            and(
+              eq(usersTable.institutionId, institutionId),
+              eq(usersTable.orgRole, "owner"),
+            ),
+          )
+          .limit(1);
+        const email = u[0]?.email ?? null;
+        if (!email) {
+          res.status(400).json({
+            error:
+              "Paystack checkout requires an institution owner email; add an owner with an email first.",
+            code: "paystack_email_missing",
+          });
+          return;
+        }
+        try {
+          const init = await paystackInitializeTransaction({
+            email,
+            amountSubunits: settings.priceCents,
+            currency: settings.currency,
+            callbackUrl: sanitizePaystackCallbackUrl(successUrl),
+            metadata: {
+              institutionId,
+              purpose: "institution_subscription",
+              intervalDays: settings.intervalDays,
+            },
+          });
+          await db.insert(institutionSubscriptionsTable).values({
+            institutionId,
+            // The stripe_checkout_session_id column carries a UNIQUE
+            // constraint and is required on the row. For Paystack rows
+            // we reuse the reference as the external id so the
+            // constraint still protects us from duplicate inserts.
+            stripeCheckoutSessionId: init.reference,
+            provider: "paystack",
+            paystackReference: init.reference,
+            status: "pending",
+            priceCentsSnapshot: settings.priceCents,
+            currencySnapshot: settings.currency,
+            intervalDaysSnapshot: settings.intervalDays,
+            // No native trial on Paystack one-shot rail.
+            trialDaysSnapshot: 0,
+          });
+          res.json({
+            sessionId: init.reference,
+            checkoutUrl: init.authorization_url,
+            provider: "paystack",
+          });
+          return;
+        } catch (paystackErr) {
+          req.log.error(
+            { err: paystackErr, institutionId },
+            "institution subscription checkout: paystack init failed",
+          );
+          res.status(502).json({
+            error:
+              "Could not start Paystack checkout. Please try again in a moment.",
+            code: "paystack_init_failed",
+          });
+          return;
+        }
+      }
+
       // Idempotency: if there's a recent pending checkout session,
       // re-issue its URL instead of creating a duplicate Stripe session
       // (and a duplicate DB row). This makes accidental double-clicks
@@ -577,10 +688,20 @@ router.post(
   requireAuth,
   async (req, res) => {
     try {
-      const body = (req.body ?? {}) as { sessionId?: unknown };
+      const body = (req.body ?? {}) as {
+        sessionId?: unknown;
+        reference?: unknown;
+      };
       const sessionId = body.sessionId;
-      if (typeof sessionId !== "string" || sessionId.length === 0) {
-        res.status(400).json({ error: "sessionId required" });
+      const reference = body.reference;
+      const externalRef =
+        typeof sessionId === "string" && sessionId.length > 0
+          ? sessionId
+          : typeof reference === "string" && reference.length > 0
+            ? reference
+            : null;
+      if (!externalRef) {
+        res.status(400).json({ error: "sessionId or reference required" });
         return;
       }
 
@@ -590,7 +711,7 @@ router.post(
         .where(
           eq(
             institutionSubscriptionsTable.stripeCheckoutSessionId,
-            sessionId,
+            externalRef,
           ),
         )
         .limit(1);
@@ -621,8 +742,48 @@ router.post(
         return;
       }
 
+      // Paystack branch: fetch transaction state from Paystack and run
+      // the same finalizer the webhook uses, so verify + webhook can
+      // never disagree on the final row state. The finalizer is
+      // idempotent.
+      if (row.provider === "paystack") {
+        const ref = row.paystackReference ?? externalRef;
+        try {
+          const verifyResp = await paystackVerifyTransaction(ref);
+          if (verifyResp.status === "success") {
+            await finalizeInstitutionSubscriptionFromPaystack(ref);
+          } else if (
+            verifyResp.status === "failed" ||
+            verifyResp.status === "abandoned"
+          ) {
+            await db
+              .update(institutionSubscriptionsTable)
+              .set({ status: "failed", updatedAt: new Date() })
+              .where(
+                and(
+                  eq(institutionSubscriptionsTable.id, row.id),
+                  eq(institutionSubscriptionsTable.status, "pending"),
+                ),
+              );
+          }
+          const fresh = await loadCurrentSubscription(row.institutionId);
+          res.json(rowToApiStatus(fresh));
+          return;
+        } catch (paystackErr) {
+          req.log.error(
+            { err: paystackErr, ref, institutionId: row.institutionId },
+            "institution subscription verify: paystack verify failed",
+          );
+          res.status(502).json({
+            error: "Could not verify Paystack transaction. Please try again.",
+            code: "paystack_verify_failed",
+          });
+          return;
+        }
+      }
+
       const stripe = await getUncachableStripeClient();
-      const session = await stripe.checkout.sessions.retrieve(sessionId, {
+      const session = await stripe.checkout.sessions.retrieve(externalRef, {
         expand: ["subscription"],
       });
 

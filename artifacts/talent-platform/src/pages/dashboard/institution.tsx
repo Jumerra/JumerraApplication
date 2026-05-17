@@ -301,7 +301,7 @@ export default function InstitutionDashboard() {
               </CardDescription>
             </div>
             <Button asChild size="sm" variant="default">
-              <Link href="/account/institution-subscription">Upgrade</Link>
+              <Link href="/dashboard/institution/subscription">Upgrade</Link>
             </Button>
           </CardHeader>
           <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4">

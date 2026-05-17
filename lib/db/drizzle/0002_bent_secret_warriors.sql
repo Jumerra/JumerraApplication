@@ -1,0 +1,2 @@
+ALTER TABLE "institution_subscription_settings" ALTER COLUMN "price_cents" SET DEFAULT 150000;--> statement-breakpoint
+ALTER TABLE "institution_subscription_settings" ALTER COLUMN "currency" SET DEFAULT 'ngn';

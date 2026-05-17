@@ -30,8 +30,8 @@ export const institutionSubscriptionSettingsTable = pgTable(
   {
     id: serial("id").primaryKey(),
     isActive: boolean("is_active").notNull().default(false),
-    priceCents: integer("price_cents").notNull().default(9900),
-    currency: text("currency").notNull().default("usd"),
+    priceCents: integer("price_cents").notNull().default(150000),
+    currency: text("currency").notNull().default("ngn"),
     intervalDays: integer("interval_days").notNull().default(30),
     trialDays: integer("trial_days").notNull().default(14),
     updatedAt: timestamp("updated_at", { withTimezone: true })

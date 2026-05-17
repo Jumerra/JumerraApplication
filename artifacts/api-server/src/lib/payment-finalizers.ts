@@ -466,6 +466,63 @@ export async function finalizeInstitutionSubscriptionFromStripe(
 }
 
 /**
+ * Finalize an institution-subscription Paystack transaction.
+ *
+ * Paystack does not model recurring subscriptions through our thin
+ * client (the Plan API is intentionally not wired). We treat the
+ * checkout as a one-shot charge that covers one `intervalDays`
+ * period: on success we flip to `active` and stamp
+ * `currentPeriodEnd = now + intervalDaysSnapshot`. Renewal is a
+ * future explicit checkout.
+ *
+ * Idempotent: a row already past `pending` short-circuits. The
+ * unified payments ledger insert uses (provider, externalRef) as the
+ * unique key so webhook + verify can both run safely.
+ */
+export async function finalizeInstitutionSubscriptionFromPaystack(
+  reference: string,
+): Promise<FinalizeResult> {
+  const rows = await db
+    .select()
+    .from(institutionSubscriptionsTable)
+    .where(eq(institutionSubscriptionsTable.paystackReference, reference))
+    .limit(1);
+  const row = rows[0];
+  if (!row) return { alreadyFinalized: false, paymentId: null, notFound: true };
+  if (row.status !== "pending") {
+    return { alreadyFinalized: true, paymentId: row.id };
+  }
+  const now = new Date();
+  const periodEnd = new Date(
+    now.getTime() + row.intervalDaysSnapshot * 24 * 60 * 60 * 1000,
+  );
+  await db
+    .update(institutionSubscriptionsTable)
+    .set({
+      status: "active",
+      currentPeriodEnd: periodEnd,
+      startedAt: row.startedAt ?? now,
+      updatedAt: now,
+    })
+    .where(
+      and(
+        eq(institutionSubscriptionsTable.id, row.id),
+        eq(institutionSubscriptionsTable.status, "pending"),
+      ),
+    );
+  await recordUnifiedPayment({
+    provider: "paystack",
+    externalRef: reference,
+    purposeType: "institution_subscription",
+    purposeId: row.id,
+    amountSubunits: row.priceCentsSnapshot,
+    currency: row.currencySnapshot,
+    status: "active",
+  });
+  return { alreadyFinalized: false, paymentId: row.id };
+}
+
+/**
  * Same shape as the institution variant but for employer subscriptions.
  * Recurring employer subs are formally deprecated (the /checkout route
  * returns 410) but historical rows still need to be finalized correctly
@@ -570,9 +627,11 @@ export async function finalizeFromStripeSessionId(
 }
 
 /**
- * Route a Paystack reference to the one-shot finalizers. Paystack
- * subscriptions (Plan API) are not yet wired — when that lands, this
- * function will additionally dispatch to subscription finalizers.
+ * Route a Paystack reference to the right finalizer. One-shots are
+ * cheapest so we walk them first. Institution subscriptions use a
+ * one-shot-per-period model on the Paystack rail (see
+ * `finalizeInstitutionSubscriptionFromPaystack`). The employer
+ * subscription Plan API is still not wired.
  */
 export async function finalizeFromPaystackReference(
   reference: string,
@@ -584,5 +643,7 @@ export async function finalizeFromPaystackReference(
   if (!cv.notFound) return { flow: "cv", result: cv };
   const jt = await finalizeJobTierPayment(ctx);
   if (!jt.notFound) return { flow: "job_tier", result: jt };
+  const inst = await finalizeInstitutionSubscriptionFromPaystack(reference);
+  if (!inst.notFound) return { flow: "institution_subscription", result: inst };
   return { flow: null, result: null };
 }

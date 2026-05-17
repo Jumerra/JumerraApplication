@@ -283,7 +283,7 @@ router.patch("/auth/me/profile", requireAuth, async (req, res) => {
     const user = req.currentUser!;
     const body = (req.body ?? {}) as Record<string, unknown>;
 
-    const updates: Record<string, string | null> = {};
+    const updates: Record<string, string | boolean | null> = {};
 
     if ("fullName" in body) {
       const v = body.fullName;
@@ -312,6 +312,24 @@ router.patch("/auth/me/profile", requireAuth, async (req, res) => {
       // Trim phone/title; preserve bio whitespace; collapse empty to null.
       const cleaned = key === "bio" ? v : v.trim();
       updates[key] = cleaned.length === 0 ? null : cleaned;
+    }
+
+    // Admin-only opt-in for the trash purge heads-up email. Stored as a
+    // plain boolean column on `users`; silently ignored for non-admins so
+    // the field can sit on the universal profile form without an extra
+    // role-gated endpoint. The frontend hides the toggle from non-admins
+    // — this guard is defence-in-depth.
+    if ("notifyTrashPurgeWarning" in body) {
+      const v = body.notifyTrashPurgeWarning;
+      if (typeof v !== "boolean") {
+        res
+          .status(400)
+          .json({ error: "notifyTrashPurgeWarning must be a boolean" });
+        return;
+      }
+      if (user.role === "admin") {
+        updates.notifyTrashPurgeWarning = v;
+      }
     }
 
     // avatarUrl must be either null (clear) or a normalized object path
@@ -348,9 +366,12 @@ router.patch("/auth/me/profile", requireAuth, async (req, res) => {
     // with the web profile (which reads users.avatar_url via /auth/me).
     if ("avatarUrl" in updates && user.candidateId != null) {
       // candidates.avatar_url is NOT NULL, so coerce a cleared avatar to "".
+      // `updates` is typed loosely to hold the trash-purge boolean too;
+      // narrow back to string|null here.
+      const av = updates.avatarUrl as string | null | undefined;
       await db
         .update(candidatesTable)
-        .set({ avatarUrl: updates.avatarUrl ?? "" })
+        .set({ avatarUrl: av ?? "" })
         .where(eq(candidatesTable.id, user.candidateId));
     }
 

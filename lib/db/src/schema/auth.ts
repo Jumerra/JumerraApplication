@@ -3,6 +3,7 @@ import {
   serial,
   text,
   integer,
+  boolean,
   timestamp,
   jsonb,
   index,
@@ -110,6 +111,16 @@ export const usersTable = pgTable(
     }),
     /** Failed-attempt counter for the current pending OTP (reset on issue). */
     whatsappOtpAttempts: integer("whatsapp_otp_attempts").notNull().default(0),
+    /**
+     * Admin opt-in for the daily "trash purge heads-up" email sent by
+     * `runTrashPurgeWarningsSweep`. Defaults to true (preserves the
+     * pre-existing behaviour where every eligible admin received the
+     * digest). Admins who don't want to be on cleanup duty can flip
+     * this off from their profile page. Ignored for non-admin users.
+     */
+    notifyTrashPurgeWarning: boolean("notify_trash_purge_warning")
+      .notNull()
+      .default(true),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

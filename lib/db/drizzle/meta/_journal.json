@@ -29,6 +29,13 @@
       "when": 1778999707075,
       "tag": "0003_dapper_kingpin",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1779001032437,
+      "tag": "0004_even_franklin_richards",
+      "breakpoints": true
     }
   ]
 }

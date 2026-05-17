@@ -3785,6 +3785,11 @@ export const LoginUserResponse = zod.object({
         .nullable()
         .describe("Job title within the user's organization (free text)."),
       bio: zod.string().nullable(),
+      notifyTrashPurgeWarning: zod
+        .boolean()
+        .describe(
+          "Admin opt-in for the daily trash-purge heads-up email. Defaults to\ntrue. Always sent for shape stability; ignored for non-admins.\n",
+        ),
       permissions: zod
         .array(zod.string())
         .describe("Effective admin permission keys; empty for non-admins."),
@@ -3839,6 +3844,11 @@ export const GetCurrentUserResponse = zod.object({
         .nullable()
         .describe("Job title within the user's organization (free text)."),
       bio: zod.string().nullable(),
+      notifyTrashPurgeWarning: zod
+        .boolean()
+        .describe(
+          "Admin opt-in for the daily trash-purge heads-up email. Defaults to\ntrue. Always sent for shape stability; ignored for non-admins.\n",
+        ),
       permissions: zod
         .array(zod.string())
         .describe("Effective admin permission keys; empty for non-admins."),
@@ -3879,6 +3889,12 @@ export const UpdateMyProfileBody = zod
       .nullish()
       .describe(
         "Normalized object path returned by the upload endpoint, or null to remove the avatar.",
+      ),
+    notifyTrashPurgeWarning: zod
+      .boolean()
+      .optional()
+      .describe(
+        "Admin-only opt-in for the daily trash-purge heads-up email.\nSilently ignored for non-admin roles.\n",
       ),
   })
   .describe(
@@ -3921,6 +3937,11 @@ export const UpdateMyProfileResponse = zod.object({
         .nullable()
         .describe("Job title within the user's organization (free text)."),
       bio: zod.string().nullable(),
+      notifyTrashPurgeWarning: zod
+        .boolean()
+        .describe(
+          "Admin opt-in for the daily trash-purge heads-up email. Defaults to\ntrue. Always sent for shape stability; ignored for non-admins.\n",
+        ),
       permissions: zod
         .array(zod.string())
         .describe("Effective admin permission keys; empty for non-admins."),
@@ -4001,6 +4022,11 @@ export const SetupPasswordResponse = zod.object({
         .nullable()
         .describe("Job title within the user's organization (free text)."),
       bio: zod.string().nullable(),
+      notifyTrashPurgeWarning: zod
+        .boolean()
+        .describe(
+          "Admin opt-in for the daily trash-purge heads-up email. Defaults to\ntrue. Always sent for shape stability; ignored for non-admins.\n",
+        ),
       permissions: zod
         .array(zod.string())
         .describe("Effective admin permission keys; empty for non-admins."),

@@ -104,6 +104,13 @@ export type PublicUser = {
   title: string | null;
   bio: string | null;
   /**
+   * Admin-only opt-in for the daily trash purge heads-up email. Defaults
+   * to true server-side; surfaced here so the profile UI can hydrate
+   * the toggle from /auth/me without a second round-trip. Sent for every
+   * role for shape stability; non-admins ignore it.
+   */
+  notifyTrashPurgeWarning: boolean;
+  /**
    * Effective permission keys for the current user. Empty for non-admins.
    * Always present so the frontend can branch on it without nullchecks.
    */
@@ -130,6 +137,7 @@ export async function toPublicUser(user: User): Promise<PublicUser> {
     phone: user.phone,
     title: user.title,
     bio: user.bio,
+    notifyTrashPurgeWarning: user.notifyTrashPurgeWarning ?? true,
     permissions: Array.from(perms).sort(),
   };
 }

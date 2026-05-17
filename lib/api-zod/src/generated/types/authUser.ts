@@ -28,6 +28,10 @@ export interface AuthUser {
   /** Job title within the user's organization (free text). */
   title: string | null;
   bio: string | null;
+  /** Admin opt-in for the daily trash-purge heads-up email. Defaults to
+true. Always sent for shape stability; ignored for non-admins.
+ */
+  notifyTrashPurgeWarning: boolean;
   /** Effective admin permission keys; empty for non-admins. */
   permissions: string[];
 }

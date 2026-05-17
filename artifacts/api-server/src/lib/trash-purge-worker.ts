@@ -313,7 +313,16 @@ export async function runTrashPurgeWarningsSweep(): Promise<WarningSweepResult> 
       passwordHash: usersTable.passwordHash,
     })
     .from(usersTable)
-    .where(and(eq(usersTable.role, "admin"), eq(usersTable.status, "active")));
+    .where(
+      and(
+        eq(usersTable.role, "admin"),
+        eq(usersTable.status, "active"),
+        // Skip admins who opted out of the heads-up via their profile
+        // settings. Column defaults to true so existing admins keep
+        // receiving the digest unless they explicitly turn it off.
+        eq(usersTable.notifyTrashPurgeWarning, true),
+      ),
+    );
 
   const dashboardUrl = `${originForBackground()}/dashboard/admin/trash`;
   let recipients = 0;

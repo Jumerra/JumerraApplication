@@ -36,6 +36,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import {
   UserCircle2,
   AlertCircle,
@@ -90,8 +91,12 @@ export default function ProfilePage() {
   const [title, setTitle] = useState("");
   const [bio, setBio] = useState("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [notifyTrashPurgeWarning, setNotifyTrashPurgeWarning] = useState(true);
+  const [savingTrashPref, setSavingTrashPref] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+
+  const isAdmin = sessionUser?.role === "admin";
 
   // Candidate-only education affiliations. We fetch the candidate record
   // to read the per-institution department assignments. The session user
@@ -131,6 +136,7 @@ export default function ProfilePage() {
     setTitle(sessionUser.title ?? "");
     setBio(sessionUser.bio ?? "");
     setAvatarUrl(sessionUser.avatarUrl ?? null);
+    setNotifyTrashPurgeWarning(sessionUser.notifyTrashPurgeWarning ?? true);
   }, [sessionUser]);
 
   // Hydrate the dept + faculty picker maps whenever the candidate record
@@ -235,6 +241,33 @@ export default function ProfilePage() {
         description: err?.data?.error ?? "Please try again.",
         variant: "destructive",
       });
+    }
+  }
+
+  async function handleToggleTrashPurgePref(next: boolean) {
+    const previous = notifyTrashPurgeWarning;
+    setNotifyTrashPurgeWarning(next);
+    setSavingTrashPref(true);
+    try {
+      await update.mutateAsync({ data: { notifyTrashPurgeWarning: next } });
+      await queryClient.invalidateQueries({
+        queryKey: getGetCurrentUserQueryKey(),
+      });
+      await refresh();
+      toast({
+        title: next
+          ? "You'll receive trash cleanup heads-up emails"
+          : "Trash cleanup heads-up emails turned off",
+      });
+    } catch (err: any) {
+      setNotifyTrashPurgeWarning(previous);
+      toast({
+        title: "Couldn't update preference",
+        description: err?.data?.error ?? "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingTrashPref(false);
     }
   }
 
@@ -475,6 +508,38 @@ export default function ProfilePage() {
           </form>
         </CardContent>
       </Card>
+
+      {isAdmin ? (
+        <Card className="shadow-md">
+          <CardHeader>
+            <CardTitle className="text-lg">Admin email preferences</CardTitle>
+            <CardDescription>
+              Control the operational emails Jumerra sends to your inbox.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-start justify-between gap-4 py-2">
+              <div className="flex-1">
+                <Label className="text-sm font-medium">
+                  Trash cleanup heads-up
+                </Label>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Daily email listing soft-deleted candidates, employers, and
+                  institutions about to be permanently purged. Turn off if
+                  another admin is on cleanup duty.
+                </p>
+              </div>
+              <Switch
+                checked={notifyTrashPurgeWarning}
+                onCheckedChange={(v) =>
+                  handleToggleTrashPurgePref(Boolean(v))
+                }
+                disabled={savingTrashPref}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {isCandidate ? <WhatsAppVerificationCard /> : null}
 

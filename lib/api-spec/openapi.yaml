@@ -4822,12 +4822,17 @@ components:
         phone: { type: string, nullable: true }
         title: { type: string, nullable: true, description: "Job title within the user's organization (free text)." }
         bio: { type: string, nullable: true }
+        notifyTrashPurgeWarning:
+          type: boolean
+          description: |
+            Admin opt-in for the daily trash-purge heads-up email. Defaults to
+            true. Always sent for shape stability; ignored for non-admins.
         permissions:
           type: array
           items: { type: string }
           description: Effective admin permission keys; empty for non-admins.
       required:
-        [id, email, fullName, role, status, orgRole, candidateId, employerId, institutionId, avatarUrl, phone, title, bio, permissions]
+        [id, email, fullName, role, status, orgRole, candidateId, employerId, institutionId, avatarUrl, phone, title, bio, notifyTrashPurgeWarning, permissions]
 
     ProfileUpdateRequest:
       type: object
@@ -4843,6 +4848,11 @@ components:
           type: string
           nullable: true
           description: Normalized object path returned by the upload endpoint, or null to remove the avatar.
+        notifyTrashPurgeWarning:
+          type: boolean
+          description: |
+            Admin-only opt-in for the daily trash-purge heads-up email.
+            Silently ignored for non-admin roles.
 
     UploadUrlRequest:
       type: object

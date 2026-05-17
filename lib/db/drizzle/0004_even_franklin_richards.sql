@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "notify_trash_purge_warning" boolean DEFAULT true NOT NULL;

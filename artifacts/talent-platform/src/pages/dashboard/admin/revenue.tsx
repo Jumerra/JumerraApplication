@@ -253,11 +253,18 @@ export default function AdminRevenuePage() {
       bucket: selected.bucket,
     });
 
-  const currencies = summary?.currencies ?? [];
   const tsPoints = timeseries?.points ?? [];
 
-  // Primary chart currency = the one with the most revenue (already
-  // sorted server-side by gross desc).
+  const CURRENCY_ORDER = ["ghs", "ngn", "usd"];
+  const currencies = [...(summary?.currencies ?? [])].sort((a, b) => {
+    const ai = CURRENCY_ORDER.indexOf(a.currency.toLowerCase());
+    const bi = CURRENCY_ORDER.indexOf(b.currency.toLowerCase());
+    const aRank = ai === -1 ? CURRENCY_ORDER.length : ai;
+    const bRank = bi === -1 ? CURRENCY_ORDER.length : bi;
+    if (aRank !== bRank) return aRank - bRank;
+    return b.grossSubunits - a.grossSubunits;
+  });
+
   const primaryCurrency = currencies[0]?.currency ?? null;
   const chartRows = primaryCurrency
     ? buildChartRows(tsPoints, primaryCurrency)

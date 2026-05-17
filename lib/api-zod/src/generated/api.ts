@@ -4336,6 +4336,12 @@ export const AdminGetTrashSettingsResponse = zod
       .describe(
         "Days a soft-deleted row remains restorable before auto-purge.",
       ),
+    warningLeadDays: zod
+      .number()
+      .min(1)
+      .describe(
+        "How many days before auto-purge admins receive the warning email.\nTrash rows whose `deleted_at` is within\n`(retentionDays - warningLeadDays)` days of now are inside the\nwarning window and should be visually emphasised in the UI.\n",
+      ),
   })
   .describe(
     "Server-side trash retention configuration. The auto-purge worker\nhard-deletes soft-deleted rows whose `deleted_at` is older than\n`retentionDays`. Configured via the `TRASH_RETENTION_DAYS` env var.\n",

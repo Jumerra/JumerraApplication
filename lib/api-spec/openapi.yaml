@@ -5058,7 +5058,15 @@ components:
           type: integer
           minimum: 1
           description: Days a soft-deleted row remains restorable before auto-purge.
-      required: [retentionDays]
+        warningLeadDays:
+          type: integer
+          minimum: 1
+          description: |
+            How many days before auto-purge admins receive the warning email.
+            Trash rows whose `deleted_at` is within
+            `(retentionDays - warningLeadDays)` days of now are inside the
+            warning window and should be visually emphasised in the UI.
+      required: [retentionDays, warningLeadDays]
 
     SetEmployerVerifiedRequest:
       type: object

@@ -1866,10 +1866,14 @@ router.get(
       res.status(403).json({ error: "Forbidden" });
       return;
     }
-    const { getTrashRetentionDays } = await import(
+    const { getTrashRetentionDays, getTrashPurgeWarningLeadDays } = await import(
       "../lib/trash-purge-worker"
     );
-    res.json({ retentionDays: getTrashRetentionDays() });
+    const retentionDays = getTrashRetentionDays();
+    res.json({
+      retentionDays,
+      warningLeadDays: getTrashPurgeWarningLeadDays(retentionDays),
+    });
   },
 );
 

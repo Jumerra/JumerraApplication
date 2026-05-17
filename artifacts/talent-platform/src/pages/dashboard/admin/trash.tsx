@@ -34,7 +34,9 @@ import {
   Building2,
   GraduationCap,
   Briefcase,
+  AlertTriangle,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 
 type EntityKind = "candidates" | "employers" | "institutions" | "jobs";
@@ -48,18 +50,44 @@ function formatWhen(iso: string): string {
   });
 }
 
+/**
+ * Compute how many days remain before a soft-deleted row is purged.
+ * Returns `null` when the row is outside the warning window
+ * (`deletedAt` is more than `retentionDays - warningLeadDays` days
+ * old? then it's actually overdue, still surface it). We surface a
+ * badge as long as the row is within `warningLeadDays` of the purge
+ * cutoff. Rounds up so "in 0.4 days" still reads "Purges in 1 day".
+ */
+function getPurgeDaysRemaining(
+  deletedAtIso: string,
+  retentionDays: number,
+  warningLeadDays: number,
+): number | null {
+  const deletedAt = new Date(deletedAtIso).getTime();
+  if (!Number.isFinite(deletedAt)) return null;
+  const ONE_DAY = 24 * 60 * 60 * 1000;
+  const ageDays = (Date.now() - deletedAt) / ONE_DAY;
+  const daysLeft = retentionDays - ageDays;
+  if (daysLeft > warningLeadDays) return null;
+  return Math.max(0, Math.ceil(daysLeft));
+}
+
 function TrashList({
   kind,
   items,
   isLoading,
   onRestore,
   restoring,
+  retentionDays,
+  warningLeadDays,
 }: {
   kind: EntityKind;
   items: TrashItem[] | undefined;
   isLoading: boolean;
   onRestore: (id: number, label: string) => void;
   restoring: number | null;
+  retentionDays: number;
+  warningLeadDays: number;
 }) {
   if (isLoading) {
     return (
@@ -77,16 +105,47 @@ function TrashList({
     <div className="divide-y">
       {items.map((item) => {
         const deleter = item.deletedByName ?? "unknown admin";
+        const daysLeft = getPurgeDaysRemaining(
+          item.deletedAt,
+          retentionDays,
+          warningLeadDays,
+        );
+        const inWarningWindow = daysLeft !== null;
         return (
           <div
             key={item.id}
-            className="flex items-center gap-4 px-6 py-4 hover:bg-muted/40 transition-colors"
+            className={cn(
+              "flex items-center gap-4 px-6 py-4 transition-colors",
+              inWarningWindow
+                ? "bg-amber-50 hover:bg-amber-100/70 dark:bg-amber-950/30 dark:hover:bg-amber-950/50"
+                : "hover:bg-muted/40",
+            )}
           >
-            <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center shrink-0 text-muted-foreground">
+            <div
+              className={cn(
+                "w-10 h-10 rounded-full flex items-center justify-center shrink-0",
+                inWarningWindow
+                  ? "bg-amber-200/60 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300"
+                  : "bg-muted text-muted-foreground",
+              )}
+            >
               <Trash2 className="w-4 h-4" />
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className="font-semibold truncate">{item.label}</h3>
+              <div className="flex items-center gap-2">
+                <h3 className="font-semibold truncate">{item.label}</h3>
+                {inWarningWindow && (
+                  <Badge
+                    variant="outline"
+                    className="border-amber-500/50 bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200 gap-1 shrink-0"
+                  >
+                    <AlertTriangle className="w-3 h-3" />
+                    {daysLeft === 0
+                      ? "Purges today"
+                      : `Purges in ${daysLeft} day${daysLeft === 1 ? "" : "s"}`}
+                  </Badge>
+                )}
+              </div>
               <p className="text-sm text-muted-foreground truncate">
                 {item.secondary ? `${item.secondary} · ` : ""}deleted by{" "}
                 {deleter} on {formatWhen(item.deletedAt)}
@@ -214,6 +273,11 @@ export default function AdminTrashPage() {
     },
   });
   const retentionDays = trashSettings.data?.retentionDays ?? 30;
+  // Lead-time matches what the warning email uses (server-derived).
+  // Falls back to 3 days while loading — same default as
+  // `getTrashPurgeWarningLeadDays` on the server so the badge appears
+  // consistently even before the settings request resolves.
+  const warningLeadDays = trashSettings.data?.warningLeadDays ?? 3;
 
   const defaultTab: EntityKind = canCandidates
     ? "candidates"
@@ -304,6 +368,8 @@ export default function AdminTrashPage() {
                     handleRestore("candidates", id, label)
                   }
                   restoring={restoring}
+                  retentionDays={retentionDays}
+                  warningLeadDays={warningLeadDays}
                 />
               </TabsContent>
             )}
@@ -317,6 +383,8 @@ export default function AdminTrashPage() {
                     handleRestore("employers", id, label)
                   }
                   restoring={restoring}
+                  retentionDays={retentionDays}
+                  warningLeadDays={warningLeadDays}
                 />
               </TabsContent>
             )}
@@ -328,6 +396,8 @@ export default function AdminTrashPage() {
                   isLoading={jobs.isLoading}
                   onRestore={(id, label) => handleRestore("jobs", id, label)}
                   restoring={restoring}
+                  retentionDays={retentionDays}
+                  warningLeadDays={warningLeadDays}
                 />
               </TabsContent>
             )}
@@ -341,6 +411,8 @@ export default function AdminTrashPage() {
                     handleRestore("institutions", id, label)
                   }
                   restoring={restoring}
+                  retentionDays={retentionDays}
+                  warningLeadDays={warningLeadDays}
                 />
               </TabsContent>
             )}

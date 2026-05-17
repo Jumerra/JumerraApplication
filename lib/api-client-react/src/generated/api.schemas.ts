@@ -456,6 +456,15 @@ export interface TrashSettings {
    * @minimum 1
    */
   retentionDays: number;
+  /**
+   * How many days before auto-purge admins receive the warning email.
+Trash rows whose `deleted_at` is within
+`(retentionDays - warningLeadDays)` days of now are inside the
+warning window and should be visually emphasised in the UI.
+
+   * @minimum 1
+   */
+  warningLeadDays: number;
 }
 
 export interface SetEmployerVerifiedRequest {

@@ -1,6 +1,79 @@
-import { describe, it, expect, afterEach } from "vitest";
-import { getTrashRetentionDays } from "../lib/trash-purge-worker";
+import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 
+interface FakeRow {
+  id: string;
+  deletedAt: Date | null;
+}
+
+interface TableState {
+  name: string;
+  rows: FakeRow[];
+}
+
+const candidatesState: TableState = { name: "candidates", rows: [] };
+const employersState: TableState = { name: "employers", rows: [] };
+const institutionsState: TableState = { name: "institutions", rows: [] };
+
+const capturedCutoffs: Record<string, Date | undefined> = {};
+
+vi.mock("@workspace/db", () => {
+  const makeTable = (state: TableState) => ({
+    __state: state,
+    deletedAt: { __col: `${state.name}.deletedAt` },
+  });
+  const candidatesTable = makeTable(candidatesState);
+  const employersTable = makeTable(employersState);
+  const institutionsTable = makeTable(institutionsState);
+
+  const db = {
+    delete(table: { __state: TableState }) {
+      return {
+        where(cond: { cutoff?: Date }) {
+          capturedCutoffs[table.__state.name] = cond.cutoff;
+          const cutoff = cond.cutoff;
+          return {
+            returning() {
+              const state = table.__state;
+              const matched = state.rows.filter(
+                (r) => r.deletedAt !== null && cutoff !== undefined && r.deletedAt < cutoff,
+              );
+              // Simulate the actual delete on the fake table.
+              state.rows = state.rows.filter((r) => !matched.includes(r));
+              return Promise.resolve(matched.map((r) => ({ id: r.id })));
+            },
+          };
+        },
+      };
+    },
+  };
+  return { db, candidatesTable, employersTable, institutionsTable };
+});
+
+vi.mock("drizzle-orm", () => ({
+  and: (...parts: Array<Record<string, unknown>>) => {
+    const ltPart = parts.find((p) => p && (p as { type?: string }).type === "lt") as
+      | { cutoff: Date }
+      | undefined;
+    return { type: "and", parts, cutoff: ltPart?.cutoff };
+  },
+  isNotNull: (col: unknown) => ({ type: "isNotNull", col }),
+  lt: (col: unknown, val: Date) => ({ type: "lt", col, cutoff: val }),
+}));
+
+vi.mock("../lib/logger", () => ({
+  logger: {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+  },
+}));
+
+const { getTrashRetentionDays, runTrashPurgeSweep } = await import(
+  "../lib/trash-purge-worker"
+);
+
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const originalRetention = process.env.TRASH_RETENTION_DAYS;
 
 afterEach(() => {
@@ -54,5 +127,92 @@ describe("getTrashRetentionDays", () => {
     expect(getTrashRetentionDays()).toBe(30);
     process.env.TRASH_RETENTION_DAYS = "thirty";
     expect(getTrashRetentionDays()).toBe(30);
+  });
+});
+
+describe("runTrashPurgeSweep", () => {
+  beforeEach(() => {
+    candidatesState.rows = [];
+    employersState.rows = [];
+    institutionsState.rows = [];
+    delete capturedCutoffs.candidates;
+    delete capturedCutoffs.employers;
+    delete capturedCutoffs.institutions;
+  });
+
+  it("deletes only rows whose deletedAt is older than the cutoff, leaving NULL and recent rows alone", async () => {
+    delete process.env.TRASH_RETENTION_DAYS; // default 30d
+    const now = Date.now();
+    const old = new Date(now - 31 * ONE_DAY_MS); // older than cutoff
+    const veryOld = new Date(now - 365 * ONE_DAY_MS);
+    const recent = new Date(now - 5 * ONE_DAY_MS); // inside retention
+    const justNow = new Date(now - 60 * 1000);
+
+    candidatesState.rows = [
+      { id: "c-null", deletedAt: null },
+      { id: "c-recent", deletedAt: recent },
+      { id: "c-just-now", deletedAt: justNow },
+      { id: "c-old", deletedAt: old },
+      { id: "c-very-old", deletedAt: veryOld },
+    ];
+    employersState.rows = [
+      { id: "e-null", deletedAt: null },
+      { id: "e-old", deletedAt: old },
+    ];
+    institutionsState.rows = [
+      { id: "i-recent", deletedAt: recent },
+      { id: "i-very-old", deletedAt: veryOld },
+    ];
+
+    const result = await runTrashPurgeSweep();
+
+    expect(result.candidates).toBe(2);
+    expect(result.employers).toBe(1);
+    expect(result.institutions).toBe(1);
+    expect(typeof result.cutoff).toBe("string");
+
+    // Survivors: NULL deleted_at and recent deleted_at must not be touched.
+    expect(candidatesState.rows.map((r) => r.id).sort()).toEqual([
+      "c-just-now",
+      "c-null",
+      "c-recent",
+    ]);
+    expect(employersState.rows.map((r) => r.id)).toEqual(["e-null"]);
+    expect(institutionsState.rows.map((r) => r.id)).toEqual(["i-recent"]);
+  });
+
+  it("uses an env-configured retention window when computing the cutoff", async () => {
+    process.env.TRASH_RETENTION_DAYS = "7";
+    const before = Date.now();
+    await runTrashPurgeSweep();
+    const after = Date.now();
+
+    const expectedMin = before - 7 * ONE_DAY_MS;
+    const expectedMax = after - 7 * ONE_DAY_MS;
+
+    for (const table of ["candidates", "employers", "institutions"] as const) {
+      const cutoff = capturedCutoffs[table];
+      expect(cutoff).toBeInstanceOf(Date);
+      const t = cutoff!.getTime();
+      expect(t).toBeGreaterThanOrEqual(expectedMin);
+      expect(t).toBeLessThanOrEqual(expectedMax);
+    }
+  });
+
+  it("does nothing when every soft-deleted row is still inside the retention window", async () => {
+    process.env.TRASH_RETENTION_DAYS = "30";
+    const recent = new Date(Date.now() - 2 * ONE_DAY_MS);
+    candidatesState.rows = [{ id: "c1", deletedAt: recent }];
+    employersState.rows = [{ id: "e1", deletedAt: null }];
+    institutionsState.rows = [{ id: "i1", deletedAt: recent }];
+
+    const result = await runTrashPurgeSweep();
+
+    expect(result.candidates).toBe(0);
+    expect(result.employers).toBe(0);
+    expect(result.institutions).toBe(0);
+    expect(candidatesState.rows).toHaveLength(1);
+    expect(employersState.rows).toHaveLength(1);
+    expect(institutionsState.rows).toHaveLength(1);
   });
 });

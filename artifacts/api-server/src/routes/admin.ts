@@ -459,9 +459,14 @@ router.get("/admin/onboarded", requirePermission("onboard:create"), async (_req,
 
 /**
  * DELETE /api/admin/candidates/:id
- * Removes a candidate, their applications, institution affiliations,
- * and unlinks the auth user. Wrapped in a transaction so the operation
- * is atomic.
+ *
+ * Soft-delete: stamps `deleted_at = now()` on the candidate row. Their
+ * applications + institution affiliations + auth-user link are NOT
+ * touched — list endpoints already filter on `notDeleted()` so the
+ * candidate disappears from product surfaces, but the row survives so
+ * an admin can `POST /admin/trash/candidates/:id/restore` if the
+ * delete was a mistake. Idempotent: re-deleting an already-deleted
+ * candidate returns 200 without re-stamping the timestamp.
  */
 router.delete("/admin/candidates/:id", requirePermission("candidates:manage"), async (req, res) => {
   const id = Number(req.params.id);
@@ -470,40 +475,37 @@ router.delete("/admin/candidates/:id", requirePermission("candidates:manage"), a
     return;
   }
   try {
-    const ok = await db.transaction(async (tx) => {
-      const [existing] = await tx
-        .select({ id: candidatesTable.id })
-        .from(candidatesTable)
-        .where(eq(candidatesTable.id, id));
-      if (!existing) return false;
-      await tx
-        .delete(applicationsTable)
-        .where(eq(applicationsTable.candidateId, id));
-      await tx
-        .delete(candidateInstitutionsTable)
-        .where(eq(candidateInstitutionsTable.candidateId, id));
-      await tx
-        .update(usersTable)
-        .set({ candidateId: null })
-        .where(eq(usersTable.candidateId, id));
-      await tx.delete(candidatesTable).where(eq(candidatesTable.id, id));
-      return true;
-    });
-    if (!ok) {
+    const [existing] = await db
+      .select({ id: candidatesTable.id, deletedAt: candidatesTable.deletedAt })
+      .from(candidatesTable)
+      .where(eq(candidatesTable.id, id));
+    if (!existing) {
       res.status(404).json({ error: "Candidate not found" });
       return;
     }
+    if (existing.deletedAt) {
+      res.json({ ok: true, alreadyDeleted: true });
+      return;
+    }
+    await db
+      .update(candidatesTable)
+      .set({ deletedAt: new Date() })
+      .where(eq(candidatesTable.id, id));
     res.json({ ok: true });
   } catch (err) {
-    req.log.error({ err, id }, "delete candidate failed");
+    req.log.error({ err, id }, "soft-delete candidate failed");
     res.status(500).json({ error: "Delete failed" });
   }
 });
 
 /**
  * DELETE /api/admin/employers/:id
- * Removes an employer, all their jobs, all applications to those jobs,
- * and unlinks any users tied to the employer.
+ *
+ * Soft-delete the employer AND cascade soft-delete to their jobs so
+ * the marketplace immediately stops showing their listings. Children
+ * (applications, user accounts) are untouched — list endpoints filter
+ * by `notDeleted()` and admin can restore the employer + jobs in one
+ * call if needed.
  */
 router.delete("/admin/employers/:id", requirePermission("employers:manage"), async (req, res) => {
   const id = Number(req.params.id);
@@ -514,43 +516,29 @@ router.delete("/admin/employers/:id", requirePermission("employers:manage"), asy
   try {
     const ok = await db.transaction(async (tx) => {
       const [existing] = await tx
-        .select({ id: employersTable.id })
+        .select({ id: employersTable.id, deletedAt: employersTable.deletedAt })
         .from(employersTable)
         .where(eq(employersTable.id, id));
       if (!existing) return false;
-      const jobs = await tx
-        .select({ id: jobsTable.id })
-        .from(jobsTable)
-        .where(eq(jobsTable.employerId, id));
-      const jobIds = jobs.map((j) => j.id);
-      if (jobIds.length > 0) {
-        await tx
-          .delete(applicationsTable)
-          .where(
-            sql`${applicationsTable.jobId} IN (${sql.join(
-              jobIds.map((jid) => sql`${jid}`),
-              sql`, `,
-            )})`,
-          );
-        await tx.delete(jobsTable).where(eq(jobsTable.employerId, id));
-      }
-      // Clear both the org FK and the org role so that we never leave an
-      // "owner with no org" account around — that state would silently
-      // break org-owner middleware invariants.
+      if (existing.deletedAt) return "already";
+      const now = new Date();
       await tx
-        .update(usersTable)
-        .set({ employerId: null, orgRole: null })
-        .where(eq(usersTable.employerId, id));
-      await tx.delete(employersTable).where(eq(employersTable.id, id));
+        .update(jobsTable)
+        .set({ deletedAt: now })
+        .where(and(eq(jobsTable.employerId, id), isNull(jobsTable.deletedAt)));
+      await tx
+        .update(employersTable)
+        .set({ deletedAt: now })
+        .where(eq(employersTable.id, id));
       return true;
     });
-    if (!ok) {
+    if (ok === false) {
       res.status(404).json({ error: "Employer not found" });
       return;
     }
-    res.json({ ok: true });
+    res.json({ ok: true, alreadyDeleted: ok === "already" });
   } catch (err) {
-    req.log.error({ err, id }, "delete employer failed");
+    req.log.error({ err, id }, "soft-delete employer failed");
     res.status(500).json({ error: "Delete failed" });
   }
 });
@@ -786,35 +774,28 @@ router.delete("/admin/institutions/:id", requirePermission("institutions:manage"
     return;
   }
   try {
-    const ok = await db.transaction(async (tx) => {
-      const [existing] = await tx
-        .select({ id: institutionsTable.id })
-        .from(institutionsTable)
-        .where(eq(institutionsTable.id, id));
-      if (!existing) return false;
-      await tx
-        .delete(candidateInstitutionsTable)
-        .where(eq(candidateInstitutionsTable.institutionId, id));
-      await tx
-        .update(candidatesTable)
-        .set({ institutionId: null })
-        .where(eq(candidatesTable.institutionId, id));
-      // Clear both the org FK and the org role so we don't leave behind
-      // an "owner with no org" account.
-      await tx
-        .update(usersTable)
-        .set({ institutionId: null, orgRole: null })
-        .where(eq(usersTable.institutionId, id));
-      await tx.delete(institutionsTable).where(eq(institutionsTable.id, id));
-      return true;
-    });
-    if (!ok) {
+    const [existing] = await db
+      .select({
+        id: institutionsTable.id,
+        deletedAt: institutionsTable.deletedAt,
+      })
+      .from(institutionsTable)
+      .where(eq(institutionsTable.id, id));
+    if (!existing) {
       res.status(404).json({ error: "Institution not found" });
       return;
     }
+    if (existing.deletedAt) {
+      res.json({ ok: true, alreadyDeleted: true });
+      return;
+    }
+    await db
+      .update(institutionsTable)
+      .set({ deletedAt: new Date() })
+      .where(eq(institutionsTable.id, id));
     res.json({ ok: true });
   } catch (err) {
-    req.log.error({ err, id }, "delete institution failed");
+    req.log.error({ err, id }, "soft-delete institution failed");
     res.status(500).json({ error: "Delete failed" });
   }
 });
@@ -1821,5 +1802,141 @@ function maskName(n: string | null): string | null {
   const lastInitial = parts[parts.length - 1]![0]!.toUpperCase();
   return `${first} ${lastInitial}.`;
 }
+
+/**
+ * Soft-delete trash: list + restore endpoints, one per entity type.
+ *
+ * `DELETE /admin/{candidates|employers|institutions}/:id` stamps
+ * `deleted_at`. These endpoints let an admin (a) audit what's in the
+ * trash and (b) restore a mistakenly-deleted row by clearing the
+ * timestamp. For employers, restoring the parent also un-soft-deletes
+ * any child jobs that were nulled at the same moment (we re-use the
+ * employer's `deleted_at` as a sentinel — only jobs whose
+ * `deleted_at` matches are considered "cascade-deleted siblings").
+ *
+ * No filter/pagination on these read endpoints: trash is expected to
+ * be small (manual admin actions only). If that ever stops being
+ * true, cursor-paginate using the existing `lib/pagination` helpers.
+ */
+router.get("/admin/trash/candidates", requirePermission("candidates:manage"), async (_req, res) => {
+  const rows = await db
+    .select()
+    .from(candidatesTable)
+    .where(isNotNull(candidatesTable.deletedAt))
+    .orderBy(desc(candidatesTable.deletedAt));
+  res.json(rows);
+});
+
+router.get("/admin/trash/employers", requirePermission("employers:manage"), async (_req, res) => {
+  const rows = await db
+    .select()
+    .from(employersTable)
+    .where(isNotNull(employersTable.deletedAt))
+    .orderBy(desc(employersTable.deletedAt));
+  res.json(rows);
+});
+
+router.get("/admin/trash/institutions", requirePermission("institutions:manage"), async (_req, res) => {
+  const rows = await db
+    .select()
+    .from(institutionsTable)
+    .where(isNotNull(institutionsTable.deletedAt))
+    .orderBy(desc(institutionsTable.deletedAt));
+  res.json(rows);
+});
+
+router.post(
+  "/admin/trash/candidates/:id/restore",
+  requirePermission("candidates:manage"),
+  async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    const [row] = await db
+      .update(candidatesTable)
+      .set({ deletedAt: null })
+      .where(eq(candidatesTable.id, id))
+      .returning({ id: candidatesTable.id });
+    if (!row) {
+      res.status(404).json({ error: "Candidate not found" });
+      return;
+    }
+    res.json({ ok: true });
+  },
+);
+
+router.post(
+  "/admin/trash/employers/:id/restore",
+  requirePermission("employers:manage"),
+  async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    try {
+      const ok = await db.transaction(async (tx) => {
+        const [emp] = await tx
+          .select({
+            id: employersTable.id,
+            deletedAt: employersTable.deletedAt,
+          })
+          .from(employersTable)
+          .where(eq(employersTable.id, id));
+        if (!emp) return false;
+        if (!emp.deletedAt) return "noop"; // already active
+        // Restore the cascade-deleted jobs (those soft-deleted at the
+        // same instant). Jobs deleted directly later keep their own
+        // deletedAt; we only undo what THIS restore should undo.
+        await tx
+          .update(jobsTable)
+          .set({ deletedAt: null })
+          .where(
+            and(
+              eq(jobsTable.employerId, id),
+              eq(jobsTable.deletedAt, emp.deletedAt),
+            ),
+          );
+        await tx
+          .update(employersTable)
+          .set({ deletedAt: null })
+          .where(eq(employersTable.id, id));
+        return true;
+      });
+      if (ok === false) {
+        res.status(404).json({ error: "Employer not found" });
+        return;
+      }
+      res.json({ ok: true, noop: ok === "noop" });
+    } catch (err) {
+      req.log.error({ err, id }, "restore employer failed");
+      res.status(500).json({ error: "Restore failed" });
+    }
+  },
+);
+
+router.post(
+  "/admin/trash/institutions/:id/restore",
+  requirePermission("institutions:manage"),
+  async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    const [row] = await db
+      .update(institutionsTable)
+      .set({ deletedAt: null })
+      .where(eq(institutionsTable.id, id))
+      .returning({ id: institutionsTable.id });
+    if (!row) {
+      res.status(404).json({ error: "Institution not found" });
+      return;
+    }
+    res.json({ ok: true });
+  },
+);
 
 export default router;

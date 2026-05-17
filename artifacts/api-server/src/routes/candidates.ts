@@ -37,6 +37,7 @@ import {
   type InstitutionLink,
 } from "../lib/candidate-institutions";
 import { requireAdmin, requireAuth } from "../middleware/require-auth";
+import { notDeleted } from "../lib/soft-delete";
 import {
   getVerifiedSkillsByCandidate,
   getCandidateIdsWithVerifiedSkill,
@@ -277,6 +278,10 @@ router.get("/candidates", async (req, res): Promise<void> => {
       ) < (${cursor.b}, ${cursor.s}, ${cursor.i})`,
     );
   }
+
+  // Hide soft-deleted candidates from every public/staff list. Admin
+  // "trash" view sidesteps this by calling /admin/trash/candidates.
+  conditions.push(notDeleted(candidatesTable.deletedAt));
 
   const whereExpr = conditions.length > 0 ? and(...conditions) : undefined;
 

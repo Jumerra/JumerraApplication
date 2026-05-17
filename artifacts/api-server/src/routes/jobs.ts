@@ -24,6 +24,7 @@ import {
 } from "../lib/pagination";
 import { sendNotificationToCandidate } from "../lib/notifier";
 import { requireAuth, attachUser } from "../middleware/require-auth";
+import { notDeleted } from "../lib/soft-delete";
 import { requirePermission } from "../lib/permissions";
 import { sweepExpiredJobTiers } from "./job-tier";
 
@@ -115,8 +116,10 @@ router.get("/jobs", async (req, res): Promise<void> => {
   // pass + the shared `jobMatchesFilters` in-memory predicate). The
   // saved-search digest worker still uses `jobMatchesFilters` on rows
   // it already loaded, so this is route-local only.
-  const conditions: ReturnType<typeof eq>[] = [
+  const conditions: Array<ReturnType<typeof eq> | ReturnType<typeof notDeleted>> = [
     eq(jobsTable.visibility, "public"),
+    // Hide soft-deleted jobs from public listings.
+    notDeleted(jobsTable.deletedAt),
   ];
   if (filters.search) {
     const q = `%${filters.search}%`;

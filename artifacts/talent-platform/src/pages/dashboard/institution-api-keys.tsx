@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useAuth } from "@/lib/auth";
 import {
   Card,
@@ -21,101 +21,97 @@ import {
 import { toast } from "sonner";
 import { Copy, Trash2, KeyRound } from "lucide-react";
 import { PremiumGate, ProBadge } from "@/lib/institution-premium";
-
-type ApiKeyRow = {
-  id: number;
-  label: string;
-  prefix: string;
-  createdAt: string;
-  lastUsedAt: string | null;
-  revokedAt: string | null;
-};
-
-type CreateResponse = ApiKeyRow & { key: string };
+import {
+  useListInstitutionApiKeys,
+  useCreateInstitutionApiKey,
+  useRevokeInstitutionApiKey,
+  type InstitutionApiKeyCreated,
+} from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 
 /**
- * T7: Owner-only Pro feature for managing SIS API keys. The plaintext
+ * Owner-only Pro feature for managing SIS API keys. The plaintext
  * key is shown exactly once after creation; thereafter only the
  * 12-char prefix is rendered for identification.
+ *
+ * Migrated from raw fetch() to Orval-generated React Query hooks so
+ * request/response types stay in lockstep with the OpenAPI spec
+ * (`useListInstitutionApiKeys` / `useCreateInstitutionApiKey` /
+ * `useRevokeInstitutionApiKey`). Cache invalidation after create/
+ * revoke is delegated to React Query via `invalidateQueries` on the
+ * list's queryKey instead of a manual `refresh()` round-trip.
  */
 export default function InstitutionApiKeysPage() {
   const { sessionUser } = useAuth();
   const institutionId =
     sessionUser?.role === "institution" ? sessionUser.institutionId : null;
   const isOwner = sessionUser?.orgRole === "owner";
+  const queryClient = useQueryClient();
 
-  const [keys, setKeys] = useState<ApiKeyRow[]>([]);
-  const [loading, setLoading] = useState(false);
   const [label, setLabel] = useState("");
-  const [creating, setCreating] = useState(false);
-  const [justCreated, setJustCreated] = useState<CreateResponse | null>(null);
+  const [justCreated, setJustCreated] =
+    useState<InstitutionApiKeyCreated | null>(null);
 
-  const baseUrl = institutionId
-    ? `/api/institutions/${institutionId}/api-keys`
-    : null;
+  const enabled = !!institutionId && isOwner;
 
-  async function refresh() {
-    if (!baseUrl) return;
-    setLoading(true);
-    try {
-      const res = await fetch(baseUrl, { credentials: "include" });
-      if (res.ok) {
-        const data = (await res.json()) as ApiKeyRow[];
-        setKeys(data);
-      }
-    } finally {
-      setLoading(false);
-    }
-  }
+  const listQuery = useListInstitutionApiKeys(institutionId ?? 0, {
+    // Orval's generated useQuery wrapper fills in the queryKey itself
+    // but its `query` option still types as the raw UseQueryOptions
+    // (which marks queryKey required under TanStack Query v5). Cast
+    // through unknown so we can pass only the runtime gate.
+    query: { enabled } as unknown as Parameters<
+      typeof useListInstitutionApiKeys
+    >[1] extends { query?: infer Q }
+      ? Q
+      : never,
+  });
 
-  useEffect(() => {
-    if (institutionId && isOwner) void refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [institutionId, isOwner]);
+  const createMutation = useCreateInstitutionApiKey({
+    mutation: {
+      onSuccess: async (data) => {
+        setJustCreated(data);
+        setLabel("");
+        await queryClient.invalidateQueries({ queryKey: listQuery.queryKey });
+      },
+      onError: (err: unknown) => {
+        const status =
+          (err as { status?: number; response?: { status?: number } })
+            .status ??
+          (err as { response?: { status?: number } }).response?.status;
+        if (status === 402) {
+          toast.error("Institution Pro is required to mint API keys.");
+        } else {
+          toast.error("Failed to create key");
+        }
+      },
+    },
+  });
 
-  async function createKey() {
-    if (!baseUrl) return;
-    setCreating(true);
-    try {
-      const res = await fetch(baseUrl, {
-        method: "POST",
-        credentials: "include",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ label: label.trim() || "Untitled key" }),
-      });
-      if (res.status === 402) {
-        toast.error("Institution Pro is required to mint API keys.");
-        return;
-      }
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as {
-          error?: string;
-        };
-        toast.error(body.error ?? "Failed to create key");
-        return;
-      }
-      const data = (await res.json()) as CreateResponse;
-      setJustCreated(data);
-      setLabel("");
-      await refresh();
-    } finally {
-      setCreating(false);
-    }
-  }
+  const revokeMutation = useRevokeInstitutionApiKey({
+    mutation: {
+      onSuccess: async () => {
+        toast.success("Key revoked");
+        await queryClient.invalidateQueries({ queryKey: listQuery.queryKey });
+      },
+      onError: () => toast.error("Failed to revoke"),
+    },
+  });
 
-  async function revoke(id: number) {
-    if (!baseUrl) return;
-    if (!confirm("Revoke this API key? Existing integrations will stop working.")) return;
-    const res = await fetch(`${baseUrl}/${id}`, {
-      method: "DELETE",
-      credentials: "include",
+  function createKey() {
+    if (!institutionId) return;
+    createMutation.mutate({
+      id: institutionId,
+      data: { label: label.trim() || "Untitled key" },
     });
-    if (res.ok) {
-      toast.success("Key revoked");
-      await refresh();
-    } else {
-      toast.error("Failed to revoke");
-    }
+  }
+
+  function revoke(id: number) {
+    if (!institutionId) return;
+    if (
+      !confirm("Revoke this API key? Existing integrations will stop working.")
+    )
+      return;
+    revokeMutation.mutate({ id: institutionId, keyId: id });
   }
 
   if (!institutionId) {
@@ -142,6 +138,7 @@ export default function InstitutionApiKeysPage() {
     );
   }
 
+  const keys = listQuery.data ?? [];
   const active = keys.filter((k) => !k.revokedAt);
   const revoked = keys.filter((k) => k.revokedAt);
 
@@ -186,10 +183,10 @@ export default function InstitutionApiKeysPage() {
               </div>
               <Button
                 onClick={createKey}
-                disabled={creating}
+                disabled={createMutation.isPending}
                 data-testid="button-create-api-key"
               >
-                {creating ? "Generating..." : "Create key"}
+                {createMutation.isPending ? "Generating..." : "Create key"}
               </Button>
             </div>
 
@@ -230,7 +227,7 @@ export default function InstitutionApiKeysPage() {
             <CardTitle>Active keys ({active.length})</CardTitle>
           </CardHeader>
           <CardContent>
-            {loading ? (
+            {listQuery.isLoading ? (
               <p className="text-sm text-muted-foreground">Loading...</p>
             ) : active.length === 0 ? (
               <p className="text-sm text-muted-foreground">
@@ -267,6 +264,7 @@ export default function InstitutionApiKeysPage() {
                           variant="ghost"
                           size="sm"
                           onClick={() => revoke(k.id)}
+                          disabled={revokeMutation.isPending}
                           data-testid={`button-revoke-${k.id}`}
                         >
                           <Trash2 className="mr-1 h-3 w-3" />

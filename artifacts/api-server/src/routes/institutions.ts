@@ -88,6 +88,7 @@ import {
   setNextCursor,
 } from "../lib/pagination";
 import { enforceStarterQuota } from "../lib/institution-quotas";
+import { notDeleted } from "../lib/soft-delete";
 import { isInstitutionPremium } from "./institution-subscription";
 
 /**
@@ -662,7 +663,11 @@ router.get(
   const cursor = decodeCursor<StudentsCursor>(
     (req.query as { cursor?: unknown }).cursor,
   );
-  const studentConditions = [inArray(candidatesTable.id, studentIds)];
+  const studentConditions = [
+    inArray(candidatesTable.id, studentIds),
+    // Don't surface soft-deleted candidates in the institution roster.
+    notDeleted(candidatesTable.deletedAt),
+  ];
   if (cursor) {
     studentConditions.push(
       sql`(${candidatesTable.talentScore}, ${candidatesTable.id}) < (${cursor.s}, ${cursor.i})`,

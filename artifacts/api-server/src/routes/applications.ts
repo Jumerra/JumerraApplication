@@ -21,6 +21,7 @@ import { sendHireNotificationEmail, originForBackground } from "../lib/email";
 import { logger as rootLogger } from "../lib/logger";
 import { candidateInstitutionsTable } from "@workspace/db";
 import { isNotNull } from "drizzle-orm";
+import { notDeleted } from "../lib/soft-delete";
 import {
   ListApplicationsQueryParams,
   CreateApplicationBody,
@@ -355,7 +356,16 @@ router.get("/applications", requireAuth, async (req, res): Promise<void> => {
     .innerJoin(jobsTable, eq(jobsTable.id, applicationsTable.jobId))
     .innerJoin(candidatesTable, eq(candidatesTable.id, applicationsTable.candidateId))
     .innerJoin(employersTable, eq(employersTable.id, jobsTable.employerId))
-    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    // Hide applications whose job, candidate, or employer has been
+    // soft-deleted. The rows still exist for the admin trash view.
+    .where(
+      and(
+        notDeleted(jobsTable.deletedAt),
+        notDeleted(candidatesTable.deletedAt),
+        notDeleted(employersTable.deletedAt),
+        ...(conditions.length > 0 ? [and(...conditions)] : []),
+      ),
+    )
     .orderBy(desc(applicationsTable.appliedAt), desc(applicationsTable.id))
     .limit(limit + 1);
 

@@ -33,6 +33,7 @@ import {
   Trophy,
   Upload,
   Key,
+  ArrowLeft,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import {
@@ -334,6 +335,16 @@ export function InstitutionLayout({ children }: { children: ReactNode }) {
       <SidebarInset>
         <div className="sticky top-16 z-30 flex items-center gap-2 border-b border-border/40 bg-background/95 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <SidebarTrigger data-testid="button-institution-sidebar-toggle" />
+          {location !== "/dashboard/institution" && (
+            <Link
+              href="/dashboard/institution"
+              className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground"
+              data-testid="link-institution-back-to-dashboard"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back to dashboard
+            </Link>
+          )}
           <span className="text-sm font-medium text-muted-foreground">
             Institution
           </span>

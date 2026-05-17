@@ -32,6 +32,7 @@ import {
   KanbanSquare,
   MessageSquare,
   Sparkles,
+  ArrowLeft,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useGetEmployerSubscriptionSettings, getGetEmployerSubscriptionSettingsQueryKey } from "@workspace/api-client-react";
@@ -295,6 +296,16 @@ export function EmployerLayout({ children }: { children: ReactNode }) {
       <SidebarInset>
         <div className="sticky top-16 z-30 flex items-center gap-2 border-b border-border/40 bg-background/95 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <SidebarTrigger data-testid="button-employer-sidebar-toggle" />
+          {location !== "/dashboard/employer" && (
+            <Link
+              href="/dashboard/employer"
+              className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground"
+              data-testid="link-employer-back-to-dashboard"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back to dashboard
+            </Link>
+          )}
           <span className="text-sm font-medium text-muted-foreground">
             Employer
           </span>

@@ -8,6 +8,7 @@
     "migrate-legacy-employer-subs": "tsx ./src/migrate-legacy-employer-subs.ts",
     "seed-challenge-templates": "tsx ./src/seed-challenge-templates.ts",
     "loadtest": "tsx ./src/loadtest.ts",
+    "flaky-report": "tsx ./src/flaky-report.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {

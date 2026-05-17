@@ -102,6 +102,19 @@ else
   fi
 fi
 
+# Print the 7-day flaky-journey health report so quarantined tests
+# don't sit in that state indefinitely. Best-effort: never fail the
+# post-merge run on a reporting glitch. The same script is the one
+# pasted into the weekly team review (see
+# `pnpm --filter @workspace/scripts run flaky-report`).
+if [ -s "$LOG_DIR/e2e-history.jsonl" ]; then
+  echo ""
+  echo "→ Flaky-journey health report (last 7 days)"
+  pnpm --filter @workspace/scripts exec tsx ./src/flaky-report.ts \
+    --history "$PWD/$LOG_DIR/e2e-history.jsonl" --days 7 \
+    || echo "  (flaky-report failed to render — non-fatal)"
+fi
+
 if [ "$UNIT_STATUS" -ne 0 ] || [ "$E2E_HARD_FAIL" -ne 0 ]; then
   # Emit a compact, structured summary at the VERY END of stdout so it
   # lands in the agent's tail-into-context window (only the last ~10

@@ -268,7 +268,11 @@ router.get(
       conds.push(eq(paymentsTable.purposeType, purposeType));
     }
     if (typeof currency === "string" && currency.length > 0) {
-      conds.push(eq(paymentsTable.currency, currency.toLowerCase()));
+      // The unified `payments` table stores currency in the form the
+      // upstream provider sent it (uppercase ISO 4217 — "USD", "NGN").
+      // The admin page input is free-text and users may type either
+      // case, so normalize to uppercase here for a stable compare.
+      conds.push(eq(paymentsTable.currency, currency.toUpperCase()));
     }
     if (
       typeof category === "string" &&

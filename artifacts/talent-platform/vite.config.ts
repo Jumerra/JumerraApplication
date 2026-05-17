@@ -68,6 +68,20 @@ export default defineConfig({
     fs: {
       strict: true,
     },
+    // When `E2E_API_PROXY_TARGET` is set (Playwright UI suite), proxy
+    // `/api/*` to the standalone api-server so the web origin and API
+    // origin appear as one to the browser — cookies set by the API are
+    // honored on subsequent page navigations without any cross-origin
+    // dance. Unset in normal dev/prod, so this is a no-op there.
+    proxy: process.env.E2E_API_PROXY_TARGET
+      ? {
+          "/api": {
+            target: process.env.E2E_API_PROXY_TARGET,
+            changeOrigin: false,
+            secure: false,
+          },
+        }
+      : undefined,
   },
   preview: {
     port,

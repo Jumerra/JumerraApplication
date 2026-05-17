@@ -75,6 +75,12 @@ if [ "$E2E_DB_ALLOWED" != "1" ]; then
   esac
 fi
 
+# Ensure Playwright's Chromium build is present — the admin-payments
+# UI spec drives a real browser. `install --with-deps` is a no-op when
+# the binaries are already on disk; first run on a fresh machine pulls
+# ~120 MiB which is acceptable post-merge overhead.
+pnpm --filter @workspace/e2e exec playwright install chromium >/dev/null 2>&1 || true
+
 echo "→ Running api-server unit tests and Playwright e2e suite in parallel"
 echo "  run id  : $RUN_ID"
 echo "  unit log: $UNIT_LOG"

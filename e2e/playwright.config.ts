@@ -2,6 +2,8 @@ import { defineConfig } from "@playwright/test";
 
 const API_PORT = Number(process.env.E2E_API_PORT ?? 8090);
 const API_URL = process.env.E2E_API_URL ?? `http://127.0.0.1:${API_PORT}`;
+const WEB_PORT = Number(process.env.E2E_WEB_PORT ?? 8091);
+const WEB_URL = process.env.E2E_WEB_URL ?? `http://127.0.0.1:${WEB_PORT}`;
 
 export default defineConfig({
   testDir: "./tests",
@@ -28,25 +30,44 @@ export default defineConfig({
   },
   globalSetup: "./helpers/global-setup.ts",
   globalTeardown: "./helpers/global-teardown.ts",
-  webServer: {
-    // dev script = `pnpm run build && pnpm run start`
-    command: "pnpm --filter @workspace/api-server run dev",
-    url: `${API_URL}/api/healthz`,
-    timeout: 180_000,
-    reuseExistingServer: !process.env.CI,
-    stdout: "pipe",
-    stderr: "pipe",
-    env: {
-      PORT: String(API_PORT),
-      NODE_ENV: "development",
-      SESSION_SECRET: process.env.SESSION_SECRET ?? "e2e-test-session-secret",
-      SESSION_COOKIE_SECURE: "false",
-      STRIPE_WEBHOOK_SECRET:
-        process.env.STRIPE_WEBHOOK_SECRET ?? "whsec_e2e_test_secret",
-      PAYSTACK_SECRET_KEY:
-        process.env.PAYSTACK_SECRET_KEY ?? "sk_test_paystack_e2e",
-      // DATABASE_URL must already be in the parent env.
-      DATABASE_URL: process.env.DATABASE_URL ?? "",
+  webServer: [
+    {
+      // dev script = `pnpm run build && pnpm run start`
+      command: "pnpm --filter @workspace/api-server run dev",
+      url: `${API_URL}/api/healthz`,
+      timeout: 180_000,
+      reuseExistingServer: !process.env.CI,
+      stdout: "pipe",
+      stderr: "pipe",
+      env: {
+        PORT: String(API_PORT),
+        NODE_ENV: "development",
+        SESSION_SECRET: process.env.SESSION_SECRET ?? "e2e-test-session-secret",
+        SESSION_COOKIE_SECURE: "false",
+        STRIPE_WEBHOOK_SECRET:
+          process.env.STRIPE_WEBHOOK_SECRET ?? "whsec_e2e_test_secret",
+        PAYSTACK_SECRET_KEY:
+          process.env.PAYSTACK_SECRET_KEY ?? "sk_test_paystack_e2e",
+        // DATABASE_URL must already be in the parent env.
+        DATABASE_URL: process.env.DATABASE_URL ?? "",
+      },
     },
-  },
+    {
+      // Web app for UI-level tests. Vite dev server proxies `/api/*`
+      // to the api-server via `E2E_API_PROXY_TARGET` so the browser
+      // sees one origin and session cookies just work.
+      command: "pnpm --filter @workspace/talent-platform run dev",
+      url: `${WEB_URL}/`,
+      timeout: 180_000,
+      reuseExistingServer: !process.env.CI,
+      stdout: "pipe",
+      stderr: "pipe",
+      env: {
+        PORT: String(WEB_PORT),
+        BASE_PATH: "/",
+        NODE_ENV: "development",
+        E2E_API_PROXY_TARGET: API_URL,
+      },
+    },
+  ],
 });

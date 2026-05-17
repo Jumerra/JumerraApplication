@@ -199,26 +199,50 @@ if [ "$UNIT_STATUS" -ne 0 ] || [ "$E2E_HARD_FAIL" -ne 0 ]; then
   # that if anything gets clipped, it's the journey detail (still on
   # disk) and NOT the suite-status + log-path lines, which the user
   # needs to know where to look.
-  echo ""
-  echo "POST-MERGE FAILED — summary (run $RUN_ID):"
-  if [ "$E2E_HARD_FAIL" -ne 0 ] && [ -s "$E2E_FAILURES" ]; then
-    TOTAL_FAILS=$(wc -l <"$E2E_FAILURES" | tr -d ' ')
-    echo "Top failing journeys (of $TOTAL_FAILS, with request-id where surfaced):"
-    # Cap at 5 lines so the summary block fits the ~10-line tail
-    # window even when both suites fail.
-    head -n 5 "$E2E_FAILURES"
-    if [ "$TOTAL_FAILS" -gt 5 ]; then
-      echo "  …and $((TOTAL_FAILS - 5)) more"
+  #
+  # Tee the same summary block into a file so the on-call notifier
+  # (post-merge-failure-notify) can attach the exact text the user
+  # would have seen in the chat tail. The notifier reads this file via
+  # its --summary-file flag.
+  SUMMARY_FILE="$LOG_DIR/failure-summary.txt"
+  {
+    echo "POST-MERGE FAILED — summary (run $RUN_ID):"
+    if [ "$E2E_HARD_FAIL" -ne 0 ] && [ -s "$E2E_FAILURES" ]; then
+      TOTAL_FAILS=$(wc -l <"$E2E_FAILURES" | tr -d ' ')
+      echo "Top failing journeys (of $TOTAL_FAILS, with request-id where surfaced):"
+      head -n 5 "$E2E_FAILURES"
+      if [ "$TOTAL_FAILS" -gt 5 ]; then
+        echo "  …and $((TOTAL_FAILS - 5)) more"
+      fi
     fi
-  fi
-  # Print the suite-status + log-path lines LAST so they're the most
-  # likely to survive tail-window truncation in the chat notification.
-  if [ "$UNIT_STATUS" -ne 0 ]; then
-    echo "✗ unit tests failed (exit $UNIT_STATUS) — full log: $UNIT_LOG"
-  fi
-  if [ "$E2E_STATUS" -ne 0 ]; then
-    echo "✗ e2e suite failed (exit $E2E_STATUS) — full log: $E2E_LOG ; journeys: $E2E_FAILURES"
-  fi
+    if [ "$UNIT_STATUS" -ne 0 ]; then
+      echo "✗ unit tests failed (exit $UNIT_STATUS) — full log: $UNIT_LOG"
+    fi
+    if [ "$E2E_STATUS" -ne 0 ]; then
+      echo "✗ e2e suite failed (exit $E2E_STATUS) — full log: $E2E_LOG ; journeys: $E2E_FAILURES"
+    fi
+  } | tee "$SUMMARY_FILE"
+  echo ""
+
+  # Page on-call. Closes the gap left by regression-notify, which only
+  # fires when a previously-stable journey starts failing — it stays
+  # silent when the suite never executed at all (infra outage, DB
+  # unreachable, e2e crashed before any test ran). Best-effort: a
+  # notifier outage must NOT change this script's exit code, so we
+  # swallow the result with `|| true`. The notifier also belt-and-
+  # braces internally and never exits non-zero on a Slack/Resend
+  # failure.
+  # Use $E2E_HARD_FAIL (0/1) as the "did e2e block the merge" signal, not
+  # the raw $E2E_STATUS exit code. A run where unit tests broke but e2e
+  # only had quarantined-journey failures is a unit-only hard failure —
+  # passing the raw e2e exit here would mis-label it as "unit + e2e".
+  pnpm --filter @workspace/scripts run post-merge-failure-notify -- \
+    --run-id "$RUN_ID" \
+    --unit-status "$UNIT_STATUS" \
+    --e2e-status "$E2E_HARD_FAIL" \
+    --summary-file "$SUMMARY_FILE" \
+    >/dev/null 2>&1 || true
+
   exit 1
 fi
 

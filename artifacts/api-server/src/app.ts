@@ -81,6 +81,20 @@ function buildAllowedOrigins(): Set<string> {
     }
   }
 
+  // ALLOWED_ORIGINS: comma-separated list of additional origins (full
+  // URLs including scheme) that should be allowed by CORS. Used when
+  // hosting outside Replit (e.g. Render + custom domain) so the API
+  // can be reached from the production web app and any preview
+  // environments. Example:
+  //   ALLOWED_ORIGINS="https://jumerra.com,https://www.jumerra.com,https://app.jumerra.com"
+  const extra = process.env.ALLOWED_ORIGINS;
+  if (extra) {
+    for (const origin of extra.split(",")) {
+      const trimmed = origin.trim();
+      if (trimmed) allowed.add(trimmed);
+    }
+  }
+
   // Local development convenience.
   allowed.add("http://localhost");
   allowed.add("http://127.0.0.1");

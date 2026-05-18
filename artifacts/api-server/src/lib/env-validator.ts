@@ -24,13 +24,20 @@ const PROD_REQUIRED: RequiredVar[] = [
 const PROD_RECOMMENDED: RequiredVar[] = [
   { key: "RESEND_API_KEY", reason: "transactional email delivery" },
   { key: "EMAIL_DEFAULT_FROM", reason: "From: address for outgoing email" },
-  { key: "STRIPE_SECRET_KEY", reason: "Stripe payments" },
-  { key: "STRIPE_WEBHOOK_SECRET", reason: "Stripe webhook signature verification" },
   { key: "PAYSTACK_SECRET_KEY", reason: "Paystack payments (Africa-first rail)" },
+  { key: "PAYSTACK_WEBHOOK_SECRET", reason: "Paystack webhook signature verification" },
   { key: "SENTRY_DSN_SERVER", reason: "server-side error tracking" },
+  { key: "ALLOWED_ORIGINS", reason: "extra CORS origins when hosting outside Replit (e.g. Render)" },
+  // Object storage. Either the Replit-native bucket vars OR the S3/R2
+  // vars should be present. The validator just warns either way; the
+  // storage layer picks the backend at runtime via STORAGE_BACKEND.
   {
     key: "DEFAULT_OBJECT_STORAGE_BUCKET_ID",
-    reason: "object storage (avatars, CVs)",
+    reason: "Replit object storage (avatars, CVs) — set when hosting on Replit",
+  },
+  {
+    key: "S3_BUCKET",
+    reason: "S3/Cloudflare R2 bucket name — set when hosting outside Replit",
   },
   {
     key: "TRASH_RETENTION_DAYS",

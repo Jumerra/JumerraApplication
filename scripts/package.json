@@ -7,6 +7,7 @@
     "hello": "tsx ./src/hello.ts",
     "migrate-legacy-employer-subs": "tsx ./src/migrate-legacy-employer-subs.ts",
     "seed-challenge-templates": "tsx ./src/seed-challenge-templates.ts",
+    "seed-super-admin": "tsx ./src/seed-super-admin.ts",
     "loadtest": "tsx ./src/loadtest.ts",
     "flaky-report": "tsx ./src/flaky-report.ts",
     "journey-history": "tsx ./src/journey-history.ts",
@@ -21,6 +22,7 @@
   },
   "devDependencies": {
     "@types/autocannon": "^7.12.7",
+    "@types/bcryptjs": "^3.0.0",
     "@types/node": "catalog:",
     "autocannon": "^8.0.0",
     "tsx": "catalog:",
@@ -29,6 +31,7 @@
   "dependencies": {
     "@opentelemetry/api": "^1.9.1",
     "@workspace/db": "workspace:*",
+    "bcryptjs": "^3.0.3",
     "drizzle-orm": "catalog:",
     "stripe": "^22.1.0"
   }

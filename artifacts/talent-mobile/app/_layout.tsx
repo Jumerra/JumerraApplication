@@ -21,7 +21,15 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 SplashScreen.preventAutoHideAsync();
 
-setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN}`);
+// Prefer EXPO_PUBLIC_API_URL (full URL, e.g. https://jumerraapplication.onrender.com)
+// for production builds. Fall back to EXPO_PUBLIC_DOMAIN (host only) used by
+// the Replit dev workflow.
+const apiBaseUrl =
+  process.env.EXPO_PUBLIC_API_URL ||
+  (process.env.EXPO_PUBLIC_DOMAIN
+    ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
+    : "");
+setBaseUrl(apiBaseUrl);
 
 if (Platform.OS !== "web") {
   const STORAGE_KEY = "talentlink.session-cookies";

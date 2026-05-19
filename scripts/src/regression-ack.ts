@@ -40,6 +40,7 @@ interface Args {
   file: string | null;
   until: string | null;
   reason: string | null;
+  author: string | null;
   remove: boolean;
   list: boolean;
   acksPath: string;
@@ -53,6 +54,7 @@ function parseArgs(rawArgv: string[]): Args {
     file: null,
     until: null,
     reason: null,
+    author: null,
     remove: false,
     list: false,
     acksPath: defaultAcksPath(),
@@ -68,6 +70,8 @@ function parseArgs(rawArgv: string[]): Args {
       args.until = argv[++i] ?? null;
     } else if (a === "--reason") {
       args.reason = argv[++i] ?? null;
+    } else if (a === "--author") {
+      args.author = argv[++i] ?? null;
     } else if (a === "--remove") {
       args.remove = true;
     } else if (a === "--list") {
@@ -80,7 +84,7 @@ function parseArgs(rawArgv: string[]): Args {
       process.stdout.write(
         "Usage: regression-ack [--list [--json]] [--remove] " +
           "--journey \"...\" --file PATH [--until YYYY-MM-DD] [--reason \"...\"] " +
-          "[--acks PATH]\n",
+          "[--author \"email-or-@slack-handle\"] [--acks PATH]\n",
       );
       process.exit(0);
     } else {
@@ -118,7 +122,8 @@ function listAcks(args: Args): void {
     const exp = isExpired(a) ? " [EXPIRED]" : "";
     const until = a.until ? ` until ${a.until}` : " (no expiry)";
     const reason = a.reason ? ` — ${a.reason}` : "";
-    process.stdout.write(`  - ${a.journey}  (${a.file})${until}${exp}${reason}\n`);
+    const author = a.author ? ` [by ${a.author}]` : "";
+    process.stdout.write(`  - ${a.journey}  (${a.file})${until}${exp}${author}${reason}\n`);
   }
 }
 
@@ -155,6 +160,7 @@ function upsertOrRemove(args: Args): void {
   };
   if (args.until) next.until = args.until;
   if (args.reason) next.reason = args.reason;
+  if (args.author) next.author = args.author.trim();
 
   if (matchIndex === -1) {
     existing.acks.push(next);

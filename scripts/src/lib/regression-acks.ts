@@ -31,6 +31,13 @@ export interface RegressionAck {
   journey: string;
   until?: string;
   reason?: string;
+  /**
+   * Optional contact for the person who muted this journey. Either an
+   * email address or a Slack handle (e.g. `@jane` / `U012ABC`). Used by
+   * `regression-notify --expiring-digest` to ping the muter directly
+   * instead of relying on the broadcast channel.
+   */
+  author?: string;
 }
 
 export interface RegressionAcksFile {
@@ -111,6 +118,7 @@ export function readAcksRaw(file: string): RegressionAcksFile {
     const a: RegressionAck = { file: e.file, journey: e.journey };
     if (typeof e.until === "string") a.until = e.until;
     if (typeof e.reason === "string") a.reason = e.reason;
+    if (typeof e.author === "string" && e.author.trim()) a.author = e.author.trim();
     valid.push(a);
   }
   return { acks: valid };
@@ -134,6 +142,68 @@ export function loadActiveAcks(file: string): Map<string, RegressionAck> {
 export function writeAcks(file: string, data: RegressionAcksFile): void {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, `${JSON.stringify(data, null, 2)}\n`);
+}
+
+/**
+ * Classify an ack `author` string into a notification channel.
+ *
+ * - `email` — looks like an RFC-5322-ish address; the digest sends a
+ *   direct Resend email to it regardless of REGRESSION_ALERT_EMAIL.
+ * - `slack` — starts with `@`, or matches a Slack member id
+ *   (`U`/`W` prefix), or is wrapped in `<@...>`. Webhooks can't DM, so
+ *   we post to the broadcast webhook with an `<@id>`/`@handle` mention
+ *   that pings the muter directly.
+ * - `unknown` — falls through to the broadcast channel.
+ */
+export type AuthorKind = "email" | "slack" | "unknown";
+
+export function classifyAuthor(author: string | undefined): AuthorKind {
+  if (!author) return "unknown";
+  const s = author.trim();
+  if (!s) return "unknown";
+  if (/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(s)) return "email";
+  if (s.startsWith("@")) return "slack";
+  if (/^<@[UW][A-Z0-9]{2,}>$/.test(s)) return "slack";
+  if (/^[UW][A-Z0-9]{6,}$/.test(s)) return "slack";
+  return "unknown";
+}
+
+export function slackMentionFor(author: string): string {
+  const s = author.trim();
+  if (s.startsWith("<@") && s.endsWith(">")) return s;
+  if (/^[UW][A-Z0-9]{6,}$/.test(s)) return `<@${s}>`;
+  return s.startsWith("@") ? s : `@${s}`;
+}
+
+export interface AuthorBuckets<E extends { ack: { author?: string } }> {
+  emails: Map<string, E[]>;
+  slack: Map<string, E[]>;
+  unattributed: E[];
+}
+
+export function bucketByAuthor<E extends { ack: { author?: string } }>(
+  entries: E[],
+): AuthorBuckets<E> {
+  const emails = new Map<string, E[]>();
+  const slack = new Map<string, E[]>();
+  const unattributed: E[] = [];
+  for (const e of entries) {
+    const kind = classifyAuthor(e.ack.author);
+    if (kind === "email" && e.ack.author) {
+      const key = e.ack.author.trim();
+      const arr = emails.get(key) ?? [];
+      arr.push(e);
+      emails.set(key, arr);
+    } else if (kind === "slack" && e.ack.author) {
+      const key = e.ack.author.trim();
+      const arr = slack.get(key) ?? [];
+      arr.push(e);
+      slack.set(key, arr);
+    } else {
+      unattributed.push(e);
+    }
+  }
+  return { emails, slack, unattributed };
 }
 
 export function isValidIsoDate(s: string): boolean {

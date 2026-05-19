@@ -31,6 +31,10 @@
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  bucketByAuthor,
+  slackMentionFor,
+} from "./lib/regression-acks.js";
 
 interface Regression {
   journey: string;
@@ -48,6 +52,7 @@ interface AckMeta {
   journey: string;
   until?: string;
   reason?: string;
+  author?: string;
 }
 
 interface ExpiringAckEntry {
@@ -261,16 +266,21 @@ function escapeHtml(s: string): string {
     .replace(/'/g, "&#39;");
 }
 
-function summariseExpiringForSlack(payload: ReportPayload): {
+function summariseExpiringForSlack(
+  payload: ReportPayload,
+  entries: ExpiringAckEntry[],
+  options: { mention?: string; audience?: string } = {},
+): {
   text: string;
   blocks: unknown[];
 } {
-  const expiring = payload.expiring ?? [];
+  const expiring = entries;
   const window = payload.expiringWindowDays ?? 7;
+  const audienceSuffix = options.audience ? ` (${options.audience})` : "";
   const headline =
     expiring.length === 1
-      ? `:hourglass_flowing_sand: 1 regression ack expires in the next ${window} day${window === 1 ? "" : "s"}`
-      : `:hourglass_flowing_sand: ${expiring.length} regression acks expire in the next ${window} day${window === 1 ? "" : "s"}`;
+      ? `:hourglass_flowing_sand: 1 regression ack expires in the next ${window} day${window === 1 ? "" : "s"}${audienceSuffix}`
+      : `:hourglass_flowing_sand: ${expiring.length} regression acks expire in the next ${window} day${window === 1 ? "" : "s"}${audienceSuffix}`;
   const lines = expiring.slice(0, 20).map((e) => {
     const days =
       e.remainingDays === 0
@@ -284,7 +294,11 @@ function summariseExpiringForSlack(payload: ReportPayload): {
   if (expiring.length > 20) {
     lines.push(`…and ${expiring.length - 20} more`);
   }
-  const text = `${headline}\n${lines.join("\n")}`;
+  const mentionPrefix = options.mention ? `${options.mention} ` : "";
+  const text = `${mentionPrefix}${headline}\n${lines.join("\n")}`;
+  const intro =
+    (options.mention ? `${options.mention} ` : "") +
+    "Extend or close these before they auto-expire and the journey starts re-alerting.";
   const blocks = [
     {
       type: "header",
@@ -294,27 +308,30 @@ function summariseExpiringForSlack(payload: ReportPayload): {
       type: "section",
       text: {
         type: "mrkdwn",
-        text:
-          "Extend or close these before they auto-expire and the journey starts re-alerting.\n\n" +
-          lines.join("\n"),
+        text: `${intro}\n\n${lines.join("\n")}`,
       },
     },
   ];
   return { text, blocks };
 }
 
-function summariseExpiringForEmail(payload: ReportPayload): {
+function summariseExpiringForEmail(
+  payload: ReportPayload,
+  entries: ExpiringAckEntry[],
+  options: { audience?: string } = {},
+): {
   subject: string;
   html: string;
   text: string;
 } {
-  const expiring = payload.expiring ?? [];
+  const expiring = entries;
   const window = payload.expiringWindowDays ?? 7;
   const n = expiring.length;
+  const audienceSuffix = options.audience ? ` (${options.audience})` : "";
   const subject =
     n === 1
-      ? `[Jumerra e2e] 1 regression ack expiring soon`
-      : `[Jumerra e2e] ${n} regression acks expiring in next ${window} day${window === 1 ? "" : "s"}`;
+      ? `[Jumerra e2e] 1 regression ack expiring soon${audienceSuffix}`
+      : `[Jumerra e2e] ${n} regression acks expiring in next ${window} day${window === 1 ? "" : "s"}${audienceSuffix}`;
   const rows = expiring
     .map((e) => {
       const daysLabel =
@@ -345,10 +362,14 @@ function summariseExpiringForEmail(payload: ReportPayload): {
   return { subject, html, text: textLines.join("\n") };
 }
 
-async function postSlackExpiring(payload: ReportPayload): Promise<void> {
+async function postSlackExpiring(
+  payload: ReportPayload,
+  entries: ExpiringAckEntry[],
+  options: { mention?: string; audience?: string } = {},
+): Promise<void> {
   const url = process.env.SLACK_REGRESSION_WEBHOOK_URL;
-  if (!url) return;
-  const body = summariseExpiringForSlack(payload);
+  if (!url || entries.length === 0) return;
+  const body = summariseExpiringForSlack(payload, entries, options);
   try {
     const res = await fetch(url, {
       method: "POST",
@@ -368,24 +389,23 @@ async function postSlackExpiring(payload: ReportPayload): Promise<void> {
   }
 }
 
-async function sendEmailExpiring(payload: ReportPayload): Promise<void> {
-  const to = process.env.REGRESSION_ALERT_EMAIL;
+async function sendEmailExpiring(
+  payload: ReportPayload,
+  entries: ExpiringAckEntry[],
+  recipients: string[],
+  options: { audience?: string } = {},
+): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
-  if (!to) return;
+  if (recipients.length === 0 || entries.length === 0) return;
   if (!apiKey) {
     process.stderr.write(
-      "regression-notify: REGRESSION_ALERT_EMAIL set but RESEND_API_KEY missing — skipping expiring-digest email.\n",
+      "regression-notify: RESEND_API_KEY missing — skipping expiring-digest email.\n",
     );
     return;
   }
-  const recipients = to
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  if (recipients.length === 0) return;
   const from =
     process.env.EMAIL_DEFAULT_FROM ?? "Jumerra <onboarding@resend.dev>";
-  const { subject, html, text } = summariseExpiringForEmail(payload);
+  const { subject, html, text } = summariseExpiringForEmail(payload, entries, options);
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -424,12 +444,84 @@ async function main(): Promise<void> {
       forwarded.push(a);
     }
   }
-  const payload = runReport(forwarded);
-  if (!payload) return;
+  const maybePayload = runReport(forwarded);
+  if (!maybePayload) return;
+  const payload: ReportPayload = maybePayload;
 
   const hasSlack = !!process.env.SLACK_REGRESSION_WEBHOOK_URL;
   const hasEmail = !!process.env.REGRESSION_ALERT_EMAIL;
   const expiringCount = payload.totalExpiring ?? 0;
+
+  async function dispatchExpiringDigest(): Promise<void> {
+    if (!(expiringDigest && expiringCount > 0)) return;
+    const entries = payload.expiring ?? [];
+    const buckets = bucketByAuthor(entries);
+    const broadcastRecipients =
+      (process.env.REGRESSION_ALERT_EMAIL ?? "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+    const tasks: Promise<void>[] = [];
+    // Per-author email pings — go to the muter regardless of
+    // REGRESSION_ALERT_EMAIL (it's the whole point of the feature).
+    for (const [email, perAuthorEntries] of buckets.emails) {
+      process.stdout.write(
+        `regression-notify: pinging ack author ${email} about ${perAuthorEntries.length} expiring ack${perAuthorEntries.length === 1 ? "" : "s"}.\n`,
+      );
+      tasks.push(
+        sendEmailExpiring(payload, perAuthorEntries, [email], {
+          audience: `for ${email}`,
+        }),
+      );
+    }
+    // Per-author Slack pings — we can't DM via webhook, so we post to
+    // the broadcast channel with an `<@id>`/`@handle` prefix so the
+    // muter still gets a notification.
+    if (hasSlack) {
+      for (const [handle, perAuthorEntries] of buckets.slack) {
+        process.stdout.write(
+          `regression-notify: pinging Slack author ${handle} about ${perAuthorEntries.length} expiring ack${perAuthorEntries.length === 1 ? "" : "s"}.\n`,
+        );
+        tasks.push(
+          postSlackExpiring(payload, perAuthorEntries, {
+            mention: slackMentionFor(handle),
+            audience: `for ${handle}`,
+          }),
+        );
+      }
+    } else if (buckets.slack.size > 0) {
+      // No webhook configured — fall back to broadcast (which itself
+      // may not be configured; that's surfaced below).
+      for (const arr of buckets.slack.values()) {
+        buckets.unattributed.push(...arr);
+      }
+    }
+
+    // Anything without a routable author falls through to the broadcast
+    // channel — preserving the original digest behavior for legacy acks
+    // that pre-date the `author` field.
+    if (buckets.unattributed.length > 0) {
+      if (hasSlack || broadcastRecipients.length > 0) {
+        tasks.push(
+          postSlackExpiring(payload, buckets.unattributed, {
+            audience: "broadcast",
+          }),
+          sendEmailExpiring(payload, buckets.unattributed, broadcastRecipients, {
+            audience: "broadcast",
+          }),
+        );
+      }
+    }
+
+    if (tasks.length === 0) {
+      process.stdout.write(
+        "regression-notify: no notification channels configured for expiring digest (set SLACK_REGRESSION_WEBHOOK_URL and/or REGRESSION_ALERT_EMAIL, or record an `author` on the ack).\n",
+      );
+      return;
+    }
+    await Promise.all(tasks);
+  }
 
   if (payload.totalRegressions === 0) {
     process.stdout.write(
@@ -439,13 +531,19 @@ async function main(): Promise<void> {
       process.stdout.write(
         `regression-notify: ${expiringCount} ack${expiringCount === 1 ? "" : "s"} expiring in the next ${payload.expiringWindowDays ?? 7} day${(payload.expiringWindowDays ?? 7) === 1 ? "" : "s"} — dispatching digest.\n`,
       );
-      if (!hasSlack && !hasEmail) {
+      const entries = payload.expiring ?? [];
+      const buckets = bucketByAuthor(entries);
+      const hasAuthoredEmail = buckets.emails.size > 0;
+      // Preserve the existing "no notification channels configured"
+      // log line for callers that have no broadcast channels AND no
+      // routable per-author contacts — the digest has nowhere to go.
+      if (!hasSlack && !hasEmail && !hasAuthoredEmail) {
         process.stdout.write(
           "regression-notify: no notification channels configured (set SLACK_REGRESSION_WEBHOOK_URL and/or REGRESSION_ALERT_EMAIL).\n",
         );
         return;
       }
-      await Promise.all([postSlackExpiring(payload), sendEmailExpiring(payload)]);
+      await dispatchExpiringDigest();
     }
     return;
   }
@@ -464,7 +562,7 @@ async function main(): Promise<void> {
     process.stdout.write(
       `regression-notify: also dispatching digest for ${expiringCount} expiring ack${expiringCount === 1 ? "" : "s"}.\n`,
     );
-    tasks.push(postSlackExpiring(payload), sendEmailExpiring(payload));
+    tasks.push(dispatchExpiringDigest());
   }
   await Promise.all(tasks);
 }

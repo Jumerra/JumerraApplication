@@ -64,7 +64,7 @@ export function buildSessionMiddleware(): RequestHandler {
   const store = new PgStore({
     pool,
     tableName: "session",
-    createTableIfMissing: false,
+    createTableIfMissing: true,
   });
 
   // The mobile app's Expo web preview is served from REPLIT_EXPO_DEV_DOMAIN

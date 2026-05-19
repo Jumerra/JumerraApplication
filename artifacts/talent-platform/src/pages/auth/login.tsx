@@ -58,14 +58,14 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="container max-w-md py-16 px-4">
-      <Card className="shadow-md">
-        <CardHeader className="text-center">
-          <div className="mx-auto w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary mb-3">
-            <LogIn className="w-6 h-6" />
+    <div className="min-h-[calc(100vh-4rem)] w-full flex items-center justify-center px-4 py-12 bg-gradient-to-br from-primary/5 via-background to-primary/10">
+      <Card className="w-full max-w-md shadow-xl border-border/60 backdrop-blur">
+        <CardHeader className="text-center pb-6">
+          <div className="mx-auto w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center text-primary mb-4 ring-4 ring-primary/5">
+            <LogIn className="w-7 h-7" />
           </div>
-          <CardTitle className="text-2xl">Welcome back</CardTitle>
-          <CardDescription>Sign in to your Jumerra account</CardDescription>
+          <CardTitle className="text-2xl font-bold tracking-tight">Welcome back</CardTitle>
+          <CardDescription className="mt-1">Sign in to your Jumerra account</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={onSubmit} className="space-y-4">

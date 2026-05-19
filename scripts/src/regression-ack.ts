@@ -24,6 +24,10 @@
  *   --list            print all acks (active + expired) as a table
  *   --acks PATH       override the acks file (default .local/regression-acks.json)
  *   --json            machine-readable output for --list
+ *
+ * Env:
+ *   REGRESSION_ACK_REQUIRE_AUTHOR=1  refuse to record an ack without --author
+ *                                    (use in CI so unattributed mutes never land).
  */
 import path from "node:path";
 import {
@@ -168,13 +172,28 @@ function listAcks(args: Args): void {
     return;
   }
   process.stdout.write(`Regression acks (${args.acksPath}):\n`);
+  let missingAuthor = 0;
   for (const a of acks) {
     const exp = isExpired(a) ? " [EXPIRED]" : "";
     const until = a.until ? ` until ${a.until}` : " (no expiry)";
     const reason = a.reason ? ` — ${a.reason}` : "";
-    const author = a.author ? ` [by ${a.author}]` : "";
+    const author = a.author ? ` [by ${a.author}]` : " [NO AUTHOR — backfill with --author]";
+    if (!a.author) missingAuthor++;
     process.stdout.write(`  - ${a.journey}  (${a.file})${until}${exp}${author}${reason}\n`);
   }
+  if (missingAuthor > 0) {
+    process.stderr.write(
+      `\nWarning: ${missingAuthor} ack(s) have no --author. Expiring-ack reminders for ` +
+        `these will fall back to the broadcast channel instead of pinging the muter directly. ` +
+        `Re-run regression-ack with --author "email-or-@slack-handle" to attribute them.\n`,
+    );
+  }
+}
+
+function isTruthyEnv(v: string | undefined): boolean {
+  if (!v) return false;
+  const s = v.trim().toLowerCase();
+  return s === "1" || s === "true" || s === "yes" || s === "on";
 }
 
 function upsertOrRemove(args: Args): void {
@@ -188,6 +207,21 @@ function upsertOrRemove(args: Args): void {
   const matchIndex = existing.acks.findIndex(
     (a) => a.file === args.file && a.journey === args.journey,
   );
+
+  const trimmedAuthor = args.author?.trim() ?? "";
+  if (!args.remove && !trimmedAuthor) {
+    const strict = isTruthyEnv(process.env.REGRESSION_ACK_REQUIRE_AUTHOR);
+    const msg =
+      `--author was not provided. Expiring-ack reminders for "${args.journey}" will fall ` +
+      `back to the broadcast channel instead of pinging you directly. Pass ` +
+      `--author "you@example.com" or --author "@your-slack-handle" to attribute this mute.`;
+    if (strict) {
+      throw new Error(
+        `${msg}\n(REGRESSION_ACK_REQUIRE_AUTHOR is set — refusing to record an unattributed ack.)`,
+      );
+    }
+    process.stderr.write(`Warning: ${msg}\n`);
+  }
 
   if (args.remove) {
     if (matchIndex === -1) {

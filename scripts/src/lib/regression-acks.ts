@@ -23,6 +23,7 @@
  * file on disk is left alone (writers may rewrite it explicitly), so a
  * dry read never mutates state.
  */
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -210,4 +211,295 @@ export function isValidIsoDate(s: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
   const d = new Date(`${s}T00:00:00Z`);
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+}
+
+/**
+ * Add `days` whole days to a YYYY-MM-DD UTC date and return the result
+ * in YYYY-MM-DD. Negative values are allowed.
+ */
+export function addDaysIso(isoDate: string, days: number): string {
+  const ms = Date.parse(`${isoDate}T00:00:00Z`);
+  if (Number.isNaN(ms)) throw new Error(`invalid ISO date: ${isoDate}`);
+  return new Date(ms + days * 86_400_000).toISOString().slice(0, 10);
+}
+
+// ---------------------------------------------------------------------------
+// Signed one-click action tokens
+// ---------------------------------------------------------------------------
+//
+// The expiring-ack reminder (email + Slack) embeds three buttons per ack —
+// "Extend 7 days", "Extend 30 days", "Close mute" — that point at a
+// receiver URL configured with `REGRESSION_ACK_ACTION_URL`. The receiver
+// hands the token off to `regression-ack --apply-token TOKEN` which calls
+// `applySignedAckAction`.
+//
+// Token shape (compact):  <payloadB64url>.<sigB64url>
+// Payload (JSON):
+//   { a: "extend7"|"extend30"|"close",
+//     f: file,
+//     j: journey,
+//     u: currentUntilSnapshotOrEmpty,   // for replay protection
+//     e: expEpochSeconds,
+//     n: nonce }                         // pure entropy
+//
+// Replay protection is layered:
+//   1. The HMAC is keyed on `REGRESSION_ACK_SIGNING_SECRET`, which never
+//      leaves the operator's environment. Without it, an attacker cannot
+//      forge a token or substitute the action.
+//   2. The token carries an `exp` (default 14 days) so a leaked link
+//      stops working even if the secret leaks.
+//   3. The token snapshots the ack's `until` at sign time. Once the
+//      action has been applied the `until` changes, so the same token
+//      can't extend twice. (Close-mute is naturally idempotent — a
+//      second click finds no ack and reports success-with-noop.)
+
+export type AckActionKind = "extend7" | "extend30" | "close";
+
+export interface AckActionPayload {
+  action: AckActionKind;
+  file: string;
+  journey: string;
+  /** ISO `until` at sign time, or empty string for never-expire acks. */
+  untilSnapshot: string;
+  /** Unix epoch seconds. */
+  expiresAt: number;
+  /** Random 12-byte hex nonce. */
+  nonce: string;
+}
+
+const DEFAULT_TTL_SECONDS = 14 * 24 * 60 * 60;
+
+function b64urlEncode(buf: Buffer): string {
+  return buf.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function b64urlDecode(s: string): Buffer {
+  const pad = s.length % 4 === 0 ? "" : "=".repeat(4 - (s.length % 4));
+  return Buffer.from(s.replace(/-/g, "+").replace(/_/g, "/") + pad, "base64");
+}
+
+function hmacSign(secret: string, message: string): Buffer {
+  return createHmac("sha256", secret).update(message).digest();
+}
+
+function constantTimeEq(a: Buffer, b: Buffer): boolean {
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
+
+export interface SignAckActionInput {
+  action: AckActionKind;
+  file: string;
+  journey: string;
+  untilSnapshot: string;
+  secret: string;
+  /** Defaults to 14 days. Caller may shorten. */
+  ttlSeconds?: number;
+  /** Override for tests. */
+  now?: number;
+  /** Override for tests. */
+  nonce?: string;
+}
+
+export function signAckActionToken(input: SignAckActionInput): string {
+  if (!input.secret) throw new Error("signAckActionToken: empty secret");
+  const now = input.now ?? Math.floor(Date.now() / 1000);
+  const ttl = input.ttlSeconds ?? DEFAULT_TTL_SECONDS;
+  const payload = {
+    a: input.action,
+    f: input.file,
+    j: input.journey,
+    u: input.untilSnapshot,
+    e: now + ttl,
+    n: input.nonce ?? randomBytes(12).toString("hex"),
+  };
+  const body = b64urlEncode(Buffer.from(JSON.stringify(payload), "utf8"));
+  const sig = b64urlEncode(hmacSign(input.secret, body));
+  return `${body}.${sig}`;
+}
+
+export type VerifyAckActionResult =
+  | { ok: true; payload: AckActionPayload }
+  | { ok: false; reason: "malformed" | "bad-signature" | "expired" };
+
+export function verifyAckActionToken(
+  token: string,
+  secret: string,
+  now: number = Math.floor(Date.now() / 1000),
+): VerifyAckActionResult {
+  if (!token || !secret) return { ok: false, reason: "malformed" };
+  const dot = token.indexOf(".");
+  if (dot <= 0 || dot === token.length - 1) return { ok: false, reason: "malformed" };
+  const body = token.slice(0, dot);
+  const sigRaw = token.slice(dot + 1);
+  let expected: Buffer;
+  let provided: Buffer;
+  try {
+    expected = hmacSign(secret, body);
+    provided = b64urlDecode(sigRaw);
+  } catch {
+    return { ok: false, reason: "malformed" };
+  }
+  if (!constantTimeEq(expected, provided)) return { ok: false, reason: "bad-signature" };
+  let raw: unknown;
+  try {
+    raw = JSON.parse(b64urlDecode(body).toString("utf8"));
+  } catch {
+    return { ok: false, reason: "malformed" };
+  }
+  if (!raw || typeof raw !== "object") return { ok: false, reason: "malformed" };
+  const r = raw as Record<string, unknown>;
+  if (
+    (r.a !== "extend7" && r.a !== "extend30" && r.a !== "close") ||
+    typeof r.f !== "string" ||
+    typeof r.j !== "string" ||
+    typeof r.u !== "string" ||
+    typeof r.e !== "number" ||
+    typeof r.n !== "string"
+  ) {
+    return { ok: false, reason: "malformed" };
+  }
+  if (r.e < now) return { ok: false, reason: "expired" };
+  return {
+    ok: true,
+    payload: {
+      action: r.a,
+      file: r.f,
+      journey: r.j,
+      untilSnapshot: r.u,
+      expiresAt: r.e,
+      nonce: r.n,
+    },
+  };
+}
+
+export interface BuildActionUrlsInput {
+  baseUrl: string;
+  secret: string;
+  file: string;
+  journey: string;
+  untilSnapshot: string;
+  ttlSeconds?: number;
+  now?: number;
+}
+
+export interface AckActionUrls {
+  extend7: string;
+  extend30: string;
+  close: string;
+}
+
+export function buildAckActionUrls(input: BuildActionUrlsInput): AckActionUrls {
+  const mk = (action: AckActionKind): string => {
+    const token = signAckActionToken({
+      action,
+      file: input.file,
+      journey: input.journey,
+      untilSnapshot: input.untilSnapshot,
+      secret: input.secret,
+      ttlSeconds: input.ttlSeconds,
+      now: input.now,
+    });
+    const sep = input.baseUrl.includes("?") ? "&" : "?";
+    return `${input.baseUrl}${sep}t=${encodeURIComponent(token)}`;
+  };
+  return { extend7: mk("extend7"), extend30: mk("extend30"), close: mk("close") };
+}
+
+export type ApplyResultCode =
+  | "applied-extend"
+  | "applied-close"
+  | "noop-already-closed"
+  | "stale-snapshot"
+  | "ack-missing";
+
+export interface ApplyAckActionResult {
+  code: ApplyResultCode;
+  message: string;
+  /** New `until` date when an extension was applied. */
+  newUntil?: string;
+}
+
+/**
+ * Apply a verified ack action against the on-disk acks file. Idempotent:
+ * - extend7/extend30 are rejected if the snapshot disagrees with the
+ *   current `until` (token has already been spent or the ack moved).
+ * - close removes the ack if present, otherwise reports a friendly noop.
+ *
+ * `extend` from a never-expire ack (`untilSnapshot === ""`) is allowed
+ * because the muter explicitly chose to add an expiry.
+ */
+export function applySignedAckAction(
+  acksPath: string,
+  payload: AckActionPayload,
+  today: string = todayUtcIsoDate(),
+): ApplyAckActionResult {
+  const existing = readAcksRaw(acksPath);
+  const idx = existing.acks.findIndex(
+    (a) => a.file === payload.file && a.journey === payload.journey,
+  );
+  if (payload.action === "close") {
+    if (idx === -1) {
+      // True idempotent noop: the ack we were asked to close is already
+      // gone. (If a new ack with the same file+journey has since been
+      // created, the snapshot check below would have caught it — but
+      // we can only run that check when an ack exists. The empty-state
+      // path is unambiguous: nothing to close, nothing to leak.)
+      return {
+        code: "noop-already-closed",
+        message: `Mute for "${payload.journey}" (${payload.file}) was already closed.`,
+      };
+    }
+    // Snapshot guard for close too: if the ack has been re-created
+    // (or extended) since this token was minted, the muter's intent
+    // ("close the mute I knew about") no longer maps cleanly onto the
+    // current state — reject as stale rather than blast away an
+    // unrelated mute.
+    const currentUntil = existing.acks[idx].until ?? "";
+    if (currentUntil !== payload.untilSnapshot) {
+      return {
+        code: "stale-snapshot",
+        message:
+          `This link has already been used (or the mute was changed). ` +
+          `Current expiry: ${existing.acks[idx].until ?? "no expiry"}.`,
+      };
+    }
+    existing.acks.splice(idx, 1);
+    writeAcks(acksPath, existing);
+    return {
+      code: "applied-close",
+      message: `Closed mute for "${payload.journey}" (${payload.file}).`,
+    };
+  }
+  if (idx === -1) {
+    return {
+      code: "ack-missing",
+      message: `No active mute found for "${payload.journey}" (${payload.file}) — nothing to extend.`,
+    };
+  }
+  const current = existing.acks[idx];
+  const currentUntil = current.until ?? "";
+  if (currentUntil !== payload.untilSnapshot) {
+    return {
+      code: "stale-snapshot",
+      message:
+        `This link has already been used (or the mute was changed). ` +
+        `Current expiry: ${current.until ?? "no expiry"}.`,
+    };
+  }
+  const days = payload.action === "extend7" ? 7 : 30;
+  // Extend from max(currentUntil, today) so clicking "Extend 7 days" on
+  // an ack that still has 20 days left never *shortens* the mute. For a
+  // never-expire ack (snapshot was ""), there's no current floor — base
+  // off today.
+  const base = currentUntil && currentUntil > today ? currentUntil : today;
+  const newUntil = addDaysIso(base, days);
+  current.until = newUntil;
+  existing.acks[idx] = current;
+  writeAcks(acksPath, existing);
+  return {
+    code: "applied-extend",
+    message: `Extended mute for "${payload.journey}" (${payload.file}) by ${days} days — new expiry ${newUntil}.`,
+    newUntil,
+  };
 }

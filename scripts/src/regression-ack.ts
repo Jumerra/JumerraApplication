@@ -27,10 +27,12 @@
  */
 import path from "node:path";
 import {
+  applySignedAckAction,
   defaultAcksPath,
   isExpired,
   isValidIsoDate,
   readAcksRaw,
+  verifyAckActionToken,
   writeAcks,
   type RegressionAck,
 } from "./lib/regression-acks.js";
@@ -45,6 +47,7 @@ interface Args {
   list: boolean;
   acksPath: string;
   json: boolean;
+  applyToken: string | null;
 }
 
 function parseArgs(rawArgv: string[]): Args {
@@ -59,6 +62,7 @@ function parseArgs(rawArgv: string[]): Args {
     list: false,
     acksPath: defaultAcksPath(),
     json: false,
+    applyToken: null,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -80,11 +84,14 @@ function parseArgs(rawArgv: string[]): Args {
       args.acksPath = path.resolve(argv[++i] ?? "");
     } else if (a === "--json") {
       args.json = true;
+    } else if (a === "--apply-token") {
+      args.applyToken = argv[++i] ?? null;
     } else if (a === "--help" || a === "-h") {
       process.stdout.write(
         "Usage: regression-ack [--list [--json]] [--remove] " +
           "--journey \"...\" --file PATH [--until YYYY-MM-DD] [--reason \"...\"] " +
-          "[--author \"email-or-@slack-handle\"] [--acks PATH]\n",
+          "[--author \"email-or-@slack-handle\"] [--acks PATH]\n" +
+          "       regression-ack --apply-token TOKEN [--acks PATH] [--json]\n",
       );
       process.exit(0);
     } else {
@@ -92,6 +99,49 @@ function parseArgs(rawArgv: string[]): Args {
     }
   }
   return args;
+}
+
+function applyToken(args: Args): void {
+  const secret = process.env.REGRESSION_ACK_SIGNING_SECRET;
+  if (!secret) {
+    if (args.json) {
+      process.stdout.write(
+        `${JSON.stringify({ ok: false, reason: "secret-missing" })}\n`,
+      );
+    } else {
+      process.stderr.write(
+        "REGRESSION_ACK_SIGNING_SECRET is not set — cannot verify signed action tokens.\n",
+      );
+    }
+    process.exit(2);
+  }
+  const verified = verifyAckActionToken(args.applyToken ?? "", secret);
+  if (!verified.ok) {
+    if (args.json) {
+      process.stdout.write(
+        `${JSON.stringify({ ok: false, reason: verified.reason })}\n`,
+      );
+    } else {
+      process.stderr.write(`Rejected signed action token: ${verified.reason}.\n`);
+    }
+    process.exit(1);
+  }
+  const result = applySignedAckAction(args.acksPath, verified.payload);
+  if (args.json) {
+    process.stdout.write(
+      `${JSON.stringify({
+        ok: true,
+        action: verified.payload.action,
+        file: verified.payload.file,
+        journey: verified.payload.journey,
+        code: result.code,
+        message: result.message,
+        newUntil: result.newUntil ?? null,
+      })}\n`,
+    );
+    return;
+  }
+  process.stdout.write(`${result.message}\n`);
 }
 
 function listAcks(args: Args): void {
@@ -176,6 +226,10 @@ function upsertOrRemove(args: Args): void {
 
 function main(): void {
   const args = parseArgs(process.argv.slice(2));
+  if (args.applyToken) {
+    applyToken(args);
+    return;
+  }
   if (args.list) {
     listAcks(args);
     return;

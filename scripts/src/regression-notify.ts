@@ -33,7 +33,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   bucketByAuthor,
+  buildAckActionUrls,
   slackMentionFor,
+  type AckActionUrls,
 } from "./lib/regression-acks.js";
 
 interface Regression {
@@ -266,10 +268,43 @@ function escapeHtml(s: string): string {
     .replace(/'/g, "&#39;");
 }
 
+interface ActionLinkConfig {
+  baseUrl: string;
+  secret: string;
+}
+
+/**
+ * Build a per-ack URL triple, or null when one-click actions aren't
+ * configured (no signing secret / no receiver URL). Returning null
+ * keeps the digest functional without action buttons — operators that
+ * haven't stood up a receiver still get a useful reminder.
+ */
+function actionUrlsFor(
+  entry: ExpiringAckEntry,
+  cfg: ActionLinkConfig | null,
+): AckActionUrls | null {
+  if (!cfg) return null;
+  return buildAckActionUrls({
+    baseUrl: cfg.baseUrl,
+    secret: cfg.secret,
+    file: entry.ack.file,
+    journey: entry.ack.journey,
+    untilSnapshot: entry.ack.until ?? "",
+  });
+}
+
+function loadActionLinkConfig(): ActionLinkConfig | null {
+  const baseUrl = process.env.REGRESSION_ACK_ACTION_URL;
+  const secret = process.env.REGRESSION_ACK_SIGNING_SECRET;
+  if (!baseUrl || !secret) return null;
+  return { baseUrl, secret };
+}
+
 function summariseExpiringForSlack(
   payload: ReportPayload,
   entries: ExpiringAckEntry[],
   options: { mention?: string; audience?: string } = {},
+  actionLinks: ActionLinkConfig | null = null,
 ): {
   text: string;
   blocks: unknown[];
@@ -281,7 +316,8 @@ function summariseExpiringForSlack(
     expiring.length === 1
       ? `:hourglass_flowing_sand: 1 regression ack expires in the next ${window} day${window === 1 ? "" : "s"}${audienceSuffix}`
       : `:hourglass_flowing_sand: ${expiring.length} regression acks expire in the next ${window} day${window === 1 ? "" : "s"}${audienceSuffix}`;
-  const lines = expiring.slice(0, 20).map((e) => {
+  const visible = expiring.slice(0, 20);
+  const lines = visible.map((e) => {
     const days =
       e.remainingDays === 0
         ? "today"
@@ -299,7 +335,7 @@ function summariseExpiringForSlack(
   const intro =
     (options.mention ? `${options.mention} ` : "") +
     "Extend or close these before they auto-expire and the journey starts re-alerting.";
-  const blocks = [
+  const blocks: unknown[] = [
     {
       type: "header",
       text: { type: "plain_text", text: headline.replace(/:[^:]+:\s*/, "") },
@@ -312,6 +348,44 @@ function summariseExpiringForSlack(
       },
     },
   ];
+  // One actions row per visible entry — `actions` blocks max out at 5
+  // elements, and we have 3 per entry plus a small label section, so we
+  // dedicate a section+actions pair per ack to keep formatting tidy.
+  for (const e of visible) {
+    const urls = actionUrlsFor(e, actionLinks);
+    if (!urls) continue;
+    blocks.push({
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: `*${e.ack.journey}* (\`${e.ack.file}\`)`,
+      },
+    });
+    blocks.push({
+      type: "actions",
+      elements: [
+        {
+          type: "button",
+          text: { type: "plain_text", text: "Extend 7 days" },
+          url: urls.extend7,
+          action_id: `ack_extend7_${e.ack.file}_${e.ack.journey}`.slice(0, 250),
+        },
+        {
+          type: "button",
+          text: { type: "plain_text", text: "Extend 30 days" },
+          url: urls.extend30,
+          action_id: `ack_extend30_${e.ack.file}_${e.ack.journey}`.slice(0, 250),
+        },
+        {
+          type: "button",
+          style: "danger",
+          text: { type: "plain_text", text: "Close mute" },
+          url: urls.close,
+          action_id: `ack_close_${e.ack.file}_${e.ack.journey}`.slice(0, 250),
+        },
+      ],
+    });
+  }
   return { text, blocks };
 }
 
@@ -319,6 +393,7 @@ function summariseExpiringForEmail(
   payload: ReportPayload,
   entries: ExpiringAckEntry[],
   options: { audience?: string } = {},
+  actionLinks: ActionLinkConfig | null = null,
 ): {
   subject: string;
   html: string;
@@ -340,24 +415,39 @@ function summariseExpiringForEmail(
           : e.remainingDays === 1
             ? "1 day"
             : `${e.remainingDays} days`;
-      return `<tr><td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;"><strong>${escapeHtml(e.ack.journey)}</strong><br/><span style="color:#64748b;font-size:12px;">${escapeHtml(e.ack.file)}</span></td><td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;">${escapeHtml(e.ack.until ?? "")}</td><td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;text-align:right;">${daysLabel}</td><td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;">${escapeHtml(e.ack.reason ?? "")}</td></tr>`;
+      const urls = actionUrlsFor(e, actionLinks);
+      const actionsCell = urls
+        ? `<div style="display:flex;gap:6px;flex-wrap:wrap;">` +
+          `<a href="${escapeHtml(urls.extend7)}" style="background:#0d9488;color:#fff;padding:5px 10px;border-radius:4px;text-decoration:none;font-size:12px;">Extend 7 days</a>` +
+          `<a href="${escapeHtml(urls.extend30)}" style="background:#0f766e;color:#fff;padding:5px 10px;border-radius:4px;text-decoration:none;font-size:12px;">Extend 30 days</a>` +
+          `<a href="${escapeHtml(urls.close)}" style="background:#b91c1c;color:#fff;padding:5px 10px;border-radius:4px;text-decoration:none;font-size:12px;">Close mute</a>` +
+          `</div>`
+        : `<span style="color:#94a3b8;font-size:12px;">one-click actions disabled</span>`;
+      return `<tr><td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;"><strong>${escapeHtml(e.ack.journey)}</strong><br/><span style="color:#64748b;font-size:12px;">${escapeHtml(e.ack.file)}</span></td><td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;">${escapeHtml(e.ack.until ?? "")}</td><td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;text-align:right;">${daysLabel}</td><td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;">${escapeHtml(e.ack.reason ?? "")}</td><td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;">${actionsCell}</td></tr>`;
     })
     .join("");
   const html = `<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#0f172a;">
 <h2 style="color:#0d9488;margin-bottom:4px;">${escapeHtml(subject)}</h2>
-<p style="color:#475569;margin-top:0;">Extend or close these before they auto-expire and the underlying journey starts re-alerting.</p>
+<p style="color:#475569;margin-top:0;">Extend or close these before they auto-expire and the underlying journey starts re-alerting. One-click links are signed and short-lived (valid for 14 days).</p>
 <table style="border-collapse:collapse;width:100%;font-size:14px;">
-<thead><tr style="background:#f1f5f9;text-align:left;"><th style="padding:6px 10px;">Journey</th><th style="padding:6px 10px;">Expires (UTC)</th><th style="padding:6px 10px;text-align:right;">Days left</th><th style="padding:6px 10px;">Reason</th></tr></thead>
+<thead><tr style="background:#f1f5f9;text-align:left;"><th style="padding:6px 10px;">Journey</th><th style="padding:6px 10px;">Expires (UTC)</th><th style="padding:6px 10px;text-align:right;">Days left</th><th style="padding:6px 10px;">Reason</th><th style="padding:6px 10px;">Actions</th></tr></thead>
 <tbody>${rows}</tbody>
 </table>
 </div>`;
   const textLines = [
     subject,
     "",
-    ...expiring.map(
-      (e) =>
-        `- ${e.ack.journey} (${e.ack.file}) expires ${e.ack.until ?? "?"} (${e.remainingDays} day${e.remainingDays === 1 ? "" : "s"} left)${e.ack.reason ? `  reason=${e.ack.reason}` : ""}`,
-    ),
+    ...expiring.flatMap((e) => {
+      const urls = actionUrlsFor(e, actionLinks);
+      const head = `- ${e.ack.journey} (${e.ack.file}) expires ${e.ack.until ?? "?"} (${e.remainingDays} day${e.remainingDays === 1 ? "" : "s"} left)${e.ack.reason ? `  reason=${e.ack.reason}` : ""}`;
+      if (!urls) return [head];
+      return [
+        head,
+        `    Extend 7 days:  ${urls.extend7}`,
+        `    Extend 30 days: ${urls.extend30}`,
+        `    Close mute:     ${urls.close}`,
+      ];
+    }),
   ];
   return { subject, html, text: textLines.join("\n") };
 }
@@ -366,10 +456,11 @@ async function postSlackExpiring(
   payload: ReportPayload,
   entries: ExpiringAckEntry[],
   options: { mention?: string; audience?: string } = {},
+  actionLinks: ActionLinkConfig | null = null,
 ): Promise<void> {
   const url = process.env.SLACK_REGRESSION_WEBHOOK_URL;
   if (!url || entries.length === 0) return;
-  const body = summariseExpiringForSlack(payload, entries, options);
+  const body = summariseExpiringForSlack(payload, entries, options, actionLinks);
   try {
     const res = await fetch(url, {
       method: "POST",
@@ -394,6 +485,7 @@ async function sendEmailExpiring(
   entries: ExpiringAckEntry[],
   recipients: string[],
   options: { audience?: string } = {},
+  actionLinks: ActionLinkConfig | null = null,
 ): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
   if (recipients.length === 0 || entries.length === 0) return;
@@ -405,7 +497,7 @@ async function sendEmailExpiring(
   }
   const from =
     process.env.EMAIL_DEFAULT_FROM ?? "Jumerra <onboarding@resend.dev>";
-  const { subject, html, text } = summariseExpiringForEmail(payload, entries, options);
+  const { subject, html, text } = summariseExpiringForEmail(payload, entries, options, actionLinks);
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -452,6 +544,13 @@ async function main(): Promise<void> {
   const hasEmail = !!process.env.REGRESSION_ALERT_EMAIL;
   const expiringCount = payload.totalExpiring ?? 0;
 
+  const actionLinks = loadActionLinkConfig();
+  if (expiringDigest && expiringCount > 0 && !actionLinks) {
+    process.stdout.write(
+      "regression-notify: one-click action links disabled (set REGRESSION_ACK_ACTION_URL + REGRESSION_ACK_SIGNING_SECRET to enable).\n",
+    );
+  }
+
   async function dispatchExpiringDigest(): Promise<void> {
     if (!(expiringDigest && expiringCount > 0)) return;
     const entries = payload.expiring ?? [];
@@ -472,7 +571,7 @@ async function main(): Promise<void> {
       tasks.push(
         sendEmailExpiring(payload, perAuthorEntries, [email], {
           audience: `for ${email}`,
-        }),
+        }, actionLinks),
       );
     }
     // Per-author Slack pings — we can't DM via webhook, so we post to
@@ -487,7 +586,7 @@ async function main(): Promise<void> {
           postSlackExpiring(payload, perAuthorEntries, {
             mention: slackMentionFor(handle),
             audience: `for ${handle}`,
-          }),
+          }, actionLinks),
         );
       }
     } else if (buckets.slack.size > 0) {
@@ -506,10 +605,10 @@ async function main(): Promise<void> {
         tasks.push(
           postSlackExpiring(payload, buckets.unattributed, {
             audience: "broadcast",
-          }),
+          }, actionLinks),
           sendEmailExpiring(payload, buckets.unattributed, broadcastRecipients, {
             audience: "broadcast",
-          }),
+          }, actionLinks),
         );
       }
     }

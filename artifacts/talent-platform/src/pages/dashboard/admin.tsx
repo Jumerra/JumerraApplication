@@ -24,7 +24,8 @@ export default function AdminDashboard() {
   const [waLogs, setWaLogs] = useState<WaLogItem[] | null>(null);
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/admin/whatsapp-logs?limit=25", { credentials: "include" })
+    const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "";
+    fetch(`${apiBase}/api/admin/whatsapp-logs?limit=25`, { credentials: "include" })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (cancelled || !data) return;

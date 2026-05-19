@@ -171,7 +171,7 @@ export default function AdminDashboard() {
                     ))}
                   </Pie>
                   <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                  <Legend formatter={(value) => <span className="capitalize">{value.replace('_', ' ')}</span>} />
+                  <Legend formatter={(value) => <span className="capitalize">{typeof value === 'string' ? value.replace('_', ' ') : String(value ?? '')}</span>} />
                 </PieChart>
               </ResponsiveContainer>
             </div>

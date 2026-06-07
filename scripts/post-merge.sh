@@ -1,5 +1,14 @@
 #!/bin/bash
 set -e
+
+# Reject any future `regression-ack` invocation that doesn't pass
+# --author. Task #188 made the script warn on unattributed mutes;
+# task #189 backfilled the existing acks file and flips the strict
+# flag on here so new unattributed mutes can't slip in via CI. The
+# var is exported so any nested pnpm script (regression-notify's
+# auto-apply path, etc.) inherits it.
+export REGRESSION_ACK_REQUIRE_AUTHOR=1
+
 pnpm install --frozen-lockfile
 # Apply only the migrations checked into lib/db/drizzle/. This
 # replaces the previous `drizzle-kit push` which silently diffed the

@@ -7,6 +7,7 @@ import { buildSessionMiddleware, sessionPartitionedCookiePatch } from "./lib/ses
 import { sessionTokenBridge } from "./middleware/session-token-bridge";
 import { requestIdMiddleware } from "./middleware/request-id";
 import { seedSystemRoles } from "./lib/permissions";
+import { bootstrapSuperAdmin } from "./lib/bootstrap-super-admin";
 import { attachSentryErrorHandler } from "./lib/sentry-server";
 import { globalLimiter, searchLimiter } from "./lib/rate-limit";
 
@@ -14,6 +15,13 @@ import { globalLimiter, searchLimiter } from "./lib/rate-limit";
 // it's idempotent (no-op when system rows already exist).
 seedSystemRoles().catch((err) => {
   logger.error({ err }, "seedSystemRoles failed");
+});
+
+// Idempotent super-admin bootstrap. No-op unless the BOOTSTRAP_SUPER_ADMIN_*
+// secrets are set. This is the supported path for seeding a super-admin into
+// the separate, externally-read-only production database from the running app.
+bootstrapSuperAdmin().catch((err) => {
+  logger.error({ err }, "bootstrapSuperAdmin failed");
 });
 
 const app: Express = express();

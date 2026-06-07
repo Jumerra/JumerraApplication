@@ -1,0 +1,31 @@
+kind = "slides"
+previewPath = "/ministry-proposal/"
+title = "Jumerra — Ministry Adoption Proposal"
+version = "1.0.0"
+id = "artifacts/ministry-proposal"
+router = "path"
+
+[[integratedSkills]]
+name = "slides"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/ministry-proposal/" ]
+localPort = 25796
+
+[services.development]
+run = "pnpm --filter @workspace/ministry-proposal run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/ministry-proposal", "run", "build" ]
+publicDir = "artifacts/ministry-proposal/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25796"
+BASE_PATH = "/ministry-proposal/"

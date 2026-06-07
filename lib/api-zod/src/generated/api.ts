@@ -4663,6 +4663,68 @@ export const AdminListTrashJobsResponse = zod.array(
 );
 
 /**
+ * Returns the most recent restore (and optionally delete) events
+recorded in `admin_audit_log`, newest first. Used by the trash
+console "Recent activity" list to answer "who undid this delete,
+and how?" — including session-less restores triggered by the
+one-click email link (`source = "email-link"`, anonymous actor,
+token fingerprint only).
+
+ * @summary Recent restore/delete events from the admin audit log (admin only)
+ */
+export const adminListTrashAuditQueryActionDefault = `restore`;
+export const adminListTrashAuditQueryLimitDefault = 25;
+export const adminListTrashAuditQueryLimitMax = 100;
+
+export const AdminListTrashAuditQueryParams = zod.object({
+  action: zod
+    .enum(["restore", "delete", "all"])
+    .default(adminListTrashAuditQueryActionDefault)
+    .describe("Filter by action. `all` returns both restores and deletes."),
+  limit: zod.coerce
+    .number()
+    .min(1)
+    .max(adminListTrashAuditQueryLimitMax)
+    .default(adminListTrashAuditQueryLimitDefault),
+});
+
+export const AdminListTrashAuditResponseItem = zod
+  .object({
+    id: zod.number(),
+    action: zod.enum(["restore", "delete"]),
+    entity: zod.enum(["candidate", "employer", "institution", "job"]),
+    entityId: zod.number(),
+    source: zod
+      .enum(["dashboard", "email-link"])
+      .describe("How the action was triggered."),
+    actorUserId: zod
+      .number()
+      .nullish()
+      .describe(
+        "User id of the actor, when known. Null for email-link actions.",
+      ),
+    actorName: zod
+      .string()
+      .nullish()
+      .describe(
+        "Display name of the actor, when known. Null for anonymous email-link actions.",
+      ),
+    tokenFingerprint: zod
+      .string()
+      .nullish()
+      .describe(
+        "Short fingerprint of the signed restore token, for email-link actions only.",
+      ),
+    createdAt: zod.coerce.date(),
+  })
+  .describe(
+    "One restore or delete event from the admin audit log. Returned\nby `\/admin\/trash\/audit`. For dashboard actions the actor is a\nknown admin (`actorUserId` + `actorName`); for email-link\nrestores the actor is anonymous and only `tokenFingerprint` is\nrecorded.\n",
+  );
+export const AdminListTrashAuditResponse = zod.array(
+  AdminListTrashAuditResponseItem,
+);
+
+/**
  * @summary Soft-delete a single job (admin only)
  */
 export const AdminDeleteJobParams = zod.object({

@@ -36,3 +36,4 @@ export * from "./institution-api-keys";
 export * from "./webhook-events";
 export * from "./payments";
 export * from "./ministries";
+export * from "./admin-audit-log";

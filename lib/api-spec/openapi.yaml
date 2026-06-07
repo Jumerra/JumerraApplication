@@ -2190,6 +2190,41 @@ paths:
                 items: { $ref: "#/components/schemas/TrashItem" }
         "403": { description: Admin only }
 
+  /admin/trash/audit:
+    get:
+      operationId: adminListTrashAudit
+      tags: [admin]
+      summary: Recent restore/delete events from the admin audit log (admin only)
+      description: |
+        Returns the most recent restore (and optionally delete) events
+        recorded in `admin_audit_log`, newest first. Used by the trash
+        console "Recent activity" list to answer "who undid this delete,
+        and how?" — including session-less restores triggered by the
+        one-click email link (`source = "email-link"`, anonymous actor,
+        token fingerprint only).
+      parameters:
+        - name: action
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [restore, delete, all]
+            default: restore
+          description: Filter by action. `all` returns both restores and deletes.
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+      responses:
+        "200":
+          description: Audit events, most recent first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AuditLogEntry" }
+        "403": { description: Admin only }
+
   /admin/jobs/{id}:
     delete:
       operationId: adminDeleteJob
@@ -5200,6 +5235,44 @@ components:
           nullable: true
           description: Full name of the soft-deleter, resolved from `users`. Null when `deletedBy` is null or the user record was hard-removed.
       required: [id, label, deletedAt]
+
+    AuditLogEntry:
+      type: object
+      description: |
+        One restore or delete event from the admin audit log. Returned
+        by `/admin/trash/audit`. For dashboard actions the actor is a
+        known admin (`actorUserId` + `actorName`); for email-link
+        restores the actor is anonymous and only `tokenFingerprint` is
+        recorded.
+      properties:
+        id: { type: integer }
+        action:
+          type: string
+          enum: [restore, delete]
+        entity:
+          type: string
+          enum: [candidate, employer, institution, job]
+        entityId: { type: integer }
+        source:
+          type: string
+          enum: [dashboard, email-link]
+          description: How the action was triggered.
+        actorUserId:
+          type: integer
+          nullable: true
+          description: User id of the actor, when known. Null for email-link actions.
+        actorName:
+          type: string
+          nullable: true
+          description: Display name of the actor, when known. Null for anonymous email-link actions.
+        tokenFingerprint:
+          type: string
+          nullable: true
+          description: Short fingerprint of the signed restore token, for email-link actions only.
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, action, entity, entityId, source, createdAt]
 
     TrashSettings:
       type: object

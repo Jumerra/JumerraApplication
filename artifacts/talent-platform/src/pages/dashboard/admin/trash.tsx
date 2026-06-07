@@ -9,12 +9,15 @@ import {
   useAdminRestoreEmployer,
   useAdminRestoreInstitution,
   useAdminRestoreJob,
+  useAdminListTrashAudit,
   getAdminListTrashCandidatesQueryKey,
   getAdminListTrashEmployersQueryKey,
   getAdminListTrashInstitutionsQueryKey,
   getAdminGetTrashSettingsQueryKey,
   getAdminListTrashJobsQueryKey,
+  getAdminListTrashAuditQueryKey,
   type TrashItem,
+  type AuditLogEntry,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -36,6 +39,9 @@ import {
   Briefcase,
   AlertTriangle,
   MailWarning,
+  History,
+  Mail,
+  MonitorSmartphone,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
@@ -168,6 +174,79 @@ function TrashList({
   );
 }
 
+const ENTITY_LABEL: Record<string, string> = {
+  candidate: "Candidate",
+  employer: "Employer",
+  institution: "Institution",
+  job: "Job",
+};
+
+function RecentActivity({
+  items,
+  isLoading,
+}: {
+  items: AuditLogEntry[] | undefined;
+  isLoading: boolean;
+}) {
+  if (isLoading) {
+    return (
+      <div className="p-8 text-center text-muted-foreground">Loading…</div>
+    );
+  }
+  if (!items || items.length === 0) {
+    return (
+      <div className="p-8 text-center text-muted-foreground">
+        No restores recorded yet. Restores from the dashboard and from the
+        purge-warning email link will appear here.
+      </div>
+    );
+  }
+  return (
+    <div className="divide-y">
+      {items.map((item) => {
+        const isEmailLink = item.source === "email-link";
+        const actor = isEmailLink
+          ? "via email link"
+          : (item.actorName ?? "unknown admin");
+        const entityLabel =
+          ENTITY_LABEL[item.entity] ?? item.entity;
+        return (
+          <div
+            key={item.id}
+            className="flex items-center gap-4 px-6 py-4 hover:bg-muted/40 transition-colors"
+          >
+            <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-muted text-muted-foreground">
+              {isEmailLink ? (
+                <Mail className="w-4 h-4" />
+              ) : (
+                <MonitorSmartphone className="w-4 h-4" />
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="font-semibold truncate">
+                  {item.action === "restore" ? "Restored" : "Deleted"}{" "}
+                  {entityLabel.toLowerCase()} #{item.entityId}
+                </h3>
+                <Badge variant="outline" className="shrink-0">
+                  {isEmailLink ? "Email link" : "Dashboard"}
+                </Badge>
+              </div>
+              <p className="text-sm text-muted-foreground truncate">
+                by {actor}
+                {isEmailLink && item.tokenFingerprint
+                  ? ` (token …${item.tokenFingerprint})`
+                  : ""}{" "}
+                · {formatWhen(item.createdAt)}
+              </p>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function AdminTrashPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -209,6 +288,17 @@ export default function AdminTrashPage() {
     },
   });
 
+  const canSeeAudit = canCandidates || canEmployers || canInstitutions || canJobs;
+  const audit = useAdminListTrashAudit(
+    { action: "restore", limit: 25 },
+    {
+      query: {
+        queryKey: getAdminListTrashAuditQueryKey({ action: "restore", limit: 25 }),
+        enabled: canSeeAudit,
+      },
+    },
+  );
+
   const restoreCandidate = useAdminRestoreCandidate();
   const restoreEmployer = useAdminRestoreEmployer();
   const restoreInstitution = useAdminRestoreInstitution();
@@ -238,6 +328,12 @@ export default function AdminTrashPage() {
           queryKey: getAdminListTrashJobsQueryKey(),
         });
       }
+      await queryClient.invalidateQueries({
+        queryKey: getAdminListTrashAuditQueryKey({
+          action: "restore",
+          limit: 25,
+        }),
+      });
       toast({
         title: "Restored",
         description: `${label} is active again.`,
@@ -450,6 +546,25 @@ export default function AdminTrashPage() {
           </CardContent>
         </Tabs>
       </Card>
+
+      {canSeeAudit && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <History className="w-5 h-5 text-muted-foreground" />
+              Recent restores
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Who brought items back, and how — including one-click restores
+              from the purge-warning email (shown with a token fingerprint
+              when the actor isn't signed in).
+            </p>
+          </CardHeader>
+          <CardContent className="p-0 border-t">
+            <RecentActivity items={audit.data} isLoading={audit.isLoading} />
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

@@ -474,6 +474,59 @@ export interface TrashItem {
   deletedByName?: string | null;
 }
 
+export type AuditLogEntryAction =
+  (typeof AuditLogEntryAction)[keyof typeof AuditLogEntryAction];
+
+export const AuditLogEntryAction = {
+  restore: "restore",
+  delete: "delete",
+} as const;
+
+export type AuditLogEntryEntity =
+  (typeof AuditLogEntryEntity)[keyof typeof AuditLogEntryEntity];
+
+export const AuditLogEntryEntity = {
+  candidate: "candidate",
+  employer: "employer",
+  institution: "institution",
+  job: "job",
+} as const;
+
+/**
+ * How the action was triggered.
+ */
+export type AuditLogEntrySource =
+  (typeof AuditLogEntrySource)[keyof typeof AuditLogEntrySource];
+
+export const AuditLogEntrySource = {
+  dashboard: "dashboard",
+  "email-link": "email-link",
+} as const;
+
+/**
+ * One restore or delete event from the admin audit log. Returned
+by `/admin/trash/audit`. For dashboard actions the actor is a
+known admin (`actorUserId` + `actorName`); for email-link
+restores the actor is anonymous and only `tokenFingerprint` is
+recorded.
+
+ */
+export interface AuditLogEntry {
+  id: number;
+  action: AuditLogEntryAction;
+  entity: AuditLogEntryEntity;
+  entityId: number;
+  /** How the action was triggered. */
+  source: AuditLogEntrySource;
+  /** User id of the actor, when known. Null for email-link actions. */
+  actorUserId?: number | null;
+  /** Display name of the actor, when known. Null for anonymous email-link actions. */
+  actorName?: string | null;
+  /** Short fingerprint of the signed restore token, for email-link actions only. */
+  tokenFingerprint?: string | null;
+  createdAt: string;
+}
+
 /**
  * Server-side trash retention configuration. The auto-purge worker
 hard-deletes soft-deleted rows whose `deleted_at` is older than
@@ -4027,6 +4080,27 @@ export type ListRegistrations200 = {
 export type ListOnboardedUsers200 = {
   users: OnboardedUser[];
 };
+
+export type AdminListTrashAuditParams = {
+  /**
+   * Filter by action. `all` returns both restores and deletes.
+   */
+  action?: AdminListTrashAuditAction;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  limit?: number;
+};
+
+export type AdminListTrashAuditAction =
+  (typeof AdminListTrashAuditAction)[keyof typeof AdminListTrashAuditAction];
+
+export const AdminListTrashAuditAction = {
+  restore: "restore",
+  delete: "delete",
+  all: "all",
+} as const;
 
 export type AdminListWhatsappLogsParams = {
   /**

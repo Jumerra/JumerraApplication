@@ -30,6 +30,7 @@ import {
   jobsTable,
   applicationsTable,
   whatsappMessageLogTable,
+  adminAuditLogTable,
 } from "@workspace/db";
 import {
   adminRolesTable,
@@ -48,6 +49,7 @@ import {
   verifyRestoreToken,
   type RestoreEntity,
 } from "../lib/signed-restore-link";
+import { recordAuditSafe, fingerprintToken } from "../lib/audit-log";
 import {
   PERMISSIONS,
   PERMISSION_KEYS,
@@ -519,8 +521,19 @@ router.delete("/admin/candidates/:id", requirePermission("candidates:manage"), a
     }
     await db
       .update(candidatesTable)
-      .set({ deletedAt: new Date() })
+      .set({ deletedAt: new Date(), deletedBy: req.currentUser!.id })
       .where(eq(candidatesTable.id, id));
+    await recordAuditSafe(
+      {
+        action: "delete",
+        entity: "candidate",
+        entityId: id,
+        source: "dashboard",
+        actorUserId: req.currentUser!.id,
+        actorName: req.currentUser!.fullName,
+      },
+      req.log,
+    );
     res.json({ ok: true });
   } catch (err) {
     req.log.error({ err, id }, "soft-delete candidate failed");
@@ -552,19 +565,33 @@ router.delete("/admin/employers/:id", requirePermission("employers:manage"), asy
       if (!existing) return false;
       if (existing.deletedAt) return "already";
       const now = new Date();
+      const actorId = req.currentUser!.id;
       await tx
         .update(jobsTable)
-        .set({ deletedAt: now })
+        .set({ deletedAt: now, deletedBy: actorId })
         .where(and(eq(jobsTable.employerId, id), isNull(jobsTable.deletedAt)));
       await tx
         .update(employersTable)
-        .set({ deletedAt: now })
+        .set({ deletedAt: now, deletedBy: actorId })
         .where(eq(employersTable.id, id));
       return true;
     });
     if (ok === false) {
       res.status(404).json({ error: "Employer not found" });
       return;
+    }
+    if (ok === true) {
+      await recordAuditSafe(
+        {
+          action: "delete",
+          entity: "employer",
+          entityId: id,
+          source: "dashboard",
+          actorUserId: req.currentUser!.id,
+          actorName: req.currentUser!.fullName,
+        },
+        req.log,
+      );
     }
     res.json({ ok: true, alreadyDeleted: ok === "already" });
   } catch (err) {
@@ -821,8 +848,19 @@ router.delete("/admin/institutions/:id", requirePermission("institutions:manage"
     }
     await db
       .update(institutionsTable)
-      .set({ deletedAt: new Date() })
+      .set({ deletedAt: new Date(), deletedBy: req.currentUser!.id })
       .where(eq(institutionsTable.id, id));
+    await recordAuditSafe(
+      {
+        action: "delete",
+        entity: "institution",
+        entityId: id,
+        source: "dashboard",
+        actorUserId: req.currentUser!.id,
+        actorName: req.currentUser!.fullName,
+      },
+      req.log,
+    );
     res.json({ ok: true });
   } catch (err) {
     req.log.error({ err, id }, "soft-delete institution failed");
@@ -1963,6 +2001,81 @@ router.get("/admin/trash/jobs", requirePermission("employers:manage"), async (_r
 });
 
 /**
+ * GET /api/admin/trash/audit
+ *
+ * Recent restore/delete events from `admin_audit_log`, newest first.
+ * Powers the "Recent activity" list in the trash console so admins can
+ * answer "who undid this delete, and how?" — including restores that
+ * came in via the session-less email link (source = "email-link",
+ * where the actor is anonymous and we only have a token fingerprint).
+ *
+ * Defaults to restore events (the primary investigation question) but
+ * `?action=delete|restore|all` widens it. `?limit=` is capped at 100.
+ * The actor's display name is read from the denormalized snapshot in
+ * the log row, falling back to the live `users` row when present.
+ */
+router.get(
+  "/admin/trash/audit",
+  requireAuth,
+  async (req, res) => {
+    const user = req.currentUser!;
+    const perms = await getUserPermissions(user);
+    const allowed =
+      isImplicitAllUser(user) ||
+      perms.has("candidates:manage") ||
+      perms.has("employers:manage") ||
+      perms.has("institutions:manage");
+    if (!allowed) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+
+    const actionParam =
+      typeof req.query.action === "string" ? req.query.action : "restore";
+    const limitRaw = Number(req.query.limit ?? 25);
+    const limit = Math.min(Math.max(Number.isFinite(limitRaw) ? limitRaw : 25, 1), 100);
+
+    const conds = [];
+    if (actionParam === "restore" || actionParam === "delete") {
+      conds.push(eq(adminAuditLogTable.action, actionParam));
+    }
+
+    const rows = await db
+      .select({
+        id: adminAuditLogTable.id,
+        action: adminAuditLogTable.action,
+        entity: adminAuditLogTable.entity,
+        entityId: adminAuditLogTable.entityId,
+        source: adminAuditLogTable.source,
+        actorUserId: adminAuditLogTable.actorUserId,
+        actorNameSnapshot: adminAuditLogTable.actorName,
+        actorNameLive: usersTable.fullName,
+        tokenFingerprint: adminAuditLogTable.tokenFingerprint,
+        createdAt: adminAuditLogTable.createdAt,
+      })
+      .from(adminAuditLogTable)
+      .leftJoin(usersTable, eq(usersTable.id, adminAuditLogTable.actorUserId))
+      .where(conds.length ? and(...conds) : undefined)
+      .orderBy(desc(adminAuditLogTable.createdAt))
+      .limit(limit);
+
+    res.json(
+      rows.map((r) => ({
+        id: r.id,
+        action: r.action,
+        entity: r.entity,
+        entityId: r.entityId,
+        source: r.source,
+        actorUserId: r.actorUserId,
+        actorName: r.actorNameSnapshot ?? r.actorNameLive ?? null,
+        tokenFingerprint: r.tokenFingerprint,
+        createdAt: r.createdAt.toISOString(),
+      })),
+    );
+  },
+);
+
+/**
  * GET /api/admin/trash/restore?token=...
  *
  * Public-facing endpoint that backs the one-click "Restore" link in
@@ -2096,9 +2209,21 @@ router.post("/admin/trash/restore", async (req, res) => {
   const verified = verifyRestoreRequest(req, res);
   if (!verified) return;
 
-  const { entity, id, deletedAtMs } = verified;
+  const { entity, id, deletedAtMs, token } = verified;
   try {
     const outcome = await restoreEntityById(entity, id, deletedAtMs);
+    if (outcome === "restored") {
+      await recordAuditSafe(
+        {
+          action: "restore",
+          entity,
+          entityId: id,
+          source: "email-link",
+          tokenFingerprint: fingerprintToken(token),
+        },
+        req.log,
+      );
+    }
     if (outcome === "not_found") {
       res
         .status(404)
@@ -2259,6 +2384,17 @@ router.post(
       res.status(404).json({ error: "Candidate not found" });
       return;
     }
+    await recordAuditSafe(
+      {
+        action: "restore",
+        entity: "candidate",
+        entityId: id,
+        source: "dashboard",
+        actorUserId: req.currentUser!.id,
+        actorName: req.currentUser!.fullName,
+      },
+      req.log,
+    );
     res.json({ ok: true });
   },
 );
@@ -2305,6 +2441,19 @@ router.post(
         res.status(404).json({ error: "Employer not found" });
         return;
       }
+      if (ok === true) {
+        await recordAuditSafe(
+          {
+            action: "restore",
+            entity: "employer",
+            entityId: id,
+            source: "dashboard",
+            actorUserId: req.currentUser!.id,
+            actorName: req.currentUser!.fullName,
+          },
+          req.log,
+        );
+      }
       res.json({ ok: true, noop: ok === "noop" });
     } catch (err) {
       req.log.error({ err, id }, "restore employer failed");
@@ -2331,6 +2480,17 @@ router.post(
       res.status(404).json({ error: "Institution not found" });
       return;
     }
+    await recordAuditSafe(
+      {
+        action: "restore",
+        entity: "institution",
+        entityId: id,
+        source: "dashboard",
+        actorUserId: req.currentUser!.id,
+        actorName: req.currentUser!.fullName,
+      },
+      req.log,
+    );
     res.json({ ok: true });
   },
 );
@@ -2363,8 +2523,19 @@ router.delete("/admin/jobs/:id", requirePermission("employers:manage"), async (r
     }
     await db
       .update(jobsTable)
-      .set({ deletedAt: new Date() })
+      .set({ deletedAt: new Date(), deletedBy: req.currentUser!.id })
       .where(eq(jobsTable.id, id));
+    await recordAuditSafe(
+      {
+        action: "delete",
+        entity: "job",
+        entityId: id,
+        source: "dashboard",
+        actorUserId: req.currentUser!.id,
+        actorName: req.currentUser!.fullName,
+      },
+      req.log,
+    );
     res.json({ ok: true });
   } catch (err) {
     req.log.error({ err, id }, "soft-delete job failed");
@@ -2390,6 +2561,17 @@ router.post(
       res.status(404).json({ error: "Job not found" });
       return;
     }
+    await recordAuditSafe(
+      {
+        action: "restore",
+        entity: "job",
+        entityId: id,
+        source: "dashboard",
+        actorUserId: req.currentUser!.id,
+        actorName: req.currentUser!.fullName,
+      },
+      req.log,
+    );
     res.json({ ok: true });
   },
 );

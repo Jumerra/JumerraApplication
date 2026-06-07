@@ -32,6 +32,7 @@ import type {
   AdminListAccountsParams,
   AdminListApplicationsParams,
   AdminListPaymentsParams,
+  AdminListTrashAuditParams,
   AdminListWhatsappLogsParams,
   AdminPaymentsListResponse,
   AdminRefinalizePaymentResponse,
@@ -54,6 +55,7 @@ import type {
   ApplicationTimeline,
   AssignAccountManagerRequest,
   AssignAccountManagerResponse,
+  AuditLogEntry,
   AuthSession,
   BackgroundCheck,
   BoostSettings,
@@ -9407,6 +9409,113 @@ export function useAdminListTrashJobs<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getAdminListTrashJobsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Returns the most recent restore (and optionally delete) events
+recorded in `admin_audit_log`, newest first. Used by the trash
+console "Recent activity" list to answer "who undid this delete,
+and how?" — including session-less restores triggered by the
+one-click email link (`source = "email-link"`, anonymous actor,
+token fingerprint only).
+
+ * @summary Recent restore/delete events from the admin audit log (admin only)
+ */
+export const getAdminListTrashAuditUrl = (
+  params?: AdminListTrashAuditParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/admin/trash/audit?${stringifiedParams}`
+    : `/api/admin/trash/audit`;
+};
+
+export const adminListTrashAudit = async (
+  params?: AdminListTrashAuditParams,
+  options?: RequestInit,
+): Promise<AuditLogEntry[]> => {
+  return customFetch<AuditLogEntry[]>(getAdminListTrashAuditUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getAdminListTrashAuditQueryKey = (
+  params?: AdminListTrashAuditParams,
+) => {
+  return [`/api/admin/trash/audit`, ...(params ? [params] : [])] as const;
+};
+
+export const getAdminListTrashAuditQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminListTrashAudit>>,
+  TError = ErrorType<void>,
+>(
+  params?: AdminListTrashAuditParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof adminListTrashAudit>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getAdminListTrashAuditQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof adminListTrashAudit>>
+  > = ({ signal }) =>
+    adminListTrashAudit(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminListTrashAudit>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type AdminListTrashAuditQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminListTrashAudit>>
+>;
+export type AdminListTrashAuditQueryError = ErrorType<void>;
+
+/**
+ * @summary Recent restore/delete events from the admin audit log (admin only)
+ */
+
+export function useAdminListTrashAudit<
+  TData = Awaited<ReturnType<typeof adminListTrashAudit>>,
+  TError = ErrorType<void>,
+>(
+  params?: AdminListTrashAuditParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof adminListTrashAudit>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getAdminListTrashAuditQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

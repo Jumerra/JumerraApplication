@@ -15,11 +15,19 @@ import { logger } from "./logger";
  * super-admin into production is from the running production app itself.
  * Set the two secrets, publish, sign in, then remove the secrets.
  *
- * NOTE: while configured, every boot re-applies the password (and promotes
- * the account to active super_admin). That makes it self-healing but also
- * means a manual password change would be reverted on the next restart —
- * remove the two secrets once you have signed in. The password is read from
- * a secret and is NEVER logged.
+ * CREATE-ONLY BY DEFAULT: this seeds the super-admin only when the account
+ * does NOT already exist. If the account is already present, the bootstrap is
+ * a no-op — it will NOT touch the stored password, role, or status. This means
+ * leaving the secrets configured can no longer silently revert a password you
+ * later changed from the dashboard on the next restart/redeploy.
+ *
+ * ROTATE OPT-IN: set BOOTSTRAP_SUPER_ADMIN_ROTATE=true to force-reset the
+ * password (and re-promote the account to active super_admin) on the next
+ * boot — use this only when you've genuinely lost access. Remember to turn it
+ * back off (and ideally remove the secrets) once you've signed in, otherwise
+ * every boot will keep re-applying the password again.
+ *
+ * The password is read from a secret and is NEVER logged.
  */
 export async function bootstrapSuperAdmin(): Promise<void> {
   const email = process.env["BOOTSTRAP_SUPER_ADMIN_EMAIL"]
@@ -39,6 +47,12 @@ export async function bootstrapSuperAdmin(): Promise<void> {
     return;
   }
 
+  // Opt-in password rotation. Off by default so an existing account is never
+  // silently reset. Accepts the usual truthy spellings.
+  const rotate = ["true", "1", "yes"].includes(
+    (process.env["BOOTSTRAP_SUPER_ADMIN_ROTATE"] ?? "").trim().toLowerCase(),
+  );
+
   const fullName =
     process.env["BOOTSTRAP_SUPER_ADMIN_NAME"]?.trim() || "Super Admin";
 
@@ -48,7 +62,11 @@ export async function bootstrapSuperAdmin(): Promise<void> {
     // Single atomic upsert keyed on the unique email index. This is
     // race-safe across concurrent autoscale instance boots — there's no
     // read-then-write window where two instances both try to INSERT.
-    await db
+    //
+    // Default path: onConflictDoNothing — create the account if missing,
+    // otherwise leave the existing row (and its password) untouched. The
+    // rotate path additionally resets the password + re-promotes on conflict.
+    const insert = db
       .insert(usersTable)
       .values({
         email,
@@ -58,8 +76,10 @@ export async function bootstrapSuperAdmin(): Promise<void> {
         status: "active",
         fullName,
         approvedAt: new Date(),
-      })
-      .onConflictDoUpdate({
+      });
+
+    if (rotate) {
+      await insert.onConflictDoUpdate({
         target: usersTable.email,
         set: {
           passwordHash,
@@ -70,11 +90,27 @@ export async function bootstrapSuperAdmin(): Promise<void> {
           approvedAt: new Date(),
         },
       });
+      logger.warn(
+        { email },
+        "bootstrapSuperAdmin: rotate enabled — force-reset password and re-promoted super_admin (disable BOOTSTRAP_SUPER_ADMIN_ROTATE once signed in)",
+      );
+    } else {
+      const inserted = await insert
+        .onConflictDoNothing({ target: usersTable.email })
+        .returning({ id: usersTable.id });
 
-    logger.info(
-      { email },
-      "bootstrapSuperAdmin: ensured active super_admin (idempotent upsert)",
-    );
+      if (inserted.length > 0) {
+        logger.info(
+          { email },
+          "bootstrapSuperAdmin: seeded new active super_admin (create-only)",
+        );
+      } else {
+        logger.info(
+          { email },
+          "bootstrapSuperAdmin: account already exists — leaving password untouched (set BOOTSTRAP_SUPER_ADMIN_ROTATE=true to force a reset)",
+        );
+      }
+    }
   } catch (err) {
     logger.error({ err, email }, "bootstrapSuperAdmin failed");
   }

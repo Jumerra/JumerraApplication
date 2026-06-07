@@ -20,6 +20,8 @@ seedSystemRoles().catch((err) => {
 // Idempotent super-admin bootstrap. No-op unless the BOOTSTRAP_SUPER_ADMIN_*
 // secrets are set. This is the supported path for seeding a super-admin into
 // the separate, externally-read-only production database from the running app.
+// Create-only by default (won't touch an existing account's password); set
+// BOOTSTRAP_SUPER_ADMIN_ROTATE=true to force a password reset when needed.
 bootstrapSuperAdmin().catch((err) => {
   logger.error({ err }, "bootstrapSuperAdmin failed");
 });

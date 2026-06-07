@@ -41,6 +41,7 @@ import {
   type TrashPurgeWarningGroup,
 } from "./email";
 import { getUserPermissions, isImplicitAllUser } from "./permissions";
+import { buildRestoreUrl, type RestoreEntity } from "./signed-restore-link";
 
 const DEFAULT_RETENTION_DAYS = 30;
 const DEFAULT_WARNING_LEAD_DAYS = 3;
@@ -174,6 +175,8 @@ interface WarningItem {
   secondary: string | null;
   /** ISO timestamp the row will be hard-deleted. */
   purgeOn: string;
+  /** One-click signed restore URL (expires at purgeOn). */
+  restoreUrl: string;
 }
 
 interface WarningSweepResult {
@@ -257,24 +260,39 @@ export async function runTrashPurgeWarningsSweep(): Promise<WarningSweepResult> 
       ),
     );
 
-  const toWarningItem = (r: {
-    id: number;
-    label: string | null;
-    secondary: string | null;
-    deletedAt: Date | null;
-  }): WarningItem => ({
-    id: r.id,
-    label: r.label ?? `#${r.id}`,
-    secondary: r.secondary,
-    purgeOn: new Date(
-      (r.deletedAt?.getTime() ?? now) + retentionDays * ONE_DAY_MS,
-    ).toISOString(),
-  });
+  const origin = originForBackground();
+  const toWarningItem =
+    (entity: RestoreEntity) =>
+    (r: {
+      id: number;
+      label: string | null;
+      secondary: string | null;
+      deletedAt: Date | null;
+    }): WarningItem => {
+      const deletedAtMs = r.deletedAt?.getTime() ?? now;
+      const purgeAtMs = deletedAtMs + retentionDays * ONE_DAY_MS;
+      return {
+        id: r.id,
+        label: r.label ?? `#${r.id}`,
+        secondary: r.secondary,
+        purgeOn: new Date(purgeAtMs).toISOString(),
+        restoreUrl: buildRestoreUrl({
+          origin,
+          entity,
+          id: r.id,
+          expiresAtMs: purgeAtMs,
+          // Bind the token to the current deletedAt so it auto-
+          // invalidates after the first successful restore (or any
+          // subsequent re-delete cycle).
+          deletedAtMs,
+        }),
+      };
+    };
 
   const result: WarningSweepResult = {
-    candidates: candidateRows.map(toWarningItem),
-    employers: employerRows.map(toWarningItem),
-    institutions: institutionRows.map(toWarningItem),
+    candidates: candidateRows.map(toWarningItem("candidate")),
+    employers: employerRows.map(toWarningItem("employer")),
+    institutions: institutionRows.map(toWarningItem("institution")),
     recipients: 0,
     windowStart: windowStart.toISOString(),
     windowEnd: windowEnd.toISOString(),

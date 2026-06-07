@@ -1,5 +1,9 @@
 import crypto from "node:crypto";
-import { Router } from "express";
+import {
+  Router,
+  type Request as ExpressRequest,
+  type Response as ExpressResponse,
+} from "express";
 import { db } from "@workspace/db";
 import {
   eq,
@@ -41,6 +45,10 @@ import {
   originFromReq,
 } from "../lib/email";
 import {
+  verifyRestoreToken,
+  type RestoreEntity,
+} from "../lib/signed-restore-link";
+import {
   PERMISSIONS,
   PERMISSION_KEYS,
   isSuperAdminUser,
@@ -52,7 +60,22 @@ const router: Router = Router();
 
 // Scope this middleware to /admin/* only — without the path prefix it
 // would leak onto every other router mounted on /api after this one.
-router.use("/admin", requireAdmin);
+// The signed-restore email link (`/admin/trash/restore`) is
+// intentionally session-less — its authorization is the HMAC-signed
+// token in the URL — so we exempt it here and let the route handlers
+// verify the token themselves. The GET only renders a confirmation
+// page (no mutation, so email scanners/prefetchers that auto-open the
+// link can't consume it); the actual restore happens on POST. See
+// `lib/signed-restore-link.ts`.
+router.use("/admin", (req, res, next) => {
+  if (
+    (req.method === "GET" || req.method === "POST") &&
+    req.path === "/trash/restore"
+  ) {
+    return next();
+  }
+  return requireAdmin(req, res, next);
+});
 
 /**
  * GET /api/admin/registrations?status=pending|active|rejected|all
@@ -1936,6 +1959,285 @@ router.get("/admin/trash/jobs", requirePermission("employers:manage"), async (_r
     .orderBy(desc(jobsTable.deletedAt));
   res.json(shapeTrash(rows));
 });
+
+/**
+ * GET /api/admin/trash/restore?token=...
+ *
+ * Public-facing endpoint that backs the one-click "Restore" link in
+ * the trash purge warning email. No session required — the token is
+ * an HMAC-signed (SESSION_SECRET) `{entity,id,exp}` triple that
+ * expires at the row's scheduled purge cutoff. See
+ * `lib/signed-restore-link.ts` for the token format.
+ *
+ * Responses are tiny self-contained HTML pages (not JSON) because the
+ * recipient is a human clicking a link in their inbox, not an API
+ * client. We return 200 on success and on the "already restored" /
+ * "already purged" branches; only true tamper / expiry / system
+ * errors return non-2xx so well-behaved email clients don't render
+ * generic browser error chrome over our friendly explanation page.
+ */
+function renderRestorePage(args: {
+  title: string;
+  heading: string;
+  body: string;
+  tone: "success" | "error";
+}): string {
+  const accent = args.tone === "success" ? "#0d9488" : "#b91c1c";
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${args.title}</title>
+<style>
+  body { margin:0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background:#f8fafc; color:#0f172a; }
+  .wrap { max-width:560px; margin:80px auto; padding:32px; background:#fff; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,0.08); }
+  h1 { margin:0 0 12px 0; color:${accent}; font-size:22px; }
+  p { line-height:1.55; color:#334155; }
+  .footer { margin-top:24px; font-size:13px; color:#64748b; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>${args.heading}</h1>
+    ${args.body}
+    <p class="footer">Jumerra admin</p>
+  </div>
+</body>
+</html>`;
+}
+
+/**
+ * Verifies the `?token=` query param shared by the GET (confirm) and
+ * POST (perform) restore handlers. On failure it writes the
+ * appropriate HTML error page and returns null so the caller can
+ * `return` early; on success it returns the decoded claims.
+ */
+function verifyRestoreRequest(
+  req: ExpressRequest,
+  res: ExpressResponse,
+):
+  | { entity: RestoreEntity; id: number; deletedAtMs: number; token: string }
+  | null {
+  const token =
+    typeof req.query.token === "string" ? req.query.token : undefined;
+  if (!token) {
+    res
+      .status(400)
+      .type("html")
+      .send(
+        renderRestorePage({
+          title: "Restore link invalid",
+          heading: "This restore link is invalid.",
+          body: "<p>The link is missing its security token. Please open the trash console from the dashboard instead.</p>",
+          tone: "error",
+        }),
+      );
+    return null;
+  }
+
+  const verified = verifyRestoreToken(token);
+  if (!verified.ok) {
+    const reasonCopy =
+      verified.reason === "expired"
+        ? "This restore link has expired. The item may already have been permanently deleted by the scheduled purge. If the row is still in the trash you can restore it from the dashboard."
+        : "This restore link is invalid. If you copied it from an email, make sure it wasn't truncated. Otherwise please open the trash console from the dashboard.";
+    res
+      .status(verified.reason === "expired" ? 410 : 400)
+      .type("html")
+      .send(
+        renderRestorePage({
+          title:
+            verified.reason === "expired"
+              ? "Restore link expired"
+              : "Restore link invalid",
+          heading:
+            verified.reason === "expired" ? "Link expired" : "Link invalid",
+          body: `<p>${reasonCopy}</p>`,
+          tone: "error",
+        }),
+      );
+    return null;
+  }
+
+  return { ...verified, token };
+}
+
+// GET only renders a confirmation page — it performs NO mutation. This
+// is deliberate: email security scanners and inbox link-prefetchers
+// routinely auto-open URLs in messages, and a state-changing GET would
+// let them silently consume the single-use restore before the on-call
+// admin ever clicks. The actual restore happens on the POST below,
+// triggered by the human submitting the confirmation form.
+router.get("/admin/trash/restore", async (req, res) => {
+  const verified = verifyRestoreRequest(req, res);
+  if (!verified) return;
+
+  const { entity, token } = verified;
+  const actionUrl = `restore?token=${encodeURIComponent(token)}`;
+  res.type("html").send(
+    renderRestorePage({
+      title: "Confirm restore",
+      heading: "Restore this item?",
+      body: `<p>This will move the ${entity} out of the trash and make it active again. For security, this link works only once.</p>
+      <form method="post" action="${actionUrl}" style="margin-top:24px;">
+        <button type="submit" style="background:#0d9488;color:#fff;border:0;border-radius:8px;padding:12px 22px;font-size:15px;font-weight:600;cursor:pointer;">Restore ${entity}</button>
+      </form>`,
+      tone: "success",
+    }),
+  );
+});
+
+// POST performs the actual restore. Only reachable when a human submits
+// the confirmation form rendered by the GET above.
+router.post("/admin/trash/restore", async (req, res) => {
+  const verified = verifyRestoreRequest(req, res);
+  if (!verified) return;
+
+  const { entity, id, deletedAtMs } = verified;
+  try {
+    const outcome = await restoreEntityById(entity, id, deletedAtMs);
+    if (outcome === "not_found") {
+      res
+        .status(404)
+        .type("html")
+        .send(
+          renderRestorePage({
+            title: "Item not found",
+            heading: "We couldn't find that item",
+            body: `<p>The ${entity} you tried to restore is no longer in the database. It may have already been permanently deleted by the scheduled purge.</p>`,
+            tone: "error",
+          }),
+        );
+      return;
+    }
+    if (outcome === "stale_token") {
+      res
+        .status(410)
+        .type("html")
+        .send(
+          renderRestorePage({
+            title: "Restore link already used",
+            heading: "This link has already been used",
+            body: `<p>This ${entity} was already restored from this email (or has since been re-deleted in a new cycle). For security, each restore link works only once. If the item is currently in the trash again, open the trash console from the dashboard to restore it.</p>`,
+            tone: "error",
+          }),
+        );
+      return;
+    }
+    res
+      .type("html")
+      .send(
+        renderRestorePage({
+          title: "Restored",
+          heading: "Item restored successfully",
+          body: `<p>The ${entity} has been moved out of the trash and is active again.</p>`,
+          tone: "success",
+        }),
+      );
+  } catch (err) {
+    req.log.error({ err, entity, id }, "signed restore failed");
+    res
+      .status(500)
+      .type("html")
+      .send(
+        renderRestorePage({
+          title: "Restore failed",
+          heading: "We couldn't complete the restore",
+          body: "<p>Something went wrong on our end. Please try again from the trash console, or contact engineering if it keeps happening.</p>",
+          tone: "error",
+        }),
+      );
+  }
+});
+
+/**
+ * Restore logic for the signed-link GET endpoint. Atomically:
+ *  - re-reads the row inside a transaction (with FOR UPDATE),
+ *  - validates that its current `deletedAt` matches the
+ *    `expectedDeletedAtMs` baked into the token, and
+ *  - clears `deletedAt` / `deletedBy`.
+ *
+ * Outcomes:
+ *  - "not_found"   — row has been hard-deleted (purge already ran)
+ *  - "stale_token" — row is currently active (already restored) OR
+ *                    has a different deletedAt than the token claims
+ *                    (a separate delete cycle has happened since the
+ *                    token was issued). Either way the token must
+ *                    not authorize a restore again.
+ *  - "restored"    — happy path; the row was just brought back.
+ *
+ * Employer restores cascade-undo the jobs that were soft-deleted at
+ * the same instant — same logic as the session-gated dashboard
+ * endpoint — so the email link behaves identically.
+ *
+ * The single-use semantics come for free: after the first successful
+ * restore, `deletedAt` is null and any re-click hits "stale_token".
+ * If the row is later re-soft-deleted, the new `deletedAt` won't
+ * match `expectedDeletedAtMs` either, so old tokens are still
+ * rejected. No separate "consumed tokens" table is required.
+ */
+async function restoreEntityById(
+  entity: RestoreEntity,
+  id: number,
+  expectedDeletedAtMs: number,
+): Promise<"restored" | "stale_token" | "not_found"> {
+  // Allow the token's `d` to match within 1ms of the stored timestamp
+  // — Postgres stores ms precision but `Date.getTime()` round-trips
+  // are exact in practice; this guard is purely defensive.
+  const matches = (storedDeletedAt: Date | null): boolean => {
+    if (!storedDeletedAt) return false;
+    return Math.abs(storedDeletedAt.getTime() - expectedDeletedAtMs) < 2;
+  };
+
+  if (entity === "employer") {
+    return await db.transaction(async (tx) => {
+      const [emp] = await tx
+        .select({ id: employersTable.id, deletedAt: employersTable.deletedAt })
+        .from(employersTable)
+        .where(eq(employersTable.id, id))
+        .for("update");
+      if (!emp) return "not_found" as const;
+      if (!matches(emp.deletedAt)) return "stale_token" as const;
+      await tx
+        .update(jobsTable)
+        .set({ deletedAt: null, deletedBy: null })
+        .where(
+          and(
+            eq(jobsTable.employerId, id),
+            eq(jobsTable.deletedAt, emp.deletedAt!),
+          ),
+        );
+      await tx
+        .update(employersTable)
+        .set({ deletedAt: null, deletedBy: null })
+        .where(eq(employersTable.id, id));
+      return "restored" as const;
+    });
+  }
+
+  const table =
+    entity === "candidate"
+      ? candidatesTable
+      : entity === "institution"
+        ? institutionsTable
+        : jobsTable;
+
+  return await db.transaction(async (tx) => {
+    const [existing] = await tx
+      .select({ id: table.id, deletedAt: table.deletedAt })
+      .from(table)
+      .where(eq(table.id, id))
+      .for("update");
+    if (!existing) return "not_found" as const;
+    if (!matches(existing.deletedAt)) return "stale_token" as const;
+    await tx
+      .update(table)
+      .set({ deletedAt: null, deletedBy: null })
+      .where(eq(table.id, id));
+    return "restored" as const;
+  });
+}
 
 router.post(
   "/admin/trash/candidates/:id/restore",

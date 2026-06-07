@@ -450,7 +450,19 @@ export async function sendRegistrationDecisionEmail(
 export interface TrashPurgeWarningGroup {
   /** Human-readable category label e.g. "Candidates". */
   label: string;
-  items: { id: number; label: string; secondary: string | null; purgeOn: string }[];
+  items: {
+    id: number;
+    label: string;
+    secondary: string | null;
+    purgeOn: string;
+    /**
+     * Absolute, signed, single-effect restore URL for this row. Built
+     * via `buildRestoreUrl` in `lib/signed-restore-link.ts`. Optional
+     * so older call-sites / tests can still render an email without
+     * one (link cell just collapses).
+     */
+    restoreUrl?: string;
+  }[];
 }
 
 export interface SendTrashPurgeWarningEmailArgs {
@@ -483,14 +495,18 @@ export async function sendTrashPurgeWarningEmail(
     .filter((g) => g.items.length > 0)
     .map((g) => {
       const rows = g.items
-        .map(
-          (it) =>
-            `<li style="margin:4px 0;"><strong>${escapeHtml(it.label)}</strong>${
-              it.secondary ? ` — <span style="color:#64748b;">${escapeHtml(it.secondary)}</span>` : ""
-            } <span style="color:#64748b;">(purges ${escapeHtml(
-              new Date(it.purgeOn).toLocaleDateString(),
-            )})</span></li>`,
-        )
+        .map((it) => {
+          const restoreLink = it.restoreUrl
+            ? ` <a href="${escapeHtml(it.restoreUrl)}" style="color:#0d9488;font-weight:600;text-decoration:none;">Restore</a>`
+            : "";
+          return `<li style="margin:6px 0;"><strong>${escapeHtml(it.label)}</strong>${
+            it.secondary
+              ? ` — <span style="color:#64748b;">${escapeHtml(it.secondary)}</span>`
+              : ""
+          } <span style="color:#64748b;">(purges ${escapeHtml(
+            new Date(it.purgeOn).toLocaleDateString(),
+          )})</span>${restoreLink}</li>`;
+        })
         .join("");
       return `<p style="margin:16px 0 4px 0;font-weight:600;">${escapeHtml(
         g.label,
@@ -523,6 +539,9 @@ ${groupsHtml}`,
       textLines.push(
         `  - ${it.label}${it.secondary ? ` — ${it.secondary}` : ""} (purges ${new Date(it.purgeOn).toLocaleDateString()})`,
       );
+      if (it.restoreUrl) {
+        textLines.push(`    Restore: ${it.restoreUrl}`);
+      }
     }
   }
   textLines.push("", `Open: ${args.dashboardUrl}`);

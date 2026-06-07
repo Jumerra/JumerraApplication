@@ -35,6 +35,7 @@ import {
   GraduationCap,
   Briefcase,
   AlertTriangle,
+  MailWarning,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
@@ -278,6 +279,14 @@ export default function AdminTrashPage() {
   // `getTrashPurgeWarningLeadDays` on the server so the badge appears
   // consistently even before the settings request resolves.
   const warningLeadDays = trashSettings.data?.warningLeadDays ?? 3;
+  // When the server has no email transport configured (RESEND_API_KEY
+  // unset), the trash purge warning email — including its one-click
+  // restore links — is silently skipped. Surface a banner so admins
+  // know they won't get a heads-up before items are permanently
+  // deleted. Only render once the settings request has resolved so we
+  // don't flash a false alarm while loading.
+  const warningEmailUnconfigured =
+    trashSettings.data?.warningEmailConfigured === false;
 
   const defaultTab: EntityKind = canCandidates
     ? "candidates"
@@ -313,6 +322,28 @@ export default function AdminTrashPage() {
           {totalCount} total
         </Badge>
       </div>
+
+      {warningEmailUnconfigured && (
+        <div
+          role="alert"
+          className="flex items-start gap-3 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive dark:bg-destructive/20"
+        >
+          <MailWarning className="w-5 h-5 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-semibold">
+              Trash warning emails are not being delivered
+            </p>
+            <p className="mt-0.5 text-destructive/90">
+              No email transport is configured on the server, so the heads-up
+              email (and its one-click restore links) sent {warningLeadDays}{" "}
+              day{warningLeadDays === 1 ? "" : "s"} before items are permanently
+              deleted is being skipped. Check this page regularly to restore
+              anything you want to keep, and set the email API key on the
+              deployment to re-enable warnings.
+            </p>
+          </div>
+        </div>
+      )}
 
       <Card>
         <Tabs defaultValue={defaultTab}>

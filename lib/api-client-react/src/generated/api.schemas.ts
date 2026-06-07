@@ -495,6 +495,13 @@ warning window and should be visually emphasised in the UI.
    * @minimum 1
    */
   warningLeadDays: number;
+  /** Whether the server has a transactional email transport configured
+(i.e. `RESEND_API_KEY` is set). When `false`, the trash purge
+warning email — including its one-click restore links — is silently
+skipped, so the admin UI must surface a banner telling admins they
+will not receive the heads-up before items are permanently deleted.
+ */
+  warningEmailConfigured: boolean;
 }
 
 export interface SetEmployerVerifiedRequest {

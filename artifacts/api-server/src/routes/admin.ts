@@ -1887,10 +1887,12 @@ router.get(
     const { getTrashRetentionDays, getTrashPurgeWarningLeadDays } = await import(
       "../lib/trash-purge-worker"
     );
+    const { isEmailConfigured } = await import("../lib/email");
     const retentionDays = getTrashRetentionDays();
     res.json({
       retentionDays,
       warningLeadDays: getTrashPurgeWarningLeadDays(retentionDays),
+      warningEmailConfigured: isEmailConfigured(),
     });
   },
 );

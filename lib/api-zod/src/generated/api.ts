@@ -4500,6 +4500,11 @@ export const AdminGetTrashSettingsResponse = zod
       .describe(
         "How many days before auto-purge admins receive the warning email.\nTrash rows whose `deleted_at` is within\n`(retentionDays - warningLeadDays)` days of now are inside the\nwarning window and should be visually emphasised in the UI.\n",
       ),
+    warningEmailConfigured: zod
+      .boolean()
+      .describe(
+        "Whether the server has a transactional email transport configured\n(i.e. `RESEND_API_KEY` is set). When `false`, the trash purge\nwarning email — including its one-click restore links — is silently\nskipped, so the admin UI must surface a banner telling admins they\nwill not receive the heads-up before items are permanently deleted.\n",
+      ),
   })
   .describe(
     "Server-side trash retention configuration. The auto-purge worker\nhard-deletes soft-deleted rows whose `deleted_at` is older than\n`retentionDays`. Configured via the `TRASH_RETENTION_DAYS` env var.\n",

@@ -405,7 +405,7 @@ router.get(
       conds.push(eq(paymentsTable.purposeType, purposeType));
     }
     if (typeof currency === "string" && currency.length > 0) {
-      conds.push(eq(paymentsTable.currency, currency.toLowerCase()));
+      conds.push(eq(paymentsTable.currency, currency.toUpperCase()));
     }
     if (
       typeof category === "string" &&

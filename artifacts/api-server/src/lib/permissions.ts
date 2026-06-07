@@ -112,6 +112,19 @@ export const ADMIN_PERMISSIONS: ReadonlyArray<PermissionDef> = [
       "See total revenue across candidate, institution, and employer services with time-series charts.",
   },
   {
+    key: "ministries:view",
+    label: "View ministries",
+    category: "Government",
+    description: "See the list of ministry oversight accounts.",
+  },
+  {
+    key: "ministries:manage",
+    label: "Manage ministries",
+    category: "Government",
+    description:
+      "Create ministry accounts and control which data each ministry can access.",
+  },
+  {
     key: "staff:view",
     label: "View team",
     category: "Admin team",
@@ -332,6 +345,8 @@ export const SYSTEM_ROLES: ReadonlyArray<SystemRoleSpec> = [
       "employers:manage",
       "institutions:view",
       "institutions:manage",
+      "ministries:view",
+      "ministries:manage",
     ],
   },
 

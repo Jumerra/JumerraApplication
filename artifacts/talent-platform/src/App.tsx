@@ -90,6 +90,9 @@ import CandidateMentorRequestsPage from "@/pages/dashboard/candidate-mentor-requ
 import CandidateIntroRequestsPage from "@/pages/dashboard/candidate-intro-requests";
 import AdminNetworkPage from "@/pages/dashboard/admin/network";
 import AdminTrashPage from "@/pages/dashboard/admin/trash";
+import AdminMinistriesPage from "@/pages/dashboard/admin/ministries";
+import MinistryDashboard from "@/pages/dashboard/ministry";
+import { MinistryLayout } from "@/components/ministry-layout";
 
 const queryClient = new QueryClient();
 
@@ -217,6 +220,12 @@ function Router() {
         </Route>
         <Route path="/dashboard/admin/network">
           <AdminLayout><AdminNetworkPage /></AdminLayout>
+        </Route>
+        <Route path="/dashboard/admin/ministries">
+          <AdminLayout><AdminMinistriesPage /></AdminLayout>
+        </Route>
+        <Route path="/dashboard/ministry">
+          <MinistryLayout><MinistryDashboard /></MinistryLayout>
         </Route>
         <Route path="/dashboard/admin/trash">
           <AdminLayout><AdminTrashPage /></AdminLayout>

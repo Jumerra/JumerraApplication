@@ -3755,8 +3755,20 @@ export const LoginUserResponse = zod.object({
       id: zod.number(),
       email: zod.string(),
       fullName: zod.string(),
-      role: zod.enum(["candidate", "employer", "institution", "admin"]),
-      status: zod.enum(["pending", "active", "rejected", "invited"]),
+      role: zod.enum([
+        "candidate",
+        "employer",
+        "institution",
+        "admin",
+        "ministry",
+      ]),
+      status: zod.enum([
+        "pending",
+        "active",
+        "rejected",
+        "invited",
+        "disabled",
+      ]),
       orgRole: zod.string().nullable(),
       candidateId: zod.number().nullable(),
       employerId: zod.number().nullable(),
@@ -3793,6 +3805,27 @@ export const LoginUserResponse = zod.object({
       permissions: zod
         .array(zod.string())
         .describe("Effective admin permission keys; empty for non-admins."),
+      ministryId: zod
+        .number()
+        .nullable()
+        .describe(
+          "Linked ministry id for government-oversight users (role=ministry). Null otherwise.",
+        ),
+      ministryType: zod
+        .enum(["education", "labour"])
+        .nullable()
+        .describe("Ministry type for role=ministry users. Null otherwise."),
+      ministryName: zod
+        .string()
+        .nullable()
+        .describe(
+          "Display name of the linked ministry. Null for non-ministry users.",
+        ),
+      ministryDataAccess: zod
+        .array(zod.string())
+        .describe(
+          "Granted ministry data-scope keys; empty for non-ministry users.",
+        ),
     }),
     zod.null(),
   ]),
@@ -3814,8 +3847,20 @@ export const GetCurrentUserResponse = zod.object({
       id: zod.number(),
       email: zod.string(),
       fullName: zod.string(),
-      role: zod.enum(["candidate", "employer", "institution", "admin"]),
-      status: zod.enum(["pending", "active", "rejected", "invited"]),
+      role: zod.enum([
+        "candidate",
+        "employer",
+        "institution",
+        "admin",
+        "ministry",
+      ]),
+      status: zod.enum([
+        "pending",
+        "active",
+        "rejected",
+        "invited",
+        "disabled",
+      ]),
       orgRole: zod.string().nullable(),
       candidateId: zod.number().nullable(),
       employerId: zod.number().nullable(),
@@ -3852,6 +3897,27 @@ export const GetCurrentUserResponse = zod.object({
       permissions: zod
         .array(zod.string())
         .describe("Effective admin permission keys; empty for non-admins."),
+      ministryId: zod
+        .number()
+        .nullable()
+        .describe(
+          "Linked ministry id for government-oversight users (role=ministry). Null otherwise.",
+        ),
+      ministryType: zod
+        .enum(["education", "labour"])
+        .nullable()
+        .describe("Ministry type for role=ministry users. Null otherwise."),
+      ministryName: zod
+        .string()
+        .nullable()
+        .describe(
+          "Display name of the linked ministry. Null for non-ministry users.",
+        ),
+      ministryDataAccess: zod
+        .array(zod.string())
+        .describe(
+          "Granted ministry data-scope keys; empty for non-ministry users.",
+        ),
     }),
     zod.null(),
   ]),
@@ -3907,8 +3973,20 @@ export const UpdateMyProfileResponse = zod.object({
       id: zod.number(),
       email: zod.string(),
       fullName: zod.string(),
-      role: zod.enum(["candidate", "employer", "institution", "admin"]),
-      status: zod.enum(["pending", "active", "rejected", "invited"]),
+      role: zod.enum([
+        "candidate",
+        "employer",
+        "institution",
+        "admin",
+        "ministry",
+      ]),
+      status: zod.enum([
+        "pending",
+        "active",
+        "rejected",
+        "invited",
+        "disabled",
+      ]),
       orgRole: zod.string().nullable(),
       candidateId: zod.number().nullable(),
       employerId: zod.number().nullable(),
@@ -3945,6 +4023,27 @@ export const UpdateMyProfileResponse = zod.object({
       permissions: zod
         .array(zod.string())
         .describe("Effective admin permission keys; empty for non-admins."),
+      ministryId: zod
+        .number()
+        .nullable()
+        .describe(
+          "Linked ministry id for government-oversight users (role=ministry). Null otherwise.",
+        ),
+      ministryType: zod
+        .enum(["education", "labour"])
+        .nullable()
+        .describe("Ministry type for role=ministry users. Null otherwise."),
+      ministryName: zod
+        .string()
+        .nullable()
+        .describe(
+          "Display name of the linked ministry. Null for non-ministry users.",
+        ),
+      ministryDataAccess: zod
+        .array(zod.string())
+        .describe(
+          "Granted ministry data-scope keys; empty for non-ministry users.",
+        ),
     }),
     zod.null(),
   ]),
@@ -3992,8 +4091,20 @@ export const SetupPasswordResponse = zod.object({
       id: zod.number(),
       email: zod.string(),
       fullName: zod.string(),
-      role: zod.enum(["candidate", "employer", "institution", "admin"]),
-      status: zod.enum(["pending", "active", "rejected", "invited"]),
+      role: zod.enum([
+        "candidate",
+        "employer",
+        "institution",
+        "admin",
+        "ministry",
+      ]),
+      status: zod.enum([
+        "pending",
+        "active",
+        "rejected",
+        "invited",
+        "disabled",
+      ]),
       orgRole: zod.string().nullable(),
       candidateId: zod.number().nullable(),
       employerId: zod.number().nullable(),
@@ -4030,6 +4141,27 @@ export const SetupPasswordResponse = zod.object({
       permissions: zod
         .array(zod.string())
         .describe("Effective admin permission keys; empty for non-admins."),
+      ministryId: zod
+        .number()
+        .nullable()
+        .describe(
+          "Linked ministry id for government-oversight users (role=ministry). Null otherwise.",
+        ),
+      ministryType: zod
+        .enum(["education", "labour"])
+        .nullable()
+        .describe("Ministry type for role=ministry users. Null otherwise."),
+      ministryName: zod
+        .string()
+        .nullable()
+        .describe(
+          "Display name of the linked ministry. Null for non-ministry users.",
+        ),
+      ministryDataAccess: zod
+        .array(zod.string())
+        .describe(
+          "Granted ministry data-scope keys; empty for non-ministry users.",
+        ),
     }),
     zod.null(),
   ]),

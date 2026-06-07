@@ -4926,10 +4926,10 @@ components:
         fullName: { type: string }
         role:
           type: string
-          enum: [candidate, employer, institution, admin]
+          enum: [candidate, employer, institution, admin, ministry]
         status:
           type: string
-          enum: [pending, active, rejected, invited]
+          enum: [pending, active, rejected, invited, disabled]
         orgRole: { type: string, nullable: true }
         candidateId: { type: integer, nullable: true }
         employerId: { type: integer, nullable: true }
@@ -4958,8 +4958,25 @@ components:
           type: array
           items: { type: string }
           description: Effective admin permission keys; empty for non-admins.
+        ministryId:
+          type: integer
+          nullable: true
+          description: Linked ministry id for government-oversight users (role=ministry). Null otherwise.
+        ministryType:
+          type: string
+          nullable: true
+          enum: [education, labour]
+          description: Ministry type for role=ministry users. Null otherwise.
+        ministryName:
+          type: string
+          nullable: true
+          description: Display name of the linked ministry. Null for non-ministry users.
+        ministryDataAccess:
+          type: array
+          items: { type: string }
+          description: Granted ministry data-scope keys; empty for non-ministry users.
       required:
-        [id, email, fullName, role, status, orgRole, candidateId, employerId, institutionId, avatarUrl, phone, title, bio, notifyTrashPurgeWarning, permissions]
+        [id, email, fullName, role, status, orgRole, candidateId, employerId, institutionId, avatarUrl, phone, title, bio, notifyTrashPurgeWarning, permissions, ministryId, ministryType, ministryName, ministryDataAccess]
 
     ProfileUpdateRequest:
       type: object

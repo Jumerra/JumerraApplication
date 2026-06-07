@@ -218,6 +218,7 @@ export const AuthUserRole = {
   employer: "employer",
   institution: "institution",
   admin: "admin",
+  ministry: "ministry",
 } as const;
 
 export type AuthUserStatus =
@@ -228,6 +229,19 @@ export const AuthUserStatus = {
   active: "active",
   rejected: "rejected",
   invited: "invited",
+  disabled: "disabled",
+} as const;
+
+/**
+ * Ministry type for role=ministry users. Null otherwise.
+ */
+export type AuthUserMinistryType =
+  | (typeof AuthUserMinistryType)[keyof typeof AuthUserMinistryType]
+  | null;
+
+export const AuthUserMinistryType = {
+  education: "education",
+  labour: "labour",
 } as const;
 
 export interface AuthUser {
@@ -256,6 +270,14 @@ true. Always sent for shape stability; ignored for non-admins.
   notifyTrashPurgeWarning: boolean;
   /** Effective admin permission keys; empty for non-admins. */
   permissions: string[];
+  /** Linked ministry id for government-oversight users (role=ministry). Null otherwise. */
+  ministryId: number | null;
+  /** Ministry type for role=ministry users. Null otherwise. */
+  ministryType: AuthUserMinistryType;
+  /** Display name of the linked ministry. Null for non-ministry users. */
+  ministryName: string | null;
+  /** Granted ministry data-scope keys; empty for non-ministry users. */
+  ministryDataAccess: string[];
 }
 
 /**

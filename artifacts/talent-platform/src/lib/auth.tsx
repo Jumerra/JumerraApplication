@@ -5,7 +5,13 @@ import {
   type AuthUser,
 } from "@workspace/api-client-react";
 
-export type Role = "candidate" | "employer" | "institution" | "admin" | null;
+export type Role =
+  | "candidate"
+  | "employer"
+  | "institution"
+  | "admin"
+  | "ministry"
+  | null;
 
 interface AuthState {
   /** Effective role used for UI gating (real session > demo). */

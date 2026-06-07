@@ -14,4 +14,5 @@ export const AuthUserStatus = {
   active: "active",
   rejected: "rejected",
   invited: "invited",
+  disabled: "disabled",
 } as const;

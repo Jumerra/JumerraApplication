@@ -34,12 +34,18 @@ export const usersTable = pgTable(
     id: serial("id").primaryKey(),
     email: text("email").notNull(),
     passwordHash: text("password_hash"),
-    role: text("role").notNull(), // candidate | employer | institution | admin
+    role: text("role").notNull(), // candidate | employer | institution | admin | ministry
     status: text("status").notNull().default("pending"),
     fullName: text("full_name").notNull(),
     candidateId: integer("candidate_id"),
     employerId: integer("employer_id"),
     institutionId: integer("institution_id"),
+    /**
+     * Links a government-oversight user (role='ministry') to its
+     * ministry row. Null for every other role. Ministries are created
+     * exclusively by super-admins (no self-onboarding).
+     */
+    ministryId: integer("ministry_id"),
     /**
      * Sub-role inside the user's organization (or platform). Null for
      * candidates. Allowed values per top-level role:

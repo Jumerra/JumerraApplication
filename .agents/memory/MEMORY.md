@@ -1,0 +1,2 @@
+- [Ministry aggregate-only lockdown](ministry-lockdown.md) — `ministry` role accounts must be denied ALL non-ministry routes (allowlist `/ministry` + `/auth`), not just gated per-endpoint, or they read candidate/application PII through existing authed routes.
+- [Admin routers need requireAdmin before requirePermission](admin-route-auth-chain.md) — `requirePermission` reads `req.currentUser`; without a preceding `requireAdmin`/`requireAuth` it always 401s.

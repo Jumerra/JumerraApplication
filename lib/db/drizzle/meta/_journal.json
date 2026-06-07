@@ -36,6 +36,13 @@
       "when": 1779001032437,
       "tag": "0004_even_franklin_richards",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1780842647979,
+      "tag": "0005_wide_xavin",
+      "breakpoints": true
     }
   ]
 }

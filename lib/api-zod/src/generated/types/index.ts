@@ -79,6 +79,7 @@ export * from "./assignAccountManagerRequest";
 export * from "./assignAccountManagerResponse";
 export * from "./authSession";
 export * from "./authUser";
+export * from "./authUserMinistryType";
 export * from "./authUserRole";
 export * from "./authUserStatus";
 export * from "./backgroundCheck";

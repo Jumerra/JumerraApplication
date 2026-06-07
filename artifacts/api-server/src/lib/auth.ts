@@ -5,6 +5,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import {
   usersTable,
   passwordSetupTokensTable,
+  ministriesTable,
   type User,
 } from "@workspace/db";
 
@@ -115,12 +116,49 @@ export type PublicUser = {
    * Always present so the frontend can branch on it without nullchecks.
    */
   permissions: string[];
+  /**
+   * Government-ministry oversight account linkage. Null for every
+   * non-ministry user. Surfaced on /auth/me so the web app can pick the
+   * right dashboard + sidebar and render only the data slices the
+   * super-admin has granted — without an extra round-trip.
+   */
+  ministryId: number | null;
+  ministryType: string | null; // 'education' | 'labour'
+  ministryName: string | null;
+  ministryDataAccess: string[]; // granted data-scope keys (empty for non-ministry)
 };
 
 import { getUserPermissions } from "./permissions";
 
 export async function toPublicUser(user: User): Promise<PublicUser> {
   const perms = await getUserPermissions(user);
+
+  // Enrich ministry users with their ministry type, name, and granted
+  // data-access scopes so the web app can render the right dashboard
+  // without an extra round-trip. Soft-deleted ministries surface no
+  // scopes (the user can sign in but sees an empty/disabled dashboard).
+  let ministryType: string | null = null;
+  let ministryName: string | null = null;
+  let ministryDataAccess: string[] = [];
+  if (user.role === "ministry" && user.ministryId) {
+    const rows = await db
+      .select()
+      .from(ministriesTable)
+      .where(
+        and(
+          eq(ministriesTable.id, user.ministryId),
+          isNull(ministriesTable.deletedAt),
+        ),
+      )
+      .limit(1);
+    const ministry = rows[0];
+    if (ministry) {
+      ministryType = ministry.type;
+      ministryName = ministry.name;
+      ministryDataAccess = ministry.dataAccess;
+    }
+  }
+
   return {
     id: user.id,
     email: user.email,
@@ -139,5 +177,9 @@ export async function toPublicUser(user: User): Promise<PublicUser> {
     bio: user.bio,
     notifyTrashPurgeWarning: user.notifyTrashPurgeWarning ?? true,
     permissions: Array.from(perms).sort(),
+    ministryId: user.ministryId ?? null,
+    ministryType,
+    ministryName,
+    ministryDataAccess,
   };
 }

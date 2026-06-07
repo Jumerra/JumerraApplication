@@ -39,6 +39,7 @@ import {
   TrendingUp,
   Trash2,
   CreditCard,
+  Landmark,
   ArrowLeft,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -126,6 +127,7 @@ const ADMIN_NAV: AdminNavGroup[] = [
       { href: "/dashboard/admin/onboard", label: "Onboard partner", icon: UserPlus, permission: "onboard:create" },
       { href: "/dashboard/admin/site-content", label: "Site content", icon: Sparkles, permission: "site-content:edit" },
       { href: "/dashboard/admin/network", label: "Network moderation", icon: Users, permission: "site-content:edit" },
+      { href: "/dashboard/admin/ministries", label: "Ministries", icon: Landmark, permission: "ministries:view" },
       { href: "/dashboard/admin/partners", label: "Our Partners", icon: Handshake },
       { href: "/dashboard/admin/boost-settings", label: "Profile Boost", icon: Rocket },
       { href: "/dashboard/admin/cv-settings", label: "AI CV Builder", icon: FileText },

@@ -5,6 +5,7 @@
  * Talent Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { AuthUserMinistryType } from "./authUserMinistryType";
 import type { AuthUserRole } from "./authUserRole";
 import type { AuthUserStatus } from "./authUserStatus";
 
@@ -34,4 +35,12 @@ true. Always sent for shape stability; ignored for non-admins.
   notifyTrashPurgeWarning: boolean;
   /** Effective admin permission keys; empty for non-admins. */
   permissions: string[];
+  /** Linked ministry id for government-oversight users (role=ministry). Null otherwise. */
+  ministryId: number | null;
+  /** Ministry type for role=ministry users. Null otherwise. */
+  ministryType: AuthUserMinistryType;
+  /** Display name of the linked ministry. Null for non-ministry users. */
+  ministryName: string | null;
+  /** Granted ministry data-scope keys; empty for non-ministry users. */
+  ministryDataAccess: string[];
 }

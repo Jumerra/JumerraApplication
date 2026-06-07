@@ -10,6 +10,8 @@ import dashboardRouter from "./dashboard";
 import authRouter from "./auth";
 import adminRouter from "./admin";
 import adminRevenueRouter from "./admin-revenue";
+import adminMinistriesRouter from "./admin-ministries";
+import ministryRouter from "./ministry";
 import siteContentRouter from "./site-content";
 import staffRouter from "./staff";
 import orgRolesRouter from "./org-roles";
@@ -42,9 +44,16 @@ import fastTrackRouter from "./fast-track";
 import dailyDeckRouter from "./daily-deck";
 import institutionApiKeysRouter from "./institution-api-keys";
 import webhooksRouter from "./webhooks";
-import { requireAuth } from "../middleware/require-auth";
+import { requireAuth, ministryLockdown } from "../middleware/require-auth";
 
 const router: IRouter = Router();
+
+// Ministry oversight accounts are aggregate-only. This global gate runs
+// before every business route and blocks a logged-in `ministry` user from
+// any path outside `/ministry/*` and `/auth/*`, so they can never reach
+// candidate/application PII through the existing authenticated endpoints.
+// Anonymous + non-ministry traffic passes straight through.
+router.use(ministryLockdown);
 
 // `/employers/:id/reviews` is public marketplace content (verified-hire
 // reviews are intentionally browseable without an account). The /employers
@@ -97,6 +106,8 @@ router.use(healthRouter);
 router.use(authRouter);
 router.use(adminRouter);
 router.use(adminRevenueRouter);
+router.use(adminMinistriesRouter);
+router.use(ministryRouter);
 router.use(siteContentRouter);
 router.use(staffRouter);
 router.use(orgRolesRouter);

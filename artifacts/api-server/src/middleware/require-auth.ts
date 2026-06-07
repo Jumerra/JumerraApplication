@@ -21,7 +21,10 @@ export async function requireAuth(
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
-  const user = await findUserById(userId);
+  // Reuse a user already resolved earlier in the same request (e.g. by
+  // the ministry lockdown gate) so we don't issue a second identical
+  // PK lookup on every authenticated request.
+  const user = req.currentUser ?? (await findUserById(userId));
   if (!user || user.status !== "active") {
     req.session.userId = undefined;
     res.status(401).json({ error: "Not authenticated" });
@@ -51,6 +54,57 @@ export async function attachUser(
     req.currentUser = user;
   }
   next();
+}
+
+/**
+ * Path prefixes a logged-in `ministry` account is allowed to touch.
+ * Ministry oversight accounts are aggregate-only: they must never reach
+ * any PII/detail surface (candidates, applications, dashboards, etc.).
+ * Everything outside this allowlist returns 403 for them.
+ */
+const MINISTRY_ALLOWED_PREFIXES = ["/ministry", "/auth"];
+
+/**
+ * Global lockdown for `ministry` accounts. Mounted at the very top of the
+ * API router so it runs before every business route. Anonymous requests
+ * and non-ministry users pass straight through (the user is cached on
+ * `req.currentUser` so the downstream `requireAuth` reuses it instead of
+ * re-querying). A logged-in ministry user may only reach `/ministry/*`
+ * and `/auth/*`; any other path is rejected with 403 so a ministry can
+ * never enumerate individual candidate/application PII through the
+ * existing authenticated endpoints.
+ */
+export async function ministryLockdown(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  const userId = req.session?.userId;
+  if (!userId) {
+    next();
+    return;
+  }
+  const user = await findUserById(userId);
+  if (!user || user.status !== "active") {
+    next();
+    return;
+  }
+  req.currentUser = user;
+  if (user.role !== "ministry") {
+    next();
+    return;
+  }
+  const p = req.path;
+  const allowed = MINISTRY_ALLOWED_PREFIXES.some(
+    (pre) => p === pre || p.startsWith(`${pre}/`),
+  );
+  if (allowed) {
+    next();
+    return;
+  }
+  res.status(403).json({
+    error: "Ministry accounts can only access ministry dashboards.",
+  });
 }
 
 export async function requireAdmin(

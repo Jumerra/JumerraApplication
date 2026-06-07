@@ -1,5 +1,4 @@
 import { db, usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
 import { hashPassword } from "./auth";
 import { logger } from "./logger";
 
@@ -16,9 +15,11 @@ import { logger } from "./logger";
  * super-admin into production is from the running production app itself.
  * Set the two secrets, publish, sign in, then remove the secrets.
  *
- * Safe to leave configured (the upsert is idempotent), but removing the
- * secrets after first sign-in is recommended. The password is read from a
- * secret and is NEVER logged.
+ * NOTE: while configured, every boot re-applies the password (and promotes
+ * the account to active super_admin). That makes it self-healing but also
+ * means a manual password change would be reverted on the next restart —
+ * remove the two secrets once you have signed in. The password is read from
+ * a secret and is NEVER logged.
  */
 export async function bootstrapSuperAdmin(): Promise<void> {
   const email = process.env["BOOTSTRAP_SUPER_ADMIN_EMAIL"]
@@ -44,29 +45,12 @@ export async function bootstrapSuperAdmin(): Promise<void> {
   try {
     const passwordHash = await hashPassword(password);
 
-    const existing = await db
-      .select({ id: usersTable.id })
-      .from(usersTable)
-      .where(eq(usersTable.email, email))
-      .limit(1);
-
-    if (existing[0]) {
-      await db
-        .update(usersTable)
-        .set({
-          passwordHash,
-          role: "admin",
-          orgRole: "super_admin",
-          status: "active",
-          approvedAt: new Date(),
-        })
-        .where(eq(usersTable.id, existing[0].id));
-      logger.info(
-        { email, action: "updated" },
-        "bootstrapSuperAdmin: existing user promoted to active super_admin",
-      );
-    } else {
-      await db.insert(usersTable).values({
+    // Single atomic upsert keyed on the unique email index. This is
+    // race-safe across concurrent autoscale instance boots — there's no
+    // read-then-write window where two instances both try to INSERT.
+    await db
+      .insert(usersTable)
+      .values({
         email,
         passwordHash,
         role: "admin",
@@ -74,12 +58,23 @@ export async function bootstrapSuperAdmin(): Promise<void> {
         status: "active",
         fullName,
         approvedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: usersTable.email,
+        set: {
+          passwordHash,
+          role: "admin",
+          orgRole: "super_admin",
+          status: "active",
+          fullName,
+          approvedAt: new Date(),
+        },
       });
-      logger.info(
-        { email, action: "created" },
-        "bootstrapSuperAdmin: created new super_admin",
-      );
-    }
+
+    logger.info(
+      { email },
+      "bootstrapSuperAdmin: ensured active super_admin (idempotent upsert)",
+    );
   } catch (err) {
     logger.error({ err, email }, "bootstrapSuperAdmin failed");
   }

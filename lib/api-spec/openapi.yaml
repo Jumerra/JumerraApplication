@@ -4993,6 +4993,12 @@ components:
           type: array
           items: { type: string }
           description: Effective admin permission keys; empty for non-admins.
+        mustChangePassword:
+          type: boolean
+          description: |
+            True when the user must set a new password before using the app
+            (e.g. a default password issued by an admin/ministry owner on
+            account creation or reset). Defaults to false.
         ministryId:
           type: integer
           nullable: true
@@ -5011,7 +5017,7 @@ components:
           items: { type: string }
           description: Granted ministry data-scope keys; empty for non-ministry users.
       required:
-        [id, email, fullName, role, status, orgRole, candidateId, employerId, institutionId, avatarUrl, phone, title, bio, notifyTrashPurgeWarning, permissions, ministryId, ministryType, ministryName, ministryDataAccess]
+        [id, email, fullName, role, status, orgRole, candidateId, employerId, institutionId, avatarUrl, phone, title, bio, notifyTrashPurgeWarning, permissions, mustChangePassword, ministryId, ministryType, ministryName, ministryDataAccess]
 
     ProfileUpdateRequest:
       type: object

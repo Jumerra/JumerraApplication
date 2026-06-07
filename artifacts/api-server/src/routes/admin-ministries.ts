@@ -2,10 +2,9 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { eq, and, isNull, desc, sql } from "drizzle-orm";
 import { ministriesTable, usersTable } from "@workspace/db";
-import { requirePermission } from "../lib/permissions";
+import { requirePermission, seedSystemRolesFor } from "../lib/permissions";
 import { requireAdmin } from "../middleware/require-auth";
-import { createSetupToken, findUserByEmail } from "../lib/auth";
-import { sendAuthLinkEmail, originFromReq } from "../lib/email";
+import { findUserByEmail, hashPassword } from "../lib/auth";
 import {
   isMinistryType,
   defaultDataAccessFor,
@@ -59,6 +58,8 @@ router.get(
         email: usersTable.email,
         fullName: usersTable.fullName,
         status: usersTable.status,
+        orgRole: usersTable.orgRole,
+        mustChangePassword: usersTable.mustChangePassword,
         ministryId: usersTable.ministryId,
       })
       .from(usersTable)
@@ -87,11 +88,12 @@ router.get(
 
 /**
  * POST /api/admin/ministries
- * Creates a ministry + an initial "invited" user account, returning a
- * one-time password-setup link (or sending it via email when Resend is
- * configured).
+ * Creates a ministry + its owner user account. The super-admin types a
+ * default password here; the owner is created `active` with that
+ * password and `mustChangePassword = true`, so they are forced to pick
+ * their own password on first login. No email/setup-link is involved.
  *
- * Body: { name, type, email, fullName, dataAccess? }
+ * Body: { name, type, email, fullName, defaultPassword, dataAccess? }
  */
 router.post(
   "/admin/ministries",
@@ -99,7 +101,8 @@ router.post(
   requirePermission("ministries:manage"),
   async (req, res) => {
     try {
-      const { name, type, email, fullName, dataAccess } = req.body ?? {};
+      const { name, type, email, fullName, defaultPassword, dataAccess } =
+        req.body ?? {};
       if (
         typeof name !== "string" ||
         !name.trim() ||
@@ -110,6 +113,12 @@ router.post(
         !isMinistryType(type)
       ) {
         res.status(400).json({ error: "Missing or invalid fields" });
+        return;
+      }
+      if (typeof defaultPassword !== "string" || defaultPassword.length < 8) {
+        res
+          .status(400)
+          .json({ error: "Default password must be at least 8 characters" });
         return;
       }
 
@@ -128,6 +137,8 @@ router.post(
         ? sanitizeDataAccess(type as MinistryType, dataAccess)
         : defaultDataAccessFor(type as MinistryType);
 
+      const passwordHash = await hashPassword(defaultPassword);
+
       const user = await db.transaction(async (tx) => {
         const [ministry] = await tx
           .insert(ministriesTable)
@@ -139,29 +150,29 @@ router.post(
           })
           .returning();
 
+        // Seed the ministry's system roles (owner/manager/analyst) in
+        // the same transaction so staff invites work immediately, even
+        // before the next server restart's boot-time backfill.
+        await seedSystemRolesFor(
+          { scope: "ministry", ministryId: ministry.id },
+          tx,
+        );
+
         const [created] = await tx
           .insert(usersTable)
           .values({
             email: normalizedEmail,
-            passwordHash: null,
+            passwordHash,
             role: "ministry",
-            status: "invited",
+            status: "active",
+            orgRole: "owner",
+            mustChangePassword: true,
             fullName: fullName.trim(),
             ministryId: ministry.id,
             approvedAt: new Date(),
           })
           .returning();
         return created;
-      });
-
-      const { setupUrl, expiresAt } = await createSetupToken(user.id);
-      const emailResult = await sendAuthLinkEmail({
-        to: user.email,
-        fullName: user.fullName,
-        linkPath: setupUrl,
-        kind: "setup",
-        origin: originFromReq(req),
-        logger: req.log,
       });
 
       res.status(201).json({
@@ -172,10 +183,6 @@ router.post(
           role: user.role,
           ministryId: user.ministryId,
         },
-        // Only leak the setup link when email delivery isn't configured.
-        setupUrl: emailResult.sent ? null : setupUrl,
-        expiresAt: expiresAt.toISOString(),
-        emailSent: emailResult.sent,
       });
     } catch (err) {
       req.log.error({ err }, "ministry create failed");
@@ -252,13 +259,16 @@ router.patch(
 );
 
 /**
- * POST /api/admin/ministries/:id/reset-link
- * Issues a fresh password-setup link for the ministry's user account
- * (e.g. the original invite expired). Returns the link only when email
- * delivery is unconfigured.
+ * POST /api/admin/ministries/:id/reset-password
+ * Sets a new default password (typed by the super-admin) on the
+ * ministry's OWNER account and re-arms the forced-change flag, so the
+ * ministry owner must pick a new password again on their next login.
+ * Targets the owner account specifically (not arbitrary staff).
+ *
+ * Body: { defaultPassword }
  */
 router.post(
-  "/admin/ministries/:id/reset-link",
+  "/admin/ministries/:id/reset-password",
   requireAdmin,
   requirePermission("ministries:manage"),
   async (req, res) => {
@@ -268,36 +278,41 @@ router.post(
         res.status(400).json({ error: "Invalid id" });
         return;
       }
+      const { defaultPassword } = req.body ?? {};
+      if (typeof defaultPassword !== "string" || defaultPassword.length < 8) {
+        res
+          .status(400)
+          .json({ error: "Default password must be at least 8 characters" });
+        return;
+      }
       const userRows = await db
         .select()
         .from(usersTable)
         .where(
-          and(eq(usersTable.ministryId, id), eq(usersTable.role, "ministry")),
+          and(
+            eq(usersTable.ministryId, id),
+            eq(usersTable.role, "ministry"),
+            eq(usersTable.orgRole, "owner"),
+          ),
         )
         .limit(1);
       const user = userRows[0];
       if (!user) {
-        res.status(404).json({ error: "No user found for this ministry" });
+        res
+          .status(404)
+          .json({ error: "No owner account found for this ministry" });
         return;
       }
 
-      const { setupUrl, expiresAt } = await createSetupToken(user.id);
-      const emailResult = await sendAuthLinkEmail({
-        to: user.email,
-        fullName: user.fullName,
-        linkPath: setupUrl,
-        kind: "setup",
-        origin: originFromReq(req),
-        logger: req.log,
-      });
-      res.json({
-        setupUrl: emailResult.sent ? null : setupUrl,
-        expiresAt: expiresAt.toISOString(),
-        emailSent: emailResult.sent,
-      });
+      const passwordHash = await hashPassword(defaultPassword);
+      await db
+        .update(usersTable)
+        .set({ passwordHash, mustChangePassword: true, status: "active" })
+        .where(eq(usersTable.id, user.id));
+      res.json({ ok: true });
     } catch (err) {
-      req.log.error({ err }, "ministry reset-link failed");
-      res.status(500).json({ error: "Failed to issue setup link" });
+      req.log.error({ err }, "ministry reset-password failed");
+      res.status(500).json({ error: "Failed to reset password" });
     }
   },
 );

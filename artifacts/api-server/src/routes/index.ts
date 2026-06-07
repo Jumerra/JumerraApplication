@@ -12,6 +12,7 @@ import adminRouter from "./admin";
 import adminRevenueRouter from "./admin-revenue";
 import adminMinistriesRouter from "./admin-ministries";
 import ministryRouter from "./ministry";
+import ministryStaffRouter from "./ministry-staff";
 import siteContentRouter from "./site-content";
 import staffRouter from "./staff";
 import orgRolesRouter from "./org-roles";
@@ -44,7 +45,11 @@ import fastTrackRouter from "./fast-track";
 import dailyDeckRouter from "./daily-deck";
 import institutionApiKeysRouter from "./institution-api-keys";
 import webhooksRouter from "./webhooks";
-import { requireAuth, ministryLockdown } from "../middleware/require-auth";
+import {
+  requireAuth,
+  ministryLockdown,
+  forcedPasswordChangeGate,
+} from "../middleware/require-auth";
 
 const router: IRouter = Router();
 
@@ -54,6 +59,15 @@ const router: IRouter = Router();
 // candidate/application PII through the existing authenticated endpoints.
 // Anonymous + non-ministry traffic passes straight through.
 router.use(ministryLockdown);
+
+// Server-side enforcement of the forced first-login password change.
+// A user flagged `mustChangePassword` has a valid session but is blocked
+// from every route except the narrow auth allowlist (read auth state,
+// change password, log out) until they clear the flag. Runs after the
+// ministry lockdown and before any business route. Webhooks are mounted
+// further below but authenticate via signed payloads, not sessions, so
+// they are never subject to this gate.
+router.use(forcedPasswordChangeGate);
 
 // `/employers/:id/reviews` is public marketplace content (verified-hire
 // reviews are intentionally browseable without an account). The /employers
@@ -108,6 +122,7 @@ router.use(adminRouter);
 router.use(adminRevenueRouter);
 router.use(adminMinistriesRouter);
 router.use(ministryRouter);
+router.use(ministryStaffRouter);
 router.use(siteContentRouter);
 router.use(staffRouter);
 router.use(orgRolesRouter);

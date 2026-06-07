@@ -112,6 +112,12 @@ export type PublicUser = {
    */
   notifyTrashPurgeWarning: boolean;
   /**
+   * True while the user must set a new password before using the app
+   * (account was created with an admin-/owner-typed default password).
+   * The web app shows a forced "set a new password" screen when true.
+   */
+  mustChangePassword: boolean;
+  /**
    * Effective permission keys for the current user. Empty for non-admins.
    * Always present so the frontend can branch on it without nullchecks.
    */
@@ -176,6 +182,7 @@ export async function toPublicUser(user: User): Promise<PublicUser> {
     title: user.title,
     bio: user.bio,
     notifyTrashPurgeWarning: user.notifyTrashPurgeWarning ?? true,
+    mustChangePassword: user.mustChangePassword ?? false,
     permissions: Array.from(perms).sort(),
     ministryId: user.ministryId ?? null,
     ministryType,

@@ -3805,6 +3805,11 @@ export const LoginUserResponse = zod.object({
       permissions: zod
         .array(zod.string())
         .describe("Effective admin permission keys; empty for non-admins."),
+      mustChangePassword: zod
+        .boolean()
+        .describe(
+          "True when the user must set a new password before using the app\n(e.g. a default password issued by an admin\/ministry owner on\naccount creation or reset). Defaults to false.\n",
+        ),
       ministryId: zod
         .number()
         .nullable()
@@ -3897,6 +3902,11 @@ export const GetCurrentUserResponse = zod.object({
       permissions: zod
         .array(zod.string())
         .describe("Effective admin permission keys; empty for non-admins."),
+      mustChangePassword: zod
+        .boolean()
+        .describe(
+          "True when the user must set a new password before using the app\n(e.g. a default password issued by an admin\/ministry owner on\naccount creation or reset). Defaults to false.\n",
+        ),
       ministryId: zod
         .number()
         .nullable()
@@ -4023,6 +4033,11 @@ export const UpdateMyProfileResponse = zod.object({
       permissions: zod
         .array(zod.string())
         .describe("Effective admin permission keys; empty for non-admins."),
+      mustChangePassword: zod
+        .boolean()
+        .describe(
+          "True when the user must set a new password before using the app\n(e.g. a default password issued by an admin\/ministry owner on\naccount creation or reset). Defaults to false.\n",
+        ),
       ministryId: zod
         .number()
         .nullable()
@@ -4141,6 +4156,11 @@ export const SetupPasswordResponse = zod.object({
       permissions: zod
         .array(zod.string())
         .describe("Effective admin permission keys; empty for non-admins."),
+      mustChangePassword: zod
+        .boolean()
+        .describe(
+          "True when the user must set a new password before using the app\n(e.g. a default password issued by an admin\/ministry owner on\naccount creation or reset). Defaults to false.\n",
+        ),
       ministryId: zod
         .number()
         .nullable()

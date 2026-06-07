@@ -107,6 +107,59 @@ export async function ministryLockdown(
   });
 }
 
+/**
+ * Paths a logged-in user with `mustChangePassword === true` may still
+ * reach. They must be able to read their own auth state, perform the
+ * password change that clears the flag, and log out — nothing else.
+ */
+const FORCED_PASSWORD_ALLOWED_PATHS = new Set([
+  "/auth/me",
+  "/auth/change-password",
+  "/auth/logout",
+]);
+
+/**
+ * Server-side enforcement of the forced first-login password change.
+ * Mounted at the top of the API router (after `ministryLockdown`) so it
+ * runs before every business route. A user flagged `mustChangePassword`
+ * has a valid session but must not be able to use the app — via the web
+ * UI or a direct API client — until they change their password. The web
+ * `ForcedPasswordGate` is only a UX layer; this is the real control.
+ *
+ * Anonymous + non-flagged traffic passes straight through. The resolved
+ * user is cached on `req.currentUser` so downstream `requireAuth` reuses
+ * it instead of re-querying.
+ */
+export async function forcedPasswordChangeGate(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  const userId = req.session?.userId;
+  if (!userId) {
+    next();
+    return;
+  }
+  const user = req.currentUser ?? (await findUserById(userId));
+  if (!user || user.status !== "active") {
+    next();
+    return;
+  }
+  req.currentUser = user;
+  if (!user.mustChangePassword) {
+    next();
+    return;
+  }
+  if (FORCED_PASSWORD_ALLOWED_PATHS.has(req.path)) {
+    next();
+    return;
+  }
+  res.status(403).json({
+    error: "You must change your password before continuing.",
+    mustChangePassword: true,
+  });
+}
+
 export async function requireAdmin(
   req: Request,
   res: Response,

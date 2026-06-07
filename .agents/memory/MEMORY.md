@@ -1,1 +1,2 @@
 - [Production hosting](deployment-render.md) — live prod is the user's Render deploy (custom domain) with its OWN database, NOT the Replit deployment; fixes must reach Render.
+- [Forced password change](forced-password-change.md) — mustChangePassword must be enforced server-side via a gate middleware, not just the web ForcedPasswordGate (UX only).

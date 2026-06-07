@@ -270,6 +270,11 @@ true. Always sent for shape stability; ignored for non-admins.
   notifyTrashPurgeWarning: boolean;
   /** Effective admin permission keys; empty for non-admins. */
   permissions: string[];
+  /** True when the user must set a new password before using the app
+(e.g. a default password issued by an admin/ministry owner on
+account creation or reset). Defaults to false.
+ */
+  mustChangePassword: boolean;
   /** Linked ministry id for government-oversight users (role=ministry). Null otherwise. */
   ministryId: number | null;
   /** Ministry type for role=ministry users. Null otherwise. */

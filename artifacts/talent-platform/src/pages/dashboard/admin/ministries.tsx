@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { PasswordInput } from "@/components/ui/password-input";
 import {
   Dialog,
   DialogContent,
@@ -40,7 +41,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Landmark, Plus, KeyRound, Trash2, Copy } from "lucide-react";
+import { Landmark, Plus, KeyRound, Trash2 } from "lucide-react";
 
 type MinistryType = "education" | "labour";
 
@@ -56,6 +57,8 @@ type MinistryUser = {
   email: string;
   fullName: string;
   status: string;
+  orgRole?: string | null;
+  mustChangePassword?: boolean;
   ministryId: number | null;
 };
 
@@ -67,45 +70,6 @@ type Ministry = {
   createdAt: string;
   users: MinistryUser[];
 };
-
-function SetupLinkNotice({
-  setupUrl,
-  emailSent,
-}: {
-  setupUrl: string | null;
-  emailSent: boolean;
-}) {
-  if (emailSent) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        A password-setup email has been sent to the ministry account.
-      </p>
-    );
-  }
-  if (!setupUrl) return null;
-  return (
-    <div className="space-y-2">
-      <p className="text-sm text-muted-foreground">
-        Email delivery isn't configured — copy this one-time setup link and
-        share it securely:
-      </p>
-      <div className="flex items-center gap-2">
-        <Input readOnly value={setupUrl} className="text-xs" />
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          onClick={() => {
-            navigator.clipboard?.writeText(setupUrl);
-            toast.success("Setup link copied");
-          }}
-        >
-          <Copy className="h-4 w-4" />
-        </Button>
-      </div>
-    </div>
-  );
-}
 
 export default function AdminMinistriesPage() {
   const [ministries, setMinistries] = useState<Ministry[] | null>(null);
@@ -191,29 +155,36 @@ function CreateMinistryDialog({
   const [type, setType] = useState<MinistryType>("education");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
+  const [defaultPassword, setDefaultPassword] = useState("");
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<{
-    setupUrl: string | null;
-    emailSent: boolean;
-  } | null>(null);
 
   const typeScopes = scopes.filter((s) => s.type === type);
 
+  function reset() {
+    setName("");
+    setType("education");
+    setFullName("");
+    setEmail("");
+    setDefaultPassword("");
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (defaultPassword.length < 8) {
+      toast.error("Default password must be at least 8 characters");
+      return;
+    }
     setBusy(true);
     try {
-      const res = await customFetch<{
-        setupUrl: string | null;
-        emailSent: boolean;
-      }>("/api/admin/ministries", {
+      await customFetch("/api/admin/ministries", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, type, fullName, email }),
+        body: JSON.stringify({ name, type, fullName, email, defaultPassword }),
       });
-      setResult({ setupUrl: res.setupUrl, emailSent: res.emailSent });
       toast.success("Ministry account created");
       onCreated();
+      setOpen(false);
+      reset();
     } catch (err: unknown) {
       toast.error(
         (err as { data?: { error?: string } })?.data?.error ??
@@ -222,14 +193,6 @@ function CreateMinistryDialog({
     } finally {
       setBusy(false);
     }
-  }
-
-  function reset() {
-    setName("");
-    setType("education");
-    setFullName("");
-    setEmail("");
-    setResult(null);
   }
 
   return (
@@ -250,84 +213,172 @@ function CreateMinistryDialog({
         <DialogHeader>
           <DialogTitle>Create ministry account</DialogTitle>
           <DialogDescription>
-            A password-setup link is generated for the contact. The account
-            sees aggregate statistics only.
+            Set a temporary password for the contact. They sign in with it and
+            are required to choose their own password on first login. The
+            account sees aggregate statistics only.
           </DialogDescription>
         </DialogHeader>
 
-        {result ? (
-          <div className="space-y-4">
-            <SetupLinkNotice
-              setupUrl={result.setupUrl}
-              emailSent={result.emailSent}
+        <form onSubmit={submit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="m-name">Ministry name</Label>
+            <Input
+              id="m-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Ministry of Education"
+              required
             />
-            <DialogFooter>
-              <Button onClick={() => setOpen(false)}>Done</Button>
-            </DialogFooter>
           </div>
-        ) : (
-          <form onSubmit={submit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="m-name">Ministry name</Label>
-              <Input
-                id="m-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Ministry of Education"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Type</Label>
-              <Select
-                value={type}
-                onValueChange={(v) => setType(v as MinistryType)}
-              >
-                <SelectTrigger data-testid="select-ministry-type">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="education">
-                    Education (student placement)
-                  </SelectItem>
-                  <SelectItem value="labour">
-                    Labour (jobs, hiring, wages)
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="m-contact">Contact name</Label>
-              <Input
-                id="m-contact"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="Jane Mensah"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="m-email">Contact email</Label>
-              <Input
-                id="m-email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="oversight@moe.gov.gh"
-                required
-              />
-            </div>
+          <div className="space-y-2">
+            <Label>Type</Label>
+            <Select
+              value={type}
+              onValueChange={(v) => setType(v as MinistryType)}
+            >
+              <SelectTrigger data-testid="select-ministry-type">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="education">
+                  Education (student placement)
+                </SelectItem>
+                <SelectItem value="labour">
+                  Labour (jobs, hiring, wages)
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="m-contact">Contact name</Label>
+            <Input
+              id="m-contact"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              placeholder="Jane Mensah"
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="m-email">Contact email (used to sign in)</Label>
+            <Input
+              id="m-email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="oversight@moe.gov.gh"
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="m-password">Temporary password</Label>
+            <PasswordInput
+              id="m-password"
+              value={defaultPassword}
+              onChange={(e) => setDefaultPassword(e.target.value)}
+              required
+              minLength={8}
+              autoComplete="new-password"
+              data-testid="input-ministry-default-password"
+            />
             <p className="text-xs text-muted-foreground">
-              All {typeScopes.length} data sections for this type are granted
-              by default. You can restrict them after creation.
+              At least 8 characters. Share it with the contact securely — they
+              must change it on first login.
             </p>
-            <DialogFooter>
-              <Button type="submit" disabled={busy}>
-                {busy ? "Creating…" : "Create"}
-              </Button>
-            </DialogFooter>
-          </form>
-        )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            All {typeScopes.length} data sections for this type are granted by
+            default. You can restrict them after creation.
+          </p>
+          <DialogFooter>
+            <Button type="submit" disabled={busy}>
+              {busy ? "Creating…" : "Create"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ResetPasswordDialog({ ministry }: { ministry: Ministry }) {
+  const [open, setOpen] = useState(false);
+  const [defaultPassword, setDefaultPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (defaultPassword.length < 8) {
+      toast.error("Default password must be at least 8 characters");
+      return;
+    }
+    setBusy(true);
+    try {
+      await customFetch(`/api/admin/ministries/${ministry.id}/reset-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ defaultPassword }),
+      });
+      toast.success("Temporary password set");
+      setOpen(false);
+      setDefaultPassword("");
+    } catch (err: unknown) {
+      toast.error(
+        (err as { data?: { error?: string } })?.data?.error ??
+          "Failed to reset password",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o);
+        if (!o) setDefaultPassword("");
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          data-testid={`button-reset-password-${ministry.id}`}
+        >
+          <KeyRound className="h-4 w-4 mr-1" />
+          Reset password
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Reset ministry password</DialogTitle>
+          <DialogDescription>
+            Sets a new temporary password for the {ministry.name} owner account.
+            They must choose their own password again on next login.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor={`reset-pw-${ministry.id}`}>Temporary password</Label>
+            <PasswordInput
+              id={`reset-pw-${ministry.id}`}
+              value={defaultPassword}
+              onChange={(e) => setDefaultPassword(e.target.value)}
+              required
+              minLength={8}
+              autoComplete="new-password"
+            />
+            <p className="text-xs text-muted-foreground">
+              At least 8 characters. Share it with the contact securely.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button type="submit" disabled={busy}>
+              {busy ? "Saving…" : "Set password"}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );
@@ -344,17 +395,11 @@ function MinistryCard({
 }) {
   const [access, setAccess] = useState<string[]>(ministry.dataAccess);
   const [savingKey, setSavingKey] = useState<string | null>(null);
-  const [resetResult, setResetResult] = useState<{
-    setupUrl: string | null;
-    emailSent: boolean;
-  } | null>(null);
   const typeScopes = scopes.filter((s) => s.type === ministry.type);
-  const user = ministry.users[0];
+  const user = ministry.users.find((u) => u.orgRole === "owner") ?? ministry.users[0];
 
   async function toggleScope(key: string, on: boolean) {
-    const next = on
-      ? [...access, key]
-      : access.filter((k) => k !== key);
+    const next = on ? [...access, key] : access.filter((k) => k !== key);
     setAccess(next);
     setSavingKey(key);
     try {
@@ -369,24 +414,6 @@ function MinistryCard({
       toast.error("Failed to update access");
     } finally {
       setSavingKey(null);
-    }
-  }
-
-  async function issueResetLink() {
-    try {
-      const res = await customFetch<{
-        setupUrl: string | null;
-        emailSent: boolean;
-      }>(`/api/admin/ministries/${ministry.id}/reset-link`, {
-        method: "POST",
-      });
-      setResetResult({ setupUrl: res.setupUrl, emailSent: res.emailSent });
-      toast.success("Setup link issued");
-    } catch (err: unknown) {
-      toast.error(
-        (err as { data?: { error?: string } })?.data?.error ??
-          "Failed to issue link",
-      );
     }
   }
 
@@ -426,6 +453,11 @@ function MinistryCard({
                   >
                     {user.status}
                   </Badge>
+                  {user.mustChangePassword && (
+                    <Badge variant="outline" className="ml-1">
+                      Temporary password
+                    </Badge>
+                  )}
                 </>
               ) : (
                 "No linked user account"
@@ -433,15 +465,7 @@ function MinistryCard({
             </CardDescription>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={issueResetLink}
-              data-testid={`button-reset-link-${ministry.id}`}
-            >
-              <KeyRound className="h-4 w-4 mr-1" />
-              Setup link
-            </Button>
+            <ResetPasswordDialog ministry={ministry} />
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button
@@ -473,12 +497,6 @@ function MinistryCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {resetResult && (
-          <SetupLinkNotice
-            setupUrl={resetResult.setupUrl}
-            emailSent={resetResult.emailSent}
-          />
-        )}
         <div>
           <p className="text-sm font-medium mb-2">Data access</p>
           <div className="space-y-3">

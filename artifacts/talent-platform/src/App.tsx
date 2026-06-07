@@ -1,4 +1,5 @@
-import { Switch, Route, Router as WouterRouter } from "wouter";
+import { Switch, Route, Router as WouterRouter, Redirect, useLocation } from "wouter";
+import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -92,6 +93,7 @@ import AdminNetworkPage from "@/pages/dashboard/admin/network";
 import AdminTrashPage from "@/pages/dashboard/admin/trash";
 import AdminMinistriesPage from "@/pages/dashboard/admin/ministries";
 import MinistryDashboard from "@/pages/dashboard/ministry";
+import MinistryStaffPage from "@/pages/dashboard/ministry/staff";
 import { MinistryLayout } from "@/components/ministry-layout";
 
 const queryClient = new QueryClient();
@@ -106,9 +108,29 @@ function CandidateShell({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+/**
+ * Forces any signed-in user whose account is flagged `mustChangePassword`
+ * (a default password issued by an admin/ministry owner) onto the
+ * change-password screen before they can use anything else. Cleared
+ * server-side once they pick a new password and the session refetches.
+ */
+function ForcedPasswordGate({ children }: { children: ReactNode }) {
+  const { sessionUser, isLoading } = useAuth();
+  const [location] = useLocation();
+  if (
+    !isLoading &&
+    sessionUser?.mustChangePassword &&
+    location !== "/account/password"
+  ) {
+    return <Redirect to="/account/password" />;
+  }
+  return <>{children}</>;
+}
+
 function Router() {
   return (
     <Layout>
+      <ForcedPasswordGate>
       <Switch>
         <Route path="/" component={Home} />
         
@@ -227,6 +249,9 @@ function Router() {
         <Route path="/dashboard/ministry">
           <MinistryLayout><MinistryDashboard /></MinistryLayout>
         </Route>
+        <Route path="/dashboard/ministry/staff">
+          <MinistryLayout><MinistryStaffPage /></MinistryLayout>
+        </Route>
         <Route path="/dashboard/admin/trash">
           <AdminLayout><AdminTrashPage /></AdminLayout>
         </Route>
@@ -321,6 +346,7 @@ function Router() {
         
         <Route component={NotFound} />
       </Switch>
+      </ForcedPasswordGate>
     </Layout>
   );
 }

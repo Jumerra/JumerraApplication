@@ -16,7 +16,8 @@ import { KeyRound, AlertCircle, CheckCircle2, ShieldAlert } from "lucide-react";
 
 export default function ChangePasswordPage() {
   const [, setLocation] = useLocation();
-  const { sessionUser, isLoading } = useAuth();
+  const { sessionUser, isLoading, refresh } = useAuth();
+  const forced = Boolean(sessionUser?.mustChangePassword);
   const change = useChangePassword();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
@@ -72,6 +73,10 @@ export default function ChangePasswordPage() {
         data: { currentPassword: current, newPassword: next },
       });
       setDone(true);
+      // Refetch the session so the `mustChangePassword` flag clears in the
+      // cache; otherwise the forced-password gate would bounce the user
+      // straight back here after the redirect.
+      await refresh();
       setTimeout(() => setLocation("/"), 1500);
     } catch (err: any) {
       setError(
@@ -90,13 +95,24 @@ export default function ChangePasswordPage() {
           <div className="mx-auto w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary mb-3">
             <KeyRound className="w-6 h-6" />
           </div>
-          <CardTitle className="text-2xl">Change your password</CardTitle>
+          <CardTitle className="text-2xl">
+            {forced ? "Set a new password" : "Change your password"}
+          </CardTitle>
           <CardDescription>
             Signed in as{" "}
             <span className="font-medium">{sessionUser.email}</span>.
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {forced && !done && (
+            <div className="mb-4 flex items-start gap-2 p-3 rounded-md bg-amber-50 text-amber-900 text-sm">
+              <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+              <span>
+                You're using a temporary password. Enter it below as your
+                current password, then choose a new one to continue.
+              </span>
+            </div>
+          )}
           {done ? (
             <div className="flex items-start gap-2 p-3 rounded-md bg-emerald-50 text-emerald-900 text-sm">
               <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" />

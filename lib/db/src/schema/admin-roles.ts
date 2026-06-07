@@ -12,6 +12,7 @@ import {
 import { sql } from "drizzle-orm";
 import { employersTable } from "./employers";
 import { institutionsTable } from "./institutions";
+import { ministriesTable } from "./ministries";
 
 /**
  * Generalized roles table. Originally `admin_roles`; now also stores
@@ -22,6 +23,7 @@ import { institutionsTable } from "./institutions";
  *   - scope='admin'        → employer_id IS NULL AND institution_id IS NULL
  *   - scope='employer'     → employer_id IS NOT NULL
  *   - scope='institution'  → institution_id IS NOT NULL
+ *   - scope='ministry'     → ministry_id IS NOT NULL
  *
  * Uniqueness is enforced via three partial indexes — one per scope —
  * so that the same role name (e.g. "owner") can exist concurrently in
@@ -44,6 +46,9 @@ export const adminRolesTable = pgTable(
       () => institutionsTable.id,
       { onDelete: "cascade" },
     ),
+    ministryId: integer("ministry_id").references(() => ministriesTable.id, {
+      onDelete: "cascade",
+    }),
     name: text("name").notNull(),
     description: text("description").notNull().default(""),
     isSystem: boolean("is_system").notNull().default(false),
@@ -58,6 +63,7 @@ export const adminRolesTable = pgTable(
     scopeIdx: index("admin_roles_scope_idx").on(t.scope),
     employerIdx: index("admin_roles_employer_idx").on(t.employerId),
     institutionIdx: index("admin_roles_institution_idx").on(t.institutionId),
+    ministryIdx: index("admin_roles_ministry_idx").on(t.ministryId),
     adminScopeNameUnique: uniqueIndex("admin_roles_admin_scope_name_unique")
       .on(t.name)
       .where(sql`${t.scope} = 'admin'`),
@@ -71,6 +77,11 @@ export const adminRolesTable = pgTable(
     )
       .on(t.institutionId, t.name)
       .where(sql`${t.scope} = 'institution'`),
+    ministryScopeNameUnique: uniqueIndex(
+      "admin_roles_ministry_scope_name_unique",
+    )
+      .on(t.ministryId, t.name)
+      .where(sql`${t.scope} = 'ministry'`),
   }),
 );
 
@@ -102,4 +113,4 @@ export type InsertAdminRole = typeof adminRolesTable.$inferInsert;
 export type AdminRolePermission =
   typeof adminRolePermissionsTable.$inferSelect;
 
-export type RoleScope = "admin" | "employer" | "institution";
+export type RoleScope = "admin" | "employer" | "institution" | "ministry";

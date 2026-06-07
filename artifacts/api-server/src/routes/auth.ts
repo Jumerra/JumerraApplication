@@ -571,9 +571,11 @@ router.post("/auth/change-password", requireAuth, async (req, res) => {
       return;
     }
     const passwordHash = await hashPassword(newPassword);
+    // Clear the forced-change flag: once the user picks their own
+    // password the admin-/owner-typed default is no longer in effect.
     await db
       .update(usersTable)
-      .set({ passwordHash })
+      .set({ passwordHash, mustChangePassword: false })
       .where(eq(usersTable.id, user.id));
 
     // Rotate the session id to prevent fixation, and revoke any other

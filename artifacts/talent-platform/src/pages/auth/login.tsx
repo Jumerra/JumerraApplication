@@ -42,7 +42,8 @@ export default function LoginPage() {
       // Still invalidate so any other user-scoped queries (notifications,
       // dashboards keyed off identity) refetch with the new session.
       queryClient.invalidateQueries({ queryKey: getGetCurrentUserQueryKey() });
-      if (user?.role === "admin") setLocation("/dashboard/admin");
+      if (user?.mustChangePassword) setLocation("/account/password");
+      else if (user?.role === "admin") setLocation("/dashboard/admin");
       else if (user?.role) setLocation(`/dashboard/${user.role}`);
       else setLocation("/");
     } catch (err: any) {

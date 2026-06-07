@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Landmark, ShieldAlert, BarChart3 } from "lucide-react";
+import { Landmark, ShieldAlert, BarChart3, Users } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { customFetch } from "@workspace/api-client-react";
 import { SidebarLogoutButton } from "@/components/sidebar-logout";
@@ -80,10 +80,35 @@ function SectionLink({
   );
 }
 
+/**
+ * Sidebar link to the ministry's own team-management page. Uses wouter
+ * navigation (not an in-page anchor) and closes the mobile sheet on tap.
+ */
+function TeamLink() {
+  const { isMobile, setOpenMobile } = useSidebar();
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton asChild tooltip="Team">
+        <Link
+          href="/dashboard/ministry/staff"
+          data-testid="link-ministry-team"
+          onClick={() => {
+            if (isMobile) setOpenMobile(false);
+          }}
+        >
+          <Users className="h-4 w-4" />
+          <span>Team</span>
+        </Link>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  );
+}
+
 export function MinistryLayout({ children }: { children: ReactNode }) {
-  const { sessionUser, role } = useAuth();
+  const { sessionUser, role, hasPermission } = useAuth();
   const isMinistry =
     sessionUser?.role === "ministry" || role === "ministry";
+  const canViewTeam = hasPermission("ministry-staff:view");
 
   const [me, setMe] = useState<MinistryMe["ministry"] | null>(null);
 
@@ -160,6 +185,16 @@ export function MinistryLayout({ children }: { children: ReactNode }) {
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
+          {canViewTeam && (
+            <SidebarGroup>
+              <SidebarGroupLabel>Manage</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  <TeamLink />
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          )}
         </SidebarContent>
         <SidebarFooter>
           <div className="px-2 py-1.5 text-xs text-muted-foreground truncate group-data-[collapsible=icon]:hidden">

@@ -127,6 +127,17 @@ export const usersTable = pgTable(
     notifyTrashPurgeWarning: boolean("notify_trash_purge_warning")
       .notNull()
       .default(true),
+    /**
+     * Forces the user to change their password before they can use the
+     * app. Set to true when an admin (or ministry owner) creates an
+     * account with a default password they typed in, and cleared the
+     * first time the user successfully changes their password via
+     * `POST /auth/change-password`. The web app gates the whole UI behind
+     * a "set a new password" screen while this is true.
+     */
+    mustChangePassword: boolean("must_change_password")
+      .notNull()
+      .default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

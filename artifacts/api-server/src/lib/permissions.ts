@@ -4,6 +4,7 @@ import {
   adminRolePermissionsTable,
   employersTable,
   institutionsTable,
+  ministriesTable,
   type User,
   type RoleScope,
 } from "@workspace/db";
@@ -256,16 +257,42 @@ export const INSTITUTION_PERMISSIONS: ReadonlyArray<PermissionDef> = [
   },
 ];
 
+// =============================================================
+// MINISTRY scope
+// =============================================================
+// Ministry oversight accounts only ever see AGGREGATE dashboards (no
+// PII), so the only thing worth delegating inside a ministry is who can
+// manage the ministry's own staff. Viewing the dashboards themselves is
+// open to every ministry user (enforced by `requireMinistry`), so there
+// is no separate "dashboard:view" permission.
+export const MINISTRY_PERMISSIONS: ReadonlyArray<PermissionDef> = [
+  {
+    key: "ministry-staff:view",
+    label: "View team",
+    category: "Team",
+    description: "See the other people on this ministry's account.",
+  },
+  {
+    key: "ministry-staff:manage",
+    label: "Manage team",
+    category: "Team",
+    description:
+      "Invite teammates, change their role, reset their password, or remove them.",
+  },
+];
+
 export const PERMISSIONS_BY_SCOPE: Record<RoleScope, ReadonlyArray<PermissionDef>> = {
   admin: ADMIN_PERMISSIONS,
   employer: EMPLOYER_PERMISSIONS,
   institution: INSTITUTION_PERMISSIONS,
+  ministry: MINISTRY_PERMISSIONS,
 };
 
 export const PERMISSION_KEYS_BY_SCOPE: Record<RoleScope, Set<string>> = {
   admin: new Set(ADMIN_PERMISSIONS.map((p) => p.key)),
   employer: new Set(EMPLOYER_PERMISSIONS.map((p) => p.key)),
   institution: new Set(INSTITUTION_PERMISSIONS.map((p) => p.key)),
+  ministry: new Set(MINISTRY_PERMISSIONS.map((p) => p.key)),
 };
 
 /**
@@ -450,6 +477,26 @@ export const SYSTEM_ROLES: ReadonlyArray<SystemRoleSpec> = [
       "staff:view",
     ],
   },
+
+  // ---- MINISTRY ----
+  {
+    scope: "ministry",
+    name: "owner",
+    description: "Full control of the ministry account — every permission.",
+    permissions: MINISTRY_PERMISSIONS.map((p) => p.key),
+  },
+  {
+    scope: "ministry",
+    name: "manager",
+    description: "Can view the oversight dashboards and manage the team.",
+    permissions: ["ministry-staff:view", "ministry-staff:manage"],
+  },
+  {
+    scope: "ministry",
+    name: "analyst",
+    description: "Views the oversight dashboards and the team (read-only).",
+    permissions: ["ministry-staff:view"],
+  },
 ];
 
 /**
@@ -461,6 +508,7 @@ export function scopeForUser(user: User | null | undefined): RoleScope | null {
   if (user.role === "admin") return "admin";
   if (user.role === "employer") return "employer";
   if (user.role === "institution") return "institution";
+  if (user.role === "ministry") return "ministry";
   return null;
 }
 
@@ -482,6 +530,9 @@ export function isImplicitAllUser(
   if (user.role === "institution") {
     // Registrars are explicitly owner-equivalent for academic ops.
     return user.orgRole === "owner" || user.orgRole === "registrar";
+  }
+  if (user.role === "ministry") {
+    return user.orgRole === "owner";
   }
   return false;
 }
@@ -523,6 +574,9 @@ export async function getUserPermissions(
   } else if (scope === "institution") {
     if (user.institutionId === null) return new Set();
     filters.push(eq(adminRolesTable.institutionId, user.institutionId));
+  } else if (scope === "ministry") {
+    if (user.ministryId === null) return new Set();
+    filters.push(eq(adminRolesTable.ministryId, user.ministryId));
   }
   const rows = await db
     .select({ permission: adminRolePermissionsTable.permission })
@@ -578,7 +632,8 @@ export async function seedSystemRolesFor(
   target:
     | { scope: "admin" }
     | { scope: "employer"; employerId: number }
-    | { scope: "institution"; institutionId: number },
+    | { scope: "institution"; institutionId: number }
+    | { scope: "ministry"; ministryId: number },
   executor: Pick<typeof db, "select" | "insert" | "update"> = db,
 ): Promise<void> {
   const systemRoles = SYSTEM_ROLES.filter((r) => r.scope === target.scope);
@@ -591,6 +646,8 @@ export async function seedSystemRolesFor(
       filters.push(eq(adminRolesTable.employerId, target.employerId));
     } else if (target.scope === "institution") {
       filters.push(eq(adminRolesTable.institutionId, target.institutionId));
+    } else if (target.scope === "ministry") {
+      filters.push(eq(adminRolesTable.ministryId, target.ministryId));
     }
     const existing = await executor
       .select()
@@ -605,6 +662,7 @@ export async function seedSystemRolesFor(
           employerId: target.scope === "employer" ? target.employerId : null,
           institutionId:
             target.scope === "institution" ? target.institutionId : null,
+          ministryId: target.scope === "ministry" ? target.ministryId : null,
           name: role.name,
           description: role.description,
           isSystem: true,
@@ -652,6 +710,13 @@ export async function seedSystemRoles(): Promise<void> {
       scope: "institution",
       institutionId: inst.id,
     });
+  }
+  const ministries = await db
+    .select({ id: ministriesTable.id })
+    .from(ministriesTable)
+    .where(isNull(ministriesTable.deletedAt));
+  for (const ministry of ministries) {
+    await seedSystemRolesFor({ scope: "ministry", ministryId: ministry.id });
   }
 
   // Drop legacy global rows that were written before the org_id columns

@@ -1,1 +1,98 @@
-[]
+[
+  {
+    "id": "8f1c2a40-1d6e-4a91-9b21-0a5f3e7c1101",
+    "position": 1,
+    "filepath": "src/pages/slides/Title.tsx",
+    "title": "Jumerra — National Talent Infrastructure for Early-Career Employment",
+    "description": "Title slide: proposal cover for the Ministry of Technology, in partnership with Education and Labour.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "8f1c2a40-1d6e-4a91-9b21-0a5f3e7c1102",
+    "position": 2,
+    "filepath": "src/pages/slides/ExecutiveSummary.tsx",
+    "title": "Executive summary",
+    "description": "The full argument in four statements: an operational platform, the data it produces, the per-ministry function, and the ask.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "8f1c2a40-1d6e-4a91-9b21-0a5f3e7c1103",
+    "position": 3,
+    "filepath": "src/pages/slides/Problem.tsx",
+    "title": "Early-career hiring is fragmented across candidates, employers, and institutions",
+    "description": "The problem context: gaps for graduates, employers, institutions, and government, spread across three mandates.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "8f1c2a40-1d6e-4a91-9b21-0a5f3e7c1104",
+    "position": 4,
+    "filepath": "src/pages/slides/Platform.tsx",
+    "title": "Jumerra is an operational three-sided platform with a dedicated government layer",
+    "description": "What Jumerra is: candidates, employers, institutions, and a government layer, already running across web, mobile, and API.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "8f1c2a40-1d6e-4a91-9b21-0a5f3e7c1105",
+    "position": 5,
+    "filepath": "src/pages/slides/Matching.tsx",
+    "title": "Matching ranks candidates by skills, experience, and verified talent signals",
+    "description": "The matching model: a 65/15/20 weighting bar plus endorsement, verification, and explainability points.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "8f1c2a40-1d6e-4a91-9b21-0a5f3e7c1106",
+    "position": 6,
+    "filepath": "src/pages/slides/Technology.tsx",
+    "title": "The Ministry of Technology gains sovereign digital employment infrastructure",
+    "description": "Value to the Ministry of Technology, with an architecture diagram of the three sources, platform, and three ministries.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "8f1c2a40-1d6e-4a91-9b21-0a5f3e7c1107",
+    "position": 7,
+    "filepath": "src/pages/slides/Education.tsx",
+    "title": "The Ministry of Education gains real-time visibility into student placement",
+    "description": "Value to the Ministry of Education: verification, placement tracking, employer engagement, and live dashboards.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "8f1c2a40-1d6e-4a91-9b21-0a5f3e7c1108",
+    "position": 8,
+    "filepath": "src/pages/slides/Labour.tsx",
+    "title": "The Ministry of Labour gains live labour-market intelligence",
+    "description": "Value to the Ministry of Labour: market overview, skills signals, salary insights, and aggregate-only dashboards.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "8f1c2a40-1d6e-4a91-9b21-0a5f3e7c1109",
+    "position": 9,
+    "filepath": "src/pages/slides/Governance.tsx",
+    "title": "Access is role-scoped and ministry dashboards expose only aggregates",
+    "description": "Governance, privacy, and security: role scoping, aggregate-only ministry access, and code-enforced boundaries.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "8f1c2a40-1d6e-4a91-9b21-0a5f3e7c1110",
+    "position": 10,
+    "filepath": "src/pages/slides/Mandates.tsx",
+    "title": "The three ministries share one platform under separate mandates",
+    "description": "A comparison table of the three ministries: mandate and what each one gains, with no overlap in authority.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "8f1c2a40-1d6e-4a91-9b21-0a5f3e7c1111",
+    "position": 11,
+    "filepath": "src/pages/slides/Roadmap.tsx",
+    "title": "Adoption proceeds in four phases, from pilot to national rollout",
+    "description": "A four-phase adoption timeline from Ministry of Technology endorsement through national rollout.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "8f1c2a40-1d6e-4a91-9b21-0a5f3e7c1112",
+    "position": 12,
+    "filepath": "src/pages/slides/Ask.tsx",
+    "title": "The ask: endorse, onboard, and pilot Jumerra",
+    "description": "Closing ask: specific commitments from each ministry plus a time-boxed pilot and the closing tagline.",
+    "speakerNotes": ""
+  }
+]

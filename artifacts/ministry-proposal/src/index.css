@@ -6,19 +6,26 @@
   --color-bg: var(--slide-bg);
   --color-text: var(--slide-text);
   --color-muted: var(--slide-muted);
+  --color-panel: var(--slide-panel);
+  --color-border: var(--slide-border);
+  --color-tint: var(--slide-tint);
   --font-display: var(--font-display-family);
   --font-body: var(--font-body-family);
+  --font-mono: var(--font-mono-family);
 }
 
 :root {
-  /* Replace these with brand colors */
-  --slide-primary: #4f46e5;
-  --slide-accent: #06b6d4;
-  --slide-bg: #f8fafc;
+  --slide-primary: #0d9488;
+  --slide-accent: #0f766e;
+  --slide-bg: #fafaf7;
   --slide-text: #0f172a;
-  --slide-muted: #64748b;
-  --font-display-family: "Inter", system-ui, sans-serif;
-  --font-body-family: "Inter", system-ui, sans-serif;
+  --slide-muted: #5b6470;
+  --slide-panel: #eef1ef;
+  --slide-border: #d7ddd9;
+  --slide-tint: #e2f1ee;
+  --font-display-family: "IBM Plex Sans", system-ui, sans-serif;
+  --font-body-family: "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono-family: "IBM Plex Mono", ui-monospace, monospace;
   color-scheme: light;
 }
 

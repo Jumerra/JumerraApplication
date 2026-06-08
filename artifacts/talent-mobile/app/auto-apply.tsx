@@ -9,6 +9,9 @@ import {
   useListAutoApplyActivity,
   useToggleAutoApply,
   useVerifyAutoApplyCheckout,
+  useWithdrawAutoApplyApplication,
+  type AutoApplyActivityItem,
+  type AutoApplyActivityItemApplicationStatus,
 } from "@workspace/api-client-react";
 import { Stack, router } from "expo-router";
 import * as Linking from "expo-linking";
@@ -29,6 +32,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { EmptyState } from "@/components/EmptyState";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { StatusPill } from "@/components/StatusPill";
 import { useAuth } from "@/hooks/useAuth";
 import { useColors } from "@/hooks/useColors";
 import {
@@ -41,6 +45,14 @@ import { runMobileCheckoutFlow } from "@/lib/checkout-flow";
 
 const WEB_TOP_INSET = Platform.OS === "web" ? 67 : 0;
 const RETURN_SUFFIX = "/auto-apply/return";
+
+// Once an employer has made a final decision, withdrawing makes no sense.
+const WITHDRAWABLE = new Set<AutoApplyActivityItemApplicationStatus>([
+  "applied",
+  "screening",
+  "interview",
+  "offer",
+]);
 
 function formatPrice(cents: number, currency: string): string {
   try {
@@ -129,12 +141,47 @@ export default function AutoApplyScreen() {
   const toggle = useToggleAutoApply();
   const checkout = useCreateAutoApplyCheckout();
   const verify = useVerifyAutoApplyCheckout();
+  const withdraw = useWithdrawAutoApplyApplication();
   const [busy, setBusy] = React.useState(false);
+  const [withdrawingId, setWithdrawingId] = React.useState<number | null>(null);
 
   const refresh = async () => {
     await queryClient.invalidateQueries({
       queryKey: getGetAutoApplyStatusQueryKey(candidateId),
     });
+  };
+
+  const onWithdraw = (item: AutoApplyActivityItem) => {
+    Alert.alert(
+      "Withdraw application?",
+      `This withdraws your application to "${item.jobTitle}". Auto-Apply won't re-apply to this job.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Withdraw",
+          style: "destructive",
+          onPress: async () => {
+            setWithdrawingId(item.id);
+            try {
+              await withdraw.mutateAsync({ id: candidateId, logId: item.id });
+              await queryClient.invalidateQueries({
+                queryKey: getListAutoApplyActivityQueryKey(candidateId),
+              });
+            } catch (err) {
+              Alert.alert(
+                "Couldn't withdraw",
+                describeError(
+                  err,
+                  "Failed to withdraw application. Please try again.",
+                ),
+              );
+            } finally {
+              setWithdrawingId(null);
+            }
+          },
+        },
+      ],
+    );
   };
 
   const onToggle = async (next: boolean) => {
@@ -390,7 +437,8 @@ export default function AutoApplyScreen() {
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Recent auto-applications</Text>
               <Text style={styles.cardSubtitle}>
-                Jobs we've applied to for you, newest first.
+                Jobs we've applied to for you, newest first. Withdraw any you're
+                no longer interested in.
               </Text>
               {!activity || activity.length === 0 ? (
                 <Text style={[styles.bodyText, styles.emptyActivity]}>
@@ -399,50 +447,109 @@ export default function AutoApplyScreen() {
                 </Text>
               ) : (
                 <View style={{ marginTop: 8 }}>
-                  {activity.map((item, idx) => (
-                    <Pressable
-                      key={item.id}
-                      onPress={() =>
-                        router.push(`/job/${item.jobId}` as never)
-                      }
-                      style={({ pressed }) => [
-                        styles.activityRow,
-                        idx > 0 ? styles.activityDivider : null,
-                        { opacity: pressed ? 0.7 : 1 },
-                      ]}
-                    >
-                      <View style={{ flex: 1, paddingRight: 12 }}>
-                        <Text style={styles.activityTitle} numberOfLines={1}>
-                          {item.jobTitle}
-                        </Text>
-                        <View style={styles.activityMeta}>
-                          <Feather
-                            name="clock"
-                            size={11}
-                            color={colors.mutedForeground}
-                          />
-                          <Text style={styles.activityMetaText}>
-                            {formatDateTime(item.createdAt)}
-                          </Text>
-                        </View>
-                      </View>
+                  {activity.map((item, idx) => {
+                    const appStatus = item.applicationStatus;
+                    const canWithdraw =
+                      item.applicationId != null &&
+                      appStatus != null &&
+                      WITHDRAWABLE.has(appStatus);
+                    const isWithdrawing = withdrawingId === item.id;
+                    return (
                       <View
+                        key={item.id}
                         style={[
-                          styles.matchBadge,
-                          { backgroundColor: colors.primary + "1A" },
+                          styles.activityRow,
+                          idx > 0 ? styles.activityDivider : null,
                         ]}
                       >
-                        <Text
-                          style={[
-                            styles.matchBadgeText,
-                            { color: colors.primary },
-                          ]}
-                        >
-                          {item.matchScore}% match
-                        </Text>
+                        <View style={styles.activityMain}>
+                          <Pressable
+                            onPress={() =>
+                              router.push(`/job/${item.jobId}` as never)
+                            }
+                            style={({ pressed }) => [
+                              { flex: 1, paddingRight: 12 },
+                              { opacity: pressed ? 0.7 : 1 },
+                            ]}
+                          >
+                            <Text
+                              style={styles.activityTitle}
+                              numberOfLines={1}
+                            >
+                              {item.jobTitle}
+                            </Text>
+                            <View style={styles.activityMeta}>
+                              <Feather
+                                name="clock"
+                                size={11}
+                                color={colors.mutedForeground}
+                              />
+                              <Text style={styles.activityMetaText}>
+                                {formatDateTime(item.createdAt)}
+                              </Text>
+                            </View>
+                          </Pressable>
+                          <View
+                            style={[
+                              styles.matchBadge,
+                              { backgroundColor: colors.primary + "1A" },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.matchBadgeText,
+                                { color: colors.primary },
+                              ]}
+                            >
+                              {item.matchScore}% match
+                            </Text>
+                          </View>
+                        </View>
+                        <View style={styles.activityStatusRow}>
+                          {appStatus ? <StatusPill status={appStatus} /> : null}
+                          {canWithdraw ? (
+                            <Pressable
+                              onPress={() => onWithdraw(item)}
+                              disabled={isWithdrawing}
+                              style={({ pressed }) => [
+                                styles.withdrawBtn,
+                                {
+                                  borderColor: colors.border,
+                                  borderRadius: colors.radius,
+                                  opacity:
+                                    pressed || isWithdrawing ? 0.7 : 1,
+                                },
+                              ]}
+                              accessibilityLabel={`Withdraw application to ${item.jobTitle}`}
+                            >
+                              {isWithdrawing ? (
+                                <ActivityIndicator
+                                  size="small"
+                                  color={colors.destructive}
+                                />
+                              ) : (
+                                <>
+                                  <Feather
+                                    name="x"
+                                    size={13}
+                                    color={colors.destructive}
+                                  />
+                                  <Text
+                                    style={[
+                                      styles.withdrawText,
+                                      { color: colors.destructive },
+                                    ]}
+                                  >
+                                    Withdraw
+                                  </Text>
+                                </>
+                              )}
+                            </Pressable>
+                          ) : null}
+                        </View>
                       </View>
-                    </Pressable>
-                  ))}
+                    );
+                  })}
                 </View>
               )}
             </View>
@@ -588,9 +695,12 @@ function makeStyles(c: ReturnType<typeof useColors>) {
       paddingVertical: 16,
     },
     activityRow: {
+      paddingVertical: 12,
+      gap: 8,
+    },
+    activityMain: {
       flexDirection: "row",
       alignItems: "center",
-      paddingVertical: 12,
     },
     activityDivider: {
       borderTopWidth: 1,
@@ -612,11 +722,30 @@ function makeStyles(c: ReturnType<typeof useColors>) {
       fontSize: 11,
       color: c.mutedForeground,
     },
+    activityStatusRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      flexWrap: "wrap",
+    },
     matchBadge: {
       paddingHorizontal: 8,
       paddingVertical: 4,
       borderRadius: 999,
     },
     matchBadgeText: { fontFamily: "Inter_600SemiBold", fontSize: 11 },
+    withdrawBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 5,
+      borderWidth: 1,
+      paddingVertical: 6,
+      paddingHorizontal: 10,
+    },
+    withdrawText: {
+      fontFamily: "Inter_600SemiBold",
+      fontSize: 12,
+    },
   });
 }

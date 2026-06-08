@@ -87,14 +87,81 @@ export async function loadCurrentAutoApplySubscription(
 
 /**
  * A subscription unlocks the feature only while it is active/trialing AND its
- * paid period has not lapsed.
+ * paid period has not lapsed. `now` is injectable so the gate is deterministic
+ * under test.
  */
 export function subscriptionUnlocksAutoApply(
   row: AutoApplySubscriptionRow | null,
+  now: number = Date.now(),
 ): boolean {
   if (!row) return false;
   if (row.status !== "active" && row.status !== "trialing") return false;
-  return !!(row.currentPeriodEnd && row.currentPeriodEnd.getTime() > Date.now());
+  return !!(row.currentPeriodEnd && row.currentPeriodEnd.getTime() > now);
+}
+
+/**
+ * The three eligibility gates that decide whether the engine may act for a
+ * candidate at all, evaluated before any per-job work:
+ *  - the global admin switch must be on,
+ *  - the candidate must have opted in, and
+ *  - they must hold a subscription that currently unlocks the feature.
+ *
+ * Pure (no DB) so it can be unit-tested in isolation. The live engine enforces
+ * the candidate-opt-in gate structurally too (`loadOptedInCandidates` only
+ * returns rows with `auto_apply_enabled = true`) and the global gate via an
+ * early return, so passing `candidateEnabled: true`/`globalActive: true` there
+ * is faithful — this helper centralises the rule.
+ */
+export function candidateEligibleForAutoApply(input: {
+  globalActive: boolean;
+  candidateEnabled: boolean;
+  subscription: AutoApplySubscriptionRow | null;
+  now?: number;
+}): boolean {
+  if (!input.globalActive) return false;
+  if (!input.candidateEnabled) return false;
+  return subscriptionUnlocksAutoApply(input.subscription, input.now);
+}
+
+export type AutoApplySubmitReason =
+  | "below-threshold"
+  | "already-applied"
+  | "daily-cap-reached";
+
+export type AutoApplySubmitDecision =
+  | { proceed: true }
+  | { proceed: false; reason: AutoApplySubmitReason };
+
+/**
+ * The per-job submit gates, evaluated in the exact order the engine applies
+ * them: match threshold → dedupe against an existing application → rolling-24h
+ * daily cap. Pure (no DB) so it can be unit-tested in isolation.
+ *
+ * The ordering is load-bearing: the dedupe gate (`already-applied`) is checked
+ * BEFORE the daily cap so a pre-existing (often manual) application can never
+ * consume the cap nor cause the engine to write an `auto_apply_log` row for an
+ * application it didn't submit.
+ *
+ * `score` is the already-rounded match score (the engine rounds before
+ * comparing), matching `settings.matchThreshold`'s integer scale.
+ */
+export function decideAutoApplySubmit(input: {
+  score: number;
+  matchThreshold: number;
+  hasExistingApplication: boolean;
+  dailyCapUsed: number;
+  dailyCap: number;
+}): AutoApplySubmitDecision {
+  if (input.score < input.matchThreshold) {
+    return { proceed: false, reason: "below-threshold" };
+  }
+  if (input.hasExistingApplication) {
+    return { proceed: false, reason: "already-applied" };
+  }
+  if (input.dailyCapUsed >= input.dailyCap) {
+    return { proceed: false, reason: "daily-cap-reached" };
+  }
+  return { proceed: true };
 }
 
 type EligibleCandidate = {
@@ -149,7 +216,18 @@ async function attemptAutoApply(
     candidate.talentScore,
   );
   const rounded = Math.round(score);
-  if (rounded < settings.matchThreshold) return false;
+  // Cheap gate first: skip the DB lookups entirely for below-threshold pairs.
+  if (
+    !decideAutoApplySubmit({
+      score: rounded,
+      matchThreshold: settings.matchThreshold,
+      hasExistingApplication: false,
+      dailyCapUsed: 0,
+      dailyCap: settings.dailyCap,
+    }).proceed
+  ) {
+    return false;
+  }
 
   // Dedupe against any existing application (auto or manual). We deliberately
   // do NOT write an auto_apply_log row here: that table is the source of truth
@@ -169,11 +247,28 @@ async function attemptAutoApply(
       ),
     )
     .limit(1);
-  if (existing[0]) return false;
+  const hasExistingApplication = !!existing[0];
 
-  // Daily cap (defensive — periodic pass also tracks remaining locally).
-  const used = await countAutoAppliesLast24h(candidate.id);
-  if (used >= settings.dailyCap) return false;
+  // Skip the (more expensive) rolling-24h count when we already know this is a
+  // duplicate — the dedupe gate would short-circuit anyway.
+  const used = hasExistingApplication
+    ? 0
+    : await countAutoAppliesLast24h(candidate.id);
+
+  // Final submit decision through the single pure gate. The ordering
+  // (threshold → dedupe → daily cap) guarantees a pre-existing application
+  // returns `already-applied` and never reaches the write/log path below.
+  if (
+    !decideAutoApplySubmit({
+      score: rounded,
+      matchThreshold: settings.matchThreshold,
+      hasExistingApplication,
+      dailyCapUsed: used,
+      dailyCap: settings.dailyCap,
+    }).proceed
+  ) {
+    return false;
+  }
 
   let applicationId: number | null = null;
   try {
@@ -365,7 +460,15 @@ export async function runAutoApplyForJob(jobId: number): Promise<void> {
   for (const candidate of candidates) {
     if (processed >= 500) break; // safety cap per posting
     const sub = await loadCurrentAutoApplySubscription(candidate.id);
-    if (!subscriptionUnlocksAutoApply(sub)) continue;
+    if (
+      !candidateEligibleForAutoApply({
+        globalActive: settings.isActive,
+        candidateEnabled: true,
+        subscription: sub,
+      })
+    ) {
+      continue;
+    }
     await attemptAutoApply(candidate, job, settings);
     processed += 1;
   }
@@ -416,7 +519,15 @@ export async function runAutoApplyPass(): Promise<void> {
 
     for (const candidate of candidates) {
       const sub = await loadCurrentAutoApplySubscription(candidate.id);
-      if (!subscriptionUnlocksAutoApply(sub)) continue;
+      if (
+        !candidateEligibleForAutoApply({
+          globalActive: settings.isActive,
+          candidateEnabled: true,
+          subscription: sub,
+        })
+      ) {
+        continue;
+      }
       const used = await countAutoAppliesLast24h(candidate.id);
       let remaining = settings.dailyCap - used;
       if (remaining <= 0) continue;

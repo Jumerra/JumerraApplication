@@ -65,3 +65,15 @@ id = "aHJjjg0zlB9dr0JFQVblF"
 uri = "file://attached_assets/logos/jumerra_option_4_wordmark.png"
 type = "image"
 title = "Option 4 — Pure Wordmark (editorial)"
+
+[[outputs]]
+id = "55KWy2bNJeM-WEJM01Wrg"
+uri = "file://.local/outputs/Jumerra.pptx"
+type = "slides"
+title = "Jumerra.pptx"
+
+[[outputs]]
+id = "HLwQhKDBDA8a_FJXaq0pN"
+uri = "file://.local/outputs/Jumerra.pdf"
+type = "pdf"
+title = "Jumerra.pdf"

@@ -36,6 +36,14 @@ import { logger } from "./logger";
 
 export const AUTO_APPLY_SETTINGS_ROW_ID = 1;
 
+/**
+ * Namespace (first key of Postgres' two-int `pg_advisory_xact_lock`) used to
+ * serialize all auto-apply writes for a single candidate. The second key is the
+ * candidate id. An arbitrary constant unlikely to collide with any other
+ * advisory-lock usage in the codebase.
+ */
+const AUTO_APPLY_LOCK_NAMESPACE = 0x4155_4150; // "AUAP"
+
 export type AutoApplySettingsRow = typeof autoApplySettingsTable.$inferSelect;
 export type AutoApplySubscriptionRow =
   typeof autoApplySubscriptionsTable.$inferSelect;
@@ -216,28 +224,15 @@ async function attemptAutoApply(
     candidate.talentScore,
   );
   const rounded = Math.round(score);
-  // Cheap gate first: skip the DB lookups entirely for below-threshold pairs.
-  if (
-    !decideAutoApplySubmit({
-      score: rounded,
-      matchThreshold: settings.matchThreshold,
-      hasExistingApplication: false,
-      dailyCapUsed: 0,
-      dailyCap: settings.dailyCap,
-    }).proceed
-  ) {
-    return false;
-  }
+  // Cheap gate first: skip the DB work entirely for below-threshold pairs.
+  if (rounded < settings.matchThreshold) return false;
 
-  // Dedupe against any existing application (auto or manual). We deliberately
-  // do NOT write an auto_apply_log row here: that table is the source of truth
-  // for both the rolling-24h daily cap and the candidate-facing "recent
-  // auto-applications" feed. Logging a pre-existing (often manual) application
-  // would consume the cap for an application the engine never submitted and
-  // would falsely report it as an auto-apply. The applications-table check
-  // below is enough to prevent a duplicate submission; re-evaluating this pair
-  // on a later pass is cheap and harmless.
-  const existing = await db
+  // Cheap pre-filters. These avoid taking the per-candidate advisory lock for
+  // the common "obviously skip" cases (an already-applied pair, or a candidate
+  // already at their rolling-24h cap). They are advisory only — the
+  // authoritative dedupe + cap checks run INSIDE the transaction below, under
+  // the advisory lock, so a stale read here can never let us over-submit.
+  const existingPre = await db
     .select({ id: applicationsTable.id })
     .from(applicationsTable)
     .where(
@@ -247,33 +242,30 @@ async function attemptAutoApply(
       ),
     )
     .limit(1);
-  const hasExistingApplication = !!existing[0];
-
-  // Skip the (more expensive) rolling-24h count when we already know this is a
-  // duplicate — the dedupe gate would short-circuit anyway.
-  const used = hasExistingApplication
-    ? 0
-    : await countAutoAppliesLast24h(candidate.id);
-
-  // Final submit decision through the single pure gate. The ordering
-  // (threshold → dedupe → daily cap) guarantees a pre-existing application
-  // returns `already-applied` and never reaches the write/log path below.
-  if (
-    !decideAutoApplySubmit({
-      score: rounded,
-      matchThreshold: settings.matchThreshold,
-      hasExistingApplication,
-      dailyCapUsed: used,
-      dailyCap: settings.dailyCap,
-    }).proceed
-  ) {
+  if (existingPre[0]) return false;
+  if ((await countAutoAppliesLast24h(candidate.id)) >= settings.dailyCap) {
     return false;
   }
 
   let applicationId: number | null = null;
   try {
     await db.transaction(async (tx) => {
-      // Final challenge gate, INSIDE the write transaction. Callers
+      // Serialize ALL auto-apply writes for this candidate so the rolling-24h
+      // daily-cap check and the application insert are atomic. The cap spans
+      // DIFFERENT jobs, so UNIQUE(candidate_id, job_id) does not protect it:
+      // two concurrent workers (two POST /jobs fan-outs, or a fan-out
+      // overlapping the periodic pass) could each read used < cap for distinct
+      // jobs and both insert, pushing the candidate past the cap. A
+      // transaction-scoped advisory lock keyed on the candidate forces those
+      // writes to run one-at-a-time; it auto-releases on commit/rollback.
+      // Lock order is always candidate-advisory → job-row, and the only other
+      // job-row FOR UPDATE holders (challenge mutations) never take the
+      // advisory lock, so no lock-ordering inversion / deadlock is possible.
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(${AUTO_APPLY_LOCK_NAMESPACE}, ${candidate.id})`,
+      );
+
+      // Challenge gate, INSIDE the write transaction. Callers
       // (runAutoApplyForJob / runAutoApplyPass) pre-filter gated jobs, but that
       // snapshot can go stale — a challenge may be attached (POST /jobs,
       // PUT /jobs/:id/challenge) between the pre-filter and this insert. Re-check
@@ -293,6 +285,48 @@ async function attemptAutoApply(
         .where(eq(jobChallengesTable.jobId, job.id))
         .limit(1);
       if (gate[0]) throw new AutoApplyGated();
+
+      // Authoritative dedupe + daily-cap re-check, now that no other auto-apply
+      // write for this candidate can be in flight (we hold the advisory lock).
+      // We deliberately do NOT write an auto_apply_log row for a pre-existing
+      // (often manual) application: that table is the source of truth for both
+      // the rolling-24h cap and the candidate-facing "recent auto-applications"
+      // feed, so logging one would consume the cap for an application the engine
+      // never submitted and falsely report it as an auto-apply.
+      const existing = await tx
+        .select({ id: applicationsTable.id })
+        .from(applicationsTable)
+        .where(
+          and(
+            eq(applicationsTable.jobId, job.id),
+            eq(applicationsTable.candidateId, candidate.id),
+          ),
+        )
+        .limit(1);
+      const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const capRows = await tx
+        .select({ count: sql<number>`count(*)::int` })
+        .from(autoApplyLogTable)
+        .where(
+          and(
+            eq(autoApplyLogTable.candidateId, candidate.id),
+            gt(autoApplyLogTable.createdAt, since),
+          ),
+        );
+      const used = capRows[0]?.count ?? 0;
+      // Single pure gate, ordered threshold → dedupe → daily cap.
+      if (
+        !decideAutoApplySubmit({
+          score: rounded,
+          matchThreshold: settings.matchThreshold,
+          hasExistingApplication: !!existing[0],
+          dailyCapUsed: used,
+          dailyCap: settings.dailyCap,
+        }).proceed
+      ) {
+        throw new AutoApplyAbort();
+      }
+
       // Reuse the single source of truth for application creation (insert +
       // status-history seed + mock-interview link) so the auto-apply path can
       // never drift from the manual POST /applications path.
@@ -322,6 +356,7 @@ async function attemptAutoApply(
       applicationId = appId;
     });
   } catch (err) {
+    if (err instanceof AutoApplyAbort) return false;
     if (err instanceof AutoApplyDuplicate) return false;
     if (err instanceof AutoApplyGated) return false;
     logger.warn(
@@ -348,6 +383,13 @@ async function attemptAutoApply(
 class AutoApplyDuplicate extends Error {}
 /** A challenge was attached to the job before the application could be inserted. */
 class AutoApplyGated extends Error {}
+/**
+ * A soft abort thrown inside the write transaction when the authoritative
+ * (under-lock) submit gate declines — below threshold, already applied, or the
+ * rolling-24h daily cap is now full. Rolls the transaction back without logging
+ * an error (these are expected, non-exceptional outcomes).
+ */
+class AutoApplyAbort extends Error {}
 
 /**
  * For a challenge-gated job the engine can't submit on a candidate's behalf — a

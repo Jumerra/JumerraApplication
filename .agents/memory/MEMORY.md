@@ -1,2 +1,3 @@
 - [Stripe subscription table wiring](stripe-subscription-tables.md) — new recurring-sub tables must be wired into lifecycle webhook handlers, not just checkout.
-- [Auto-apply gate race](auto-apply-gate-race.md) — every job_challenges writer AND the auto-apply submitter must share one jobs-row FOR UPDATE lock; job+default-challenge creation must be atomic.
+- [Auto-apply concurrency invariants](auto-apply-gate-race.md) — submitter must serialize on the job-row lock (challenge gate) AND a per-candidate advisory lock (daily cap); cap count + insert must be one locked tx.
+- [Migration journal drift](migration-journal-drift.md) — post-merge/prod use journal `migrate`, not push; dev push drifts the journal, so catch-up migrations must be idempotent (IF NOT EXISTS).

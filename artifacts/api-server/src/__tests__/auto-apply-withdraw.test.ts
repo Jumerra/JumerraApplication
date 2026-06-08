@@ -137,6 +137,10 @@ vi.mock("@workspace/db", () => {
     select: () => makeSelectChain(),
     insert: (t: { __table?: string }) => makeInsertChain(t),
     update: (t: { __table?: string }) => makeUpdateChain(t),
+    // The auto-apply write transaction takes a per-candidate advisory lock via
+    // `tx.execute(sql\`select pg_advisory_xact_lock(...)\`)`. The mock just needs
+    // to resolve so the transaction proceeds to the create/log path.
+    execute: async () => ({ rows: [] }),
     transaction: async (cb: (tx: unknown) => unknown) => {
       h.transactionRan = true;
       return cb(makeDb());

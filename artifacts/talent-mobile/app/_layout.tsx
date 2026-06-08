@@ -140,6 +140,10 @@ function RootLayoutNav() {
         name="notification-preferences"
         options={{ presentation: "modal", headerTitle: "Notifications" }}
       />
+      <Stack.Screen
+        name="auto-apply"
+        options={{ headerTitle: "AI Auto-Apply" }}
+      />
     </Stack>
   );
 }

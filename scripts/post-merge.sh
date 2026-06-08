@@ -24,6 +24,16 @@ pnpm --filter @workspace/db migrate
 # per-run RUN_TAG (see e2e/helpers/env.ts) that globalTeardown
 # LIKE-deletes — so wall-clock stays close to max(unit, e2e) instead
 # of unit + e2e.
+#
+# `pnpm --filter @workspace/api-server test` is `vitest run`, whose
+# config globs `src/__tests__/**/*.test.ts`. That means EVERY unit
+# suite in that directory — matching, payment-rail, the signature
+# suites, auto-apply (eligibility + daily-cap gates), etc. — is run
+# by this single command and any failure flips UNIT_STATUS, which
+# blocks the merge (see the `exit 1` at the bottom). New unit suites
+# are picked up automatically: do NOT replace this with an explicit
+# per-file list, or newly-added suites (e.g. auto-apply.test.ts)
+# would silently fall out of the gate.
 LOG_ROOT=".local/post-merge-logs"
 mkdir -p "$LOG_ROOT"
 

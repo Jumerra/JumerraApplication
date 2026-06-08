@@ -259,18 +259,53 @@ router.post(
   const { tier: _ignoredTier, targetSkills, targetLocation, ...rest } =
     parsed.data;
 
-  const [created] = await db
-    .insert(jobsTable)
-    .values({
-      ...rest,
-      employerId,
-      featured: parsed.data.featured ?? false,
-      tier: "free",
-      tierExpiresAt: null,
-      targetSkills: targetSkills ?? [],
-      targetLocation: targetLocation ?? null,
-    })
-    .returning();
+  // Auto-attach a default skill challenge unless the employer explicitly opted
+  // out (`includeChallenge: false`).
+  const includeChallenge =
+    (req.body && (req.body as { includeChallenge?: boolean }).includeChallenge) !== false;
+
+  // Create the job AND its default challenge atomically in one transaction. The
+  // job row is therefore never visible to any other transaction (notably the
+  // periodic auto-apply pass) without its challenge already present. This is the
+  // only way to fully close the gate-bypass race: the engine's gate re-check
+  // either sees no job yet (before commit) or sees the job WITH its challenge
+  // (after commit) — there is no window where a challenge-gated job exists
+  // without its challenge row.
+  const created = await db.transaction(async (tx) => {
+    const [job] = await tx
+      .insert(jobsTable)
+      .values({
+        ...rest,
+        employerId,
+        featured: parsed.data.featured ?? false,
+        tier: "free",
+        tierExpiresAt: null,
+        targetSkills: targetSkills ?? [],
+        targetLocation: targetLocation ?? null,
+      })
+      .returning();
+    if (includeChallenge) {
+      try {
+        const built = await buildDefaultChallengeForSkills(job.skills);
+        if (built.questions.length > 0) {
+          await tx.insert(jobChallengesTable).values({
+            jobId: job.id,
+            title: "Skill challenge",
+            questions: built.questions,
+            passingScore: 50,
+            // ~45 seconds per MCQ, with a 60s floor.
+            durationSeconds: Math.max(60, built.questions.length * 45),
+            templateIds: built.templateIds,
+          });
+        }
+      } catch (err) {
+        // A missing challenge is recoverable via PUT /jobs/:id/challenge, so
+        // don't fail the whole job creation over it.
+        req.log.warn({ err }, "auto-attach challenge failed");
+      }
+    }
+    return job;
+  });
 
   const [employer] = await db
     .select({
@@ -322,36 +357,14 @@ router.post(
 
   // AI Auto-Apply fan-out: submit on behalf of subscribed, opted-in
   // candidates whose profile clears the admin-configured threshold for this
-  // posting. Best-effort + self-capped so it never blocks the POST response.
+  // posting (or, if the job is challenge-gated, notify matching candidates to
+  // take the test). Runs AFTER the job+challenge transaction has committed, so
+  // gating is honored: by this point the challenge row (if any) is durably
+  // visible to the engine's gate re-check.
+  // Best-effort + self-capped so it never blocks the POST response.
   void runAutoApplyForJob(created.id).catch((err) => {
     req.log.warn({ err, jobId: created.id }, "auto-apply fan-out failed");
   });
-
-  // Auto-attach a default skill challenge unless the employer
-  // explicitly opted out (`includeChallenge: false`). Pulls one
-  // template per matching job skill via the shared generator. Done
-  // best-effort — a missing challenge is recoverable via the
-  // PUT /jobs/:id/challenge endpoint.
-  const includeChallenge =
-    (req.body && (req.body as { includeChallenge?: boolean }).includeChallenge) !== false;
-  if (includeChallenge) {
-    try {
-      const built = await buildDefaultChallengeForSkills(created.skills);
-      if (built.questions.length > 0) {
-        await db.insert(jobChallengesTable).values({
-          jobId: created.id,
-          title: "Skill challenge",
-          questions: built.questions,
-          passingScore: 50,
-          // ~45 seconds per MCQ, with a 60s floor.
-          durationSeconds: Math.max(60, built.questions.length * 45),
-          templateIds: built.templateIds,
-        });
-      }
-    } catch (err) {
-      req.log.warn({ err }, "auto-attach challenge failed");
-    }
-  }
 
   res.status(201).json(serializeJob(created, employer ?? { name: "", logoUrl: "" }, 0));
 });

@@ -1,1 +1,2 @@
-- [Stripe subscription table wiring](stripe-subscription-tables.md) — new recurring-sub tables must be wired into applyStripeSubscriptionUpdate + markStripeSubscriptionCanceled, not just the checkout finalizer; auto_apply_log only logs true engine submissions.
+- [Stripe subscription table wiring](stripe-subscription-tables.md) — new recurring-sub tables must be wired into lifecycle webhook handlers, not just checkout.
+- [Auto-apply gate race](stripe-subscription-tables.md) — every writer to job_challenges AND the auto-apply submitter must share one jobs-row FOR UPDATE lock; job+default-challenge creation must be atomic.

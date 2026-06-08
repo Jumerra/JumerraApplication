@@ -297,11 +297,6 @@ router.put(
       return;
     }
 
-    const [existing] = await db
-      .select()
-      .from(jobChallengesTable)
-      .where(eq(jobChallengesTable.jobId, jobId));
-
     const values = {
       jobId,
       title,
@@ -314,16 +309,36 @@ router.put(
       overrides,
     };
 
-    let row;
-    if (existing) {
-      [row] = await db
-        .update(jobChallengesTable)
-        .set(values)
-        .where(eq(jobChallengesTable.id, existing.id))
+    // Lock the job row FOR UPDATE before reading/writing job_challenges so this
+    // attach serializes against the auto-apply submission path (which takes the
+    // same lock before its gate re-check). Without a shared lock domain a
+    // challenge could be attached in the window between auto-apply's gate check
+    // and its application insert, letting a gated job receive an auto-submission.
+    const row = await db.transaction(async (tx) => {
+      await tx
+        .select({ id: jobsTable.id })
+        .from(jobsTable)
+        .where(eq(jobsTable.id, jobId))
+        .for("update")
+        .limit(1);
+      const [existing] = await tx
+        .select()
+        .from(jobChallengesTable)
+        .where(eq(jobChallengesTable.jobId, jobId));
+      if (existing) {
+        const [updated] = await tx
+          .update(jobChallengesTable)
+          .set(values)
+          .where(eq(jobChallengesTable.id, existing.id))
+          .returning();
+        return updated;
+      }
+      const [inserted] = await tx
+        .insert(jobChallengesTable)
+        .values(values)
         .returning();
-    } else {
-      [row] = await db.insert(jobChallengesTable).values(values).returning();
-    }
+      return inserted;
+    });
 
     res.json({
       jobId,
@@ -358,7 +373,19 @@ router.delete(
       res.status(403).json({ error: "Forbidden" });
       return;
     }
-    await db.delete(jobChallengesTable).where(eq(jobChallengesTable.jobId, jobId));
+    // Lock the job row FOR UPDATE so this removal serializes with the auto-apply
+    // submission path's gate re-check (same lock domain as the PUT above).
+    await db.transaction(async (tx) => {
+      await tx
+        .select({ id: jobsTable.id })
+        .from(jobsTable)
+        .where(eq(jobsTable.id, jobId))
+        .for("update")
+        .limit(1);
+      await tx
+        .delete(jobChallengesTable)
+        .where(eq(jobChallengesTable.jobId, jobId));
+    });
     res.status(204).end();
   },
 );

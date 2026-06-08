@@ -7,10 +7,10 @@ import {
   candidatesTable,
   jobsTable,
   applicationsTable,
-  applicationStatusHistoryTable,
   jobChallengesTable,
 } from "@workspace/db";
 import { calculateMatchScore } from "./matching";
+import { createApplicationRecord } from "./application-create";
 import { sendNotificationToCandidate } from "./notifier";
 import { logger } from "./logger";
 
@@ -178,21 +178,34 @@ async function attemptAutoApply(
   let applicationId: number | null = null;
   try {
     await db.transaction(async (tx) => {
-      const created = await tx
-        .insert(applicationsTable)
-        .values({
-          jobId: job.id,
-          candidateId: candidate.id,
-          status: "applied",
-          matchScore: rounded,
-          source: "auto_apply",
-        })
-        .returning({ id: applicationsTable.id });
-      const appId = created[0]?.id;
-      if (!appId) throw new Error("auto-apply: application insert returned no id");
-      await tx.insert(applicationStatusHistoryTable).values({
-        applicationId: appId,
-        status: "applied",
+      // Final challenge gate, INSIDE the write transaction. Callers
+      // (runAutoApplyForJob / runAutoApplyPass) pre-filter gated jobs, but that
+      // snapshot can go stale — a challenge may be attached (POST /jobs,
+      // PUT /jobs/:id/challenge) between the pre-filter and this insert. Re-check
+      // immediately before creating the application so a challenge-gated job can
+      // never receive an auto-submitted application, mirroring the manual
+      // POST /applications gate. Lock the job row FOR UPDATE so a concurrent
+      // challenge-attach that also touches the job serializes against us.
+      await tx
+        .select({ id: jobsTable.id })
+        .from(jobsTable)
+        .where(eq(jobsTable.id, job.id))
+        .for("update")
+        .limit(1);
+      const gate = await tx
+        .select({ id: jobChallengesTable.id })
+        .from(jobChallengesTable)
+        .where(eq(jobChallengesTable.jobId, job.id))
+        .limit(1);
+      if (gate[0]) throw new AutoApplyGated();
+      // Reuse the single source of truth for application creation (insert +
+      // status-history seed + mock-interview link) so the auto-apply path can
+      // never drift from the manual POST /applications path.
+      const appId = await createApplicationRecord(tx, {
+        jobId: job.id,
+        candidateId: candidate.id,
+        source: "auto_apply",
+        matchScore: rounded,
         changedBy: null,
       });
       // UNIQUE(candidate_id, job_id) guards against a concurrent duplicate.
@@ -215,6 +228,7 @@ async function attemptAutoApply(
     });
   } catch (err) {
     if (err instanceof AutoApplyDuplicate) return false;
+    if (err instanceof AutoApplyGated) return false;
     logger.warn(
       { err, candidateId: candidate.id, jobId: job.id },
       "auto-apply: submit failed",
@@ -237,6 +251,58 @@ async function attemptAutoApply(
 }
 
 class AutoApplyDuplicate extends Error {}
+/** A challenge was attached to the job before the application could be inserted. */
+class AutoApplyGated extends Error {}
+
+/**
+ * For a challenge-gated job the engine can't submit on a candidate's behalf — a
+ * manual challenge submission is required. Instead of skipping silently, notify
+ * each eligible candidate who clears the match threshold and hasn't already
+ * applied, so they can take the quick test themselves. Best-effort. Only
+ * invoked from the POST /jobs fan-out (once per posting) so candidates aren't
+ * re-nudged on every periodic pass.
+ */
+async function notifyEligibleCandidatesOfGatedJob(
+  job: OpenJob,
+  settings: AutoApplySettingsRow,
+): Promise<void> {
+  const candidates = await loadOptedInCandidates();
+  let processed = 0;
+  for (const candidate of candidates) {
+    if (processed >= 500) break; // safety cap per posting
+    processed += 1;
+    const sub = await loadCurrentAutoApplySubscription(candidate.id);
+    if (!subscriptionUnlocksAutoApply(sub)) continue;
+    const { score } = calculateMatchScore(
+      job.skills,
+      candidate.skills,
+      candidate.yearsExperience,
+      candidate.talentScore,
+    );
+    const rounded = Math.round(score);
+    if (rounded < settings.matchThreshold) continue;
+    // Nothing to nudge if they've already applied (manual or auto).
+    const existing = await db
+      .select({ id: applicationsTable.id })
+      .from(applicationsTable)
+      .where(
+        and(
+          eq(applicationsTable.jobId, job.id),
+          eq(applicationsTable.candidateId, candidate.id),
+        ),
+      )
+      .limit(1);
+    if (existing[0]) continue;
+    void sendNotificationToCandidate(candidate.id, {
+      kind: "auto_apply",
+      title: "A matching job needs a quick skills test",
+      body: `"${job.title}" is a ${rounded}% match, but it requires a short skill challenge before applying — so Auto-Apply couldn't submit for you. Take the test to apply.`,
+      link: `/jobs/${job.id}`,
+      category: "applicationStatus",
+      data: { jobId: job.id, score: rounded, requiresChallenge: true },
+    }).catch(() => {});
+  }
+}
 
 /**
  * Fetch all opted-in, non-deleted candidates. Eligibility against the global
@@ -281,14 +347,18 @@ export async function runAutoApplyForJob(jobId: number): Promise<void> {
   const job = jobRows[0];
   if (!job || job.deletedAt || job.visibility !== "public") return;
 
-  // Skip challenge-gated jobs entirely — a manual challenge submission is
-  // required there, which auto-apply cannot complete.
+  // Challenge-gated jobs can't be auto-submitted (a manual challenge submission
+  // is required). Rather than skip silently, notify matching eligible
+  // candidates so they can take the test themselves, then stop.
   const challenge = await db
     .select({ id: jobChallengesTable.id })
     .from(jobChallengesTable)
     .where(eq(jobChallengesTable.jobId, jobId))
     .limit(1);
-  if (challenge[0]) return;
+  if (challenge[0]) {
+    await notifyEligibleCandidatesOfGatedJob(job, settings);
+    return;
+  }
 
   const candidates = await loadOptedInCandidates();
   let processed = 0;

@@ -38,59 +38,12 @@ import {
 } from "../lib/pagination";
 import { requireAuth } from "../middleware/require-auth";
 import { requirePermission } from "../lib/permissions";
+import {
+  createApplicationRecord,
+  findLatestFinalisedMockInterview,
+} from "../lib/application-create";
 
 const router: IRouter = Router();
-
-/**
- * Look up the most recent finalised mock interview for (candidate,
- * job) and return its sub-scores. Used by both serializeApplication
- * (employer view) and the linker that runs on POST /applications.
- */
-async function findLatestFinalisedMockInterview(
-  candidateId: number,
-  jobId: number,
-): Promise<{
-  id: number;
-  scoreOverall: number;
-  scoreTechnical: number;
-  scoreCommunication: number;
-  scoreCulture: number;
-} | null> {
-  const [row] = await db
-    .select({
-      id: mockInterviewsTable.id,
-      scoreOverall: mockInterviewsTable.scoreOverall,
-      scoreTechnical: mockInterviewsTable.scoreTechnical,
-      scoreCommunication: mockInterviewsTable.scoreCommunication,
-      scoreCulture: mockInterviewsTable.scoreCulture,
-    })
-    .from(mockInterviewsTable)
-    .where(
-      and(
-        eq(mockInterviewsTable.candidateId, candidateId),
-        eq(mockInterviewsTable.jobId, jobId),
-        eq(mockInterviewsTable.status, "finalised"),
-      ),
-    )
-    .orderBy(desc(mockInterviewsTable.completedAt))
-    .limit(1);
-  if (
-    !row ||
-    row.scoreOverall == null ||
-    row.scoreTechnical == null ||
-    row.scoreCommunication == null ||
-    row.scoreCulture == null
-  ) {
-    return null;
-  }
-  return {
-    id: row.id,
-    scoreOverall: row.scoreOverall,
-    scoreTechnical: row.scoreTechnical,
-    scoreCommunication: row.scoreCommunication,
-    scoreCulture: row.scoreCulture,
-  };
-}
 
 /**
  * Single-application path equivalent of the bulk `introByPair`
@@ -741,50 +694,22 @@ router.post("/applications", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  const [created] = await db
-    .insert(applicationsTable)
-    .values({
-      jobId: parsed.data.jobId,
-      candidateId: parsed.data.candidateId,
-      coverNote: parsed.data.coverNote,
-      // `source` is optional in the OpenAPI contract and defaults to
-      // "browse" both in the Zod schema and the DB column, so passing
-      // the parsed value here is always safe.
-      source: parsed.data.source ?? "browse",
-      status: "applied",
-      matchScore: score,
-    })
-    .returning();
-
-  // Link the most recent finalised mock interview for this (candidate,
-  // job) — the score appears next to the keyword match score in the
-  // employer Kanban. Best-effort: never block application creation.
-  try {
-    const mock = await findLatestFinalisedMockInterview(
-      parsed.data.candidateId,
-      parsed.data.jobId,
-    );
-    if (mock) {
-      await db
-        .update(mockInterviewsTable)
-        .set({ applicationId: created.id })
-        .where(eq(mockInterviewsTable.id, mock.id));
-    }
-  } catch (err) {
-    req.log.warn({ err }, "link mock interview to application failed");
-  }
-
-  // Seed the timeline with the initial "applied" milestone so the
-  // candidate-side timeline view always has at least one row of
-  // history for any application created post-engagement-loops.
-  await db.insert(applicationStatusHistoryTable).values({
-    applicationId: created.id,
-    status: "applied",
+  // Shared creation path (see lib/application-create.ts): inserts the
+  // application, seeds the initial "applied" status-history milestone, and
+  // best-effort links the latest finalised mock interview. Auto-apply uses the
+  // same helper so both paths stay in lockstep. `source` is optional in the
+  // OpenAPI contract and defaults to "browse".
+  const createdId = await createApplicationRecord(db, {
+    jobId: parsed.data.jobId,
+    candidateId: parsed.data.candidateId,
+    coverNote: parsed.data.coverNote,
+    source: parsed.data.source ?? "browse",
+    matchScore: score,
     changedBy: req.currentUser?.id ?? null,
   });
 
   const serialized = await serializeApplication(
-    created.id,
+    createdId,
     user.role as "candidate" | "employer" | "institution" | "admin",
   );
   res.status(201).json(serialized);

@@ -113,6 +113,13 @@ export const ADMIN_PERMISSIONS: ReadonlyArray<PermissionDef> = [
       "See total revenue across candidate, institution, and employer services with time-series charts.",
   },
   {
+    key: "auto-apply:manage",
+    label: "Manage AI Auto-Apply",
+    category: "Insights",
+    description:
+      "Turn AI Auto-Apply on/off platform-wide and set its price, match threshold, and daily cap.",
+  },
+  {
     key: "ministries:view",
     label: "View ministries",
     category: "Government",

@@ -41,6 +41,9 @@ import AdminRegistrationsPage from "@/pages/dashboard/admin/registrations";
 import AdminOnboardPage from "@/pages/dashboard/admin/onboard";
 import AdminSiteContentPage from "@/pages/dashboard/admin/site-content";
 import AdminBoostSettingsPage from "@/pages/dashboard/admin/boost-settings";
+import AdminAutoApplySettingsPage from "@/pages/dashboard/admin/auto-apply-settings";
+import CandidateAutoApplyPage from "@/pages/dashboard/candidate/auto-apply";
+import AutoApplyReturnPage from "@/pages/auto-apply/return";
 import AdminPartnersPage from "@/pages/dashboard/admin/partners";
 import AdminCvSettingsPage from "@/pages/dashboard/admin/cv-settings";
 import AdminInstitutionSubscriptionSettingsPage from "@/pages/dashboard/admin/institution-subscription-settings";
@@ -159,6 +162,9 @@ function Router() {
         <Route path="/dashboard/candidate">
           <CandidateLayout><CandidateDashboard /></CandidateLayout>
         </Route>
+        <Route path="/dashboard/candidate/auto-apply">
+          <CandidateLayout><CandidateAutoApplyPage /></CandidateLayout>
+        </Route>
         <Route path="/dashboard/candidate/mentors">
           <CandidateLayout><CandidateMentorsPage /></CandidateLayout>
         </Route>
@@ -261,6 +267,9 @@ function Router() {
         <Route path="/dashboard/admin/boost-settings">
           <AdminLayout><AdminBoostSettingsPage /></AdminLayout>
         </Route>
+        <Route path="/dashboard/admin/auto-apply-settings">
+          <AdminLayout><AdminAutoApplySettingsPage /></AdminLayout>
+        </Route>
         <Route path="/dashboard/admin/cv-settings">
           <AdminLayout><AdminCvSettingsPage /></AdminLayout>
         </Route>
@@ -285,6 +294,7 @@ function Router() {
         <Route path="/institution-subscription/return" component={InstitutionSubscriptionReturnPage} />
         <Route path="/employer-subscription/return" component={EmployerSubscriptionReturnPage} />
         <Route path="/boost/return" component={BoostReturnPage} />
+        <Route path="/auto-apply/return" component={AutoApplyReturnPage} />
         <Route path="/cv/return" component={CvReturnPage} />
         <Route path="/cv/builder" component={CvBuilderPage} />
         <Route path="/dashboard/admin/staff">

@@ -2585,6 +2585,176 @@ export interface VerifyBoostCheckoutResponse {
   boostExpiresAt: string | null;
 }
 
+export interface AutoApplySettings {
+  isActive: boolean;
+  /**
+   * @minimum 50
+   * @maximum 1000000
+   */
+  priceCents: number;
+  /** ISO 4217 lowercase, e.g. 'ngn' */
+  currency: string;
+  /**
+   * @minimum 1
+   * @maximum 365
+   */
+  intervalDays: number;
+  /**
+   * Minimum match score a job must reach to auto-apply.
+   * @minimum 1
+   * @maximum 100
+   */
+  matchThreshold: number;
+  /**
+   * Max auto-submissions per candidate per rolling 24h.
+   * @minimum 1
+   * @maximum 100
+   */
+  dailyCap: number;
+}
+
+export interface UpdateAutoApplySettingsRequest {
+  isActive: boolean;
+  /**
+   * @minimum 50
+   * @maximum 1000000
+   */
+  priceCents: number;
+  currency: string;
+  /**
+   * @minimum 1
+   * @maximum 365
+   */
+  intervalDays: number;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  matchThreshold: number;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  dailyCap: number;
+}
+
+export type AutoApplySubscriptionStatus =
+  (typeof AutoApplySubscriptionStatus)[keyof typeof AutoApplySubscriptionStatus];
+
+export const AutoApplySubscriptionStatus = {
+  pending: "pending",
+  trialing: "trialing",
+  active: "active",
+  expired: "expired",
+  canceled: "canceled",
+  failed: "failed",
+} as const;
+
+export type AutoApplySubscriptionProvider =
+  (typeof AutoApplySubscriptionProvider)[keyof typeof AutoApplySubscriptionProvider];
+
+export const AutoApplySubscriptionProvider = {
+  stripe: "stripe",
+  paystack: "paystack",
+} as const;
+
+export interface AutoApplySubscription {
+  status: AutoApplySubscriptionStatus;
+  provider: AutoApplySubscriptionProvider;
+  currentPeriodEnd: string | null;
+  priceCents: number;
+  currency: string;
+  intervalDays: number;
+}
+
+export interface AutoApplyStatusResponse {
+  settings: AutoApplySettings;
+  enabled: boolean;
+  subscription: AutoApplySubscription | null;
+  subscriptionActive: boolean;
+  /** True only when global switch + toggle + active sub all align. */
+  eligible: boolean;
+  usedToday: number;
+  dailyCap: number;
+}
+
+export interface ToggleAutoApplyRequest {
+  enabled: boolean;
+}
+
+export interface ToggleAutoApplyResponse {
+  enabled: boolean;
+}
+
+/**
+ * Optional rail override (server may ignore).
+ */
+export type CreateAutoApplyCheckoutRequestRail =
+  (typeof CreateAutoApplyCheckoutRequestRail)[keyof typeof CreateAutoApplyCheckoutRequestRail];
+
+export const CreateAutoApplyCheckoutRequestRail = {
+  stripe: "stripe",
+  paystack: "paystack",
+} as const;
+
+export interface CreateAutoApplyCheckoutRequest {
+  /** Absolute URL the candidate returns to after payment. */
+  successUrl: string;
+  /** Absolute URL the candidate returns to if they cancel. */
+  cancelUrl: string;
+  /** Optional rail override (server may ignore). */
+  rail?: CreateAutoApplyCheckoutRequestRail;
+}
+
+export type CreateAutoApplyCheckoutResponseProvider =
+  (typeof CreateAutoApplyCheckoutResponseProvider)[keyof typeof CreateAutoApplyCheckoutResponseProvider];
+
+export const CreateAutoApplyCheckoutResponseProvider = {
+  stripe: "stripe",
+  paystack: "paystack",
+} as const;
+
+export interface CreateAutoApplyCheckoutResponse {
+  sessionId: string;
+  checkoutUrl: string;
+  provider: CreateAutoApplyCheckoutResponseProvider;
+}
+
+/**
+ * Accepts EITHER a Stripe checkout session id OR a Paystack transaction reference. The server resolves the row by whichever is present.
+ */
+export interface VerifyAutoApplyCheckoutRequest {
+  sessionId?: string;
+  reference?: string;
+}
+
+export type VerifyAutoApplyCheckoutResponseStatus =
+  (typeof VerifyAutoApplyCheckoutResponseStatus)[keyof typeof VerifyAutoApplyCheckoutResponseStatus];
+
+export const VerifyAutoApplyCheckoutResponseStatus = {
+  pending: "pending",
+  trialing: "trialing",
+  active: "active",
+  expired: "expired",
+  canceled: "canceled",
+  failed: "failed",
+} as const;
+
+export interface VerifyAutoApplyCheckoutResponse {
+  status: VerifyAutoApplyCheckoutResponseStatus;
+  currentPeriodEnd: string | null;
+  alreadyFinalized?: boolean;
+}
+
+export interface AutoApplyActivityItem {
+  id: number;
+  jobId: number;
+  applicationId: number | null;
+  matchScore: number;
+  jobTitle: string;
+  createdAt: string;
+}
+
 /**
  * Billing cycle length. 30 = monthly, 365 = yearly.
  */

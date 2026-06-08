@@ -1,2 +1,1 @@
-- [Production hosting](deployment-render.md) — live prod is the user's Render deploy (custom domain) with its OWN database, NOT the Replit deployment; fixes must reach Render.
-- [Forced password change](forced-password-change.md) — mustChangePassword must be enforced server-side via a gate middleware, not just the web ForcedPasswordGate (UX only).
+- [Stripe subscription table wiring](stripe-subscription-tables.md) — new recurring-sub tables must be wired into applyStripeSubscriptionUpdate + markStripeSubscriptionCanceled, not just the checkout finalizer; auto_apply_log only logs true engine submissions.

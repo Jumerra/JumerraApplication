@@ -9,6 +9,7 @@ export * from "./site";
 export * from "./admin-roles";
 export * from "./notifications";
 export * from "./boost";
+export * from "./auto-apply";
 export * from "./cv";
 export * from "./institution-subscription";
 export * from "./employer-subscription";

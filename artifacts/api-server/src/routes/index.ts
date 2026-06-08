@@ -19,6 +19,7 @@ import orgRolesRouter from "./org-roles";
 import notificationsRouter from "./notifications";
 import storageRouter from "./storage";
 import boostRouter from "./boost";
+import autoApplyRouter from "./auto-apply";
 import partnersRouter from "./partners";
 import cvRouter from "./cv";
 import institutionSubscriptionRouter from "./institution-subscription";
@@ -129,6 +130,10 @@ router.use(orgRolesRouter);
 router.use(notificationsRouter);
 router.use(storageRouter);
 router.use(boostRouter);
+// AI Auto-Apply. Mounts /auto-apply/* and /candidates/:id/auto-apply/*
+// with its own per-route auth, so it must sit BEFORE the generic
+// /candidates requireAuth gate to avoid being caught by it.
+router.use(autoApplyRouter);
 router.use(partnersRouter);
 router.use(cvRouter);
 router.use(institutionSubscriptionRouter);

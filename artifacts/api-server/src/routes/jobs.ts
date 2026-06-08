@@ -27,6 +27,7 @@ import { requireAuth, attachUser } from "../middleware/require-auth";
 import { notDeleted } from "../lib/soft-delete";
 import { requirePermission } from "../lib/permissions";
 import { sweepExpiredJobTiers } from "./job-tier";
+import { runAutoApplyForJob } from "../lib/auto-apply";
 
 const router: IRouter = Router();
 
@@ -318,6 +319,13 @@ router.post(
       // best-effort
     }
   })();
+
+  // AI Auto-Apply fan-out: submit on behalf of subscribed, opted-in
+  // candidates whose profile clears the admin-configured threshold for this
+  // posting. Best-effort + self-capped so it never blocks the POST response.
+  void runAutoApplyForJob(created.id).catch((err) => {
+    req.log.warn({ err, jobId: created.id }, "auto-apply fan-out failed");
+  });
 
   // Auto-attach a default skill challenge unless the employer
   // explicitly opted out (`includeChallenge: false`). Pulls one

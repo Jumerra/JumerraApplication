@@ -3112,6 +3112,209 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
 
+  /auto-apply/settings:
+    get:
+      operationId: getAutoApplySettings
+      tags: [auto-apply]
+      summary: Read the global AI Auto-Apply configuration
+      responses:
+        "200":
+          description: Auto-Apply settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AutoApplySettings" }
+
+  /admin/auto-apply/settings:
+    put:
+      operationId: updateAutoApplySettings
+      tags: [auto-apply, admin]
+      summary: Update AI Auto-Apply configuration (requires auto-apply:manage)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateAutoApplySettingsRequest" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AutoApplySettings" }
+        "400": { description: Invalid input }
+        "403": { description: Missing permission }
+
+  /candidates/{id}/auto-apply/status:
+    get:
+      operationId: getAutoApplyStatus
+      tags: [auto-apply, candidates]
+      summary: Read a candidate's Auto-Apply status, subscription, and usage
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Auto-Apply status
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AutoApplyStatusResponse" }
+        "403":
+          description: Not allowed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Candidate not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /candidates/{id}/auto-apply/toggle:
+    put:
+      operationId: toggleAutoApply
+      tags: [auto-apply, candidates]
+      summary: Turn a candidate's Auto-Apply opt-in on or off
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ToggleAutoApplyRequest" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ToggleAutoApplyResponse" }
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
+          description: Not allowed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Candidate not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /candidates/{id}/auto-apply/checkout:
+    post:
+      operationId: createAutoApplyCheckout
+      tags: [auto-apply, candidates]
+      summary: Start an AI Auto-Apply subscription checkout for this candidate
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateAutoApplyCheckoutRequest" }
+      responses:
+        "200":
+          description: Checkout session created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CreateAutoApplyCheckoutResponse" }
+        "400":
+          description: Auto-Apply is disabled or invalid input
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
+          description: Not allowed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Candidate not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: Candidate already has an active subscription
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "500":
+          description: Unexpected server error
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "502":
+          description: Provider rejected the checkout request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /auto-apply/checkout/verify:
+    post:
+      operationId: verifyAutoApplyCheckout
+      tags: [auto-apply]
+      summary: Verify an Auto-Apply checkout and activate the subscription
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VerifyAutoApplyCheckoutRequest" }
+      responses:
+        "200":
+          description: Verification result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VerifyAutoApplyCheckoutResponse" }
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
+          description: Not allowed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Session not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /candidates/{id}/auto-apply/activity:
+    get:
+      operationId: listAutoApplyActivity
+      tags: [auto-apply, candidates]
+      summary: List recent jobs Auto-Apply submitted on the candidate's behalf
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Recent Auto-Apply activity
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AutoApplyActivityItem" }
+        "403":
+          description: Not allowed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
   /candidates/{id}/profile-views:
     get:
       operationId: listCandidateProfileViews
@@ -7568,6 +7771,138 @@ components:
           format: date-time
           nullable: true
       required: [status, boostExpiresAt]
+
+    AutoApplySettings:
+      type: object
+      properties:
+        isActive: { type: boolean }
+        priceCents: { type: integer, minimum: 50, maximum: 1000000 }
+        currency: { type: string, description: "ISO 4217 lowercase, e.g. 'ngn'" }
+        intervalDays: { type: integer, minimum: 1, maximum: 365 }
+        matchThreshold:
+          type: integer
+          minimum: 1
+          maximum: 100
+          description: "Minimum match score a job must reach to auto-apply."
+        dailyCap:
+          type: integer
+          minimum: 1
+          maximum: 100
+          description: "Max auto-submissions per candidate per rolling 24h."
+      required: [isActive, priceCents, currency, intervalDays, matchThreshold, dailyCap]
+
+    UpdateAutoApplySettingsRequest:
+      type: object
+      properties:
+        isActive: { type: boolean }
+        priceCents: { type: integer, minimum: 50, maximum: 1000000 }
+        currency: { type: string }
+        intervalDays: { type: integer, minimum: 1, maximum: 365 }
+        matchThreshold: { type: integer, minimum: 1, maximum: 100 }
+        dailyCap: { type: integer, minimum: 1, maximum: 100 }
+      required: [isActive, priceCents, currency, intervalDays, matchThreshold, dailyCap]
+
+    AutoApplySubscription:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pending, trialing, active, expired, canceled, failed]
+        provider: { type: string, enum: [stripe, paystack] }
+        currentPeriodEnd:
+          type: string
+          format: date-time
+          nullable: true
+        priceCents: { type: integer }
+        currency: { type: string }
+        intervalDays: { type: integer }
+      required: [status, provider, currentPeriodEnd, priceCents, currency, intervalDays]
+
+    AutoApplyStatusResponse:
+      type: object
+      properties:
+        settings: { $ref: "#/components/schemas/AutoApplySettings" }
+        enabled: { type: boolean }
+        subscription:
+          allOf:
+            - $ref: "#/components/schemas/AutoApplySubscription"
+          nullable: true
+        subscriptionActive: { type: boolean }
+        eligible:
+          type: boolean
+          description: "True only when global switch + toggle + active sub all align."
+        usedToday: { type: integer }
+        dailyCap: { type: integer }
+      required: [settings, enabled, subscription, subscriptionActive, eligible, usedToday, dailyCap]
+
+    ToggleAutoApplyRequest:
+      type: object
+      properties:
+        enabled: { type: boolean }
+      required: [enabled]
+
+    ToggleAutoApplyResponse:
+      type: object
+      properties:
+        enabled: { type: boolean }
+      required: [enabled]
+
+    CreateAutoApplyCheckoutRequest:
+      type: object
+      properties:
+        successUrl:
+          type: string
+          description: Absolute URL the candidate returns to after payment.
+        cancelUrl:
+          type: string
+          description: Absolute URL the candidate returns to if they cancel.
+        rail:
+          type: string
+          enum: [stripe, paystack]
+          description: Optional rail override (server may ignore).
+      required: [successUrl, cancelUrl]
+
+    CreateAutoApplyCheckoutResponse:
+      type: object
+      properties:
+        sessionId: { type: string }
+        checkoutUrl: { type: string }
+        provider: { type: string, enum: [stripe, paystack] }
+      required: [sessionId, checkoutUrl, provider]
+
+    VerifyAutoApplyCheckoutRequest:
+      type: object
+      description: >-
+        Accepts EITHER a Stripe checkout session id OR a Paystack
+        transaction reference. The server resolves the row by whichever
+        is present.
+      properties:
+        sessionId: { type: string }
+        reference: { type: string }
+
+    VerifyAutoApplyCheckoutResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pending, trialing, active, expired, canceled, failed]
+        currentPeriodEnd:
+          type: string
+          format: date-time
+          nullable: true
+        alreadyFinalized: { type: boolean }
+      required: [status, currentPeriodEnd]
+
+    AutoApplyActivityItem:
+      type: object
+      properties:
+        id: { type: integer }
+        jobId: { type: integer }
+        applicationId: { type: integer, nullable: true }
+        matchScore: { type: integer }
+        jobTitle: { type: string }
+        createdAt: { type: string, format: date-time }
+      required: [id, jobId, applicationId, matchScore, jobTitle, createdAt]
 
     InstitutionSubscriptionSettings:
       type: object

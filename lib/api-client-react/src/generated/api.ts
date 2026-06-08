@@ -57,6 +57,9 @@ import type {
   AssignAccountManagerResponse,
   AuditLogEntry,
   AuthSession,
+  AutoApplyActivityItem,
+  AutoApplySettings,
+  AutoApplyStatusResponse,
   BackgroundCheck,
   BoostSettings,
   BulkVerifyInstitutionStudents402,
@@ -76,6 +79,8 @@ import type {
   CompleteGrowthSkill200,
   CompleteGrowthSkillBody,
   CreateApplication,
+  CreateAutoApplyCheckoutRequest,
+  CreateAutoApplyCheckoutResponse,
   CreateBoostCheckoutRequest,
   CreateBoostCheckoutResponse,
   CreateCandidate,
@@ -215,9 +220,12 @@ import type {
   SubmitReferenceRequest,
   TalentPool,
   TalentPoolDetail,
+  ToggleAutoApplyRequest,
+  ToggleAutoApplyResponse,
   TrashItem,
   TrashSettings,
   UpdateApplication,
+  UpdateAutoApplySettingsRequest,
   UpdateBoostSettingsRequest,
   UpdateCandidate,
   UpdateCvSettingsRequest,
@@ -237,6 +245,8 @@ import type {
   UploadUrlRequest,
   UploadUrlResponse,
   VerifiedSkill,
+  VerifyAutoApplyCheckoutRequest,
+  VerifyAutoApplyCheckoutResponse,
   VerifyBoostCheckoutRequest,
   VerifyBoostCheckoutResponse,
   VerifyCheckoutSessionRequest,
@@ -12866,6 +12876,611 @@ export const useVerifyBoostCheckout = <
 > => {
   return useMutation(getVerifyBoostCheckoutMutationOptions(options));
 };
+
+/**
+ * @summary Read the global AI Auto-Apply configuration
+ */
+export const getGetAutoApplySettingsUrl = () => {
+  return `/api/auto-apply/settings`;
+};
+
+export const getAutoApplySettings = async (
+  options?: RequestInit,
+): Promise<AutoApplySettings> => {
+  return customFetch<AutoApplySettings>(getGetAutoApplySettingsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetAutoApplySettingsQueryKey = () => {
+  return [`/api/auto-apply/settings`] as const;
+};
+
+export const getGetAutoApplySettingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAutoApplySettings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getAutoApplySettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetAutoApplySettingsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getAutoApplySettings>>
+  > = ({ signal }) => getAutoApplySettings({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAutoApplySettings>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetAutoApplySettingsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAutoApplySettings>>
+>;
+export type GetAutoApplySettingsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Read the global AI Auto-Apply configuration
+ */
+
+export function useGetAutoApplySettings<
+  TData = Awaited<ReturnType<typeof getAutoApplySettings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getAutoApplySettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAutoApplySettingsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update AI Auto-Apply configuration (requires auto-apply:manage)
+ */
+export const getUpdateAutoApplySettingsUrl = () => {
+  return `/api/admin/auto-apply/settings`;
+};
+
+export const updateAutoApplySettings = async (
+  updateAutoApplySettingsRequest: UpdateAutoApplySettingsRequest,
+  options?: RequestInit,
+): Promise<AutoApplySettings> => {
+  return customFetch<AutoApplySettings>(getUpdateAutoApplySettingsUrl(), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateAutoApplySettingsRequest),
+  });
+};
+
+export const getUpdateAutoApplySettingsMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateAutoApplySettings>>,
+    TError,
+    { data: BodyType<UpdateAutoApplySettingsRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateAutoApplySettings>>,
+  TError,
+  { data: BodyType<UpdateAutoApplySettingsRequest> },
+  TContext
+> => {
+  const mutationKey = ["updateAutoApplySettings"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateAutoApplySettings>>,
+    { data: BodyType<UpdateAutoApplySettingsRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateAutoApplySettings(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateAutoApplySettingsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateAutoApplySettings>>
+>;
+export type UpdateAutoApplySettingsMutationBody =
+  BodyType<UpdateAutoApplySettingsRequest>;
+export type UpdateAutoApplySettingsMutationError = ErrorType<void>;
+
+/**
+ * @summary Update AI Auto-Apply configuration (requires auto-apply:manage)
+ */
+export const useUpdateAutoApplySettings = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateAutoApplySettings>>,
+    TError,
+    { data: BodyType<UpdateAutoApplySettingsRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateAutoApplySettings>>,
+  TError,
+  { data: BodyType<UpdateAutoApplySettingsRequest> },
+  TContext
+> => {
+  return useMutation(getUpdateAutoApplySettingsMutationOptions(options));
+};
+
+/**
+ * @summary Read a candidate's Auto-Apply status, subscription, and usage
+ */
+export const getGetAutoApplyStatusUrl = (id: number) => {
+  return `/api/candidates/${id}/auto-apply/status`;
+};
+
+export const getAutoApplyStatus = async (
+  id: number,
+  options?: RequestInit,
+): Promise<AutoApplyStatusResponse> => {
+  return customFetch<AutoApplyStatusResponse>(getGetAutoApplyStatusUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetAutoApplyStatusQueryKey = (id: number) => {
+  return [`/api/candidates/${id}/auto-apply/status`] as const;
+};
+
+export const getGetAutoApplyStatusQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAutoApplyStatus>>,
+  TError = ErrorType<Error>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAutoApplyStatus>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetAutoApplyStatusQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getAutoApplyStatus>>
+  > = ({ signal }) => getAutoApplyStatus(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAutoApplyStatus>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetAutoApplyStatusQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAutoApplyStatus>>
+>;
+export type GetAutoApplyStatusQueryError = ErrorType<Error>;
+
+/**
+ * @summary Read a candidate's Auto-Apply status, subscription, and usage
+ */
+
+export function useGetAutoApplyStatus<
+  TData = Awaited<ReturnType<typeof getAutoApplyStatus>>,
+  TError = ErrorType<Error>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAutoApplyStatus>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAutoApplyStatusQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Turn a candidate's Auto-Apply opt-in on or off
+ */
+export const getToggleAutoApplyUrl = (id: number) => {
+  return `/api/candidates/${id}/auto-apply/toggle`;
+};
+
+export const toggleAutoApply = async (
+  id: number,
+  toggleAutoApplyRequest: ToggleAutoApplyRequest,
+  options?: RequestInit,
+): Promise<ToggleAutoApplyResponse> => {
+  return customFetch<ToggleAutoApplyResponse>(getToggleAutoApplyUrl(id), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(toggleAutoApplyRequest),
+  });
+};
+
+export const getToggleAutoApplyMutationOptions = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof toggleAutoApply>>,
+    TError,
+    { id: number; data: BodyType<ToggleAutoApplyRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof toggleAutoApply>>,
+  TError,
+  { id: number; data: BodyType<ToggleAutoApplyRequest> },
+  TContext
+> => {
+  const mutationKey = ["toggleAutoApply"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof toggleAutoApply>>,
+    { id: number; data: BodyType<ToggleAutoApplyRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return toggleAutoApply(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ToggleAutoApplyMutationResult = NonNullable<
+  Awaited<ReturnType<typeof toggleAutoApply>>
+>;
+export type ToggleAutoApplyMutationBody = BodyType<ToggleAutoApplyRequest>;
+export type ToggleAutoApplyMutationError = ErrorType<Error>;
+
+/**
+ * @summary Turn a candidate's Auto-Apply opt-in on or off
+ */
+export const useToggleAutoApply = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof toggleAutoApply>>,
+    TError,
+    { id: number; data: BodyType<ToggleAutoApplyRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof toggleAutoApply>>,
+  TError,
+  { id: number; data: BodyType<ToggleAutoApplyRequest> },
+  TContext
+> => {
+  return useMutation(getToggleAutoApplyMutationOptions(options));
+};
+
+/**
+ * @summary Start an AI Auto-Apply subscription checkout for this candidate
+ */
+export const getCreateAutoApplyCheckoutUrl = (id: number) => {
+  return `/api/candidates/${id}/auto-apply/checkout`;
+};
+
+export const createAutoApplyCheckout = async (
+  id: number,
+  createAutoApplyCheckoutRequest: CreateAutoApplyCheckoutRequest,
+  options?: RequestInit,
+): Promise<CreateAutoApplyCheckoutResponse> => {
+  return customFetch<CreateAutoApplyCheckoutResponse>(
+    getCreateAutoApplyCheckoutUrl(id),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(createAutoApplyCheckoutRequest),
+    },
+  );
+};
+
+export const getCreateAutoApplyCheckoutMutationOptions = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createAutoApplyCheckout>>,
+    TError,
+    { id: number; data: BodyType<CreateAutoApplyCheckoutRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createAutoApplyCheckout>>,
+  TError,
+  { id: number; data: BodyType<CreateAutoApplyCheckoutRequest> },
+  TContext
+> => {
+  const mutationKey = ["createAutoApplyCheckout"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createAutoApplyCheckout>>,
+    { id: number; data: BodyType<CreateAutoApplyCheckoutRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return createAutoApplyCheckout(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateAutoApplyCheckoutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createAutoApplyCheckout>>
+>;
+export type CreateAutoApplyCheckoutMutationBody =
+  BodyType<CreateAutoApplyCheckoutRequest>;
+export type CreateAutoApplyCheckoutMutationError = ErrorType<Error>;
+
+/**
+ * @summary Start an AI Auto-Apply subscription checkout for this candidate
+ */
+export const useCreateAutoApplyCheckout = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createAutoApplyCheckout>>,
+    TError,
+    { id: number; data: BodyType<CreateAutoApplyCheckoutRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createAutoApplyCheckout>>,
+  TError,
+  { id: number; data: BodyType<CreateAutoApplyCheckoutRequest> },
+  TContext
+> => {
+  return useMutation(getCreateAutoApplyCheckoutMutationOptions(options));
+};
+
+/**
+ * @summary Verify an Auto-Apply checkout and activate the subscription
+ */
+export const getVerifyAutoApplyCheckoutUrl = () => {
+  return `/api/auto-apply/checkout/verify`;
+};
+
+export const verifyAutoApplyCheckout = async (
+  verifyAutoApplyCheckoutRequest: VerifyAutoApplyCheckoutRequest,
+  options?: RequestInit,
+): Promise<VerifyAutoApplyCheckoutResponse> => {
+  return customFetch<VerifyAutoApplyCheckoutResponse>(
+    getVerifyAutoApplyCheckoutUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(verifyAutoApplyCheckoutRequest),
+    },
+  );
+};
+
+export const getVerifyAutoApplyCheckoutMutationOptions = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof verifyAutoApplyCheckout>>,
+    TError,
+    { data: BodyType<VerifyAutoApplyCheckoutRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof verifyAutoApplyCheckout>>,
+  TError,
+  { data: BodyType<VerifyAutoApplyCheckoutRequest> },
+  TContext
+> => {
+  const mutationKey = ["verifyAutoApplyCheckout"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof verifyAutoApplyCheckout>>,
+    { data: BodyType<VerifyAutoApplyCheckoutRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return verifyAutoApplyCheckout(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type VerifyAutoApplyCheckoutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof verifyAutoApplyCheckout>>
+>;
+export type VerifyAutoApplyCheckoutMutationBody =
+  BodyType<VerifyAutoApplyCheckoutRequest>;
+export type VerifyAutoApplyCheckoutMutationError = ErrorType<Error>;
+
+/**
+ * @summary Verify an Auto-Apply checkout and activate the subscription
+ */
+export const useVerifyAutoApplyCheckout = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof verifyAutoApplyCheckout>>,
+    TError,
+    { data: BodyType<VerifyAutoApplyCheckoutRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof verifyAutoApplyCheckout>>,
+  TError,
+  { data: BodyType<VerifyAutoApplyCheckoutRequest> },
+  TContext
+> => {
+  return useMutation(getVerifyAutoApplyCheckoutMutationOptions(options));
+};
+
+/**
+ * @summary List recent jobs Auto-Apply submitted on the candidate's behalf
+ */
+export const getListAutoApplyActivityUrl = (id: number) => {
+  return `/api/candidates/${id}/auto-apply/activity`;
+};
+
+export const listAutoApplyActivity = async (
+  id: number,
+  options?: RequestInit,
+): Promise<AutoApplyActivityItem[]> => {
+  return customFetch<AutoApplyActivityItem[]>(getListAutoApplyActivityUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListAutoApplyActivityQueryKey = (id: number) => {
+  return [`/api/candidates/${id}/auto-apply/activity`] as const;
+};
+
+export const getListAutoApplyActivityQueryOptions = <
+  TData = Awaited<ReturnType<typeof listAutoApplyActivity>>,
+  TError = ErrorType<Error>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listAutoApplyActivity>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListAutoApplyActivityQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listAutoApplyActivity>>
+  > = ({ signal }) => listAutoApplyActivity(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listAutoApplyActivity>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListAutoApplyActivityQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listAutoApplyActivity>>
+>;
+export type ListAutoApplyActivityQueryError = ErrorType<Error>;
+
+/**
+ * @summary List recent jobs Auto-Apply submitted on the candidate's behalf
+ */
+
+export function useListAutoApplyActivity<
+  TData = Awaited<ReturnType<typeof listAutoApplyActivity>>,
+  TError = ErrorType<Error>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listAutoApplyActivity>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListAutoApplyActivityQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * Owner-only. Returns up to 100 most-recent profile views, grouped

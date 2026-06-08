@@ -54,6 +54,11 @@ export const candidatesTable = pgTable("candidates", {
   allowIntroRequests: boolean("allow_intro_requests").notNull().default(true),
   aiCvUnlocked: boolean("ai_cv_unlocked").notNull().default(false),
   aiCvUnlockedAt: timestamp("ai_cv_unlocked_at", { withTimezone: true }),
+  // AI Auto-Apply opt-in toggle. When true AND the candidate has an
+  // active Auto-Apply subscription AND the global feature is on, the
+  // engine submits applications to strongly-matching jobs on their
+  // behalf. Defaults false — strictly opt-in.
+  autoApplyEnabled: boolean("auto_apply_enabled").notNull().default(false),
   aiCvText: text("ai_cv_text"),
   aiCvGeneratedAt: timestamp("ai_cv_generated_at", { withTimezone: true }),
   // Primary institution affiliation (back-compat). All affiliations

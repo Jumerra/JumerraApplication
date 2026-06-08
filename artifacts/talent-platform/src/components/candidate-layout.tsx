@@ -32,6 +32,7 @@ import {
   Briefcase,
   ShieldAlert,
   ArrowLeft,
+  Wand2,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { SidebarLogoutButton } from "@/components/sidebar-logout";
@@ -68,6 +69,11 @@ const NAV: CandidateNavGroup[] = [
         icon: LayoutDashboard,
       },
       { href: "/jobs", label: "Find jobs", icon: Briefcase },
+      {
+        href: "/dashboard/candidate/auto-apply",
+        label: "AI Auto-Apply",
+        icon: Wand2,
+      },
     ],
   },
   {

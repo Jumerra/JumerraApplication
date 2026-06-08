@@ -5634,6 +5634,253 @@ export const VerifyBoostCheckoutResponse = zod.object({
 });
 
 /**
+ * @summary Read the global AI Auto-Apply configuration
+ */
+export const getAutoApplySettingsResponsePriceCentsMin = 50;
+export const getAutoApplySettingsResponsePriceCentsMax = 1000000;
+
+export const getAutoApplySettingsResponseIntervalDaysMax = 365;
+
+export const getAutoApplySettingsResponseMatchThresholdMax = 100;
+
+export const getAutoApplySettingsResponseDailyCapMax = 100;
+
+export const GetAutoApplySettingsResponse = zod.object({
+  isActive: zod.boolean(),
+  priceCents: zod
+    .number()
+    .min(getAutoApplySettingsResponsePriceCentsMin)
+    .max(getAutoApplySettingsResponsePriceCentsMax),
+  currency: zod.string().describe("ISO 4217 lowercase, e.g. 'ngn'"),
+  intervalDays: zod
+    .number()
+    .min(1)
+    .max(getAutoApplySettingsResponseIntervalDaysMax),
+  matchThreshold: zod
+    .number()
+    .min(1)
+    .max(getAutoApplySettingsResponseMatchThresholdMax)
+    .describe("Minimum match score a job must reach to auto-apply."),
+  dailyCap: zod
+    .number()
+    .min(1)
+    .max(getAutoApplySettingsResponseDailyCapMax)
+    .describe("Max auto-submissions per candidate per rolling 24h."),
+});
+
+/**
+ * @summary Update AI Auto-Apply configuration (requires auto-apply:manage)
+ */
+export const updateAutoApplySettingsBodyPriceCentsMin = 50;
+export const updateAutoApplySettingsBodyPriceCentsMax = 1000000;
+
+export const updateAutoApplySettingsBodyIntervalDaysMax = 365;
+
+export const updateAutoApplySettingsBodyMatchThresholdMax = 100;
+
+export const updateAutoApplySettingsBodyDailyCapMax = 100;
+
+export const UpdateAutoApplySettingsBody = zod.object({
+  isActive: zod.boolean(),
+  priceCents: zod
+    .number()
+    .min(updateAutoApplySettingsBodyPriceCentsMin)
+    .max(updateAutoApplySettingsBodyPriceCentsMax),
+  currency: zod.string(),
+  intervalDays: zod
+    .number()
+    .min(1)
+    .max(updateAutoApplySettingsBodyIntervalDaysMax),
+  matchThreshold: zod
+    .number()
+    .min(1)
+    .max(updateAutoApplySettingsBodyMatchThresholdMax),
+  dailyCap: zod.number().min(1).max(updateAutoApplySettingsBodyDailyCapMax),
+});
+
+export const updateAutoApplySettingsResponsePriceCentsMin = 50;
+export const updateAutoApplySettingsResponsePriceCentsMax = 1000000;
+
+export const updateAutoApplySettingsResponseIntervalDaysMax = 365;
+
+export const updateAutoApplySettingsResponseMatchThresholdMax = 100;
+
+export const updateAutoApplySettingsResponseDailyCapMax = 100;
+
+export const UpdateAutoApplySettingsResponse = zod.object({
+  isActive: zod.boolean(),
+  priceCents: zod
+    .number()
+    .min(updateAutoApplySettingsResponsePriceCentsMin)
+    .max(updateAutoApplySettingsResponsePriceCentsMax),
+  currency: zod.string().describe("ISO 4217 lowercase, e.g. 'ngn'"),
+  intervalDays: zod
+    .number()
+    .min(1)
+    .max(updateAutoApplySettingsResponseIntervalDaysMax),
+  matchThreshold: zod
+    .number()
+    .min(1)
+    .max(updateAutoApplySettingsResponseMatchThresholdMax)
+    .describe("Minimum match score a job must reach to auto-apply."),
+  dailyCap: zod
+    .number()
+    .min(1)
+    .max(updateAutoApplySettingsResponseDailyCapMax)
+    .describe("Max auto-submissions per candidate per rolling 24h."),
+});
+
+/**
+ * @summary Read a candidate's Auto-Apply status, subscription, and usage
+ */
+export const GetAutoApplyStatusParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const getAutoApplyStatusResponseSettingsPriceCentsMin = 50;
+export const getAutoApplyStatusResponseSettingsPriceCentsMax = 1000000;
+
+export const getAutoApplyStatusResponseSettingsIntervalDaysMax = 365;
+
+export const getAutoApplyStatusResponseSettingsMatchThresholdMax = 100;
+
+export const getAutoApplyStatusResponseSettingsDailyCapMax = 100;
+
+export const GetAutoApplyStatusResponse = zod.object({
+  settings: zod.object({
+    isActive: zod.boolean(),
+    priceCents: zod
+      .number()
+      .min(getAutoApplyStatusResponseSettingsPriceCentsMin)
+      .max(getAutoApplyStatusResponseSettingsPriceCentsMax),
+    currency: zod.string().describe("ISO 4217 lowercase, e.g. 'ngn'"),
+    intervalDays: zod
+      .number()
+      .min(1)
+      .max(getAutoApplyStatusResponseSettingsIntervalDaysMax),
+    matchThreshold: zod
+      .number()
+      .min(1)
+      .max(getAutoApplyStatusResponseSettingsMatchThresholdMax)
+      .describe("Minimum match score a job must reach to auto-apply."),
+    dailyCap: zod
+      .number()
+      .min(1)
+      .max(getAutoApplyStatusResponseSettingsDailyCapMax)
+      .describe("Max auto-submissions per candidate per rolling 24h."),
+  }),
+  enabled: zod.boolean(),
+  subscription: zod
+    .object({
+      status: zod.enum([
+        "pending",
+        "trialing",
+        "active",
+        "expired",
+        "canceled",
+        "failed",
+      ]),
+      provider: zod.enum(["stripe", "paystack"]),
+      currentPeriodEnd: zod.coerce.date().nullable(),
+      priceCents: zod.number(),
+      currency: zod.string(),
+      intervalDays: zod.number(),
+    })
+    .nullable(),
+  subscriptionActive: zod.boolean(),
+  eligible: zod
+    .boolean()
+    .describe("True only when global switch + toggle + active sub all align."),
+  usedToday: zod.number(),
+  dailyCap: zod.number(),
+});
+
+/**
+ * @summary Turn a candidate's Auto-Apply opt-in on or off
+ */
+export const ToggleAutoApplyParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ToggleAutoApplyBody = zod.object({
+  enabled: zod.boolean(),
+});
+
+export const ToggleAutoApplyResponse = zod.object({
+  enabled: zod.boolean(),
+});
+
+/**
+ * @summary Start an AI Auto-Apply subscription checkout for this candidate
+ */
+export const CreateAutoApplyCheckoutParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const CreateAutoApplyCheckoutBody = zod.object({
+  successUrl: zod
+    .string()
+    .describe("Absolute URL the candidate returns to after payment."),
+  cancelUrl: zod
+    .string()
+    .describe("Absolute URL the candidate returns to if they cancel."),
+  rail: zod
+    .enum(["stripe", "paystack"])
+    .optional()
+    .describe("Optional rail override (server may ignore)."),
+});
+
+export const CreateAutoApplyCheckoutResponse = zod.object({
+  sessionId: zod.string(),
+  checkoutUrl: zod.string(),
+  provider: zod.enum(["stripe", "paystack"]),
+});
+
+/**
+ * @summary Verify an Auto-Apply checkout and activate the subscription
+ */
+export const VerifyAutoApplyCheckoutBody = zod
+  .object({
+    sessionId: zod.string().optional(),
+    reference: zod.string().optional(),
+  })
+  .describe(
+    "Accepts EITHER a Stripe checkout session id OR a Paystack transaction reference. The server resolves the row by whichever is present.",
+  );
+
+export const VerifyAutoApplyCheckoutResponse = zod.object({
+  status: zod.enum([
+    "pending",
+    "trialing",
+    "active",
+    "expired",
+    "canceled",
+    "failed",
+  ]),
+  currentPeriodEnd: zod.coerce.date().nullable(),
+  alreadyFinalized: zod.boolean().optional(),
+});
+
+/**
+ * @summary List recent jobs Auto-Apply submitted on the candidate's behalf
+ */
+export const ListAutoApplyActivityParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ListAutoApplyActivityResponseItem = zod.object({
+  id: zod.number(),
+  jobId: zod.number(),
+  applicationId: zod.number().nullable(),
+  matchScore: zod.number(),
+  jobTitle: zod.string(),
+  createdAt: zod.coerce.date(),
+});
+export const ListAutoApplyActivityResponse = zod.array(
+  ListAutoApplyActivityResponseItem,
+);
+
+/**
  * Owner-only. Returns up to 100 most-recent profile views, grouped
 so each viewing employer appears at most once with its latest
 viewedAt. Requires the candidate to currently be Boosted —

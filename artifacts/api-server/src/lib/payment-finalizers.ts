@@ -8,6 +8,7 @@ import {
   jobsTable,
   institutionSubscriptionsTable,
   employerSubscriptionsTable,
+  autoApplySubscriptionsTable,
   paymentsTable,
 } from "@workspace/db";
 import { getUncachableStripeClient } from "../stripeClient";
@@ -27,7 +28,8 @@ async function recordUnifiedPayment(args: {
     | "cv"
     | "job_tier"
     | "institution_subscription"
-    | "employer_subscription";
+    | "employer_subscription"
+    | "auto_apply_subscription";
   purposeId: number;
   amountSubunits: number;
   currency: string;
@@ -304,7 +306,10 @@ export async function applyStripeSubscriptionUpdate(sub: {
   current_period_end?: number;
   customer: string | { id: string } | null;
   items?: { data?: Array<{ current_period_end?: number }> };
-}): Promise<{ table: "institution" | "employer"; rowId: number } | null> {
+}): Promise<{
+  table: "institution" | "employer" | "auto_apply";
+  rowId: number;
+} | null> {
   const trialEndsAt = sub.trial_end ? new Date(sub.trial_end * 1000) : null;
   const periodEndUnix =
     sub.current_period_end ?? sub.items?.data?.[0]?.current_period_end ?? null;
@@ -361,6 +366,25 @@ export async function applyStripeSubscriptionUpdate(sub: {
       .where(eq(employerSubscriptionsTable.id, emp[0].id));
     return { table: "employer", rowId: emp[0].id };
   }
+  // Auto-apply subscriptions (no trial_ends_at column on this table).
+  const auto = await db
+    .select({ id: autoApplySubscriptionsTable.id })
+    .from(autoApplySubscriptionsTable)
+    .where(eq(autoApplySubscriptionsTable.stripeSubscriptionId, sub.id))
+    .limit(1);
+  if (auto[0]) {
+    await db
+      .update(autoApplySubscriptionsTable)
+      .set({
+        status: mapped,
+        stripeCustomerId: customerId,
+        ...(currentPeriodEnd ? { currentPeriodEnd } : {}),
+        updatedAt: new Date(),
+        ...(mapped === "canceled" ? { canceledAt: new Date() } : {}),
+      })
+      .where(eq(autoApplySubscriptionsTable.id, auto[0].id));
+    return { table: "auto_apply", rowId: auto[0].id };
+  }
   return null;
 }
 
@@ -381,6 +405,10 @@ export async function markStripeSubscriptionCanceled(
     .update(employerSubscriptionsTable)
     .set({ status: "canceled", canceledAt: now, updatedAt: now })
     .where(eq(employerSubscriptionsTable.stripeSubscriptionId, subscriptionId));
+  await db
+    .update(autoApplySubscriptionsTable)
+    .set({ status: "canceled", canceledAt: now, updatedAt: now })
+    .where(eq(autoApplySubscriptionsTable.stripeSubscriptionId, subscriptionId));
 }
 
 /**
@@ -523,6 +551,140 @@ export async function finalizeInstitutionSubscriptionFromPaystack(
 }
 
 /**
+ * Finalize an AI Auto-Apply Paystack subscription transaction.
+ *
+ * Same one-shot-per-period model as the institution variant: Paystack
+ * doesn't model recurring subs through our thin client, so a successful
+ * charge covers one `intervalDays` period — we flip to `active` and stamp
+ * `currentPeriodEnd = now + intervalDaysSnapshot`. Renewal is a future
+ * explicit checkout. Idempotent via the status guard + the unified
+ * ledger's (provider, externalRef) unique key.
+ */
+export async function finalizeAutoApplySubscriptionFromPaystack(
+  reference: string,
+): Promise<FinalizeResult> {
+  const rows = await db
+    .select()
+    .from(autoApplySubscriptionsTable)
+    .where(eq(autoApplySubscriptionsTable.paystackReference, reference))
+    .limit(1);
+  const row = rows[0];
+  if (!row) return { alreadyFinalized: false, paymentId: null, notFound: true };
+  if (row.status !== "pending") {
+    return { alreadyFinalized: true, paymentId: row.id };
+  }
+  const now = new Date();
+  const periodEnd = new Date(
+    now.getTime() + row.intervalDaysSnapshot * 24 * 60 * 60 * 1000,
+  );
+  await db
+    .update(autoApplySubscriptionsTable)
+    .set({
+      status: "active",
+      currentPeriodEnd: periodEnd,
+      startedAt: row.startedAt ?? now,
+      updatedAt: now,
+    })
+    .where(
+      and(
+        eq(autoApplySubscriptionsTable.id, row.id),
+        eq(autoApplySubscriptionsTable.status, "pending"),
+      ),
+    );
+  await recordUnifiedPayment({
+    provider: "paystack",
+    externalRef: reference,
+    purposeType: "auto_apply_subscription",
+    purposeId: row.id,
+    amountSubunits: row.priceCentsSnapshot,
+    currency: row.currencySnapshot,
+    status: "active",
+  });
+  return { alreadyFinalized: false, paymentId: row.id };
+}
+
+/**
+ * Stripe variant of the AI Auto-Apply subscription finalizer, kept for
+ * rail parity. Reads the recurring subscription off the checkout session
+ * and mirrors its status/period onto our row.
+ */
+export async function finalizeAutoApplySubscriptionFromStripe(
+  sessionId: string,
+): Promise<FinalizeResult> {
+  const rows = await db
+    .select()
+    .from(autoApplySubscriptionsTable)
+    .where(eq(autoApplySubscriptionsTable.stripeCheckoutSessionId, sessionId))
+    .limit(1);
+  const row = rows[0];
+  if (!row) return { alreadyFinalized: false, paymentId: null, notFound: true };
+  if (row.status !== "pending") {
+    return { alreadyFinalized: true, paymentId: row.id };
+  }
+  const stripe = await getUncachableStripeClient();
+  const session = await stripe.checkout.sessions.retrieve(sessionId, {
+    expand: ["subscription"],
+  });
+  const sub =
+    typeof session.subscription === "object" && session.subscription
+      ? (session.subscription as unknown as {
+          id: string;
+          status: string;
+          trial_end: number | null;
+          current_period_end?: number;
+          customer: string | { id: string } | null;
+          items?: { data?: Array<{ current_period_end?: number }> };
+        })
+      : null;
+  if (!sub) {
+    logger.warn(
+      { sessionId },
+      "stripe webhook: auto-apply subscription not yet attached",
+    );
+    return { alreadyFinalized: false, paymentId: row.id };
+  }
+  let mapped: "trialing" | "active" | "canceled" | "expired" | "failed" =
+    "failed";
+  if (sub.status === "trialing") mapped = "trialing";
+  else if (sub.status === "active") mapped = "active";
+  else if (sub.status === "canceled") mapped = "canceled";
+  else if (sub.status === "incomplete_expired" || sub.status === "unpaid")
+    mapped = "expired";
+  else if (sub.status === "past_due" || sub.status === "paused")
+    mapped = "expired";
+  else if (sub.status === "incomplete")
+    return { alreadyFinalized: false, paymentId: row.id };
+  const periodEndUnix =
+    sub.current_period_end ?? sub.items?.data?.[0]?.current_period_end ?? null;
+  if (!periodEndUnix) return { alreadyFinalized: false, paymentId: row.id };
+  const currentPeriodEnd = new Date(periodEndUnix * 1000);
+  const customerId =
+    typeof sub.customer === "string" ? sub.customer : sub.customer?.id ?? null;
+  await db
+    .update(autoApplySubscriptionsTable)
+    .set({
+      status: mapped,
+      stripeSubscriptionId: sub.id,
+      stripeCustomerId: customerId,
+      currentPeriodEnd,
+      startedAt: row.startedAt ?? new Date(),
+      updatedAt: new Date(),
+      ...(mapped === "canceled" ? { canceledAt: new Date() } : {}),
+    })
+    .where(eq(autoApplySubscriptionsTable.id, row.id));
+  await recordUnifiedPayment({
+    provider: "stripe",
+    externalRef: sessionId,
+    purposeType: "auto_apply_subscription",
+    purposeId: row.id,
+    amountSubunits: row.priceCentsSnapshot,
+    currency: row.currencySnapshot,
+    status: mapped,
+  });
+  return { alreadyFinalized: false, paymentId: row.id };
+}
+
+/**
  * Same shape as the institution variant but for employer subscriptions.
  * Recurring employer subs are formally deprecated (the /checkout route
  * returns 410) but historical rows still need to be finalized correctly
@@ -623,6 +785,9 @@ export async function finalizeFromStripeSessionId(
   if (!inst.notFound) return { flow: "institution_subscription", result: inst };
   const emp = await finalizeEmployerSubscriptionFromStripe(sessionId);
   if (!emp.notFound) return { flow: "employer_subscription", result: emp };
+  const autoApply = await finalizeAutoApplySubscriptionFromStripe(sessionId);
+  if (!autoApply.notFound)
+    return { flow: "auto_apply_subscription", result: autoApply };
   return { flow: null, result: null };
 }
 
@@ -645,5 +810,8 @@ export async function finalizeFromPaystackReference(
   if (!jt.notFound) return { flow: "job_tier", result: jt };
   const inst = await finalizeInstitutionSubscriptionFromPaystack(reference);
   if (!inst.notFound) return { flow: "institution_subscription", result: inst };
+  const autoApply = await finalizeAutoApplySubscriptionFromPaystack(reference);
+  if (!autoApply.notFound)
+    return { flow: "auto_apply_subscription", result: autoApply };
   return { flow: null, result: null };
 }

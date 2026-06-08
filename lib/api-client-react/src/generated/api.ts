@@ -13483,6 +13483,98 @@ export function useListAutoApplyActivity<
 }
 
 /**
+ * Marks the application that Auto-Apply submitted for this activity row as `withdrawn`. Owner-candidate (or admin with `auto-apply:manage`) only. Idempotent — withdrawing an already-withdrawn application returns the current row. Withdrawing does not re-trigger Auto-Apply for the same job because the application row (and the auto-apply log) still exist.
+ * @summary Withdraw an auto-submitted application from the candidate's activity
+ */
+export const getWithdrawAutoApplyApplicationUrl = (
+  id: number,
+  logId: number,
+) => {
+  return `/api/candidates/${id}/auto-apply/activity/${logId}/withdraw`;
+};
+
+export const withdrawAutoApplyApplication = async (
+  id: number,
+  logId: number,
+  options?: RequestInit,
+): Promise<AutoApplyActivityItem> => {
+  return customFetch<AutoApplyActivityItem>(
+    getWithdrawAutoApplyApplicationUrl(id, logId),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
+};
+
+export const getWithdrawAutoApplyApplicationMutationOptions = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof withdrawAutoApplyApplication>>,
+    TError,
+    { id: number; logId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof withdrawAutoApplyApplication>>,
+  TError,
+  { id: number; logId: number },
+  TContext
+> => {
+  const mutationKey = ["withdrawAutoApplyApplication"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof withdrawAutoApplyApplication>>,
+    { id: number; logId: number }
+  > = (props) => {
+    const { id, logId } = props ?? {};
+
+    return withdrawAutoApplyApplication(id, logId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type WithdrawAutoApplyApplicationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof withdrawAutoApplyApplication>>
+>;
+
+export type WithdrawAutoApplyApplicationMutationError = ErrorType<Error>;
+
+/**
+ * @summary Withdraw an auto-submitted application from the candidate's activity
+ */
+export const useWithdrawAutoApplyApplication = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof withdrawAutoApplyApplication>>,
+    TError,
+    { id: number; logId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof withdrawAutoApplyApplication>>,
+  TError,
+  { id: number; logId: number },
+  TContext
+> => {
+  return useMutation(getWithdrawAutoApplyApplicationMutationOptions(options));
+};
+
+/**
  * Owner-only. Returns up to 100 most-recent profile views, grouped
 so each viewing employer appears at most once with its latest
 viewedAt. Requires the candidate to currently be Boosted —

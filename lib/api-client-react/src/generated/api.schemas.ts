@@ -2746,6 +2746,23 @@ export interface VerifyAutoApplyCheckoutResponse {
   alreadyFinalized?: boolean;
 }
 
+/**
+ * Current status of the auto-submitted application, or null if the application no longer exists. `withdrawn` means the candidate withdrew it from this list.
+ */
+export type AutoApplyActivityItemApplicationStatus =
+  | (typeof AutoApplyActivityItemApplicationStatus)[keyof typeof AutoApplyActivityItemApplicationStatus]
+  | null;
+
+export const AutoApplyActivityItemApplicationStatus = {
+  applied: "applied",
+  screening: "screening",
+  interview: "interview",
+  offer: "offer",
+  hired: "hired",
+  rejected: "rejected",
+  withdrawn: "withdrawn",
+} as const;
+
 export interface AutoApplyActivityItem {
   id: number;
   jobId: number;
@@ -2753,6 +2770,8 @@ export interface AutoApplyActivityItem {
   matchScore: number;
   jobTitle: string;
   createdAt: string;
+  /** Current status of the auto-submitted application, or null if the application no longer exists. `withdrawn` means the candidate withdrew it from this list. */
+  applicationStatus: AutoApplyActivityItemApplicationStatus;
 }
 
 /**

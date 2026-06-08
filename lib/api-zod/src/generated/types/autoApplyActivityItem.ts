@@ -5,6 +5,7 @@
  * Talent Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { AutoApplyActivityItemApplicationStatus } from "./autoApplyActivityItemApplicationStatus";
 
 export interface AutoApplyActivityItem {
   id: number;
@@ -13,4 +14,6 @@ export interface AutoApplyActivityItem {
   matchScore: number;
   jobTitle: string;
   createdAt: Date;
+  /** Current status of the auto-submitted application, or null if the application no longer exists. `withdrawn` means the candidate withdrew it from this list. */
+  applicationStatus: AutoApplyActivityItemApplicationStatus;
 }

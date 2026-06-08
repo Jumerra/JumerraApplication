@@ -5875,10 +5875,56 @@ export const ListAutoApplyActivityResponseItem = zod.object({
   matchScore: zod.number(),
   jobTitle: zod.string(),
   createdAt: zod.coerce.date(),
+  applicationStatus: zod
+    .enum([
+      "applied",
+      "screening",
+      "interview",
+      "offer",
+      "hired",
+      "rejected",
+      "withdrawn",
+    ])
+    .nullable()
+    .describe(
+      "Current status of the auto-submitted application, or null if the application no longer exists. `withdrawn` means the candidate withdrew it from this list.",
+    ),
 });
 export const ListAutoApplyActivityResponse = zod.array(
   ListAutoApplyActivityResponseItem,
 );
+
+/**
+ * Marks the application that Auto-Apply submitted for this activity row as `withdrawn`. Owner-candidate (or admin with `auto-apply:manage`) only. Idempotent — withdrawing an already-withdrawn application returns the current row. Withdrawing does not re-trigger Auto-Apply for the same job because the application row (and the auto-apply log) still exist.
+ * @summary Withdraw an auto-submitted application from the candidate's activity
+ */
+export const WithdrawAutoApplyApplicationParams = zod.object({
+  id: zod.coerce.number(),
+  logId: zod.coerce.number(),
+});
+
+export const WithdrawAutoApplyApplicationResponse = zod.object({
+  id: zod.number(),
+  jobId: zod.number(),
+  applicationId: zod.number().nullable(),
+  matchScore: zod.number(),
+  jobTitle: zod.string(),
+  createdAt: zod.coerce.date(),
+  applicationStatus: zod
+    .enum([
+      "applied",
+      "screening",
+      "interview",
+      "offer",
+      "hired",
+      "rejected",
+      "withdrawn",
+    ])
+    .nullable()
+    .describe(
+      "Current status of the auto-submitted application, or null if the application no longer exists. `withdrawn` means the candidate withdrew it from this list.",
+    ),
+});
 
 /**
  * Owner-only. Returns up to 100 most-recent profile views, grouped

@@ -8,6 +8,8 @@ import {
   candidatesTable,
   jobsTable,
   usersTable,
+  applicationsTable,
+  applicationStatusHistoryTable,
 } from "@workspace/db";
 import { requireAuth } from "../middleware/require-auth";
 import {
@@ -712,9 +714,14 @@ router.get(
         matchScore: autoApplyLogTable.matchScore,
         createdAt: autoApplyLogTable.createdAt,
         jobTitle: jobsTable.title,
+        applicationStatus: applicationsTable.status,
       })
       .from(autoApplyLogTable)
       .leftJoin(jobsTable, eq(jobsTable.id, autoApplyLogTable.jobId))
+      .leftJoin(
+        applicationsTable,
+        eq(applicationsTable.id, autoApplyLogTable.applicationId),
+      )
       .where(eq(autoApplyLogTable.candidateId, candidateId))
       .orderBy(desc(autoApplyLogTable.createdAt))
       .limit(50);
@@ -726,8 +733,122 @@ router.get(
         matchScore: r.matchScore,
         jobTitle: r.jobTitle ?? "(job removed)",
         createdAt: r.createdAt.toISOString(),
+        applicationStatus: r.applicationStatus ?? null,
       })),
     );
+  },
+);
+
+/**
+ * POST /api/candidates/:id/auto-apply/activity/:logId/withdraw
+ * Auth required (owner candidate or admin). Marks the application that
+ * Auto-Apply submitted for this activity row as `withdrawn` and appends a
+ * status-history row, mirroring the employer PATCH path. Idempotent: an
+ * already-withdrawn application returns the current row.
+ *
+ * Withdrawing does NOT re-trigger Auto-Apply for the same job: the application
+ * row and the auto_apply_log row both remain, so `attemptAutoApply`'s
+ * applications-table dedupe (which matches on (candidate, job) regardless of
+ * status) and the auto_apply_log UNIQUE(candidate, job) both still short-circuit
+ * a re-submission.
+ */
+router.post(
+  "/candidates/:id/auto-apply/activity/:logId/withdraw",
+  requireAuth,
+  async (req, res) => {
+    const candidateId = Number(req.params.id);
+    const logId = Number(req.params.logId);
+    if (!Number.isInteger(candidateId) || candidateId <= 0) {
+      res.status(400).json({ error: "Invalid candidate id" });
+      return;
+    }
+    if (!Number.isInteger(logId) || logId <= 0) {
+      res.status(400).json({ error: "Invalid activity id" });
+      return;
+    }
+    const { allowed } = await resolveCandidateAccess(req.currentUser!, candidateId);
+    if (!allowed) {
+      res.status(403).json({ error: "Not allowed" });
+      return;
+    }
+
+    const logRows = await db
+      .select({
+        id: autoApplyLogTable.id,
+        jobId: autoApplyLogTable.jobId,
+        applicationId: autoApplyLogTable.applicationId,
+        matchScore: autoApplyLogTable.matchScore,
+        createdAt: autoApplyLogTable.createdAt,
+      })
+      .from(autoApplyLogTable)
+      .where(
+        and(
+          eq(autoApplyLogTable.id, logId),
+          eq(autoApplyLogTable.candidateId, candidateId),
+        ),
+      )
+      .limit(1);
+    const log = logRows[0];
+    if (!log) {
+      res.status(404).json({ error: "Activity not found" });
+      return;
+    }
+    if (log.applicationId == null) {
+      res.status(400).json({ error: "This activity has no application to withdraw" });
+      return;
+    }
+
+    const appRows = await db
+      .select({
+        id: applicationsTable.id,
+        status: applicationsTable.status,
+        candidateId: applicationsTable.candidateId,
+      })
+      .from(applicationsTable)
+      .where(eq(applicationsTable.id, log.applicationId))
+      .limit(1);
+    const app = appRows[0];
+    if (!app || app.candidateId !== candidateId) {
+      res.status(404).json({ error: "Application not found" });
+      return;
+    }
+
+    const jobRows = await db
+      .select({ title: jobsTable.title })
+      .from(jobsTable)
+      .where(eq(jobsTable.id, log.jobId))
+      .limit(1);
+    const jobTitle = jobRows[0]?.title ?? "(job removed)";
+
+    const buildItem = (status: string) => ({
+      id: log.id,
+      jobId: log.jobId,
+      applicationId: log.applicationId,
+      matchScore: log.matchScore,
+      jobTitle,
+      createdAt: log.createdAt.toISOString(),
+      applicationStatus: status,
+    });
+
+    // Idempotent: already withdrawn → return the current row unchanged.
+    if (app.status === "withdrawn") {
+      res.json(buildItem("withdrawn"));
+      return;
+    }
+
+    await db.transaction(async (tx) => {
+      await tx
+        .update(applicationsTable)
+        .set({ status: "withdrawn" })
+        .where(eq(applicationsTable.id, app.id));
+      await tx.insert(applicationStatusHistoryTable).values({
+        applicationId: app.id,
+        status: "withdrawn",
+        changedBy: req.currentUser!.id,
+      });
+    });
+
+    res.json(buildItem("withdrawn"));
   },
 );
 

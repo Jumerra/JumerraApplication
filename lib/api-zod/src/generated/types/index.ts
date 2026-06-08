@@ -89,6 +89,7 @@ export * from "./authUserMinistryType";
 export * from "./authUserRole";
 export * from "./authUserStatus";
 export * from "./autoApplyActivityItem";
+export * from "./autoApplyActivityItemApplicationStatus";
 export * from "./autoApplySettings";
 export * from "./autoApplyStatusResponse";
 export * from "./autoApplySubscription";

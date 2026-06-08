@@ -6,6 +6,7 @@ import {
   useToggleAutoApply,
   useCreateAutoApplyCheckout,
   useListAutoApplyActivity,
+  useWithdrawAutoApplyApplication,
   getGetAutoApplyStatusQueryKey,
   getListAutoApplyActivityQueryKey,
 } from "@workspace/api-client-react";
@@ -26,7 +27,52 @@ import {
   Clock,
   ArrowRight,
   Sparkles,
+  X,
 } from "lucide-react";
+
+type ApplicationStatus =
+  | "applied"
+  | "screening"
+  | "interview"
+  | "offer"
+  | "hired"
+  | "rejected"
+  | "withdrawn";
+
+const STATUS_LABEL: Record<ApplicationStatus, string> = {
+  applied: "Applied",
+  screening: "Screening",
+  interview: "Interview",
+  offer: "Offer",
+  hired: "Hired",
+  rejected: "Rejected",
+  withdrawn: "Withdrawn",
+};
+
+const STATUS_BADGE_CLASS: Record<ApplicationStatus, string> = {
+  applied:
+    "bg-blue-500/10 text-blue-700 dark:text-blue-400",
+  screening:
+    "bg-amber-500/10 text-amber-700 dark:text-amber-400",
+  interview:
+    "bg-violet-500/10 text-violet-700 dark:text-violet-400",
+  offer:
+    "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+  hired:
+    "bg-green-500/10 text-green-700 dark:text-green-400",
+  rejected:
+    "bg-destructive/10 text-destructive",
+  withdrawn:
+    "bg-zinc-500/10 text-zinc-600 dark:text-zinc-400",
+};
+
+// Once an employer has made a final decision, withdrawing makes no sense.
+const WITHDRAWABLE = new Set<ApplicationStatus>([
+  "applied",
+  "screening",
+  "interview",
+  "offer",
+]);
 
 function formatPrice(cents: number, currency: string) {
   try {
@@ -75,12 +121,31 @@ export default function CandidateAutoApplyPage() {
   });
   const toggle = useToggleAutoApply();
   const checkout = useCreateAutoApplyCheckout();
+  const withdraw = useWithdrawAutoApplyApplication();
   const [error, setError] = useState<string | null>(null);
+  const [withdrawingId, setWithdrawingId] = useState<number | null>(null);
 
   const refresh = async () => {
     await queryClient.invalidateQueries({
       queryKey: getGetAutoApplyStatusQueryKey(candidateId),
     });
+  };
+
+  const onWithdraw = async (logId: number) => {
+    setError(null);
+    setWithdrawingId(logId);
+    try {
+      await withdraw.mutateAsync({ id: candidateId, logId });
+      await queryClient.invalidateQueries({
+        queryKey: getListAutoApplyActivityQueryKey(candidateId),
+      });
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to withdraw application",
+      );
+    } finally {
+      setWithdrawingId(null);
+    }
   };
 
   const onToggle = async (next: boolean) => {
@@ -268,29 +333,63 @@ export default function CandidateAutoApplyPage() {
                 </p>
               ) : (
                 <ul className="divide-y">
-                  {activity.map((item) => (
-                    <li
-                      key={item.id}
-                      className="flex items-center justify-between gap-4 py-3"
-                      data-testid={`row-auto-apply-${item.id}`}
-                    >
-                      <div className="min-w-0">
-                        <Link
-                          href={`/jobs/${item.jobId}`}
-                          className="font-medium hover:underline truncate block"
-                        >
-                          {item.jobTitle}
-                        </Link>
-                        <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                          <Clock className="w-3 h-3" />
-                          {formatDateTime(item.createdAt)}
-                        </p>
-                      </div>
-                      <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                        {item.matchScore}% match
-                      </span>
-                    </li>
-                  ))}
+                  {activity.map((item) => {
+                    const appStatus = item.applicationStatus as
+                      | ApplicationStatus
+                      | null;
+                    const canWithdraw =
+                      item.applicationId != null &&
+                      appStatus != null &&
+                      WITHDRAWABLE.has(appStatus);
+                    return (
+                      <li
+                        key={item.id}
+                        className="flex items-center justify-between gap-4 py-3"
+                        data-testid={`row-auto-apply-${item.id}`}
+                      >
+                        <div className="min-w-0">
+                          <Link
+                            href={`/jobs/${item.jobId}`}
+                            className="font-medium hover:underline truncate block"
+                          >
+                            {item.jobTitle}
+                          </Link>
+                          <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                            <Clock className="w-3 h-3" />
+                            {formatDateTime(item.createdAt)}
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                            {item.matchScore}% match
+                          </span>
+                          {appStatus ? (
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_BADGE_CLASS[appStatus]}`}
+                              data-testid={`status-auto-apply-${item.id}`}
+                            >
+                              {STATUS_LABEL[appStatus]}
+                            </span>
+                          ) : null}
+                          {canWithdraw ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
+                              disabled={withdrawingId === item.id}
+                              onClick={() => onWithdraw(item.id)}
+                              data-testid={`button-withdraw-auto-apply-${item.id}`}
+                            >
+                              <X className="w-3 h-3 mr-1" />
+                              {withdrawingId === item.id
+                                ? "Withdrawing..."
+                                : "Withdraw"}
+                            </Button>
+                          ) : null}
+                        </div>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </CardContent>

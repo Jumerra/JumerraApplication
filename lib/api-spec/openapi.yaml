@@ -3315,6 +3315,48 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
 
+  /candidates/{id}/auto-apply/activity/{logId}/withdraw:
+    post:
+      operationId: withdrawAutoApplyApplication
+      tags: [auto-apply, candidates]
+      summary: Withdraw an auto-submitted application from the candidate's activity
+      description: >-
+        Marks the application that Auto-Apply submitted for this activity row as
+        `withdrawn`. Owner-candidate (or admin with `auto-apply:manage`) only.
+        Idempotent — withdrawing an already-withdrawn application returns the
+        current row. Withdrawing does not re-trigger Auto-Apply for the same job
+        because the application row (and the auto-apply log) still exist.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+        - in: path
+          name: logId
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Updated activity row
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AutoApplyActivityItem" }
+        "400":
+          description: Invalid input or nothing to withdraw
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
+          description: Not allowed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Activity row or application not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
   /candidates/{id}/profile-views:
     get:
       operationId: listCandidateProfileViews
@@ -7902,7 +7944,16 @@ components:
         matchScore: { type: integer }
         jobTitle: { type: string }
         createdAt: { type: string, format: date-time }
-      required: [id, jobId, applicationId, matchScore, jobTitle, createdAt]
+        applicationStatus:
+          type: string
+          enum: [applied, screening, interview, offer, hired, rejected, withdrawn]
+          nullable: true
+          description: >-
+            Current status of the auto-submitted application, or null if the
+            application no longer exists. `withdrawn` means the candidate
+            withdrew it from this list.
+      required:
+        [id, jobId, applicationId, matchScore, jobTitle, createdAt, applicationStatus]
 
     InstitutionSubscriptionSettings:
       type: object

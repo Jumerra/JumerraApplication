@@ -12,6 +12,7 @@ import {
   applicationStatusHistoryTable,
 } from "@workspace/db";
 import { requireAuth } from "../middleware/require-auth";
+import { sendNotification } from "../lib/notifier";
 import {
   requirePermission,
   isImplicitAllUser,
@@ -814,11 +815,12 @@ router.post(
     }
 
     const jobRows = await db
-      .select({ title: jobsTable.title })
+      .select({ title: jobsTable.title, employerId: jobsTable.employerId })
       .from(jobsTable)
       .where(eq(jobsTable.id, log.jobId))
       .limit(1);
     const jobTitle = jobRows[0]?.title ?? "(job removed)";
+    const employerId = jobRows[0]?.employerId ?? null;
 
     const buildItem = (status: string) => ({
       id: log.id,
@@ -848,8 +850,75 @@ router.post(
       });
     });
 
+    // Best-effort: tell the owning employer so they stop working a dead
+    // lead. Mirrors how candidates are notified on employer-driven status
+    // changes. Never blocks (or rolls back) the withdraw.
+    try {
+      await notifyEmployerOfWithdrawal({
+        employerId,
+        candidateId,
+        applicationId: app.id,
+        jobTitle,
+        log: req.log,
+      });
+    } catch (err) {
+      req.log.warn(
+        { err, applicationId: app.id },
+        "Failed to notify employer of application withdrawal",
+      );
+    }
+
     res.json(buildItem("withdrawn"));
   },
 );
+
+/**
+ * Fan-out an in-app notification to every employer-role member of the org
+ * that owns the job whose application a candidate just withdrew. Best-effort:
+ * any failure is logged by the caller and never affects the withdraw. The
+ * notification deep-links the employer to their pipeline board.
+ */
+async function notifyEmployerOfWithdrawal(args: {
+  employerId: number | null;
+  candidateId: number;
+  applicationId: number;
+  jobTitle: string;
+  log: { warn: (...a: unknown[]) => void };
+}): Promise<void> {
+  const { employerId, candidateId, applicationId, jobTitle } = args;
+  if (employerId == null) return;
+
+  const [cand] = await db
+    .select({ fullName: candidatesTable.fullName })
+    .from(candidatesTable)
+    .where(eq(candidatesTable.id, candidateId))
+    .limit(1);
+  const candidateName = cand?.fullName ?? "A candidate";
+
+  const recipients = await db
+    .select({ userId: usersTable.id })
+    .from(usersTable)
+    .where(
+      and(
+        eq(usersTable.role, "employer"),
+        eq(usersTable.employerId, employerId),
+      ),
+    );
+  if (recipients.length === 0) return;
+
+  await Promise.all(
+    recipients.map((r) =>
+      sendNotification({
+        userId: r.userId,
+        kind: "application_withdrawn",
+        title: `${candidateName} withdrew their application`,
+        body: `${candidateName} withdrew from your ${jobTitle} role. Tap to update your pipeline.`,
+        link: `/dashboard/employer/pipeline`,
+        category: "applicationStatus",
+        data: { applicationId, candidateId },
+      }),
+    ),
+  );
+}
 
 export default router;

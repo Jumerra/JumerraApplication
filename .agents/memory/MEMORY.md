@@ -1,3 +1,2 @@
-- [DB schema source of truth](db-source-of-truth.md) — committed Drizzle migration journal is stale; provision scratch/fresh DBs with `drizzle-kit push --force`, not migrate().
 - [Stripe subscription table wiring](stripe-subscription-tables.md) — new recurring-sub tables must be wired into lifecycle webhook handlers, not just checkout.
-- [Auto-apply gate race](stripe-subscription-tables.md) — every writer to job_challenges AND the auto-apply submitter must share one jobs-row FOR UPDATE lock; job+default-challenge creation must be atomic.
+- [Auto-apply gate race](auto-apply-gate-race.md) — every job_challenges writer AND the auto-apply submitter must share one jobs-row FOR UPDATE lock; job+default-challenge creation must be atomic.

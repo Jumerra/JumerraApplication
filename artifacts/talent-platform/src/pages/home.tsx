@@ -82,8 +82,10 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Trust Band */}
-      {stats && (
+      {/* Trust Band — hidden by default until an admin enables it from
+          Site content (home.stats.visible = "true"). Keeps fabricated-looking
+          stats off the page until there are enough real users to show. */}
+      {stats && content("home.stats.visible", "false") === "true" && (
         <section className="py-8 border-y bg-muted/30">
           <div className="container px-4 md:px-6">
             <div className="flex flex-wrap justify-center gap-8 md:gap-16 text-center">

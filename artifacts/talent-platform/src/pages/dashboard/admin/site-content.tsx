@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import {
   ShieldAlert,
@@ -36,6 +37,11 @@ type Section = {
   description: string;
   fields: FieldDef[];
 };
+
+// Visibility flag for the homepage "Trust Band" (Active Candidates / Top
+// Employers / Successful Hires). Stored in site_content as a text value
+// "true"/"false". Hidden by default until there are enough real users.
+const STATS_VISIBLE_KEY = "home.stats.visible";
 
 const SECTIONS: Section[] = [
   {
@@ -193,6 +199,7 @@ export default function AdminSiteContentPage() {
         next[f.key] = currentMap.get(f.key) ?? f.fallback;
       }
     }
+    next[STATS_VISIBLE_KEY] = currentMap.get(STATS_VISIBLE_KEY) ?? "false";
     setValues(next);
     hydratedRef.current = true;
   }, [data, currentMap]);
@@ -216,6 +223,11 @@ export default function AdminSiteContentPage() {
           });
         }
       }
+      items.push({
+        key: STATS_VISIBLE_KEY,
+        type: "text",
+        value: values[STATS_VISIBLE_KEY] === "true" ? "true" : "false",
+      });
       await update.mutateAsync({ data: { items } });
       await queryClient.invalidateQueries({ queryKey: getGetSiteContentQueryKey() });
       setSavedAt(new Date());
@@ -256,6 +268,41 @@ export default function AdminSiteContentPage() {
           <span>Saved at {savedAt.toLocaleTimeString()}. Refresh the homepage to see your changes.</span>
         </div>
       )}
+
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle>Homepage stats band</CardTitle>
+          <CardDescription>
+            The "Active Candidates / Top Employers / Successful Hires" strip on
+            the landing page. Keep this off until you have enough real users —
+            turn it on when you're ready to show the numbers publicly.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between rounded-lg border p-4">
+            <div className="space-y-0.5 pr-4">
+              <Label htmlFor="stats-visible" className="text-base">
+                Show stats band on the landing page
+              </Label>
+              <p className="text-sm text-muted-foreground">
+                {values[STATS_VISIBLE_KEY] === "true"
+                  ? "Visitors currently see live platform counts."
+                  : "Hidden — visitors do not see any platform counts."}
+              </p>
+            </div>
+            <Switch
+              id="stats-visible"
+              checked={values[STATS_VISIBLE_KEY] === "true"}
+              onCheckedChange={(checked) =>
+                setValues((v) => ({
+                  ...v,
+                  [STATS_VISIBLE_KEY]: checked ? "true" : "false",
+                }))
+              }
+            />
+          </div>
+        </CardContent>
+      </Card>
 
       {SECTIONS.map((section) => (
         <Card key={section.id} className="shadow-sm">
